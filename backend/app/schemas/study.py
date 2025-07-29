@@ -20,7 +20,7 @@ class StudyCreate(StudyBase):
 class StudyUpdate(BaseModel):
     """Schema for updating an existing study."""
     
-    study_label: Optional[str] = Field(None, min_length=1, max_length=255, description="Study label")
+    study_label: str = Field(..., min_length=1, max_length=255, description="Study label")
 
 
 class StudyInDB(StudyBase):

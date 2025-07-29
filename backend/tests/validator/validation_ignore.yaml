@@ -1,0 +1,56 @@
+# FastAPI Model Validator - Ignore Rules
+# Configure which validation issues to ignore
+
+# Ignore specific field-model combinations
+ignore_rules:
+  - category: "nullable_mismatch"
+    sqlalchemy_model: "Study"
+    pydantic_model: "StudyUpdate"
+    field_name: "study_label"
+    reason: "Update schemas should allow optional fields for partial updates"
+    
+  # Example: Ignore missing timestamp fields in Create schemas  
+  - category: "missing_field"
+    pydantic_model: "*Create"
+    field_name: "created_at"
+    reason: "Timestamp fields are auto-generated and not needed in create schemas"
+    
+  - category: "missing_field"
+    pydantic_model: "*Create"
+    field_name: "updated_at"
+    reason: "Timestamp fields are auto-generated and not needed in create schemas"
+
+# Ignore patterns
+ignore_patterns:
+  # Ignore missing ID fields in certain schema types
+  - field_regex: "^id$"
+    model_regex: ".*(?:Base|Create|Update)$"
+    category: "missing_field"
+    reason: "ID fields typically excluded from these schema types"
+    
+  # Ignore auto-generated fields
+  - field_regex: "^(created_at|updated_at|deleted_at)$"
+    model_regex: ".*Create$"
+    category: "missing_field" 
+    reason: "Auto-generated timestamp fields not needed in create schemas"
+
+# Global ignore settings
+global_ignores:
+  categories:
+    # Uncomment to ignore all naming convention warnings
+    # - "naming_convention"
+  
+  severity_levels:
+    # Uncomment to ignore all INFO level issues
+    # - "INFO"
+
+# Project-specific settings
+project_settings:
+  # Allow nullable mismatches for Update schemas (common pattern)
+  allow_nullable_in_updates: true
+  
+  # Allow missing ID in Base/Create/Update schemas
+  allow_missing_id_in_crud_schemas: true
+  
+  # Require field descriptions in Pydantic models
+  require_field_descriptions: false

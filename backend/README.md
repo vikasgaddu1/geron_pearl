@@ -119,6 +119,23 @@ backend/
    python run.py
    ```
 
+   **If port 8000 is already in use**, kill the process:
+   ```bash
+   # Kill process using port 8000 directly
+   fuser -k 8000/tcp
+   
+   # Or kill by process pattern
+   pkill -f "port=8000"
+   pkill -f "uvicorn.*8000"
+   
+   # Or find and kill by port
+   lsof -ti:8000 | xargs kill -9
+   
+   # On Windows
+   netstat -ano | findstr :8000
+   taskkill /PID <PID> /F
+   ```
+
 ## API Endpoints
 
 ### Health Check

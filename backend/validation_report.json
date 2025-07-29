@@ -1,0 +1,9 @@
+{
+  "summary": {
+    "total_issues": 0,
+    "severity_counts": {},
+    "sqlalchemy_models": 1,
+    "pydantic_models": 4
+  },
+  "issues": []
+}

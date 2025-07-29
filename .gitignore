@@ -298,3 +298,4 @@ test-results.xml
 # Backup files
 *.bak
 *.backup 
+.Rproj.user

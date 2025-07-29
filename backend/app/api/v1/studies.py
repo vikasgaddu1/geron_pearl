@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.crud import study
 from app.db.session import get_db
 from app.schemas.study import Study, StudyCreate, StudyUpdate
+from app.api.v1.websocket import broadcast_study_created, broadcast_study_updated, broadcast_study_deleted
 
 router = APIRouter()
 
@@ -30,7 +31,16 @@ async def create_study(
                 detail="Study with this label already exists"
             )
         
-        return await study.create(db, obj_in=study_in)
+        created_study = await study.create(db, obj_in=study_in)
+        
+        # Broadcast WebSocket event for real-time updates
+        try:
+            await broadcast_study_created(created_study)
+        except Exception as ws_error:
+            # Log WebSocket error but don't fail the request
+            print(f"WebSocket broadcast error: {ws_error}")
+        
+        return created_study
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
@@ -112,7 +122,16 @@ async def update_study(
                     detail="Study with this label already exists"
                 )
         
-        return await study.update(db, db_obj=db_study, obj_in=study_in)
+        updated_study = await study.update(db, db_obj=db_study, obj_in=study_in)
+        
+        # Broadcast WebSocket event for real-time updates
+        try:
+            await broadcast_study_updated(updated_study)
+        except Exception as ws_error:
+            # Log WebSocket error but don't fail the request
+            print(f"WebSocket broadcast error: {ws_error}")
+        
+        return updated_study
     except HTTPException:
         raise
     except Exception:
@@ -139,7 +158,16 @@ async def delete_study(
                 detail="Study not found"
             )
         
-        return await study.delete(db, id=study_id)
+        deleted_study = await study.delete(db, id=study_id)
+        
+        # Broadcast WebSocket event for real-time updates
+        try:
+            await broadcast_study_deleted(study_id)
+        except Exception as ws_error:
+            # Log WebSocket error but don't fail the request
+            print(f"WebSocket broadcast error: {ws_error}")
+        
+        return deleted_study
     except HTTPException:
         raise
     except Exception:
