@@ -92,11 +92,8 @@ uv run python tests/validator/run_model_validation.py
 ### Frontend Commands (from `admin-frontend/`)
 
 ```bash
-# First-time setup: Initialize renv environment
-Rscript init_renv.R
-
-# Restore R dependencies (subsequent runs)
-Rscript install_dependencies.R
+# Environment setup (first-time or updates - consolidated script)
+Rscript setup_environment.R
 
 # Start R Shiny admin dashboard (port 3838)
 Rscript run_app.R
@@ -225,7 +222,7 @@ uv run python run.py
 
 # 2. Frontend setup (new terminal)
 cd admin-frontend  
-Rscript init_renv.R        # First-time setup only
+Rscript setup_environment.R    # Environment setup (first-time or updates)
 Rscript run_app.R
 
 # 3. Access applications
