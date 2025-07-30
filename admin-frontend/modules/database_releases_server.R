@@ -224,6 +224,7 @@ database_releases_server <- function(id) {
         )
         return(DT::datatable(
           empty_df,
+          filter = 'top', # Add column filters on top
           options = list(
             dom = 'ft', # Only show filter and table
             pageLength = 10,
@@ -231,12 +232,12 @@ database_releases_server <- function(id) {
             columnDefs = list(
               list(targets = 0, width = "35%"), # Study Label column
               list(targets = 1, width = "35%"), # Release Label column
-              list(targets = 2, width = "30%", orderable = FALSE, className = "text-center") # Actions column
+              list(targets = 2, width = "30%", orderable = FALSE, className = "text-center", searchable = FALSE) # Actions column - not searchable
             ),
             language = list(
               emptyTable = empty_message,
-              search = "Search releases:",
-              searchPlaceholder = "Type to filter..."
+              search = "Search all:",
+              searchPlaceholder = "Type to search all columns..."
             )
           ),
           rownames = FALSE,
@@ -265,11 +266,15 @@ database_releases_server <- function(id) {
         ))
       })
       
+      # Sort releases by Study ID first, then by Release ID
+      releases <- releases[order(releases$`Study ID`, releases$ID), ]
+      
       # Hide ID and Study ID columns but keep for reference
       display_df <- releases[, c("Study Label", "Release Label", "Actions"), drop = FALSE]
       
       DT::datatable(
         display_df,
+        filter = 'top', # Add column filters on top
         options = list(
           dom = 'ft', # Only show filter and table (f=filter, t=table)
           pageLength = 10,
@@ -277,11 +282,11 @@ database_releases_server <- function(id) {
           columnDefs = list(
             list(targets = 0, width = "35%"), # Study Label column
             list(targets = 1, width = "35%"), # Release Label column
-            list(targets = 2, width = "30%", orderable = FALSE, className = "text-center") # Actions column
+            list(targets = 2, width = "30%", orderable = FALSE, className = "text-center", searchable = FALSE) # Actions column - not searchable
           ),
           language = list(
-            search = "Search releases:",
-            searchPlaceholder = "Type to filter..."
+            search = "Search all:",
+            searchPlaceholder = "Type to search all columns..."
           ),
           drawCallback = JS(sprintf("
             function() {
@@ -310,11 +315,13 @@ database_releases_server <- function(id) {
       current_releases <- releases_data()
       if (!is.null(input$new_study_id) && input$new_study_id != "") {
         # Filter to show only releases for selected study
+        should_show_all_releases(FALSE)
         filtered <- current_releases[current_releases$`Study ID` == as.numeric(input$new_study_id), ]
         filtered_releases(filtered)
         cat("🔍 Filtering table to show", nrow(filtered), "releases for study ID", input$new_study_id, "\n")
       } else {
         # Show all releases when no study is selected
+        should_show_all_releases(TRUE)
         filtered_releases(current_releases)
         cat("📋 Showing all", nrow(current_releases), "releases\n")
       }
@@ -323,18 +330,28 @@ database_releases_server <- function(id) {
     # Update filtered data when releases data changes
     observeEvent(releases_data(), {
       current_releases <- releases_data()
-      if (!is.null(input$new_study_id) && input$new_study_id != "") {
+      
+      # Check if we should maintain "show all" state (after creation/reset)
+      if (should_show_all_releases()) {
+        filtered_releases(current_releases)
+        cat("🔄 Data updated: Maintaining show all state (", nrow(current_releases), "releases)\n")
+      } else if (!is.null(input$new_study_id) && input$new_study_id != "") {
         # Filter to show only releases for selected study
         filtered <- current_releases[current_releases$`Study ID` == as.numeric(input$new_study_id), ]
         filtered_releases(filtered)
+        cat("🔍 Data updated: Maintaining filter for study ID", input$new_study_id, "(", nrow(filtered), "releases)\n")
       } else {
         # Show all releases when no study is selected
         filtered_releases(current_releases)
+        cat("📋 Data updated: Showing all", nrow(current_releases), "releases\n")
       }
     })
     
     # Track sidebar state to detect when it closes
     sidebar_is_open <- reactiveVal(FALSE)
+    
+    # Track when we explicitly want to show all releases (not filtered)
+    should_show_all_releases <- reactiveVal(TRUE)
     
     # Toggle add release sidebar
     observeEvent(input$toggle_add_form, {
@@ -377,9 +394,10 @@ database_releases_server <- function(id) {
         updateSelectInput(session, "new_study_id", choices = list("No studies available" = ""), selected = "")
       }
       
-      # Reset table filter to show all releases
+      # Set flag to show all releases and update filter
+      should_show_all_releases(TRUE)
       filtered_releases(releases_data())
-      cat("🔄 Sidebar closed: Reset filter to show all", nrow(releases_data()), "releases\n")
+      cat("🔄 Reset filter: Show all", nrow(releases_data()), "releases\n")
     }
     
     # Cancel new release
@@ -426,9 +444,9 @@ database_releases_server <- function(id) {
         sidebar_toggle(id = "add_release_sidebar")
         sidebar_is_open(FALSE)
         
-        # Reset filter and form after successful creation
+        # Reset filter first to ensure clean state
         reset_filter_and_form()
-        cat("✅ Release created successfully\n")
+        cat("✅ Release created: Reset filter to show all releases\n")
         
         # Data will be updated via WebSocket events or fallback to HTTP
         load_releases_data()
