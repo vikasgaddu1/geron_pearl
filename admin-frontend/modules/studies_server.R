@@ -9,7 +9,6 @@ studies_server <- function(id) {
     last_update <- reactiveVal(Sys.time())
     is_editing <- reactiveVal(FALSE)
     editing_study_id <- reactiveVal(NULL)
-    websocket_status <- reactiveVal("Initializing")
     
     # Set up validation for new study form
     iv_new <- InputValidator$new()
@@ -57,12 +56,7 @@ studies_server <- function(id) {
       }
     }
     
-    # Handle WebSocket status updates from JavaScript
-    observeEvent(input$websocket_status, {
-      status <- input$websocket_status
-      websocket_status(status)
-      cat("🔄 WebSocket status update:", status, "\n")
-    })
+    # Note: WebSocket status is now handled in main app.R
     
     # Handle WebSocket events from JavaScript
     observeEvent(input$websocket_event, {
@@ -477,18 +471,6 @@ studies_server <- function(id) {
     # Last updated display
     output$last_updated_display <- renderText({
       paste("Updated:", format(last_update(), "%H:%M:%S"))
-    })
-    
-    # WebSocket status display
-    output$websocket_status_display <- renderText({
-      status <- websocket_status()
-      icon <- switch(status,
-        "Connected" = "🟢",
-        "Connecting" = "🟡", 
-        "Disconnected" = "🔴",
-        "🔴"
-      )
-      paste(icon, "WebSocket:", status)
     })
   })
 }

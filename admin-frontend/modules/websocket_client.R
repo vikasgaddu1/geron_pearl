@@ -5,7 +5,13 @@ library(websocket)
 library(jsonlite)
 
 # WebSocket configuration
-WS_URL <- "ws://localhost:8000/api/v1/ws/studies"
+get_websocket_url <- function() {
+  api_base <- Sys.getenv("PEARL_API_URL", "http://localhost:8000")
+  api_path <- Sys.getenv("PEARL_API_WEBSOCKET_PATH", "/api/v1/ws/studies")
+  return(paste0(gsub("^http", "ws", api_base), api_path))
+}
+
+WS_URL <- get_websocket_url()  # Uses environment variables dynamically
 WS_RECONNECT_INTERVAL <- 5  # seconds
 
 # Global WebSocket connection

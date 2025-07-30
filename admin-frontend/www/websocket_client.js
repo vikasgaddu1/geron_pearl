@@ -12,7 +12,10 @@ class PearlWebSocketClient {
         this.messageHandlers = new Map();
         
         // WebSocket configuration
-        this.wsUrl = 'ws://localhost:8000/api/v1/ws/studies';
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = new URL(window.pearlApiUrl || 'http://localhost:8000');
+        const wsPath = window.pearlWsPath || '/api/v1/ws/studies';
+        this.wsUrl = `${wsProtocol}//${wsUrl.host}${wsPath}`;
         
         console.log('🔌 PearlWebSocketClient initialized');
     }
@@ -129,6 +132,7 @@ class PearlWebSocketClient {
                 
             case 'error':
                 console.error('❌ Server error:', data.message);
+                this.showNotification(`Server error: ${data.message}`, 'error');
                 break;
                 
             default:
@@ -228,7 +232,7 @@ class PearlWebSocketClient {
     updateShinyStatus(status) {
         if (typeof Shiny !== 'undefined') {
             console.log('🔄 Updating Shiny status:', status);
-            Shiny.setInputValue('studies-websocket_status', status);
+            Shiny.setInputValue('websocket_status', status, {priority: 'event'});
         } else {
             console.log('⚠️ Shiny not available for status update');
         }

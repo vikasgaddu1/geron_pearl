@@ -4,18 +4,27 @@
 library(shiny)
 library(bslib)
 library(DT)
-library(httr)
+library(httr2)
 library(jsonlite)
 library(shinyWidgets)
 library(bsicons)
 library(shinyvalidate)
 library(shinyjs)
+library(dotenv)
+
+load_dot_env()
 
 # API Configuration
-API_BASE_URL <- "http://localhost:8000/api/v1"
-STUDIES_ENDPOINT <- paste0(API_BASE_URL, "/studies")
+API_BASE_URL <- Sys.getenv("PEARL_API_URL", "http://localhost:8000")
+API_HEALTH_PATH <- Sys.getenv("PEARL_API_HEALTH_PATH", "/health")
+API_STUDIES_PATH <- Sys.getenv("PEARL_API_STUDIES_PATH", "/api/v1/studies")
+API_WEBSOCKET_PATH <- Sys.getenv("PEARL_API_WEBSOCKET_PATH", "/api/v1/ws/studies")
 
-# Source modules
+STUDIES_ENDPOINT <- paste0(API_BASE_URL, API_STUDIES_PATH)
+WEBSOCKET_URL <- paste0(gsub("^http", "ws", API_BASE_URL), API_WEBSOCKET_PATH)
+
+# Source modules (order matters - api_client needs STUDIES_ENDPOINT)
+source("modules/websocket_client.R")
 source("modules/api_client.R")
 source("modules/studies_ui.R")
 source("modules/studies_server.R")
@@ -81,7 +90,9 @@ ui <- page_sidebar(
       " PEARL Admin"
     ),
     div(class = "pearl-darkmode-switch", 
-        input_dark_mode(id = "dark_mode", mode = "light"))
+        input_dark_mode(id = "dark_mode", mode = "light"),
+        textOutput("websocket_status_display", inline = TRUE)
+    )
   ),
   sidebar = sidebar(
     id = "main_sidebar",
@@ -183,6 +194,7 @@ ui <- page_sidebar(
         border-color: #6c757d;
       }
     ')),
+    tags$script(HTML(sprintf("const pearlApiUrl = '%s'; const pearlWsPath = '%s';", API_BASE_URL, API_WEBSOCKET_PATH))),
     tags$script(src = "websocket_client.js"),
     tags$script(HTML("
       // Custom message handlers for WebSocket integration
@@ -286,21 +298,42 @@ server <- function(input, output, session) {
   # Health check
   output$health_status <- renderText({
     tryCatch({
-      response <- GET("http://localhost:8000/health")
-      if (status_code(response) == 200) {
-        content <- content(response, "parsed")
+      response <- request(paste0(API_BASE_URL, API_HEALTH_PATH)) |>
+        req_perform()
+      
+      if (resp_status(response) == 200) {
+        content <- resp_body_json(response)
         paste("✅ Backend API is healthy\n",
               "Status:", content$status, "\n",
               "Message:", content$message)
       } else {
         paste("❌ Backend API unhealthy\n",
-              "Status Code:", status_code(response))
+              "Status Code:", resp_status(response))
       }
     }, error = function(e) {
       paste("❌ Cannot connect to backend API\n",
             "Error:", e$message, "\n",
-            "Please ensure the FastAPI server is running on http://localhost:8000")
+            paste("Please ensure the FastAPI server is running on", API_BASE_URL))
     })
+  })
+  
+  # WebSocket status display
+  websocket_status <- reactiveVal("Initializing")
+  observeEvent(input$websocket_status, {
+    websocket_status(input$websocket_status)
+  })
+  
+  output$websocket_status_display <- renderText({
+    status <- websocket_status()
+    icon <- switch(status,
+      "Connected" = "🟢",
+      "Connecting" = "🟡", 
+      "Disconnected" = "🔴",
+      "Failed" = "🔴",
+      "Reconnecting" = "🟡",
+      "🔴"
+    )
+    paste(icon, "WS:", status)
   })
 }
 
