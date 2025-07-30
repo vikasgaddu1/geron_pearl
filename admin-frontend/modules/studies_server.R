@@ -331,6 +331,7 @@ studies_server <- function(id) {
         return()
       }
       
+      current_id <- editing_study_id()
       study_label <- trimws(input$edit_study_label)
       
       study_data <- list(study_label = study_label)

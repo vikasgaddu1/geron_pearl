@@ -338,11 +338,11 @@ server <- function(input, output, session) {
     cat("📑 Tab changed to:", current_tab, "\n")
     
     if (current_tab == "releases_tab") {
-      # Refresh database releases data when switching to Database Releases tab
-      session$sendCustomMessage("refresh_database_releases", list(refresh = TRUE))
+      # Trigger refresh in database releases module
+      shinyjs::runjs("Shiny.setInputValue('database_releases-refresh_database_releases', Math.random(), {priority: 'event'});")
     } else if (current_tab == "efforts_tab") {
-      # Refresh reporting efforts data when switching to Reporting Efforts tab
-      session$sendCustomMessage("refresh_reporting_efforts", list(refresh = TRUE))
+      # Trigger refresh in reporting efforts module  
+      shinyjs::runjs("Shiny.setInputValue('reporting_efforts-refresh_reporting_efforts', Math.random(), {priority: 'event'});")
     }
   }, ignoreInit = TRUE)
   

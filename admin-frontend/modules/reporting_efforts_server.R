@@ -535,7 +535,7 @@ reporting_efforts_server <- function(id) {
     }) |> bindEvent(input$confirm_delete)
     
     # Custom message handler for tab refresh
-    session$onCustomMessage("refresh_reporting_efforts", function(message) {
+    observeEvent(input$refresh_reporting_efforts, {
       cat("🔄 Refreshing reporting efforts data due to tab change...\n")
       load_studies_http() # Refresh studies for dropdown
       load_database_releases_http() # Refresh database releases for dropdown

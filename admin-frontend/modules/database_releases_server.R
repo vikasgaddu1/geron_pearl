@@ -767,7 +767,7 @@ database_releases_server <- function(id) {
     })
     
     # Custom message handler for tab refresh
-    session$onCustomMessage("refresh_database_releases", function(message) {
+    observeEvent(input$refresh_database_releases, {
       cat("🔄 Refreshing database releases data due to tab change...\n")
       load_studies_http() # Refresh studies for dropdown
       load_releases_data() # Refresh releases data
