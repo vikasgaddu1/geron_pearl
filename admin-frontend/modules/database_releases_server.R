@@ -29,17 +29,14 @@ database_releases_server <- function(id) {
     # Note: Edit functionality not implemented yet - following studies module pattern
     
     # Convert API data to data frame
-    convert_releases_to_df <- function(releases_list) {
+    convert_releases_to_df <- function(releases_list, current_studies = NULL) {
       if (length(releases_list) > 0) {
-        # Get study labels for display
-        current_studies <- studies_data()
-        
         df <- data.frame(
           ID = sapply(releases_list, function(x) x$id),
           `Study ID` = sapply(releases_list, function(x) x$study_id),
           `Study Label` = sapply(releases_list, function(x) {
             study_id <- x$study_id
-            if (nrow(current_studies) > 0) {
+            if (!is.null(current_studies) && nrow(current_studies) > 0) {
               study_row <- current_studies[current_studies$ID == study_id, ]
               if (nrow(study_row) > 0) {
                 return(study_row$`Study Label`[1])
@@ -64,11 +61,8 @@ database_releases_server <- function(id) {
       }
     }
     
-    # Load initial data
-    load_releases_data <- function() {
-      cat("🔄 Loading database releases data...\n")
-      
-      # Load studies first for reference
+    # Load studies data
+    load_studies_http <- function() {
       studies_result <- get_studies()
       if (!is.null(studies_result$error)) {
         cat("❌ Error loading studies:", studies_result$error, "\n")
@@ -81,16 +75,23 @@ database_releases_server <- function(id) {
           check.names = FALSE
         )
         studies_data(studies_df)
+        cat("✅ Studies loaded for reference:", nrow(studies_df), "studies\n")
       }
+    }
+    
+    # Load database releases data
+    load_releases_data <- function() {
+      cat("🔄 Loading database releases data...\n")
       
-      # Load database releases
       releases_result <- get_database_releases()
       if (!is.null(releases_result$error)) {
         cat("❌ Error loading database releases:", releases_result$error, "\n")
         output$status_message <- renderText("❌ Error loading database releases")
         releases_data(data.frame())
       } else {
-        releases_df <- convert_releases_to_df(releases_result)
+        # Get current studies data safely
+        current_studies <- isolate(studies_data())
+        releases_df <- convert_releases_to_df(releases_result, current_studies)
         releases_data(releases_df)
         last_update(Sys.time())
         cat("✅ Database releases loaded successfully:", nrow(releases_df), "releases\n")
@@ -99,6 +100,7 @@ database_releases_server <- function(id) {
     }
     
     # Load data on module initialization
+    load_studies_http()
     load_releases_data()
     
     # Note: WebSocket status is now handled in main app.R
@@ -152,6 +154,7 @@ database_releases_server <- function(id) {
     # Refresh button
     observeEvent(input$refresh_btn, {
       cat("🔄 Manual refresh triggered\n")
+      load_studies_http()
       load_releases_data()
     })
     
@@ -187,7 +190,7 @@ database_releases_server <- function(id) {
       sidebar_toggle(id = "add_release_sidebar")
       
       # Update study choices when opening
-      current_studies <- studies_data()
+      current_studies <- isolate(studies_data())
       if (nrow(current_studies) > 0) {
         choices <- setNames(current_studies$ID, current_studies$`Study Label`)
         updateSelectInput(session, "new_study_id", choices = choices, selected = NULL)
