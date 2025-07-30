@@ -114,18 +114,6 @@ database_releases_ui <- function(id) {
               div(
                 class = "p-3",
                 style = "height: 400px; overflow-y: auto;",
-                
-                # Study filter
-                div(
-                  class = "mb-3 d-flex align-items-center gap-3",
-                  uiOutput(ns("study_filter_ui")),
-                  tags$small(
-                    class = "text-muted",
-                    "Filter releases by study to see existing releases before adding new ones"
-                  )
-                ),
-                
-                # Data table
                 DT::dataTableOutput(ns("releases_table"))
               )
             )

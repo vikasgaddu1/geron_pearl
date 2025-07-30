@@ -593,10 +593,10 @@ database_releases_server <- function(id) {
       
       if (nrow(all_releases) == 0) {
         "No database releases found"
-      } else if (!is.null(input$study_filter) && input$study_filter != "") {
+      } else if (!is.null(input$new_study_id) && input$new_study_id != "") {
         # Show filtered count
         current_studies <- studies_data()
-        study_row <- current_studies[current_studies$ID == as.numeric(input$study_filter), ]
+        study_row <- current_studies[current_studies$ID == as.numeric(input$new_study_id), ]
         study_name <- if (nrow(study_row) > 0) study_row$`Study Label`[1] else "Selected Study"
         
         if (nrow(filtered) == 0) {
