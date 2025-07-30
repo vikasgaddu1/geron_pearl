@@ -9,7 +9,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import engine
-from app.models import study  # Import to register models with Base
+from app.models import study, database_release  # Import to register models with Base
 
 logger = logging.getLogger(__name__)
 

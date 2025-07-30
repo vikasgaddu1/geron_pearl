@@ -7,9 +7,10 @@ from typing import Dict, List, Set
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud import study
+from app.crud import study, database_release
 from app.db.session import AsyncSessionLocal
 from app.schemas.study import Study
+from app.schemas.database_release import DatabaseRelease
 
 logger = logging.getLogger(__name__)
 
@@ -254,3 +255,40 @@ async def broadcast_studies_refresh():
         "type": "refresh_needed"
     })
     await manager.broadcast(message)
+
+
+async def broadcast_database_release_created(database_release_data):
+    """Broadcast that a new database release was created."""
+    logger.info(f"🚀 Broadcasting database_release_created: {database_release_data.database_release_label}")
+    # Convert SQLAlchemy model to Pydantic schema
+    pydantic_database_release = DatabaseRelease.model_validate(database_release_data)
+    message = json.dumps({
+        "type": "database_release_created",
+        "data": pydantic_database_release.model_dump()
+    })
+    await manager.broadcast(message)
+    logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_database_release_updated(database_release_data):
+    """Broadcast that a database release was updated."""
+    logger.info(f"📝 Broadcasting database_release_updated: {database_release_data.database_release_label}")
+    # Convert SQLAlchemy model to Pydantic schema
+    pydantic_database_release = DatabaseRelease.model_validate(database_release_data)
+    message = json.dumps({
+        "type": "database_release_updated",
+        "data": pydantic_database_release.model_dump()
+    })
+    await manager.broadcast(message)
+    logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_database_release_deleted(database_release_id: int):
+    """Broadcast that a database release was deleted."""
+    logger.info(f"🗑️ Broadcasting database_release_deleted: ID {database_release_id}")
+    message = json.dumps({
+        "type": "database_release_deleted",
+        "data": {"id": database_release_id}
+    })
+    await manager.broadcast(message)
+    logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
