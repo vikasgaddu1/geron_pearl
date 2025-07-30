@@ -30,6 +30,24 @@ reporting_efforts_server <- function(id) {
       }
     })
     
+    # Set up validation for edit effort form
+    iv_edit <- InputValidator$new()
+    iv_edit$add_rule("edit_study_id", sv_required())
+    iv_edit$add_rule("edit_database_release_id", sv_required())
+    iv_edit$add_rule("edit_effort_label", sv_required())
+    iv_edit$add_rule("edit_effort_label", function(value) {
+      current_efforts <- efforts_data()
+      current_effort_id <- editing_effort_id()
+      current_db_release_id <- input$edit_database_release_id
+      if (nrow(current_efforts) > 0 && !is.null(current_effort_id) && !is.null(current_db_release_id)) {
+        # Check for duplicates within the same database release, excluding current effort
+        release_efforts <- current_efforts[current_efforts$`Database Release ID` == as.numeric(current_db_release_id) & current_efforts$ID != current_effort_id, ]
+        if (nrow(release_efforts) > 0 && trimws(value) %in% release_efforts$`Effort Label`) {
+          "A reporting effort with this label already exists for this database release"
+        }
+      }
+    })
+    
     # Convert API data to data frame
     convert_efforts_to_df <- function(efforts_list, current_studies = NULL, current_releases = NULL) {
       if (length(efforts_list) > 0) {
@@ -436,17 +454,104 @@ reporting_efforts_server <- function(id) {
     # Edit effort handler
     observe({
       effort_id <- input$edit_effort_id
-      current_efforts <- efforts_data()
+      if (is.null(effort_id)) return()
       
-      if (!is.null(effort_id) && nrow(current_efforts) > 0) {
-        effort_row <- current_efforts[current_efforts$ID == effort_id, ]
-        if (nrow(effort_row) > 0) {
-          # For now, just show a placeholder message
-          # TODO: Implement edit functionality similar to database releases
-          output$status_message <- renderText(paste("✏️ Edit functionality for effort ID", effort_id, "not yet implemented"))
-          cat("📝 Edit effort requested for ID:", effort_id, "\n")
-        }
+      # Get effort data
+      result <- get_reporting_effort(effort_id)
+      if (!is.null(result$error)) {
+        showNotification(
+          tagList(bs_icon("x-circle"), "Error loading reporting effort:", result$error), 
+          type = "error"
+        )
+        return()
       }
+      
+      is_editing(TRUE)
+      editing_effort_id(effort_id)
+      
+      # Get current studies and database releases for dropdowns
+      current_studies <- isolate(studies_data())
+      current_releases <- isolate(database_releases_data())
+      
+      study_choices <- if (nrow(current_studies) > 0) {
+        setNames(current_studies$ID, current_studies$`Study Label`)
+      } else {
+        list("No studies available" = "")
+      }
+      
+      # Filter releases for the selected study
+      study_releases <- if (nrow(current_releases) > 0) {
+        study_filtered <- current_releases[current_releases$`Study ID` == result$study_id, ]
+        if (nrow(study_filtered) > 0) {
+          setNames(study_filtered$ID, 
+                   paste(study_filtered$`Release Label`, 
+                        "(Study:", study_filtered$`Study ID`, ")"))
+        } else {
+          list("No releases available for this study" = "")
+        }
+      } else {
+        list("No releases available" = "")
+      }
+      
+      showModal(modalDialog(
+        title = tagList(bs_icon("pencil"), "Edit Reporting Effort"),
+        size = "m",
+        easyClose = FALSE,
+        
+        div(
+          class = "mb-3",
+          tags$label("Study", class = "form-label fw-bold"),
+          selectInput(
+            ns("edit_study_id"),
+            NULL,
+            choices = study_choices,
+            selected = result$study_id,
+            width = "100%"
+          )
+        ),
+        
+        div(
+          class = "mb-3",
+          tags$label("Database Release", class = "form-label fw-bold"),
+          selectInput(
+            ns("edit_database_release_id"),
+            NULL,
+            choices = study_releases,
+            selected = result$database_release_id,
+            width = "100%"
+          )
+        ),
+        
+        div(
+          class = "mb-3",
+          tags$label("Reporting Effort Label", class = "form-label fw-bold"),
+          textInput(
+            ns("edit_effort_label"), 
+            NULL,
+            value = result$database_release_label, 
+            placeholder = "Enter reporting effort label",
+            width = "100%"
+          ),
+          tags$small(
+            class = "form-text text-muted",
+            "Reporting effort labels must be unique within each database release"
+          )
+        ),
+        
+        footer = div(
+          class = "d-flex justify-content-end gap-2",
+          actionButton(
+            ns("cancel_edit"), 
+            tagList(bs_icon("x"), "Cancel"),
+            class = "btn btn-secondary"
+          ),
+          actionButton(
+            ns("save_edit"), 
+            tagList(bs_icon("check"), "Update Effort"),
+            class = "btn btn-warning"
+          )
+        )
+      ))
     }) |> bindEvent(input$edit_effort_id)
     
     # Delete effort handler
@@ -511,6 +616,87 @@ reporting_efforts_server <- function(id) {
     observe({
       removeModal()
     }) |> bindEvent(input$cancel_delete)
+    
+    # Cancel edit
+    observe({
+      is_editing(FALSE)
+      editing_effort_id(NULL)
+      iv_edit$disable()
+      removeModal()
+    }) |> bindEvent(input$cancel_edit)
+    
+    # Save edit
+    observe({
+      # Enable validation and check form
+      iv_edit$enable()
+      if (!iv_edit$is_valid()) {
+        return()
+      }
+      
+      current_id <- editing_effort_id()
+      study_id <- as.numeric(input$edit_study_id)
+      database_release_id <- as.numeric(input$edit_database_release_id)
+      effort_label <- trimws(input$edit_effort_label)
+      
+      effort_data <- list(
+        study_id = study_id,
+        database_release_id = database_release_id,
+        database_release_label = effort_label
+      )
+      
+      result <- update_reporting_effort(current_id, effort_data)
+      if (!is.null(result$error)) {
+        # Parse error message for duplicate constraint violations
+        error_msg <- result$error
+        if (grepl("duplicate|unique|already exists", error_msg, ignore.case = TRUE)) {
+          showNotification(
+            tagList(bs_icon("exclamation-triangle"), "Reporting effort label already exists for this database release. Please choose a different label."), 
+            type = "error"
+          )
+        } else {
+          showNotification(
+            tagList(bs_icon("x-circle"), "Error updating reporting effort:", error_msg), 
+            type = "error"
+          )
+        }
+      } else {
+        showNotification(
+          tagList(bs_icon("check"), "Reporting effort updated successfully"), 
+          type = "message"
+        )
+        is_editing(FALSE)
+        editing_effort_id(NULL)
+        iv_edit$disable()
+        removeModal()
+        # Reload data
+        load_efforts_http()
+      }
+    }) |> bindEvent(input$save_edit)
+    
+    # Update database release choices when study selection changes in edit form
+    observe({
+      if (!is_editing()) return()
+      req(input$edit_study_id)
+      
+      current_releases <- database_releases_data()
+      study_id <- input$edit_study_id
+      
+      if (nrow(current_releases) > 0 && study_id != "") {
+        # Filter releases by selected study
+        filtered_releases <- current_releases[current_releases$`Study ID` == as.numeric(study_id), ]
+        
+        if (nrow(filtered_releases) > 0) {
+          choices <- setNames(filtered_releases$ID, 
+                             paste(filtered_releases$`Release Label`, 
+                                  "(Study:", filtered_releases$`Study ID`, ")"))
+          updateSelectInput(session, "edit_database_release_id", 
+                           choices = c("Select a database release..." = "", choices))
+        } else {
+          updateSelectInput(session, "edit_database_release_id", 
+                           choices = c("No releases available for this study" = ""))
+        }
+      }
+    }) |> bindEvent(input$edit_study_id)
     
     # Confirm delete
     observe({
