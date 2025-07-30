@@ -116,6 +116,64 @@ uv run python tests/validator/run_model_validation.py
 2. **Model Validation**: Always run after model changes to catch SQLAlchemy/Pydantic misalignment
 3. **WebSocket Broadcasting**: CRUD operations automatically broadcast events - test with multiple browser sessions
 4. **Database Changes**: Use `alembic revision --autogenerate` for schema changes
+5. **Referential Integrity**: Always implement deletion protection for related entities (see Deletion Patterns below)
+
+### Deletion Patterns & Referential Integrity
+
+> **🛡️ CRITICAL**: All entity deletions must check for dependent relationships to maintain data integrity**
+
+#### Current Implementation Examples
+
+**Study Deletion Protection** (`app/api/v1/studies.py:168-175`):
+```python
+# Check for associated database releases before deletion
+associated_releases = await database_release.get_by_study_id(db, study_id=study_id)
+if associated_releases:
+    release_labels = [release.database_release_label for release in associated_releases]
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=f"Cannot delete study '{db_study.study_label}': {len(associated_releases)} associated database release(s) exist: {', '.join(release_labels)}. Please delete all associated database releases first."
+    )
+```
+
+#### Required CRUD Methods for Deletion Protection
+
+**For each dependent relationship, implement query methods**:
+```python
+# In dependent entity CRUD class
+async def get_by_parent_id(self, db: AsyncSession, *, parent_id: int) -> List[DependentModel]:
+    """Get all dependent entities for a specific parent (no pagination)."""
+    result = await db.execute(
+        select(DependentModel).where(DependentModel.parent_id == parent_id)
+    )
+    return list(result.scalars().all())
+```
+
+#### Deletion Protection Implementation Pattern
+
+1. **Query for Dependents**: Use `get_by_parent_id()` method to find related entities
+2. **Check Existence**: If dependents exist, block deletion with HTTP 400
+3. **Descriptive Error**: List all dependent entities by name/label for user clarity  
+4. **Clear Instructions**: Tell user exactly what needs to be deleted first
+5. **Test Coverage**: Create comprehensive tests like `test_study_deletion_protection_fixed.sh`
+
+#### Error Message Standards
+
+**Format**: `"Cannot delete {entity} '{entity_label}': {count} associated {dependent_type}(s) exist: {list_of_names}. Please delete all associated {dependent_type}s first."`
+
+**Example**: `"Cannot delete study 'Clinical Trial A': 3 associated database release(s) exist: jan_primary, feb_set, mar_final. Please delete all associated database releases first."`
+
+#### Testing Deletion Protection
+
+**Required Test Scenarios**:
+1. ✅ Create parent entity
+2. ✅ Create dependent entity(ies) 
+3. ✅ Attempt parent deletion (should fail with HTTP 400)
+4. ✅ Verify descriptive error message
+5. ✅ Delete dependent entities first
+6. ✅ Attempt parent deletion again (should succeed with HTTP 200)
+
+**Test Script Pattern**: See `test_study_deletion_protection_fixed.sh` as reference implementation
 
 ## WebSocket Implementation Details
 
