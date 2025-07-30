@@ -479,16 +479,11 @@ reporting_efforts_server <- function(id) {
         list("No studies available" = "")
       }
       
-      # Filter releases for the selected study
-      study_releases <- if (nrow(current_releases) > 0) {
-        study_filtered <- current_releases[current_releases$`Study ID` == result$study_id, ]
-        if (nrow(study_filtered) > 0) {
-          setNames(study_filtered$ID, 
-                   paste(study_filtered$`Release Label`, 
-                        "(Study:", study_filtered$`Study ID`, ")"))
-        } else {
-          list("No releases available for this study" = "")
-        }
+      # Create choices for all database releases (will be filtered dynamically)
+      all_release_choices <- if (nrow(current_releases) > 0) {
+        setNames(current_releases$ID, 
+                 paste(current_releases$`Release Label`, 
+                      "(Study:", current_releases$`Study ID`, ")"))
       } else {
         list("No releases available" = "")
       }
@@ -516,7 +511,7 @@ reporting_efforts_server <- function(id) {
           selectInput(
             ns("edit_database_release_id"),
             NULL,
-            choices = study_releases,
+            choices = all_release_choices,
             selected = result$database_release_id,
             width = "100%"
           )
@@ -552,6 +547,26 @@ reporting_efforts_server <- function(id) {
           )
         )
       ))
+      
+      # Filter database releases after modal opens
+      shinyjs::delay(100, {
+        current_releases <- isolate(database_releases_data())
+        study_id <- result$study_id
+        
+        if (nrow(current_releases) > 0) {
+          # Filter releases by selected study
+          filtered_releases <- current_releases[current_releases$`Study ID` == study_id, ]
+          
+          if (nrow(filtered_releases) > 0) {
+            choices <- setNames(filtered_releases$ID, 
+                               paste(filtered_releases$`Release Label`, 
+                                    "(Study:", filtered_releases$`Study ID`, ")"))
+            updateSelectInput(session, "edit_database_release_id", 
+                             choices = choices,
+                             selected = result$database_release_id)
+          }
+        }
+      })
     }) |> bindEvent(input$edit_effort_id)
     
     # Delete effort handler
