@@ -194,6 +194,58 @@ reporting_efforts_server <- function(id) {
       load_efforts_http()
     })
     
+    # Handle WebSocket events from JavaScript
+    observeEvent(input$websocket_event, {
+      event <- input$websocket_event
+      cat("📥 WebSocket event observer triggered. Event:", if(is.null(event)) "NULL" else event$type, "\n")
+      if (is.null(event)) return()
+      
+      cat("📊 Processing WebSocket event:", event$type, "with data length:", length(event$data), "\n")
+      
+      if (event$type == "reporting_effort_created") {
+        cat("➕ Reporting effort created via WebSocket, refreshing data\n")
+        load_efforts_http()
+      } else if (event$type == "reporting_effort_updated") {
+        cat("✏️ Reporting effort updated via WebSocket, refreshing data\n")
+        load_efforts_http()
+      } else if (event$type == "reporting_effort_deleted") {
+        cat("🗑️ Reporting effort deleted via WebSocket, refreshing data\n")
+        load_efforts_http()
+      } else if (event$type == "studies_update") {
+        # Update studies data for dropdown
+        cat("📚 Studies updated via WebSocket, updating reference data\n")
+        studies_df <- convert_studies_to_df_simple(event$data)
+        studies_data(studies_df)
+        # Refresh efforts to update study labels
+        load_efforts_http()
+      } else if (event$type == "database_release_created" || event$type == "database_release_updated" || event$type == "database_release_deleted") {
+        # Update database releases data for dropdown
+        cat("🗃️ Database releases updated via WebSocket, updating reference data\n")
+        load_database_releases_http()
+        # Refresh efforts to update release labels  
+        load_efforts_http()
+      }
+    })
+    
+    # Helper function for studies data
+    convert_studies_to_df_simple <- function(studies_list) {
+      if (length(studies_list) > 0) {
+        data.frame(
+          ID = sapply(studies_list, function(x) x$id),
+          `Study Label` = sapply(studies_list, function(x) x$study_label),
+          stringsAsFactors = FALSE,
+          check.names = FALSE
+        )
+      } else {
+        data.frame(
+          ID = numeric(0),
+          `Study Label` = character(0),
+          stringsAsFactors = FALSE,
+          check.names = FALSE
+        )
+      }
+    }
+    
     # Update choices when data changes
     observe({
       update_study_choices()

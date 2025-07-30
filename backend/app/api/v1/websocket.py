@@ -35,6 +35,24 @@ class ConnectionManager:
         self.active_connections.discard(websocket)
         logger.info(f"WebSocket disconnected. Total connections: {len(self.active_connections)}")
         
+    def cleanup_stale_connections(self):
+        """Remove connections that are no longer in CONNECTED state."""
+        stale_connections = set()
+        
+        for connection in self.active_connections.copy():
+            try:
+                if hasattr(connection, 'client_state') and connection.client_state.name != "CONNECTED":
+                    stale_connections.add(connection)
+            except Exception:
+                # If we can't check the state, assume it's stale
+                stale_connections.add(connection)
+                
+        for connection in stale_connections:
+            self.disconnect(connection)
+            
+        if stale_connections:
+            logger.info(f"Cleaned up {len(stale_connections)} stale connections")
+        
     async def send_personal_message(self, message: str, websocket: WebSocket):
         """Send a message to a specific WebSocket connection."""
         try:
@@ -45,20 +63,36 @@ class ConnectionManager:
             
     async def broadcast(self, message: str):
         """Broadcast a message to all connected WebSocket clients."""
+        # Clean up stale connections before broadcasting
+        self.cleanup_stale_connections()
+        
         if not self.active_connections:
+            logger.debug("No active connections for broadcast")
             return
             
         disconnected = set()
+        successful_sends = 0
+        
         for connection in self.active_connections.copy():
             try:
+                # Check connection state before attempting to send
+                if hasattr(connection, 'client_state') and connection.client_state.name != "CONNECTED":
+                    logger.debug(f"Connection not in CONNECTED state: {connection.client_state.name}")
+                    disconnected.add(connection)
+                    continue
+                    
                 await connection.send_text(message)
+                successful_sends += 1
+                
             except Exception as e:
-                logger.error(f"Error broadcasting to connection: {e}")
+                logger.debug(f"Connection broadcast failed, marking for removal: {e}")
                 disconnected.add(connection)
                 
         # Remove disconnected connections
         for connection in disconnected:
             self.disconnect(connection)
+            
+        logger.debug(f"Broadcast completed: {successful_sends} successful, {len(disconnected)} removed")
 
 # Global connection manager instance
 manager = ConnectionManager()
@@ -223,7 +257,7 @@ async def broadcast_study_created(study_data):
         "data": pydantic_study.model_dump()
     })
     await manager.broadcast(message)
-    logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_study_updated(study_data):
@@ -236,7 +270,7 @@ async def broadcast_study_updated(study_data):
         "data": pydantic_study.model_dump()
     })
     await manager.broadcast(message)
-    logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_study_deleted(study_id: int):
@@ -247,7 +281,7 @@ async def broadcast_study_deleted(study_id: int):
         "data": {"id": study_id}
     })
     await manager.broadcast(message)
-    logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_studies_refresh():
@@ -268,7 +302,7 @@ async def broadcast_database_release_created(database_release_data):
         "data": pydantic_database_release.model_dump()
     })
     await manager.broadcast(message)
-    logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_database_release_updated(database_release_data):
@@ -281,7 +315,7 @@ async def broadcast_database_release_updated(database_release_data):
         "data": pydantic_database_release.model_dump()
     })
     await manager.broadcast(message)
-    logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_database_release_deleted(database_release_id: int):
@@ -292,7 +326,7 @@ async def broadcast_database_release_deleted(database_release_id: int):
         "data": {"id": database_release_id}
     })
     await manager.broadcast(message)
-    logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_reporting_effort_created(reporting_effort_data):
@@ -305,7 +339,7 @@ async def broadcast_reporting_effort_created(reporting_effort_data):
         "data": pydantic_reporting_effort.model_dump()
     })
     await manager.broadcast(message)
-    logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_reporting_effort_updated(reporting_effort_data):
@@ -318,7 +352,7 @@ async def broadcast_reporting_effort_updated(reporting_effort_data):
         "data": pydantic_reporting_effort.model_dump()
     })
     await manager.broadcast(message)
-    logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_reporting_effort_deleted(reporting_effort_id: int):
@@ -329,4 +363,4 @@ async def broadcast_reporting_effort_deleted(reporting_effort_id: int):
         "data": {"id": reporting_effort_id}
     })
     await manager.broadcast(message)
-    logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")

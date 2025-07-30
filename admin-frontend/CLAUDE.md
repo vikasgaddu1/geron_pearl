@@ -232,6 +232,59 @@ output$efforts_table <- DT::renderDataTable({
 - **Required Message Types**: `studies_update`, `study_created`, `study_updated`, `study_deleted`, `refresh_needed`
 - **Status Updates**: Go to main app (`'websocket_status'`), not studies module
 
+### WebSocket Reporting Efforts Implementation (Latest Session)
+
+#### Problem: Reporting Efforts WebSocket Not Working
+- **Issue**: User reported "websocket not working for reporting effort, they are working for studies and database release"
+- **Investigation**: Backend had all broadcast functions but JavaScript client was missing event handling
+
+#### Root Cause Analysis  
+- **Backend**: ✅ All broadcast functions existed (`broadcast_reporting_effort_*`)
+- **Backend API**: ✅ All CRUD endpoints were calling broadcast functions correctly  
+- **Frontend R**: ✅ WebSocket event handling already implemented in `reporting_efforts_server.R`
+- **Frontend JS**: ❌ Missing event handlers and routing in `websocket_client.js`
+
+#### JavaScript WebSocket Client Fixes
+1. **Added Missing Event Handlers** in `handleMessage()`:
+   ```javascript
+   case 'reporting_effort_created':
+   case 'reporting_effort_updated': 
+   case 'reporting_effort_deleted':
+   ```
+
+2. **Added Event Routing** in `notifyShiny()`:
+   ```javascript
+   // Send to reporting_efforts module for reporting effort events and related reference data updates
+   if (eventType.startsWith('reporting_effort') || eventType === 'studies_update' || eventType.startsWith('database_release')) {
+     Shiny.setInputValue('reporting_efforts-websocket_event', {
+       type: eventType, data: data, timestamp: Date.now()
+     });
+   }
+   ```
+
+#### Backend WebSocket Connection Management Improvements
+- **Problem**: Stale connection errors: "Unexpected ASGI message 'websocket.send', after sending 'websocket.close'"
+- **Solution**: Enhanced `ConnectionManager.broadcast()` method with:
+  - **Proactive Cleanup**: Call `cleanup_stale_connections()` before broadcasting
+  - **Connection State Checking**: Verify `client_state.name == "CONNECTED"` before sending
+  - **Error Level Adjustment**: Changed frequent broadcast logs from INFO to DEBUG to reduce noise
+  - **Better Error Handling**: Gracefully handle and remove stale connections during broadcast
+
+#### WebSocket Implementation Pattern
+```javascript
+// Complete flow for reporting efforts WebSocket events:
+// 1. Backend CRUD → broadcast_reporting_effort_*() 
+// 2. WebSocket server → all connected clients
+// 3. JavaScript client → handleMessage() → notifyShiny()
+// 4. R Shiny → observeEvent(input$websocket_event) → refresh data
+```
+
+#### Testing & Validation
+- **Backend Test Script**: Created `/test_websocket_fix.py` for connection management testing
+- **Connection Cleanup**: Now properly removes stale WebSocket connections
+- **Error Reduction**: Eliminated "websocket.send after websocket.close" errors
+- **Real-time Updates**: Reporting efforts now have same real-time functionality as studies/database releases
+
 ### Module Integration Rules
 - **Source Order Matters**: `websocket_client.R` must be sourced BEFORE other modules that use WebSocket URLs
 - **Environment Loading**: Call `load_dot_env()` BEFORE defining any endpoint URLs

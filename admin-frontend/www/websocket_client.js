@@ -144,6 +144,24 @@ class PearlWebSocketClient {
                 this.showNotification('Database release deleted (ID: ' + data.data.id + ')', 'warning');
                 break;
                 
+            case 'reporting_effort_created':
+                console.log('➕ Reporting effort created:', data.data.database_release_label);
+                this.notifyShiny('reporting_effort_created', data.data);
+                this.showNotification('New reporting effort created: ' + data.data.database_release_label, 'success');
+                break;
+                
+            case 'reporting_effort_updated':
+                console.log('✏️ Reporting effort updated:', data.data.database_release_label);
+                this.notifyShiny('reporting_effort_updated', data.data);
+                this.showNotification('Reporting effort updated: ' + data.data.database_release_label, 'info');
+                break;
+                
+            case 'reporting_effort_deleted':
+                console.log('🗑️ Reporting effort deleted, ID:', data.data.id);
+                this.notifyShiny('reporting_effort_deleted', data.data);
+                this.showNotification('Reporting effort deleted (ID: ' + data.data.id + ')', 'warning');
+                break;
+                
             case 'pong':
                 console.log('🏓 Pong received - connection alive');
                 break;
@@ -273,6 +291,15 @@ class PearlWebSocketClient {
             // Send to database_releases module for database release events and studies updates (for reference data)
             if (eventType.startsWith('database_release') || eventType === 'studies_update') {
                 Shiny.setInputValue('database_releases-websocket_event', {
+                    type: eventType,
+                    data: data,
+                    timestamp: Date.now()
+                });
+            }
+            
+            // Send to reporting_efforts module for reporting effort events and related reference data updates
+            if (eventType.startsWith('reporting_effort') || eventType === 'studies_update' || eventType.startsWith('database_release')) {
+                Shiny.setInputValue('reporting_efforts-websocket_event', {
                     type: eventType,
                     data: data,
                     timestamp: Date.now()
