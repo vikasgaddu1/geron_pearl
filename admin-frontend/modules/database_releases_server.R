@@ -333,30 +333,41 @@ database_releases_server <- function(id) {
       }
     })
     
+    # Track sidebar state to detect when it closes
+    sidebar_is_open <- reactiveVal(FALSE)
+    
     # Toggle add release sidebar
     observeEvent(input$toggle_add_form, {
+      current_state <- sidebar_is_open()
       sidebar_toggle(id = "add_release_sidebar")
       
-      # Update study choices when opening with default "Select a study" option
-      current_studies <- isolate(studies_data())
-      if (nrow(current_studies) > 0) {
-        choices <- c("Select a study" = "", setNames(current_studies$ID, current_studies$`Study Label`))
-        updateSelectInput(session, "new_study_id", choices = choices, selected = "")
-        cat("✅ Updated study dropdown with", nrow(current_studies), "studies\n")
+      if (!current_state) {
+        # Sidebar is opening
+        sidebar_is_open(TRUE)
+        
+        # Update study choices when opening with default "Select a study" option
+        current_studies <- isolate(studies_data())
+        if (nrow(current_studies) > 0) {
+          choices <- c("Select a study" = "", setNames(current_studies$ID, current_studies$`Study Label`))
+          updateSelectInput(session, "new_study_id", choices = choices, selected = "")
+          cat("✅ Sidebar opening: Updated study dropdown with", nrow(current_studies), "studies\n")
+        } else {
+          updateSelectInput(session, "new_study_id", choices = list("No studies available" = ""), selected = "")
+          cat("⚠️ No studies available for dropdown\n")
+        }
+        
+        # Clear form when opening
+        updateTextInput(session, "new_release_label", value = "")
+        iv_new$disable()
       } else {
-        updateSelectInput(session, "new_study_id", choices = list("No studies available" = ""), selected = "")
-        cat("⚠️ No studies available for dropdown\n")
+        # Sidebar is closing via toggle button
+        sidebar_is_open(FALSE)
+        reset_filter_and_form()
       }
-      
-      # Clear form when opening
-      updateTextInput(session, "new_release_label", value = "")
-      iv_new$disable()
     })
     
-    # Cancel new release
-    observeEvent(input$cancel_new_release, {
-      updateTextInput(session, "new_release_label", value = "")
-      
+    # Function to reset filter and form (called from multiple places)
+    reset_filter_and_form <- function() {
       # Reset dropdown to "Select a study" option
       current_studies <- isolate(studies_data())
       if (nrow(current_studies) > 0) {
@@ -366,12 +377,21 @@ database_releases_server <- function(id) {
         updateSelectInput(session, "new_study_id", choices = list("No studies available" = ""), selected = "")
       }
       
-      iv_new$disable()
-      sidebar_toggle(id = "add_release_sidebar")
-      
       # Reset table filter to show all releases
       filtered_releases(releases_data())
-      cat("🗞️ Cancel: Reset filter to show all", nrow(releases_data()), "releases\n")
+      cat("🔄 Sidebar closed: Reset filter to show all", nrow(releases_data()), "releases\n")
+    }
+    
+    # Cancel new release
+    observeEvent(input$cancel_new_release, {
+      updateTextInput(session, "new_release_label", value = "")
+      iv_new$disable()
+      sidebar_toggle(id = "add_release_sidebar")
+      sidebar_is_open(FALSE)
+      
+      # Reset filter and form
+      reset_filter_and_form()
+      cat("🗞️ Cancel button clicked\n")
     })
     
     # Save new release
@@ -402,22 +422,13 @@ database_releases_server <- function(id) {
           type = "message"
         )
         updateTextInput(session, "new_release_label", value = "")
-        
-        # Reset dropdown to "Select a study" option
-        current_studies <- isolate(studies_data())
-        if (nrow(current_studies) > 0) {
-          choices <- c("Select a study" = "", setNames(current_studies$ID, current_studies$`Study Label`))
-          updateSelectInput(session, "new_study_id", choices = choices, selected = "")
-        } else {
-          updateSelectInput(session, "new_study_id", choices = list("No studies available" = ""), selected = "")
-        }
-        
         iv_new$disable()
         sidebar_toggle(id = "add_release_sidebar")
+        sidebar_is_open(FALSE)
         
-        # Reset table filter to show all releases after successful creation
-        filtered_releases(releases_data())
-        cat("✅ Created release: Reset filter to show all releases\n")
+        # Reset filter and form after successful creation
+        reset_filter_and_form()
+        cat("✅ Release created successfully\n")
         
         # Data will be updated via WebSocket events or fallback to HTTP
         load_releases_data()
