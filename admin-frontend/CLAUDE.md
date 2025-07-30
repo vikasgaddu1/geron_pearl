@@ -131,3 +131,58 @@ uv run python ../test_websocket_broadcast.py
 
 # Manual testing: Open multiple browser sessions and test CRUD operations
 ```
+
+## UI Programming Practices
+
+Based on the implementation in `studies_ui.R`, follow these established UI programming practices for consistency and optimal user experience across light and dark themes.
+
+### Theme-Aware Design Principles
+**Adaptive Header Styling**: Use `bg-body-secondary px-3 py-2 rounded` for headers to ensure theme toggle visibility in both light and dark modes. This provides subtle background contrast without custom CSS.
+
+**Button Visibility Standards**: Avoid `btn-outline-*` classes in favor of solid button variants (`btn-primary`, `btn-secondary`, `btn-success`) for better contrast across themes. Outline buttons often have poor visibility in dark mode.
+
+**Card Border Enhancement**: Add `border border-2` class to all cards to ensure proper visual separation in both themes. Default card borders are often too subtle in dark mode.
+
+### Spacing and Layout Consistency
+**Button Group Spacing**: Use `d-flex gap-2` for button groups instead of `btn-group` to provide consistent spacing between action buttons. This prevents visual crowding and improves touch accessibility.
+
+**Sidebar Overlap Prevention**: For collapsible sidebars, implement proper title spacing with `margin-left: 8px; margin-top: 12px;` to prevent overlap between collapse buttons and content. Increase sidebar width to 320px minimum for content forms.
+
+**Responsive Column Layouts**: Use `layout_columns()` with explicit `col_widths` and `gap` parameters for form button layouts. Standard pattern is `col_widths = c(6, 6), gap = 2` for side-by-side action buttons.
+
+### Form Validation Integration
+**Progressive Validation**: Implement shinyvalidate with validation enabled only on form submission, not immediately on form load. This prevents premature error messages and improves user experience.
+
+**Inline Error Display**: Use shinyvalidate for inline validation messages that appear directly below input fields rather than popup notifications. This provides better accessibility and context.
+
+**Validation State Management**: Properly disable validators when forms are cancelled or successfully submitted to reset validation state and prevent memory leaks.
+
+### Interactive Element Standards
+**Comprehensive Tooltips**: Add `title` attributes to all interactive elements with descriptive text that includes context (e.g., "Edit study MYF2003" rather than just "Edit").
+
+**Icon-Text Pairing**: Consistently use `tagList(bs_icon("icon-name"), "Text")` pattern for all buttons to provide both visual and text cues for accessibility.
+
+**Semantic Button Classes**: Use appropriate semantic classes (`btn-warning` for edit, `btn-danger` for delete, `btn-success` for create) to provide consistent visual language across the application.
+
+### Data Table Configuration
+**Center-Aligned Actions**: Use `className = "text-center"` in DataTable columnDefs for action columns to properly align both headers and button content.
+
+**Consistent Column Widths**: Implement explicit width allocation (typically 70% content, 30% actions) with `autoWidth = FALSE` for predictable table layouts.
+
+**Action Button Containers**: Wrap table action buttons in `d-flex gap-2 justify-content-center` containers for proper spacing and alignment within table cells.
+
+### Accessibility and Usability
+**Form Label Association**: Use proper `for` attributes linking labels to input elements with namespaced IDs for screen reader compatibility.
+
+**Keyboard Navigation**: Ensure all interactive elements are keyboard accessible by using semantic HTML elements and proper button implementations.
+
+**Color Independence**: Never rely solely on color to convey information; always pair with icons, text, or other visual indicators.
+
+### Development Workflow
+**Theme Testing Protocol**: Test all UI changes in both light and dark themes before considering implementation complete. Use the theme toggle to verify visibility and contrast.
+
+**Modular UI Structure**: Separate UI definition (`studies_ui.R`) from server logic (`studies_server.R`) with clear namespace usage for maintainable modular architecture.
+
+**Consistent Naming**: Use descriptive, action-based naming for UI elements (`save_new_study`, `cancel_edit`, `toggle_add_form`) that clearly indicates functionality.
+
+These practices ensure consistent, accessible, and maintainable UI components that work seamlessly across different themes and provide excellent user experience.

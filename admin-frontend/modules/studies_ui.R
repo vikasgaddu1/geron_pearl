@@ -1,124 +1,123 @@
 studies_ui <- function(id) {
   ns <- NS(id)
-  
-  # Main content area with centered card
-  layout_columns(
-    col_widths = 12,
-    
+
+  # Fluid page as container
+  page_fluid(
+    # Center content using d-flex
     div(
-      class = "d-flex justify-content-center",
+      style = "display: flex; justify-content: center; padding: 20px;",
       div(
         style = "width: 100%; max-width: 900px;",
         
+        # Main card
         card(
+          class = "border border-2",
           full_screen = FALSE,
           height = "600px",
           
+          # Header
           card_header(
             class = "d-flex justify-content-between align-items-center",
             tags$h4(
-              bs_icon("database"), 
+              bs_icon("database"),
               "Studies Management",
               class = "mb-0"
             ),
             div(
-              class = "btn-group",
+              class = "d-flex gap-2",
               actionButton(
-                ns("refresh"), 
+                ns("refresh"),
                 tagList(bs_icon("arrow-clockwise"), "Refresh"),
-                class = "btn btn-outline-primary btn-sm"
+                class = "btn btn-primary btn-sm",
+                title = "Refresh the studies list"
               ),
               actionButton(
-                ns("toggle_add_form"), 
+                ns("toggle_add_form"),
                 tagList(bs_icon("plus-lg"), "Add Study"),
-                class = "btn btn-success btn-sm"
+                class = "btn btn-success btn-sm",
+                title = "Add a new study"
               )
             )
           ),
           
+          # Body with sidebar
           card_body(
             class = "p-0",
+            style = "height: 100%;",
             
             layout_sidebar(
               sidebar = sidebar(
                 id = ns("add_study_sidebar"),
-                title = tagList(bs_icon("plus-lg"), "Add New Study"),
-                width = 300,
+                title = div(
+                  class = "d-flex align-items-center",
+                  style = "margin-left: 8px; margin-top: 30px;",
+                  bs_icon("plus-lg"),
+                  span("Add New Study", style = "margin-left: 15px;")
+                ),
+                width = 320,
                 open = FALSE,
                 position = "right",
+                padding = c(3, 3, 3, 4),
+                gap = 2,
                 
-                # Add study form using bslib components
+                # Add Study Form
                 card(
+                  class = "border border-2",
                   card_body(
-                    # Study label input
-                    layout_columns(
-                      col_widths = 12,
-                      
-                      div(
-                        tags$label("Study Label", class = "form-label fw-bold"),
-                        textInput(
-                          ns("new_study_label"), 
-                          NULL,
-                          value = "", 
-                          placeholder = "Enter unique study identifier",
-                          width = "100%"
-                        ),
-                        tags$small(
-                          class = "form-text text-muted",
-                          "Study labels must be unique"
-                        )
+                    div(
+                      class = "mb-3",
+                      tags$label("Study Label", `for` = ns("new_study_label"), class = "form-label fw-bold"),
+                      textInput(
+                        ns("new_study_label"),
+                        label = NULL,
+                        value = "",
+                        placeholder = "Enter unique study identifier"
+                      ),
+                      tags$small(
+                        class = "form-text text-muted",
+                        "Study labels must be unique."
                       )
                     ),
                     
                     # Action buttons
                     layout_columns(
                       col_widths = c(6, 6),
-                      
+                      gap = 2,
                       actionButton(
-                        ns("save_new_study"), 
+                        ns("save_new_study"),
                         tagList(bs_icon("check"), "Create"),
-                        class = "btn btn-success w-100"
+                        class = "btn btn-success w-100",
+                        title = "Create the new study"
                       ),
                       actionButton(
-                        ns("cancel_new_study"), 
+                        ns("cancel_new_study"),
                         tagList(bs_icon("x"), "Cancel"),
-                        class = "btn btn-outline-secondary w-100"
+                        class = "btn btn-secondary w-100",
+                        title = "Cancel and close the form"
                       )
                     )
                   )
                 )
               ),
               
-              # Main studies content
+              # Main content
               div(
                 class = "p-3",
-                
-                # Studies table with built-in search
-                div(
-                  style = "height: 400px;",
-                  DT::dataTableOutput(ns("studies_table"))
-                )
+                style = "height: 400px; overflow-y: auto;",
+                DT::dataTableOutput(ns("studies_table"))
               )
             )
           ),
           
+          # Footer
           card_footer(
-            class = "d-flex justify-content-between align-items-center",
+            class = "d-flex flex-wrap justify-content-between align-items-center small text-muted gap-2",
             div(
               class = "d-flex align-items-center gap-3",
-              tags$small(
-                class = "text-muted",
-                textOutput(ns("status_message"))
-              ),
-              tags$small(
-                class = "text-muted",
-                textOutput(ns("websocket_status_display"))
-              )
+              textOutput(ns("status_message")),
+              textOutput(ns("websocket_status_display"))
             ),
-            tags$small(
-              class = "text-muted",
-              textOutput(ns("last_updated_display"))
-            )
+            textOutput(ns("last_updated_display"))
           )
         )
       )

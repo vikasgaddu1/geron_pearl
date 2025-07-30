@@ -11,6 +11,30 @@ studies_server <- function(id) {
     editing_study_id <- reactiveVal(NULL)
     websocket_status <- reactiveVal("Initializing")
     
+    # Set up validation for new study form
+    iv_new <- InputValidator$new()
+    iv_new$add_rule("new_study_label", sv_required())
+    iv_new$add_rule("new_study_label", function(value) {
+      existing_studies <- studies_data()
+      if (nrow(existing_studies) > 0 && trimws(value) %in% existing_studies$`Study Label`) {
+        "A study with this label already exists"
+      }
+    })
+    
+    # Set up validation for edit study form
+    iv_edit <- InputValidator$new()
+    iv_edit$add_rule("edit_study_label", sv_required())
+    iv_edit$add_rule("edit_study_label", function(value) {
+      existing_studies <- studies_data()
+      current_id <- editing_study_id()
+      if (nrow(existing_studies) > 0 && !is.null(current_id)) {
+        other_studies <- existing_studies[existing_studies$ID != current_id, ]
+        if (nrow(other_studies) > 0 && trimws(value) %in% other_studies$`Study Label`) {
+          "A study with this label already exists"
+        }
+      }
+    })
+    
     # Convert API data to data frame
     convert_studies_to_df <- function(studies_list) {
       if (length(studies_list) > 0) {
@@ -51,18 +75,9 @@ studies_server <- function(id) {
       switch(event$type,
         "studies_update" = {
           # Full studies data update
-          cat("🔄 Converting WebSocket data to dataframe...\n")
-          tryCatch({
-            df <- convert_studies_to_df(event$data)
-            cat("✅ Conversion successful, rows:", nrow(df), "\n")
-            studies_data(df)
-            last_update(Sys.time())
-            cat("📊 Studies data updated in reactive value\n")
-          }, error = function(e) {
-            cat("❌ Error converting WebSocket data:", e$message, "\n")
-            cat("📋 Raw event data structure:\n")
-            str(event$data)
-          })
+          df <- convert_studies_to_df(event$data)
+          studies_data(df)
+          last_update(Sys.time())
         },
         "study_created" = {
           # Request fresh data after creation
@@ -144,17 +159,19 @@ studies_server <- function(id) {
       # Add action buttons to the Actions column
       studies$Actions <- sapply(studies$ID, function(id) {
         as.character(div(
-          class = "btn-group btn-group-sm",
+          class = "d-flex gap-2 justify-content-center",
           actionButton(
             ns(paste0("edit_", id)),
             tagList(bs_icon("pencil"), "Edit"),
             class = "btn btn-warning btn-sm",
+            title = paste("Edit study", studies$`Study Label`[studies$ID == id]),
             onclick = sprintf("Shiny.setInputValue('%s', %s)", ns("edit_study_id"), id)
           ),
           actionButton(
             ns(paste0("delete_", id)),
             tagList(bs_icon("trash"), "Delete"),
             class = "btn btn-danger btn-sm",
+            title = paste("Delete study", studies$`Study Label`[studies$ID == id]),
             onclick = sprintf("Shiny.setInputValue('%s', %s)", ns("delete_study_id"), id)
           )
         ))
@@ -171,7 +188,7 @@ studies_server <- function(id) {
           autoWidth = FALSE,
           columnDefs = list(
             list(targets = 0, width = "70%"), # Study Label column
-            list(targets = 1, width = "30%", orderable = FALSE) # Actions column
+            list(targets = 1, width = "30%", orderable = FALSE, className = "text-center") # Actions column
           ),
           language = list(
             search = "Search studies:",
@@ -194,30 +211,19 @@ studies_server <- function(id) {
     # Cancel new study
     observeEvent(input$cancel_new_study, {
       updateTextInput(session, "new_study_label", value = "")
+      iv_new$disable()
       sidebar_toggle(id = "add_study_sidebar")
     })
     
     # Save new study
     observeEvent(input$save_new_study, {
+      # Enable validation and check form
+      iv_new$enable()
+      if (!iv_new$is_valid()) {
+        return()
+      }
+      
       study_label <- trimws(input$new_study_label)
-      
-      if (nchar(study_label) == 0) {
-        showNotification(
-          tagList(bs_icon("exclamation-circle"), "Study label is required"), 
-          type = "error"
-        )
-        return()
-      }
-      
-      # Check for duplicates locally first
-      existing_studies <- studies_data()
-      if (nrow(existing_studies) > 0 && study_label %in% existing_studies$`Study Label`) {
-        showNotification(
-          tagList(bs_icon("exclamation-triangle"), "A study with this label already exists"), 
-          type = "error"
-        )
-        return()
-      }
       
       study_data <- list(study_label = study_label)
       
@@ -242,6 +248,7 @@ studies_server <- function(id) {
           type = "message"
         )
         updateTextInput(session, "new_study_label", value = "")
+        iv_new$disable()
         sidebar_toggle(id = "add_study_sidebar")
         # Data will be updated via WebSocket events or fallback to HTTP
         load_studies_http()
@@ -289,7 +296,7 @@ studies_server <- function(id) {
           actionButton(
             ns("cancel_edit"), 
             tagList(bs_icon("x"), "Cancel"),
-            class = "btn btn-outline-secondary"
+            class = "btn btn-secondary"
           ),
           actionButton(
             ns("save_edit"), 
@@ -304,34 +311,19 @@ studies_server <- function(id) {
     observeEvent(input$cancel_edit, {
       is_editing(FALSE)
       editing_study_id(NULL)
+      iv_edit$disable()
       removeModal()
     })
     
     # Save edit
     observeEvent(input$save_edit, {
-      study_label <- trimws(input$edit_study_label)
-      
-      if (nchar(study_label) == 0) {
-        showNotification(
-          tagList(bs_icon("exclamation-circle"), "Study label is required"), 
-          type = "error"
-        )
+      # Enable validation and check form
+      iv_edit$enable()
+      if (!iv_edit$is_valid()) {
         return()
       }
       
-      # Check for duplicates (excluding current study)
-      existing_studies <- studies_data()
-      current_id <- editing_study_id()
-      if (nrow(existing_studies) > 0) {
-        other_studies <- existing_studies[existing_studies$ID != current_id, ]
-        if (nrow(other_studies) > 0 && study_label %in% other_studies$`Study Label`) {
-          showNotification(
-            tagList(bs_icon("exclamation-triangle"), "A study with this label already exists"), 
-            type = "error"
-          )
-          return()
-        }
-      }
+      study_label <- trimws(input$edit_study_label)
       
       study_data <- list(study_label = study_label)
       
@@ -357,6 +349,7 @@ studies_server <- function(id) {
         )
         is_editing(FALSE)
         editing_study_id(NULL)
+        iv_edit$disable()
         removeModal()
         # Data will be updated via WebSocket events or fallback to HTTP
         load_studies_http()

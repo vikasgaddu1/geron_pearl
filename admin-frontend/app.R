@@ -8,6 +8,7 @@ library(httr)
 library(jsonlite)
 library(shinyWidgets)
 library(bsicons)
+library(shinyvalidate)
 
 # API Configuration
 API_BASE_URL <- "http://localhost:8000/api/v1"
@@ -18,45 +19,62 @@ source("modules/api_client.R")
 source("modules/studies_ui.R")
 source("modules/studies_server.R")
 
-# Minimal modern theme
+# Theme with automatic dark mode support
 pearl_theme <- bs_theme(
   version = 5,
-  bootswatch = "flatly",
   base_font = font_google("Inter"),
   heading_font = font_google("Inter", wght = "600")
 )
 
 # UI
 ui <- page_sidebar(
-  title = span(
-    bs_icon("database-fill", size = "1.2em"),
-    " PEARL Admin"
+  title = div(
+    class = "d-flex justify-content-between align-items-center w-100 bg-body-secondary px-3 py-2 rounded",
+    span(
+      bs_icon("database-fill", size = "1.2em"),
+      " PEARL Admin"
+    ),
+    input_dark_mode(id = "dark_mode", mode = "light")
   ),
   sidebar = sidebar(
     id = "main_sidebar",
     width = 250,
-    style = "height: 100vh; padding: 0;",
+    padding = 3,
+    gap = 3,
 
-    div(
-      style = "position: sticky; top: 0; height: 100%; overflow-y: auto; padding: 1rem 0;",
-
-      nav_menu(
-        "Data Management",
-        icon = bs_icon("database"),
-
-        nav_panel(
-          "Studies",
-          value = "data_tab",
-          icon = bs_icon("table")
+    # Navigation section
+    card(
+      class = "border border-2",
+      card_header(
+        class = "bg-primary text-white",
+        tags$h6(
+          bs_icon("database"),
+          "Data Management",
+          class = "mb-0 d-flex align-items-center gap-2"
+        )
+      ),
+      card_body(
+        class = "p-2",
+        div(
+          class = "list-group list-group-flush",
+          tags$a(
+            href = "#",
+            class = "list-group-item list-group-item-action d-flex align-items-center gap-2 border-0",
+            onclick = "document.getElementById('main_tabs').querySelector('[data-value=\"data_tab\"]').click();",
+            bs_icon("table"),
+            "Studies"
+          )
         )
       )
     ),
 
+    # Footer
     div(
-      style = "padding: 1rem;",
+      class = "mt-auto pt-3 border-top text-center",
       tags$small(
+        class = "text-muted",
         "v1.0 • ",
-        tags$a("GitHub", href = "#", style = "color: #0d6efd;")
+        tags$a("GitHub", href = "#", class = "text-decoration-none")
       )
     )
   ),
@@ -115,13 +133,14 @@ ui <- page_sidebar(
 
 # Server
 server <- function(input, output, session) {
+  
   # Studies module
   studies_server("studies")
   
   # Health check
   output$health_status <- renderText({
     tryCatch({
-      response <- GET(paste0(API_BASE_URL, "/../health"))
+      response <- GET("http://localhost:8000/health")
       if (status_code(response) == 200) {
         content <- content(response, "parsed")
         paste("✅ Backend API is healthy\n",
