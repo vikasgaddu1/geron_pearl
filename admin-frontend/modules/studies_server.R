@@ -191,16 +191,23 @@ studies_server <- function(id) {
           drawCallback = JS(sprintf("
             function() {
               var table = this;
-              $('#%s button[data-action=\"edit\"]').off('click').on('click', function() {
+              console.log('Studies table drawCallback triggered');
+              var editButtons = $('#%s button[data-action=\"edit\"]');
+              var deleteButtons = $('#%s button[data-action=\"delete\"]');
+              console.log('Found edit buttons:', editButtons.length);
+              console.log('Found delete buttons:', deleteButtons.length);
+              editButtons.off('click').on('click', function() {
                 var id = $(this).attr('data-id');
+                console.log('Edit button clicked for ID:', id);
                 Shiny.setInputValue('%s', id, {priority: 'event'});
               });
-              $('#%s button[data-action=\"delete\"]').off('click').on('click', function() {
+              deleteButtons.off('click').on('click', function() {
                 var id = $(this).attr('data-id');
+                console.log('Delete button clicked for ID:', id);
                 Shiny.setInputValue('%s', id, {priority: 'event'});
               });
             }
-          ", ns("studies_table"), ns("edit_study_id"), 
+          ", ns("studies_table"), ns("studies_table"), ns("edit_study_id"), 
              ns("studies_table"), ns("delete_study_id")))
         ),
         rownames = FALSE,
@@ -266,6 +273,7 @@ studies_server <- function(id) {
     # Edit study handler
     observeEvent(input$edit_study_id, {
       study_id <- input$edit_study_id
+      cat("📝 Edit study requested for ID:", study_id, "\n")
       if (is.null(study_id)) return()
       
       # Get study data
