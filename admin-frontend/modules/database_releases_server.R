@@ -229,6 +229,7 @@ database_releases_server <- function(id) {
             dom = 'ft', # Only show filter and table
             pageLength = 10,
             autoWidth = FALSE,
+            search = list(regex = TRUE, caseInsensitive = TRUE), # Enable regex search
             columnDefs = list(
               list(targets = 0, width = "35%"), # Study Label column
               list(targets = 1, width = "35%"), # Release Label column
@@ -236,8 +237,8 @@ database_releases_server <- function(id) {
             ),
             language = list(
               emptyTable = empty_message,
-              search = "Search all:",
-              searchPlaceholder = "Type to search all columns..."
+              search = "Search all (regex supported):",
+              searchPlaceholder = "Type to search... (e.g., MYF.*|jan_.*)"
             )
           ),
           rownames = FALSE,
@@ -279,14 +280,15 @@ database_releases_server <- function(id) {
           dom = 'ft', # Only show filter and table (f=filter, t=table)
           pageLength = 10,
           autoWidth = FALSE,
+          search = list(regex = TRUE, caseInsensitive = TRUE), # Enable regex search
           columnDefs = list(
             list(targets = 0, width = "35%"), # Study Label column
             list(targets = 1, width = "35%"), # Release Label column
             list(targets = 2, width = "30%", orderable = FALSE, className = "text-center", searchable = FALSE) # Actions column - not searchable
           ),
           language = list(
-            search = "Search all:",
-            searchPlaceholder = "Type to search all columns..."
+            search = "Search all (regex supported):",
+            searchPlaceholder = "Type to search... (e.g., MYF.*|jan_.*)"
           ),
           drawCallback = JS(sprintf("
             function() {
