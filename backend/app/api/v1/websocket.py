@@ -345,6 +345,7 @@ async def broadcast_reporting_effort_created(reporting_effort_data):
 async def broadcast_reporting_effort_updated(reporting_effort_data):
     """Broadcast that a reporting effort was updated."""
     logger.info(f"📝 Broadcasting reporting_effort_updated: {reporting_effort_data.database_release_label}")
+    logger.info(f"🔍 Active connections before broadcast: {len(manager.active_connections)}")
     # Convert SQLAlchemy model to Pydantic schema
     pydantic_reporting_effort = ReportingEffort.model_validate(reporting_effort_data)
     message = json.dumps({
@@ -352,7 +353,7 @@ async def broadcast_reporting_effort_updated(reporting_effort_data):
         "data": pydantic_reporting_effort.model_dump()
     })
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_reporting_effort_deleted(reporting_effort_id: int):
