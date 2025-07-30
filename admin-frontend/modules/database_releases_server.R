@@ -202,10 +202,20 @@ database_releases_server <- function(id) {
       releases <- filtered_releases()
       
       if (nrow(releases) == 0) {
-        # Return empty table with proper structure
+        # Determine appropriate empty message based on filter state
+        current_studies <- studies_data()
+        empty_message <- if (!is.null(input$new_study_id) && input$new_study_id != "") {
+          # Filtered view - show study-specific message
+          study_row <- current_studies[current_studies$ID == as.numeric(input$new_study_id), ]
+          study_name <- if (nrow(study_row) > 0) study_row$`Study Label`[1] else "Selected Study"
+          paste("No database releases found for", study_name, ". Click 'Create' to add the first release.")
+        } else {
+          # Default view - show general message
+          "No database releases found. Click 'Add Release' to create your first database release."
+        }
+        
+        # Return empty table with consistent structure (only visible columns)
         empty_df <- data.frame(
-          ID = character(0),
-          `Study ID` = numeric(0),
           `Study Label` = character(0),
           `Release Label` = character(0),
           Actions = character(0),
@@ -215,9 +225,19 @@ database_releases_server <- function(id) {
         return(DT::datatable(
           empty_df,
           options = list(
-            dom = 'ft',
+            dom = 'ft', # Only show filter and table
             pageLength = 10,
-            language = list(emptyTable = "No database releases found. Click 'Add Release' to create your first database release.")
+            autoWidth = FALSE,
+            columnDefs = list(
+              list(targets = 0, width = "35%"), # Study Label column
+              list(targets = 1, width = "35%"), # Release Label column
+              list(targets = 2, width = "30%", orderable = FALSE, className = "text-center") # Actions column
+            ),
+            language = list(
+              emptyTable = empty_message,
+              search = "Search releases:",
+              searchPlaceholder = "Type to filter..."
+            )
           ),
           rownames = FALSE,
           escape = FALSE
