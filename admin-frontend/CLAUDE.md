@@ -285,6 +285,57 @@ output$efforts_table <- DT::renderDataTable({
 - **Error Reduction**: Eliminated "websocket.send after websocket.close" errors
 - **Real-time Updates**: Reporting efforts now have same real-time functionality as studies/database releases
 
+### WebSocket Message Routing System
+
+#### Message Format Mismatch Issue
+The WebSocket system had a critical routing issue where backend and frontend expected different message formats:
+
+**Backend sends (from FastAPI):**
+```json
+{
+  "type": "reporting_effort_updated",
+  "data": {...}
+}
+```
+
+**Frontend expected (in websocket_client.js):**
+```json
+{
+  "module": "reporting_efforts",
+  "type": "reporting_effort_updated", 
+  "data": {...}
+}
+```
+
+#### Module-Based Routing Solution
+The JavaScript WebSocket client (`websocket_client.js`) implements automatic module detection:
+
+```javascript
+// handleMessage() automatically assigns modules based on message type
+if (data.type === 'studies_update' || data.type.startsWith('study_')) {
+    data.module = 'studies';
+} else if (data.type.startsWith('reporting_effort_')) {
+    data.module = 'reporting_efforts';
+} else if (data.type.startsWith('database_release_')) {
+    data.module = 'database_releases';
+}
+```
+
+#### Shiny Event Routing
+Messages are routed to Shiny modules using the pattern `{module}-websocket_event`:
+- `studies-websocket_event` → handled by `studies_server.R`
+- `reporting_efforts-websocket_event` → handled by `reporting_efforts_server.R`
+- `database_releases-websocket_event` → handled by `database_releases_server.R`
+
+#### Complete Message Flow
+1. **Backend API** calls `broadcast_reporting_effort_updated()` with message type only
+2. **WebSocket Server** broadcasts to all connected clients
+3. **JavaScript Client** receives message, detects module from type, adds module property
+4. **notifyShinyModule()** sends to `reporting_efforts-websocket_event` Shiny input
+5. **R Shiny Module** `observeEvent()` triggers and refreshes data via HTTP
+
+This architecture allows the backend to remain simple (only sending type + data) while the frontend intelligently routes messages to the appropriate Shiny modules.
+
 ### Module Integration Rules
 - **Source Order Matters**: `websocket_client.R` must be sourced BEFORE other modules that use WebSocket URLs
 - **Environment Loading**: Call `load_dot_env()` BEFORE defining any endpoint URLs
