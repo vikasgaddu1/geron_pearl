@@ -39,6 +39,51 @@ This is the R Shiny admin frontend for the PEARL research data management system
 - **Action Buttons**: Edit and Delete buttons with confirmation dialogs (edit is placeholder for now)
 - **Empty State**: Proper empty dataframe with helpful message when no records exist
 
+### Debugging Session Lessons Learned (Latest Session)
+
+#### JavaScript sprintf Formatting Issues
+- **Problem**: Edit buttons not working due to sprintf formatting errors
+- **Root Cause**: Mismatch between number of `%s` placeholders (4) and arguments (5) in JavaScript callbacks
+- **Solution**: Carefully count placeholders and arguments in `sprintf()` calls
+- **Lesson**: Always validate sprintf formatting - R will give warnings but continue execution with broken JavaScript
+- **Detection**: Look for warnings like "one argument not used by format" in R console
+
+#### Custom Message Handler Syntax
+- **Problem**: `session$onCustomMessage()` causing "attempt to apply non-function" error
+- **Root Cause**: Incorrect Shiny syntax - this method doesn't exist in standard Shiny
+- **Solution**: Use `observeEvent(input$custom_input, {...})` pattern instead
+- **Implementation**: Trigger with `shinyjs::runjs("Shiny.setInputValue('module-input_name', value)")` from main app
+- **Lesson**: Always verify Shiny API methods - custom message handling requires input-based approach
+
+#### Modal Dropdown Population Issues
+- **Problem**: Database release dropdown not populated correctly in edit modal
+- **Root Cause**: Pre-filtering choices before modal creation prevented proper selection
+- **Solution**: Load all choices initially, then use `shinyjs::delay()` to filter after modal renders
+- **Pattern**: 
+  ```r
+  # Create modal with all choices
+  selectInput(..., choices = all_choices, selected = current_value)
+  # Then filter after rendering
+  shinyjs::delay(100, {
+    updateSelectInput(session, ..., choices = filtered_choices, selected = current_value)
+  })
+  ```
+- **Lesson**: Modal rendering is asynchronous - use delays for post-modal operations
+
+#### Edit Functionality Missing Variables
+- **Problem**: "object 'current_id' not found" error in edit save handlers
+- **Root Cause**: Missing variable assignment from reactive value
+- **Solution**: Always add `current_id <- editing_[entity]_id()` at start of save handlers
+- **Pattern**: Every edit save function needs to retrieve the ID from the reactive value before use
+- **Lesson**: Reactive values must be explicitly called and assigned to variables within observers
+
+#### Systematic Debugging Approach
+1. **JavaScript Console**: Add console.log statements to debug button click handlers
+2. **R Console Logging**: Add cat() statements to track R-side event processing  
+3. **Sprintf Validation**: Count placeholders vs arguments carefully
+4. **Modal Timing**: Use delays for operations that depend on rendered modals
+5. **Reactive Value Access**: Always assign reactive values to variables before use in complex logic
+
 ### Key Implementation Patterns
 
 #### DataTable Configuration
