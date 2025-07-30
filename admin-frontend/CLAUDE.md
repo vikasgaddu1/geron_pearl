@@ -219,3 +219,16 @@ These practices ensure consistent, accessible, and maintainable UI components th
 **CSS Implementation**: Use `[data-bs-theme="dark"]` selectors to automatically apply dark mode styles when bslib switches themes. Include smooth transitions (`0.3s ease`) for professional theme switching experience.
 
 **Professional Standards**: Avoid bright or "gaudy" colors in headers. Opt for subtle backgrounds that don't distract from content while maintaining clear visual hierarchy through borders and typography.
+
+### Browser Tab Enhancement
+**Window Title Configuration**: Set proper browser tab titles using both `window_title` parameter in `page_sidebar()` and `tags$title()` in the document head for maximum compatibility across different Shiny configurations.
+
+**Favicon Implementation**: Use inline SVG data URIs for favicons to avoid external file dependencies. Create thematically appropriate icons that match the application's purpose and branding.
+
+**Pearl Icon Design**: For the PEARL application, implement a realistic pearl icon using SVG with radial gradients to create lustrous pearl effects. Include highlight elements (rotated ellipses) to simulate authentic pearl shine and reflection.
+
+**Technical Best Practices**: 
+- Use `type="image/svg+xml"` for SVG favicons
+- Implement proper URL encoding for SVG data URIs
+- Keep titles concise but descriptive (e.g., "PEARL Admin" rather than lengthy descriptions)
+- Ensure icons are scalable and work across different browser tab sizes
