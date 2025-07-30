@@ -207,8 +207,7 @@ studies_server <- function(id) {
                 Shiny.setInputValue('%s', id, {priority: 'event'});
               });
             }
-          ", ns("studies_table"), ns("studies_table"), ns("edit_study_id"), 
-             ns("studies_table"), ns("delete_study_id")))
+          ", ns("studies_table"), ns("studies_table"), ns("edit_study_id"), ns("delete_study_id")))
         ),
         rownames = FALSE,
         escape = FALSE, # Allow HTML in Actions column
