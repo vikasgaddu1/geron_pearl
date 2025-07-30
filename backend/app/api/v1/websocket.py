@@ -7,10 +7,11 @@ from typing import Dict, List, Set
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud import study, database_release
+from app.crud import study, database_release, reporting_effort
 from app.db.session import AsyncSessionLocal
 from app.schemas.study import Study
 from app.schemas.database_release import DatabaseRelease
+from app.schemas.reporting_effort import ReportingEffort
 
 logger = logging.getLogger(__name__)
 
@@ -289,6 +290,43 @@ async def broadcast_database_release_deleted(database_release_id: int):
     message = json.dumps({
         "type": "database_release_deleted",
         "data": {"id": database_release_id}
+    })
+    await manager.broadcast(message)
+    logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_reporting_effort_created(reporting_effort_data):
+    """Broadcast that a new reporting effort was created."""
+    logger.info(f"🚀 Broadcasting reporting_effort_created: {reporting_effort_data.database_release_label}")
+    # Convert SQLAlchemy model to Pydantic schema
+    pydantic_reporting_effort = ReportingEffort.model_validate(reporting_effort_data)
+    message = json.dumps({
+        "type": "reporting_effort_created",
+        "data": pydantic_reporting_effort.model_dump()
+    })
+    await manager.broadcast(message)
+    logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_reporting_effort_updated(reporting_effort_data):
+    """Broadcast that a reporting effort was updated."""
+    logger.info(f"📝 Broadcasting reporting_effort_updated: {reporting_effort_data.database_release_label}")
+    # Convert SQLAlchemy model to Pydantic schema
+    pydantic_reporting_effort = ReportingEffort.model_validate(reporting_effort_data)
+    message = json.dumps({
+        "type": "reporting_effort_updated",
+        "data": pydantic_reporting_effort.model_dump()
+    })
+    await manager.broadcast(message)
+    logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_reporting_effort_deleted(reporting_effort_id: int):
+    """Broadcast that a reporting effort was deleted."""
+    logger.info(f"🗑️ Broadcasting reporting_effort_deleted: ID {reporting_effort_id}")
+    message = json.dumps({
+        "type": "reporting_effort_deleted",
+        "data": {"id": reporting_effort_id}
     })
     await manager.broadcast(message)
     logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")

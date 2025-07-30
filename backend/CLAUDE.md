@@ -136,6 +136,18 @@ if associated_releases:
     )
 ```
 
+**Database Release Deletion Protection** (`app/api/v1/database_releases.py:188-195`):
+```python
+# Check for associated reporting efforts before deletion
+associated_efforts = await reporting_effort.get_by_database_release_id(db, database_release_id=database_release_id)
+if associated_efforts:
+    effort_labels = [effort.database_release_label for effort in associated_efforts]
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=f"Cannot delete database release '{db_release.database_release_label}': {len(associated_efforts)} associated reporting effort(s) exist: {', '.join(effort_labels)}. Please delete all associated reporting efforts first."
+    )
+```
+
 #### Required CRUD Methods for Deletion Protection
 
 **For each dependent relationship, implement query methods**:
@@ -174,6 +186,28 @@ async def get_by_parent_id(self, db: AsyncSession, *, parent_id: int) -> List[De
 6. ✅ Attempt parent deletion again (should succeed with HTTP 200)
 
 **Test Script Pattern**: See `test_study_deletion_protection_fixed.sh` as reference implementation
+
+#### Current Data Model & Relationships
+
+**Three-tier hierarchical structure with cascading deletion protection**:
+
+```
+Study (1) ←→ (N) DatabaseRelease (1) ←→ (N) ReportingEffort
+  ↑                                              ↓
+  └────────────── (1) ←→ (N) ──────────────────┘
+```
+
+**Deletion Order Requirements**:
+1. **ReportingEffort** (leaf nodes - can be deleted freely)
+2. **DatabaseRelease** (middle tier - blocked if ReportingEffort exists)  
+3. **Study** (root - blocked if DatabaseRelease exists)
+
+**Current Endpoints**:
+- `/api/v1/studies/` - Study CRUD with DatabaseRelease deletion protection
+- `/api/v1/database-releases/` - DatabaseRelease CRUD with ReportingEffort deletion protection
+- `/api/v1/reporting-efforts/` - ReportingEffort CRUD (no dependent entities)
+
+**WebSocket Broadcasting**: All CRUD operations broadcast real-time events for each entity type
 
 ## WebSocket Implementation Details
 

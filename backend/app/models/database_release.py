@@ -15,8 +15,9 @@ class DatabaseRelease(Base):
     study_id: Mapped[int] = mapped_column(Integer, ForeignKey("studies.id"), nullable=False, index=True)
     database_release_label: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     
-    # Relationship to Study
+    # Relationships
     study = relationship("Study", back_populates="database_releases")
+    reporting_efforts = relationship("ReportingEffort", back_populates="database_release")
     
     # Unique constraint: each study can have only one database release with the same label
     __table_args__ = (

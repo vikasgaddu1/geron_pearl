@@ -14,8 +14,9 @@ class Study(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     study_label: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     
-    # Relationship to DatabaseRelease
+    # Relationships
     database_releases = relationship("DatabaseRelease", back_populates="study")
+    reporting_efforts = relationship("ReportingEffort", back_populates="study")
     
     def __repr__(self) -> str:
         return f"<Study(id={self.id}, study_label='{self.study_label}')>"

@@ -5,7 +5,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud import database_release, study
+from app.crud import database_release, study, reporting_effort
 from app.db.session import get_db
 from app.schemas.database_release import DatabaseRelease, DatabaseReleaseCreate, DatabaseReleaseUpdate
 from app.api.v1.websocket import broadcast_database_release_created, broadcast_database_release_updated, broadcast_database_release_deleted
@@ -183,6 +183,15 @@ async def delete_database_release(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Database release not found"
+            )
+        
+        # Check for associated reporting efforts before deletion
+        associated_efforts = await reporting_effort.get_by_database_release_id(db, database_release_id=database_release_id)
+        if associated_efforts:
+            effort_labels = [effort.database_release_label for effort in associated_efforts]
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot delete database release '{db_release.database_release_label}': {len(associated_efforts)} associated reporting effort(s) exist: {', '.join(effort_labels)}. Please delete all associated reporting efforts first."
             )
         
         deleted_release = await database_release.delete(db, id=database_release_id)
