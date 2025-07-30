@@ -195,3 +195,12 @@ These practices ensure consistent, accessible, and maintainable UI components th
 **String Value Handling**: Remember that `input_dark_mode()` returns string values ("light" or "dark"), not boolean values. Use proper string comparison: `if(input$dark_mode == "dark")` rather than `if(input$dark_mode)`.
 
 **Transition Timing**: Allow 1200ms for theme transitions to complete before re-enabling interactions and showing success feedback. This prevents the frustrating experience of clicking unresponsive buttons during bslib theme switches.
+
+### DataTable Button Event Handling
+**Use DataTable Callbacks**: For buttons within DataTables, use the `drawCallback` option instead of inline `onclick` handlers or custom event delegation. This ensures buttons remain responsive across theme changes, sidebar animations, and table redraws.
+
+**Button Structure**: Use `tags$button()` with `data-action` and `data-id` attributes rather than `actionButton()` with `onclick`. This creates cleaner, more maintainable event handling.
+
+**Event Binding Pattern**: Use jQuery's `.off('click').on('click')` pattern in `drawCallback` to prevent duplicate event handlers and ensure events work after table redraws, pagination, or filtering.
+
+**Theme-Agnostic Events**: DataTable callbacks are immune to theme transitions and sidebar state changes, providing consistent button responsiveness in both light and dark modes without timing dependencies.

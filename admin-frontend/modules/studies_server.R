@@ -160,19 +160,19 @@ studies_server <- function(id) {
       studies$Actions <- sapply(studies$ID, function(id) {
         as.character(div(
           class = "d-flex gap-2 justify-content-center",
-          actionButton(
-            ns(paste0("edit_", id)),
-            tagList(bs_icon("pencil"), "Edit"),
+          tags$button(
             class = "btn btn-warning btn-sm",
+            `data-action` = "edit",
+            `data-id` = id,
             title = paste("Edit study", studies$`Study Label`[studies$ID == id]),
-            onclick = sprintf("Shiny.setInputValue('%s', %s)", ns("edit_study_id"), id)
+            tagList(bs_icon("pencil"), "Edit")
           ),
-          actionButton(
-            ns(paste0("delete_", id)),
-            tagList(bs_icon("trash"), "Delete"),
+          tags$button(
             class = "btn btn-danger btn-sm",
+            `data-action` = "delete",
+            `data-id` = id,
             title = paste("Delete study", studies$`Study Label`[studies$ID == id]),
-            onclick = sprintf("Shiny.setInputValue('%s', %s)", ns("delete_study_id"), id)
+            tagList(bs_icon("trash"), "Delete")
           )
         ))
       })
@@ -193,7 +193,21 @@ studies_server <- function(id) {
           language = list(
             search = "Search studies:",
             searchPlaceholder = "Type to filter..."
-          )
+          ),
+          drawCallback = JS(sprintf("
+            function() {
+              var table = this;
+              $('#%s button[data-action=\"edit\"]').off('click').on('click', function() {
+                var id = $(this).attr('data-id');
+                Shiny.setInputValue('%s', id, {priority: 'event'});
+              });
+              $('#%s button[data-action=\"delete\"]').off('click').on('click', function() {
+                var id = $(this).attr('data-id');
+                Shiny.setInputValue('%s', id, {priority: 'event'});
+              });
+            }
+          ", ns("studies_table"), ns("edit_study_id"), 
+             ns("studies_table"), ns("delete_study_id")))
         ),
         rownames = FALSE,
         escape = FALSE, # Allow HTML in Actions column
