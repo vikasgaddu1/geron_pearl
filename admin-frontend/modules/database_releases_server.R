@@ -356,12 +356,22 @@ database_releases_server <- function(id) {
     # Cancel new release
     observeEvent(input$cancel_new_release, {
       updateTextInput(session, "new_release_label", value = "")
-      updateSelectInput(session, "new_study_id", selected = "")
+      
+      # Reset dropdown to "Select a study" option
+      current_studies <- isolate(studies_data())
+      if (nrow(current_studies) > 0) {
+        choices <- c("Select a study" = "", setNames(current_studies$ID, current_studies$`Study Label`))
+        updateSelectInput(session, "new_study_id", choices = choices, selected = "")
+      } else {
+        updateSelectInput(session, "new_study_id", choices = list("No studies available" = ""), selected = "")
+      }
+      
       iv_new$disable()
       sidebar_toggle(id = "add_release_sidebar")
       
       # Reset table filter to show all releases
       filtered_releases(releases_data())
+      cat("🗞️ Cancel: Reset filter to show all", nrow(releases_data()), "releases\n")
     })
     
     # Save new release
@@ -392,9 +402,23 @@ database_releases_server <- function(id) {
           type = "message"
         )
         updateTextInput(session, "new_release_label", value = "")
-        updateSelectInput(session, "new_study_id", selected = "")
+        
+        # Reset dropdown to "Select a study" option
+        current_studies <- isolate(studies_data())
+        if (nrow(current_studies) > 0) {
+          choices <- c("Select a study" = "", setNames(current_studies$ID, current_studies$`Study Label`))
+          updateSelectInput(session, "new_study_id", choices = choices, selected = "")
+        } else {
+          updateSelectInput(session, "new_study_id", choices = list("No studies available" = ""), selected = "")
+        }
+        
         iv_new$disable()
         sidebar_toggle(id = "add_release_sidebar")
+        
+        # Reset table filter to show all releases after successful creation
+        filtered_releases(releases_data())
+        cat("✅ Created release: Reset filter to show all releases\n")
+        
         # Data will be updated via WebSocket events or fallback to HTTP
         load_releases_data()
       }
