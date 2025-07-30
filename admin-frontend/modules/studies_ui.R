@@ -116,8 +116,7 @@ studies_ui <- function(id) {
             class = "d-flex flex-wrap justify-content-between align-items-center small text-muted gap-2",
             div(
               class = "d-flex align-items-center gap-3",
-              textOutput(ns("status_message")),
-              textOutput(ns("websocket_status_display"))
+              textOutput(ns("status_message"))
             ),
             textOutput(ns("last_updated_display"))
           )
