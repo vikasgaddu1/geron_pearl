@@ -376,6 +376,69 @@ studies_server <- function(id) {
       
       study_label <- study_row$`Study Label`
       
+      # Check for associated database releases before allowing deletion
+      releases_result <- get_database_releases()
+      if (!is.null(releases_result$error)) {
+        showNotification(
+          tagList(bs_icon("x-circle"), "Error checking database releases:", releases_result$error), 
+          type = "error"
+        )
+        return()
+      }
+      
+      # Filter releases for this study
+      study_releases <- if (length(releases_result) > 0) {
+        releases_for_study <- sapply(releases_result, function(x) x$study_id == study_id)
+        releases_result[releases_for_study]
+      } else {
+        list()
+      }
+      
+      if (length(study_releases) > 0) {
+        # Study has associated database releases - prevent deletion
+        release_labels <- sapply(study_releases, function(x) x$database_release_label)
+        
+        showModal(modalDialog(
+          title = tagList(bs_icon("exclamation-triangle"), "Cannot Delete Study"),
+          size = "m",
+          
+          div(
+            class = "alert alert-warning",
+            tagList(
+              tags$strong("Study has associated database releases!"), 
+              tags$br(),
+              "This study cannot be deleted because it has ", length(study_releases), " associated database release(s)."
+            )
+          ),
+          
+          tags$p(
+            "The study ", tags$strong(study_label), " has the following database releases:"
+          ),
+          
+          tags$ul(
+            lapply(release_labels, function(label) {
+              tags$li(tags$code(label))
+            })
+          ),
+          
+          tags$p(
+            class = "text-muted",
+            "Please delete all associated database releases first, then try deleting the study again."
+          ),
+          
+          footer = div(
+            class = "d-flex justify-content-end",
+            actionButton(
+              ns("close_cannot_delete"),
+              tagList(bs_icon("x"), "Close"),
+              class = "btn btn-secondary"
+            )
+          )
+        ))
+        return()
+      }
+      
+      # No associated releases - proceed with deletion confirmation
       showModal(modalDialog(
         title = tagList(bs_icon("exclamation-triangle"), "Confirm Deletion"),
         size = "m",
@@ -412,6 +475,11 @@ studies_server <- function(id) {
     
     # Cancel delete
     observeEvent(input$cancel_delete, {
+      removeModal()
+    })
+    
+    # Close "cannot delete" modal
+    observeEvent(input$close_cannot_delete, {
       removeModal()
     })
     

@@ -226,7 +226,7 @@ database_releases_server <- function(id) {
           empty_df,
           filter = 'top', # Add column filters on top
           options = list(
-            dom = 'ft', # Only show filter and table
+            dom = 'frtip', # Show filter, processing, table, info, pagination
             pageLength = 10,
             autoWidth = FALSE,
             search = list(regex = TRUE, caseInsensitive = TRUE), # Enable regex search
@@ -237,9 +237,11 @@ database_releases_server <- function(id) {
             ),
             language = list(
               emptyTable = empty_message,
-              search = "Search all (regex supported):",
-              searchPlaceholder = "Type to search... (e.g., MYF.*|jan_.*)"
-            )
+              search = "",
+              searchPlaceholder = "Search (regex supported): e.g., MYF.*|jan_.*"
+            ),
+            searching = TRUE, # Explicitly enable searching
+            info = TRUE # Show table info
           ),
           rownames = FALSE,
           escape = FALSE
@@ -277,7 +279,7 @@ database_releases_server <- function(id) {
         display_df,
         filter = 'top', # Add column filters on top
         options = list(
-          dom = 'ft', # Only show filter and table (f=filter, t=table)
+          dom = 'frtip', # Show filter, processing, table, info, pagination
           pageLength = 10,
           autoWidth = FALSE,
           search = list(regex = TRUE, caseInsensitive = TRUE), # Enable regex search
@@ -287,9 +289,11 @@ database_releases_server <- function(id) {
             list(targets = 2, width = "30%", orderable = FALSE, className = "text-center", searchable = FALSE) # Actions column - not searchable
           ),
           language = list(
-            search = "Search all (regex supported):",
-            searchPlaceholder = "Type to search... (e.g., MYF.*|jan_.*)"
+            search = "",
+            searchPlaceholder = "Search (regex supported): e.g., MYF.*|jan_.*"
           ),
+          searching = TRUE, # Explicitly enable searching
+          info = TRUE, # Show table info
           drawCallback = JS(sprintf("
             function() {
               var table = this;

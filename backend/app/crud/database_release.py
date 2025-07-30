@@ -38,12 +38,19 @@ class DatabaseReleaseCRUD:
     async def get_by_study(
         self, db: AsyncSession, *, study_id: int, skip: int = 0, limit: int = 100
     ) -> List[DatabaseRelease]:
-        """Get database releases for a specific study."""
+        """Get database releases for a specific study with pagination."""
         result = await db.execute(
             select(DatabaseRelease)
             .where(DatabaseRelease.study_id == study_id)
             .offset(skip)
             .limit(limit)
+        )
+        return list(result.scalars().all())
+    
+    async def get_by_study_id(self, db: AsyncSession, *, study_id: int) -> List[DatabaseRelease]:
+        """Get all database releases for a specific study (no pagination)."""
+        result = await db.execute(
+            select(DatabaseRelease).where(DatabaseRelease.study_id == study_id)
         )
         return list(result.scalars().all())
     

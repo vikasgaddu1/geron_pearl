@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import study
+from app.crud import database_release
 from app.db.session import get_db
 from app.schemas.study import Study, StudyCreate, StudyUpdate
 from app.api.v1.websocket import broadcast_study_created, broadcast_study_updated, broadcast_study_deleted
@@ -164,7 +165,17 @@ async def delete_study(
                 detail="Study not found"
             )
         
+        # Check for associated database releases before deletion
+        associated_releases = await database_release.get_by_study_id(db, study_id=study_id)
+        if associated_releases:
+            release_labels = [release.database_release_label for release in associated_releases]
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot delete study '{db_study.study_label}': {len(associated_releases)} associated database release(s) exist: {', '.join(release_labels)}. Please delete all associated database releases first."
+            )
+        
         deleted_study = await study.delete(db, id=study_id)
+        print(f"✅ Study deleted successfully: {deleted_study.study_label} (ID: {deleted_study.id})")
         
         # Broadcast WebSocket event for real-time updates
         try:
@@ -176,7 +187,8 @@ async def delete_study(
         return deleted_study
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
+        print(f"❌ Error deleting study: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete study"
