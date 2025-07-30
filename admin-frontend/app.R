@@ -28,6 +28,8 @@ source("modules/websocket_client.R")
 source("modules/api_client.R")
 source("modules/studies_ui.R")
 source("modules/studies_server.R")
+source("modules/database_releases_ui.R")
+source("modules/database_releases_server.R")
 
 # Theme with automatic dark mode support
 pearl_theme <-  bs_theme(
@@ -121,6 +123,13 @@ ui <- page_sidebar(
             onclick = "document.getElementById('main_tabs').querySelector('[data-value=\"data_tab\"]').click();",
             bs_icon("table"),
             "Studies"
+          ),
+          tags$a(
+            href = "#",
+            class = "list-group-item list-group-item-action d-flex align-items-center gap-2 border-0",
+            onclick = "document.getElementById('main_tabs').querySelector('[data-value=\"releases_tab\"]').click();",
+            bs_icon("database-gear"),
+            "Database Releases"
           )
         )
       )
@@ -225,6 +234,12 @@ ui <- page_sidebar(
     ),
 
     nav_panel(
+      "Database Releases",
+      value = "releases_tab",
+      database_releases_ui("database_releases")
+    ),
+
+    nav_panel(
       "Health Check",
       value = "health_tab",
       card(
@@ -294,6 +309,9 @@ server <- function(input, output, session) {
   
   # Studies module
   studies_server("studies")
+  
+  # Database Releases module
+  database_releases_server("database_releases")
   
   # Health check
   output$health_status <- renderText({

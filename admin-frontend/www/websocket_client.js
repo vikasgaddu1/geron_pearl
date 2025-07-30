@@ -126,6 +126,24 @@ class PearlWebSocketClient {
                 this.requestRefresh();
                 break;
                 
+            case 'database_release_created':
+                console.log('➕ Database release created:', data.data.database_release_label);
+                this.notifyShiny('database_release_created', data.data);
+                this.showNotification('New database release created: ' + data.data.database_release_label, 'success');
+                break;
+                
+            case 'database_release_updated':
+                console.log('✏️ Database release updated:', data.data.database_release_label);
+                this.notifyShiny('database_release_updated', data.data);
+                this.showNotification('Database release updated: ' + data.data.database_release_label, 'info');
+                break;
+                
+            case 'database_release_deleted':
+                console.log('🗑️ Database release deleted, ID:', data.data.id);
+                this.notifyShiny('database_release_deleted', data.data);
+                this.showNotification('Database release deleted (ID: ' + data.data.id + ')', 'warning');
+                break;
+                
             case 'pong':
                 console.log('🏓 Pong received - connection alive');
                 break;
@@ -242,11 +260,24 @@ class PearlWebSocketClient {
     notifyShiny(eventType, data) {
         if (typeof Shiny !== 'undefined') {
             console.log('📤 Sending event to Shiny:', eventType, 'with data:', data);
-            Shiny.setInputValue('studies-websocket_event', {
-                type: eventType,
-                data: data,
-                timestamp: Date.now()
-            });
+            
+            // Send to studies module for studies-related events
+            if (eventType.startsWith('study') || eventType === 'studies_update') {
+                Shiny.setInputValue('studies-websocket_event', {
+                    type: eventType,
+                    data: data,
+                    timestamp: Date.now()
+                });
+            }
+            
+            // Send to database_releases module for database release events and studies updates (for reference data)
+            if (eventType.startsWith('database_release') || eventType === 'studies_update') {
+                Shiny.setInputValue('database_releases-websocket_event', {
+                    type: eventType,
+                    data: data,
+                    timestamp: Date.now()
+                });
+            }
         } else {
             console.log('⚠️ Shiny not available for event:', eventType);
         }
