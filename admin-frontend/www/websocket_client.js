@@ -97,82 +97,43 @@ class PearlWebSocketClient {
     
     // Handle incoming WebSocket messages
     handleMessage(data) {
+        console.log('📨 WebSocket message received:', data.type, 'Data:', data);
+        
+        // Determine module based on message type if not provided
+        if (!data.module && data.type) {
+            console.log('🔍 DEBUG: Processing message type:', JSON.stringify(data.type));
+            
+            // Route messages to appropriate module based on type
+            if (data.type === 'studies_update' || 
+                data.type.startsWith('study_')) {
+                data.module = 'studies';
+                console.log('📚 Studies update received:', Array.isArray(data.data) ? data.data.length : 0, 'studies');
+            } else if (data.type.startsWith('reporting_effort_')) {
+                data.module = 'reporting_efforts';
+                console.log('🔴 REPORTING EFFORT UPDATED EVENT RECEIVED:', data.data?.database_release_label || 'unknown');
+            } else if (data.type.startsWith('database_release_')) {
+                data.module = 'database_releases';
+            }
+        }
+        
+        // Route data messages with module property
+        if (data.module) {
+            this.notifyShinyModule(data.type, data.data, data.module);
+        }
+        
+        // Handle non-module-specific messages
         switch (data.type) {
-            case 'studies_update':
-                console.log('📊 Studies update received:', data.data.length, 'studies');
-                this.notifyShiny('studies_update', data.data);
-                break;
-                
-            case 'study_created':
-                console.log('➕ Study created:', data.data.study_label);
-                this.notifyShiny('study_created', data.data);
-                this.showNotification('New study created: ' + data.data.study_label, 'success');
-                break;
-                
-            case 'study_updated':
-                console.log('✏️ Study updated:', data.data.study_label);
-                this.notifyShiny('study_updated', data.data);
-                this.showNotification('Study updated: ' + data.data.study_label, 'info');
-                break;
-                
-            case 'study_deleted':
-                console.log('🗑️ Study deleted, ID:', data.data.id);
-                this.notifyShiny('study_deleted', data.data);
-                this.showNotification('Study deleted (ID: ' + data.data.id + ')', 'warning');
-                break;
-                
-            case 'refresh_needed':
-                console.log('🔄 Refresh needed signal received');
-                this.requestRefresh();
-                break;
-                
-            case 'database_release_created':
-                console.log('➕ Database release created:', data.data.database_release_label);
-                this.notifyShiny('database_release_created', data.data);
-                this.showNotification('New database release created: ' + data.data.database_release_label, 'success');
-                break;
-                
-            case 'database_release_updated':
-                console.log('✏️ Database release updated:', data.data.database_release_label);
-                this.notifyShiny('database_release_updated', data.data);
-                this.showNotification('Database release updated: ' + data.data.database_release_label, 'info');
-                break;
-                
-            case 'database_release_deleted':
-                console.log('🗑️ Database release deleted, ID:', data.data.id);
-                this.notifyShiny('database_release_deleted', data.data);
-                this.showNotification('Database release deleted (ID: ' + data.data.id + ')', 'warning');
-                break;
-                
-            case 'reporting_effort_created':
-                console.log('➕ Reporting effort created:', data.data.database_release_label);
-                this.notifyShiny('reporting_effort_created', data.data);
-                this.showNotification('New reporting effort created: ' + data.data.database_release_label, 'success');
-                break;
-                
-            case 'reporting_effort_updated':
-                console.log('✏️ Reporting effort updated:', data.data.database_release_label);
-                this.notifyShiny('reporting_effort_updated', data.data);
-                this.showNotification('Reporting effort updated: ' + data.data.database_release_label, 'info');
-                break;
-                
-            case 'reporting_effort_deleted':
-                console.log('🗑️ Reporting effort deleted, ID:', data.data.id);
-                this.notifyShiny('reporting_effort_deleted', data.data);
-                this.showNotification('Reporting effort deleted (ID: ' + data.data.id + ')', 'warning');
-                break;
-                
             case 'pong':
                 console.log('🏓 Pong received - connection alive');
                 break;
-                
             case 'error':
                 console.error('❌ Server error:', data.message);
                 this.showNotification(`Server error: ${data.message}`, 'error');
                 break;
-                
             default:
-                console.log('❓ Unknown message type:', data.type);
+                if (!data.module) {
+                    console.log('❓ Received message without a module for routing:', data);
+                }
         }
     }
     
@@ -274,50 +235,45 @@ class PearlWebSocketClient {
         }
     }
     
-    // Notify Shiny of WebSocket events
-    notifyShiny(eventType, data) {
-        if (typeof Shiny !== 'undefined') {
-            console.log('📤 Sending event to Shiny:', eventType, 'with data:', data);
-            
-            // Send to studies module for studies-related events
-            if (eventType.startsWith('study') || eventType === 'studies_update') {
-                Shiny.setInputValue('studies-websocket_event', {
-                    type: eventType,
-                    data: data,
-                    timestamp: Date.now()
-                });
-            }
-            
-            // Send to database_releases module for database release events and studies updates (for reference data)
-            if (eventType.startsWith('database_release') || eventType === 'studies_update') {
-                Shiny.setInputValue('database_releases-websocket_event', {
-                    type: eventType,
-                    data: data,
-                    timestamp: Date.now()
-                });
-            }
-            
-            // Send to reporting_efforts module for reporting effort events and related reference data updates
-            if (eventType.startsWith('reporting_effort') || eventType === 'studies_update' || eventType.startsWith('database_release')) {
-                Shiny.setInputValue('reporting_efforts-websocket_event', {
-                    type: eventType,
-                    data: data,
-                    timestamp: Date.now()
-                });
-            }
+    // Notify Shiny of WebSocket events, routing to the correct module
+    notifyShiny(data) {
+        if (typeof Shiny !== 'undefined' && data.module) {
+            const inputId = `${data.module}-websocket_event`;
+            console.log(`📤 Routing event to Shiny input: '${inputId}'`, data);
+            Shiny.setInputValue(inputId, {
+                type: data.type,
+                data: data.data,
+                timestamp: Date.now()
+            }, {priority: 'event'});
         } else {
-            console.log('⚠️ Shiny not available for event:', eventType);
+            console.log('⚠️ Shiny not available or message has no module for routing:', data);
         }
     }
     
-    // Show notification in Shiny
-    showNotification(message, type = 'info') {
+    // Show notification in Shiny, routing to the correct module if specified
+    showNotification(message, type = 'info', module = null) {
         if (typeof Shiny !== 'undefined') {
-            Shiny.setInputValue('studies-websocket_notification', {
+            const inputId = module ? `${module}-websocket_notification` : 'websocket_notification';
+            Shiny.setInputValue(inputId, {
                 message: message,
                 type: type,
                 timestamp: Date.now()
-            });
+            }, {priority: 'event'});
+        }
+    }
+    
+    // Notify Shiny module with specific event type and data
+    notifyShinyModule(eventType, data, module) {
+        if (typeof Shiny !== 'undefined') {
+            const inputId = `${module}-websocket_event`;
+            console.log(`📨 Sending event to Shiny: ${eventType} with data:`, data);
+            Shiny.setInputValue(inputId, {
+                type: eventType,
+                data: data,
+                timestamp: Date.now()
+            }, {priority: 'event'});
+        } else {
+            console.log('⚠️ Shiny not available for event:', eventType);
         }
     }
     
