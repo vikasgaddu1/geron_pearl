@@ -104,7 +104,7 @@ database_releases_server <- function(id) {
       releases_result <- get_database_releases()
       if (!is.null(releases_result$error)) {
         cat("❌ Error loading database releases:", releases_result$error, "\n")
-        output$status_message <- renderText("❌ Error loading database releases")
+        cat("❌ Error loading database releases:", releases_result$error, "\n")
         releases_data(data.frame())
       } else {
         # Get current studies data safely
@@ -113,13 +113,20 @@ database_releases_server <- function(id) {
         releases_data(releases_df)
         last_update(Sys.time())
         cat("✅ Database releases loaded successfully:", nrow(releases_df), "releases\n")
-        output$status_message <- renderText(paste("✅", nrow(releases_df), "database releases loaded"))
+        cat("✅ Database releases loaded successfully:", nrow(releases_df), "releases\n")
       }
     }
     
     # Load data on module initialization
     load_studies_http()
     load_releases_data()
+    
+    # Initialize filtered_releases to show all releases by default
+    observeEvent(releases_data(), {
+      if (is.null(input$study_filter) || input$study_filter == "") {
+        filtered_releases(releases_data())
+      }
+    }, ignoreInit = FALSE)
     
     # Note: WebSocket status is now handled in main app.R
     
@@ -176,31 +183,10 @@ database_releases_server <- function(id) {
       load_releases_data()
     })
     
-    # Filter releases based on selected study
-    observeEvent(input$new_study_id, {
-      if (!is.null(input$new_study_id) && input$new_study_id != "") {
-        current_releases <- releases_data()
-        filtered <- current_releases[current_releases$`Study ID` == as.numeric(input$new_study_id), ]
-        filtered_releases(filtered)
-      } else {
-        filtered_releases(releases_data())
-      }
-    })
-    
-    # Update filtered data when releases data changes
-    observeEvent(releases_data(), {
-      if (!is.null(input$new_study_id) && input$new_study_id != "") {
-        current_releases <- releases_data()
-        filtered <- current_releases[current_releases$`Study ID` == as.numeric(input$new_study_id), ]
-        filtered_releases(filtered)
-      } else {
-        filtered_releases(releases_data())
-      }
-    })
     
     # Data table output
     output$releases_table <- DT::renderDataTable({
-      releases <- releases_data()
+      releases <- filtered_releases()
       
       if (nrow(releases) == 0) {
         # Return empty table with proper structure
@@ -285,6 +271,55 @@ database_releases_server <- function(id) {
       )
     }, server = FALSE)
     
+    # Add study filter dropdown (separate from the add form dropdown)
+    output$study_filter_ui <- renderUI({
+      current_studies <- studies_data()
+      if (nrow(current_studies) > 0) {
+        choices <- c("Select a study" = "", setNames(current_studies$ID, current_studies$`Study Label`))
+        selectInput(
+          ns("study_filter"),
+          label = "Filter by Study:",
+          choices = choices,
+          selected = "",
+          width = "300px"
+        )
+      } else {
+        selectInput(
+          ns("study_filter"),
+          label = "Filter by Study:",
+          choices = c("No studies available" = ""),
+          selected = "",
+          width = "300px"
+        )
+      }
+    })
+    
+    # Filter releases based on study filter dropdown
+    observeEvent(input$study_filter, {
+      current_releases <- releases_data()
+      if (!is.null(input$study_filter) && input$study_filter != "") {
+        # Filter to show only releases for selected study
+        filtered <- current_releases[current_releases$`Study ID` == as.numeric(input$study_filter), ]
+        filtered_releases(filtered)
+      } else {
+        # Show all releases when no study is selected
+        filtered_releases(current_releases)
+      }
+    }, ignoreInit = TRUE)
+    
+    # Update filtered data when releases data changes
+    observeEvent(releases_data(), {
+      current_releases <- releases_data()
+      if (!is.null(input$study_filter) && input$study_filter != "") {
+        # Filter to show only releases for selected study
+        filtered <- current_releases[current_releases$`Study ID` == as.numeric(input$study_filter), ]
+        filtered_releases(filtered)
+      } else {
+        # Show all releases when no study is selected
+        filtered_releases(current_releases)
+      }
+    })
+    
     # Toggle add release sidebar
     observeEvent(input$toggle_add_form, {
       sidebar_toggle(id = "add_release_sidebar")
@@ -329,9 +364,15 @@ database_releases_server <- function(id) {
       
       result <- create_database_release(release_data)
       if (!is.null(result$error)) {
-        output$status_message <- renderText(paste("❌ Error creating database release:", result$error))
+        showNotification(
+          tagList(bs_icon("x-circle"), "Error creating database release:", result$error), 
+          type = "error"
+        )
       } else {
-        output$status_message <- renderText("✅ Database release created successfully")
+        showNotification(
+          tagList(bs_icon("check"), "Database release created successfully"), 
+          type = "message"
+        )
         updateTextInput(session, "new_release_label", value = "")
         updateSelectInput(session, "new_study_id", selected = NULL)
         iv_new$disable()
@@ -543,6 +584,36 @@ database_releases_server <- function(id) {
         load_releases_data()
       }
       removeModal()
+    })
+    
+    # Status message with filtering info
+    output$status_message <- renderText({
+      all_releases <- releases_data()
+      filtered <- filtered_releases()
+      
+      if (nrow(all_releases) == 0) {
+        "No database releases found"
+      } else if (!is.null(input$study_filter) && input$study_filter != "") {
+        # Show filtered count
+        current_studies <- studies_data()
+        study_row <- current_studies[current_studies$ID == as.numeric(input$study_filter), ]
+        study_name <- if (nrow(study_row) > 0) study_row$`Study Label`[1] else "Selected Study"
+        
+        if (nrow(filtered) == 0) {
+          paste("No releases found for", study_name)
+        } else if (nrow(filtered) == 1) {
+          paste("1 release for", study_name)
+        } else {
+          paste(nrow(filtered), "releases for", study_name)
+        }
+      } else {
+        # Show total count
+        if (nrow(all_releases) == 1) {
+          "1 database release"
+        } else {
+          paste(nrow(all_releases), "database releases")
+        }
+      }
     })
     
     # Last updated display
