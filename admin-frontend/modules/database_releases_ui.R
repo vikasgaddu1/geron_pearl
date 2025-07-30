@@ -49,15 +49,18 @@ database_releases_ui <- function(id) {
                 title = div(
                   class = "d-flex align-items-center",
                   style = "margin-left: 8px; margin-top: 30px;",
-                  bs_icon("database-add", size = "1.2em"),
-                  tags$span("New Database Release", style = "margin-left: 8px; font-weight: 600;")
+                  bs_icon("database-add"),
+                  span("Add New Database Release", style = "margin-left: 15px;")
                 ),
-                width = 350,
+                width = 320,
                 open = FALSE,
+                position = "right",
+                padding = c(3, 3, 3, 4),
+                gap = 2,
                 
                 # Add form card
                 card(
-                  class = "border-0 shadow-sm",
+                  class = "border border-2",
                   card_body(
                     # Study selection
                     div(
@@ -85,7 +88,7 @@ database_releases_ui <- function(id) {
                     ),
                     
                     # Action buttons
-                    layout_column_wrap(
+                    layout_columns(
                       col_widths = c(6, 6),
                       gap = 2,
                       actionButton(
