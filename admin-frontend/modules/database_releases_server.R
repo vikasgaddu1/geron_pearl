@@ -601,6 +601,69 @@ database_releases_server <- function(id) {
       release_label <- release_row$`Release Label`
       study_label <- release_row$`Study Label`
       
+      # Check for associated reporting efforts before allowing deletion
+      efforts_result <- get_reporting_efforts()
+      if (!is.null(efforts_result$error)) {
+        showNotification(
+          tagList(bs_icon("x-circle"), "Error checking reporting efforts:", efforts_result$error), 
+          type = "error"
+        )
+        return()
+      }
+      
+      # Filter efforts for this database release
+      release_efforts <- if (length(efforts_result) > 0) {
+        efforts_for_release <- sapply(efforts_result, function(x) x$database_release_id == release_id)
+        efforts_result[efforts_for_release]
+      } else {
+        list()
+      }
+      
+      if (length(release_efforts) > 0) {
+        # Has associated reporting efforts - show cannot delete modal
+        effort_labels <- sapply(release_efforts, function(x) x$database_release_label)
+        
+        showModal(modalDialog(
+          title = tagList(bs_icon("exclamation-triangle"), "Cannot Delete Database Release"),
+          size = "m",
+          
+          div(
+            class = "alert alert-warning",
+            tagList(
+              tags$strong("Database release has associated reporting efforts!"), 
+              tags$br(),
+              "This database release cannot be deleted because it has ", length(release_efforts), " associated reporting effort(s)."
+            )
+          ),
+          
+          tags$p(
+            "The database release ", tags$strong(release_label), " from study ", tags$strong(study_label), " has the following reporting efforts:"
+          ),
+          
+          tags$ul(
+            lapply(effort_labels, function(label) {
+              tags$li(tags$code(label))
+            })
+          ),
+          
+          tags$p(
+            class = "text-muted",
+            "Please delete all associated reporting efforts first, then try deleting the database release again."
+          ),
+          
+          footer = div(
+            class = "d-flex justify-content-end",
+            actionButton(
+              ns("close_cannot_delete"),
+              tagList(bs_icon("x"), "Close"),
+              class = "btn btn-secondary"
+            )
+          )
+        ))
+        return()
+      }
+      
+      # No associated reporting efforts - proceed with deletion confirmation
       showModal(modalDialog(
         title = tagList(bs_icon("exclamation-triangle"), "Confirm Deletion"),
         size = "m",
@@ -638,6 +701,11 @@ database_releases_server <- function(id) {
     
     # Cancel delete
     observeEvent(input$cancel_delete, {
+      removeModal()
+    })
+    
+    # Close "cannot delete" modal
+    observeEvent(input$close_cannot_delete, {
       removeModal()
     })
     
@@ -696,6 +764,13 @@ database_releases_server <- function(id) {
     # Last updated display
     output$last_updated_display <- renderText({
       paste("Updated:", format(last_update(), "%H:%M:%S"))
+    })
+    
+    # Custom message handler for tab refresh
+    session$onCustomMessage("refresh_database_releases", function(message) {
+      cat("🔄 Refreshing database releases data due to tab change...\n")
+      load_studies_http() # Refresh studies for dropdown
+      load_releases_data() # Refresh releases data
     })
   })
 }

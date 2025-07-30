@@ -11,6 +11,7 @@ library(bsicons)
 library(shinyvalidate)
 library(shinyjs)
 library(dotenv)
+library(rlang)
 
 load_dot_env()
 
@@ -30,6 +31,8 @@ source("modules/studies_ui.R")
 source("modules/studies_server.R")
 source("modules/database_releases_ui.R")
 source("modules/database_releases_server.R")
+source("modules/reporting_efforts_ui.R")
+source("modules/reporting_efforts_server.R")
 
 # Theme with automatic dark mode support
 pearl_theme <-  bs_theme(
@@ -130,6 +133,13 @@ ui <- page_sidebar(
             onclick = "document.getElementById('main_tabs').querySelector('[data-value=\"releases_tab\"]').click();",
             bs_icon("database-gear"),
             "Database Releases"
+          ),
+          tags$a(
+            href = "#",
+            class = "list-group-item list-group-item-action d-flex align-items-center gap-2 border-0",
+            onclick = "document.getElementById('main_tabs').querySelector('[data-value=\"efforts_tab\"]').click();",
+            bs_icon("journal-plus"),
+            "Reporting Efforts"
           )
         )
       )
@@ -240,6 +250,12 @@ ui <- page_sidebar(
     ),
 
     nav_panel(
+      "Reporting Efforts",
+      value = "efforts_tab",
+      reporting_efforts_ui("reporting_efforts")
+    ),
+
+    nav_panel(
       "Health Check",
       value = "health_tab",
       card(
@@ -312,6 +328,23 @@ server <- function(input, output, session) {
   
   # Database Releases module
   database_releases_server("database_releases")
+  
+  # Reporting Efforts module
+  reporting_efforts_server("reporting_efforts")
+  
+  # Tab change observer - refresh data when switching tabs
+  observeEvent(input$main_tabs, {
+    current_tab <- input$main_tabs
+    cat("📑 Tab changed to:", current_tab, "\n")
+    
+    if (current_tab == "releases_tab") {
+      # Refresh database releases data when switching to Database Releases tab
+      session$sendCustomMessage("refresh_database_releases", list(refresh = TRUE))
+    } else if (current_tab == "efforts_tab") {
+      # Refresh reporting efforts data when switching to Reporting Efforts tab
+      session$sendCustomMessage("refresh_reporting_efforts", list(refresh = TRUE))
+    }
+  }, ignoreInit = TRUE)
   
   # Health check
   output$health_status <- renderText({

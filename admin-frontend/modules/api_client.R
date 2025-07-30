@@ -176,3 +176,91 @@ delete_database_release <- function(id) {
     list(error = e$message)
   })
 }
+
+# ===== REPORTING EFFORTS FUNCTIONS =====
+
+# Get the reporting efforts endpoint dynamically
+get_reporting_efforts_endpoint <- function() {
+  api_base <- Sys.getenv("PEARL_API_URL", "http://localhost:8000")
+  return(paste0(api_base, "/api/v1/reporting-efforts"))
+}
+
+# Get all reporting efforts
+get_reporting_efforts <- function() {
+  tryCatch({
+    response <- httr2::request(get_reporting_efforts_endpoint()) |> 
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Get single reporting effort by ID
+get_reporting_effort <- function(id) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_efforts_endpoint(), "/", id)) |> 
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Create new reporting effort
+create_reporting_effort <- function(effort_data) {
+  tryCatch({
+    response <- httr2::request(get_reporting_efforts_endpoint()) |>
+      httr2::req_method("POST") |>
+      httr2::req_body_json(effort_data) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 201) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Update existing reporting effort
+update_reporting_effort <- function(id, effort_data) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_efforts_endpoint(), "/", id)) |>
+      httr2::req_method("PUT") |>
+      httr2::req_body_json(effort_data) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Delete reporting effort
+delete_reporting_effort <- function(id) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_efforts_endpoint(), "/", id)) |>
+      httr2::req_method("DELETE") |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
