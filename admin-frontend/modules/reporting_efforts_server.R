@@ -172,8 +172,7 @@ reporting_efforts_server <- function(id) {
         
         if (nrow(filtered_releases) > 0) {
           choices <- setNames(filtered_releases$ID, 
-                             paste(filtered_releases$`Release Label`, 
-                                  "(Study:", filtered_releases$`Study ID`, ")"))
+                             filtered_releases$`Release Label`)
           
           # Update form dropdown
           updateSelectInput(session, "new_database_release_id", 
@@ -482,8 +481,7 @@ reporting_efforts_server <- function(id) {
       # Create choices for all database releases (will be filtered dynamically)
       all_release_choices <- if (nrow(current_releases) > 0) {
         setNames(current_releases$ID, 
-                 paste(current_releases$`Release Label`, 
-                      "(Study:", current_releases$`Study ID`, ")"))
+                 current_releases$`Release Label`)
       } else {
         list("No releases available" = "")
       }
@@ -559,8 +557,7 @@ reporting_efforts_server <- function(id) {
           
           if (nrow(filtered_releases) > 0) {
             choices <- setNames(filtered_releases$ID, 
-                               paste(filtered_releases$`Release Label`, 
-                                    "(Study:", filtered_releases$`Study ID`, ")"))
+                               filtered_releases$`Release Label`)
             updateSelectInput(session, "edit_database_release_id", 
                              choices = choices,
                              selected = result$database_release_id)
@@ -702,8 +699,7 @@ reporting_efforts_server <- function(id) {
         
         if (nrow(filtered_releases) > 0) {
           choices <- setNames(filtered_releases$ID, 
-                             paste(filtered_releases$`Release Label`, 
-                                  "(Study:", filtered_releases$`Study ID`, ")"))
+                             filtered_releases$`Release Label`)
           updateSelectInput(session, "edit_database_release_id", 
                            choices = c("Select a database release..." = "", choices))
         } else {
