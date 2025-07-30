@@ -32,13 +32,16 @@ async def create_study(
             )
         
         created_study = await study.create(db, obj_in=study_in)
+        print(f"✅ Study created successfully: {created_study.study_label} (ID: {created_study.id})")
         
         # Broadcast WebSocket event for real-time updates
         try:
+            print(f"🚀 About to broadcast study_created...")
             await broadcast_study_created(created_study)
+            print(f"✅ Broadcast completed successfully")
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
-            print(f"WebSocket broadcast error: {ws_error}")
+            print(f"❌ WebSocket broadcast error: {ws_error}")
         
         return created_study
     except Exception as e:
@@ -123,13 +126,16 @@ async def update_study(
                 )
         
         updated_study = await study.update(db, db_obj=db_study, obj_in=study_in)
+        print(f"✅ Study updated successfully: {updated_study.study_label} (ID: {updated_study.id})")
         
         # Broadcast WebSocket event for real-time updates
         try:
+            print(f"📝 About to broadcast study_updated...")
             await broadcast_study_updated(updated_study)
+            print(f"✅ Update broadcast completed successfully")
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
-            print(f"WebSocket broadcast error: {ws_error}")
+            print(f"❌ WebSocket broadcast error: {ws_error}")
         
         return updated_study
     except HTTPException:

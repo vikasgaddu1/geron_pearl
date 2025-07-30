@@ -18,43 +18,85 @@ source("modules/api_client.R")
 source("modules/studies_ui.R")
 source("modules/studies_server.R")
 
-# Modern theme using bslib
+# Minimal modern theme
 pearl_theme <- bs_theme(
   version = 5,
   bootswatch = "flatly",
-  primary = "#3498db",
-  secondary = "#95a5a6",
-  success = "#2ecc71",
-  info = "#3498db",
-  warning = "#f39c12",
-  danger = "#e74c3c",
   base_font = font_google("Inter"),
-  heading_font = font_google("Inter", wght = "600"),
-  code_font = font_google("Fira Code")
+  heading_font = font_google("Inter", wght = "600")
 )
 
-# UI with modern bslib layout
-ui <- page_navbar(
-  title = tags$span(
-    bs_icon("database-fill"), 
-    "PEARL Studies Manager"
+# UI
+ui <- page_sidebar(
+  title = span(
+    bs_icon("database-fill", size = "1.2em"),
+    " PEARL Admin"
+  ),
+  sidebar = sidebar(
+    id = "main_sidebar",
+    width = 250,
+    style = "height: 100vh; padding: 0;",
+
+    div(
+      style = "position: sticky; top: 0; height: 100%; overflow-y: auto; padding: 1rem 0;",
+
+      nav_menu(
+        "Data Management",
+        icon = bs_icon("database"),
+
+        nav_panel(
+          "Studies",
+          value = "data_tab",
+          icon = bs_icon("table")
+        )
+      )
+    ),
+
+    div(
+      style = "padding: 1rem;",
+      tags$small(
+        "v1.0 • ",
+        tags$a("GitHub", href = "#", style = "color: #0d6efd;")
+      )
+    )
   ),
   theme = pearl_theme,
-  id = "navbar",
+  fillable = TRUE,
   
-  # Studies tab
-  nav_panel(
-    title = tagList(bs_icon("table"), "Studies"),
-    value = "studies",
-    studies_ui("studies")
+  # Include custom JavaScript for WebSocket
+  tags$head(
+    tags$script(src = "websocket_client.js"),
+    tags$script(HTML("
+      // Custom message handlers for WebSocket integration
+      $(document).on('shiny:connected', function(event) {
+        console.log('Shiny connected - WebSocket should be initializing...');
+      });
+      
+      // Handle WebSocket refresh requests from Shiny
+      Shiny.addCustomMessageHandler('websocket_refresh', function(message) {
+        if (window.pearlWebSocket && window.pearlWebSocket.isConnected()) {
+          window.pearlWebSocket.refresh();
+          console.log('WebSocket refresh requested');
+        } else {
+          console.log('WebSocket not connected, skipping refresh');
+        }
+      });
+    "))
   ),
   
-  # Health check tab
-  nav_panel(
-    title = tagList(bs_icon("heart-pulse"), "Health Check"),
-    value = "health",
-    layout_columns(
-      col_widths = 12,
+  # Main content area
+  navset_tab(
+    id = "main_tabs",
+
+    nav_panel(
+      "Studies",
+      value = "data_tab",
+      studies_ui("studies")
+    ),
+
+    nav_panel(
+      "Health Check",
+      value = "health_tab",
       card(
         card_header(
           tags$h4(
@@ -67,18 +109,6 @@ ui <- page_navbar(
           verbatimTextOutput("health_status")
         )
       )
-    )
-  ),
-  
-  # Navigation customization
-  nav_spacer(),
-  nav_item(
-    tags$a(
-      bs_icon("github"), 
-      "GitHub",
-      href = "#",
-      target = "_blank",
-      class = "nav-link"
     )
   )
 )

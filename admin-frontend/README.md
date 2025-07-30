@@ -9,11 +9,12 @@ This R Shiny application provides a web-based admin interface for managing studi
 ## Features
 
 - **Studies Management**: Complete CRUD operations (Create, Read, Update, Delete)
-- **Real-time Data**: Direct API communication with FastAPI backend
-- **Responsive Design**: Bootstrap-based dashboard interface
+- **Real-time Updates**: WebSocket-based live data synchronization across multiple browser sessions
+- **Modern UI**: Bootstrap 5 theming with bslib and responsive design
 - **Data Tables**: Interactive tables with sorting, filtering, and pagination
 - **Form Validation**: Client-side and server-side validation
 - **Health Monitoring**: Backend API health check
+- **Auto-reconnect**: Robust WebSocket connection management with automatic reconnection
 
 ## Prerequisites
 
@@ -43,12 +44,14 @@ renv::restore()
 
 **Required Packages** (managed by renv):
 - `shiny` - Core Shiny framework
-- `shinydashboard` - Dashboard layout
+- `bslib` - Modern Bootstrap 5 theming system
+- `bsicons` - Icon system for modern UI
 - `shinyWidgets` - Enhanced UI widgets
-- `shinyBS` - Bootstrap components
 - `DT` - Interactive data tables
 - `httr` - HTTP client for API calls
 - `jsonlite` - JSON parsing
+- `websocket` - WebSocket client for real-time updates
+- `later` - Async scheduling for WebSocket reconnection
 - `dplyr` - Data manipulation
 - `lubridate` - Date handling
 
@@ -96,17 +99,18 @@ shiny::runApp(".", port = 3838, host = "0.0.0.0")
 admin-frontend/
 ├── app.R                    # Main Shiny application
 ├── run_app.R               # Application runner script
-├── init_renv.R             # renv initialization script
-├── install_dependencies.R  # renv restore script
+├── setup_environment.R     # Consolidated environment setup script
 ├── renv.lock               # Package version lock file (auto-generated)
 ├── .gitignore              # Git ignore file for renv
 ├── modules/
-│   ├── api_client.R       # HTTP API client functions
-│   ├── studies_ui.R       # Studies interface UI
-│   └── studies_server.R   # Studies interface server logic
-├── www/                   # Static web assets (CSS, JS, images)
-│   └── style.css          # Custom CSS styling
-└── README.md              # This file
+│   ├── api_client.R        # HTTP API client functions
+│   ├── studies_ui.R        # Studies interface UI components
+│   ├── studies_server.R    # Studies interface server logic
+│   └── websocket_client.R  # R WebSocket client for real-time updates
+├── www/                    # Static web assets (CSS, JS, images)
+│   ├── websocket_client.js # JavaScript WebSocket client
+│   └── style.css           # Custom CSS styling
+└── README.md               # This file
 ```
 
 ### Module Architecture
@@ -130,17 +134,29 @@ admin-frontend/
 - Server-side logic for studies operations
 - Reactive data management
 - Form validation and API integration
+- WebSocket event handling and UI updates
+
+**WebSocket Clients**:
+- **R Client (`modules/websocket_client.R`)**: Server-side WebSocket connection management
+- **JavaScript Client (`www/websocket_client.js`)**: Browser-side real-time communication
 
 ## API Integration
 
 The application communicates with the FastAPI backend using these endpoints:
 
+### REST API Endpoints
 - `GET /api/v1/studies` - List all studies
 - `GET /api/v1/studies/{id}` - Get single study
 - `POST /api/v1/studies` - Create new study
 - `PUT /api/v1/studies/{id}` - Update existing study
 - `DELETE /api/v1/studies/{id}` - Delete study
 - `GET /health` - Health check
+
+### WebSocket Integration
+- **Endpoint**: `ws://localhost:8000/api/v1/ws/studies`
+- **Events**: `study_created`, `study_updated`, `study_deleted`, `studies_update`
+- **Auto-reconnect**: 5-second intervals with exponential backoff
+- **Keep-alive**: 30-second ping/pong mechanism
 
 ## Usage
 
@@ -181,6 +197,20 @@ shiny::runApp(".", port = 3838)
 1. Select study from table
 2. Click "Delete Selected"
 3. Confirm deletion
+
+### 5. Real-time Updates
+The application provides live synchronization across multiple browser sessions:
+
+**Multi-user Experience**:
+- Open multiple browser tabs/windows to see real-time updates
+- Changes made in one session appear instantly in all other sessions
+- WebSocket status indicator shows connection health (🟢 Connected / 🔴 Disconnected)
+
+**Real-time Features**:
+- **Live Data Sync**: Study creation, updates, and deletions appear immediately
+- **Auto-reconnect**: Connection automatically restores if network is interrupted
+- **Cross-browser Updates**: Changes are synchronized across different browsers
+- **Status Monitoring**: Visual indicators show WebSocket connection status
 
 ## Development
 
@@ -276,12 +306,67 @@ cd ../backend
 - Ensure `shinyBS` package is loaded
 - Check browser console for JavaScript errors
 
+**WebSocket Issues**:
+- **Status shows "Initializing"**: JavaScript WebSocket client not loading properly
+  - Check browser console (F12 → Console) for JavaScript errors
+  - Verify `websocket_client.js` loads successfully in Network tab
+  - Ensure Shiny module namespacing is correct (`studies-websocket_*` events)
+
+- **Status shows "Disconnected"**: Backend WebSocket endpoint not available
+  - Verify backend is running: `curl http://localhost:8000/health`
+  - Check WebSocket endpoint: Browser → F12 → Network → WS tab
+  - Ensure WebSocket URL matches backend configuration
+
+- **Connected but no real-time updates**: Data flow broken in processing chain
+  - Check browser console for WebSocket message logs
+  - Verify R console shows WebSocket event processing logs
+  - Test manual CRUD operations to trigger WebSocket broadcasts
+  - Check backend logs for broadcast function calls
+
+### Real-time Updates Lessons Learned
+
+**Critical WebSocket Implementation Points**:
+
+1. **Dual Client Architecture**: 
+   - JavaScript client handles browser-side WebSocket connection and UI responsiveness
+   - R client (unused in current implementation) provides server-side integration option
+   - JavaScript approach chosen for better browser compatibility and debugging
+
+2. **Shiny Module Namespacing**:
+   - WebSocket events must be namespaced correctly: `studies-websocket_status`, `studies-websocket_event`
+   - JavaScript `Shiny.setInputValue()` calls must match R `input$websocket_*` observers
+   - Module namespace prefix (`studies-`) is automatically added by Shiny
+
+3. **Data Type Conversion Issues**:
+   - Backend SQLAlchemy models don't have `model_dump()` method (Pydantic only)
+   - Must convert: `Study.model_validate(sqlalchemy_model).model_dump()` in broadcast functions
+   - Same conversion needed in both WebSocket endpoint and broadcast functions
+
+4. **Connection Management**:
+   - DOM ready state checking prevents initialization failures
+   - Auto-reconnection with exponential backoff prevents connection storms
+   - Keep-alive ping/pong mechanism prevents idle connection timeouts
+   - Proper cleanup on page unload prevents memory leaks
+
+5. **Debugging Strategy**:
+   - Browser console shows JavaScript WebSocket events and data flow
+   - R console shows server-side reactive processing and data conversion
+   - Backend logs show WebSocket broadcasts and connection management
+   - Network tab shows WebSocket connection establishment and message flow
+
+6. **Error Handling Patterns**:
+   - Graceful degradation when WebSocket unavailable (falls back to HTTP polling)
+   - Try-catch blocks around all WebSocket operations to prevent crashes
+   - User-friendly status indicators for connection health
+   - Automatic retry with backoff for failed connections
+
 ### Getting Help
 
-1. Check R console for error messages
+1. Check R console for error messages and WebSocket event processing logs
 2. Verify backend API is responding: http://localhost:8000/health
 3. Test API endpoints directly with curl or browser
-4. Check browser developer tools for network errors
+4. Check browser developer tools for network errors and WebSocket messages
+5. Monitor backend logs for WebSocket broadcast function calls and errors
 
 ## Configuration
 
@@ -297,5 +382,50 @@ Edit `run_app.R` to change application port:
 runApp(port = 3838)  # Change to desired port
 ```
 
+### WebSocket Configuration
+Configure WebSocket endpoints in two places:
+
+**JavaScript Client (`www/websocket_client.js`)**:
+```javascript
+this.wsUrl = 'ws://localhost:8000/api/v1/ws/studies';
+```
+
+**R Client (`modules/websocket_client.R`)** (if used):
+```r
+WS_URL <- "ws://localhost:8000/api/v1/ws/studies"
+```
+
 ### Styling
 Add custom CSS files to `www/` directory and reference in UI.
+
+## Testing Real-time Updates
+
+### Manual Testing
+1. **Open multiple browser sessions** to the frontend (different tabs/windows/browsers)
+2. **Create a study** in one session - should appear instantly in all sessions
+3. **Update a study** in one session - should update instantly in all sessions  
+4. **Delete a study** in one session - should disappear instantly from all sessions
+5. **Check WebSocket status** - should show 🟢 Connected in all sessions
+
+### Automated Testing
+Use the backend test script to trigger WebSocket events:
+```bash
+cd ../backend
+uv run python ../test_websocket_broadcast.py
+```
+
+This script creates, updates, and deletes a test study while you watch the frontend for real-time updates.
+
+### WebSocket Debug Testing
+Check browser console logs for WebSocket activity:
+1. Open Developer Tools (F12)
+2. Go to Console tab
+3. Look for WebSocket connection and message logs
+4. Verify data flow: Backend → JavaScript → Shiny → UI
+
+### Connection Health Monitoring
+Monitor WebSocket connection status:
+- **🟢 Connected**: Real-time updates active
+- **🟡 Connecting**: Establishing connection  
+- **🔴 Disconnected**: Connection lost, attempting reconnection
+- **Reconnecting**: Auto-recovery in progress

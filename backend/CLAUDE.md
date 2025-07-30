@@ -2,16 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **📖 For comprehensive project documentation, setup instructions, API endpoints, and deployment guides, see [README.md](README.md)**
+
 ## Project Overview
 
-PEARL Backend is a FastAPI application with async PostgreSQL CRUD operations for study management. This is a **production-like development environment** with specific constraints around testing and database management.
+PEARL Backend is a FastAPI application with async PostgreSQL CRUD operations and **real-time WebSocket updates**. This is a **production-like development environment** with specific constraints around testing and database management.
 
-### Technology Stack
-- **FastAPI 0.111+** with async/await patterns and lifespan management
-- **PostgreSQL** with SQLAlchemy 2.0 async ORM
-- **UV package manager** for fast dependency management
-- **Alembic** for database migrations
-- **Pytest** with async support for testing
+**Key Features**: FastAPI + async PostgreSQL + WebSocket broadcasting + UV package management  
+**Critical Constraint**: SQLAlchemy async session conflicts prevent reliable batch test execution
+
+> **🏗️ See [README.md - Features & Project Structure](README.md#features) for complete technology stack and architecture details**
 
 ## Critical Testing Constraints
 
@@ -68,184 +68,93 @@ async def test_create_and_retrieve(self, db_session):
 
 ## Development Commands
 
-### Server Management
+> **🚀 See [README.md - Setup & Development](README.md#setup) for complete installation, database setup, and development workflow**
+
+### Quick Reference
 ```bash
-# Start development server (recommended)
-uv run python run.py
-
-# Alternative server start
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Available at: http://localhost:8000
-# API docs: http://localhost:8000/docs
-# Health check: http://localhost:8000/health
-```
-
-### Package Management
-```bash
-# Install all dependencies (including dev)
-make install
-# OR
-pip install -e ".[dev]"
-
-# Install production dependencies only
-make install-prod
-# OR
-pip install -e .
-
-# Using UV (recommended)
+# Install dependencies
 uv pip install -r requirements.txt
-```
 
-### Database Operations
-```bash
-# Initialize database (creates DB + tables)
+# Initialize database
 uv run python -m app.db.init_db
 
-# Create migration
-uv run alembic revision --autogenerate -m "Description"
+# Start development server
+uv run python run.py
 
-# Run migrations
-make migrate
-# OR
-uv run alembic upgrade head
-
-# Reset database (with Docker)
-make db-reset
+# Access at: http://localhost:8000
+# API docs: http://localhost:8000/docs
 ```
 
-### Testing Commands
+### Testing (Individual Files Only)
 ```bash
-# Simple CRUD test script (recommended for functional testing)
+# Functional testing (recommended)
 ./test_crud_simple.sh
 
-# Makefile shortcuts
-make test              # Run all tests
-make test-unit         # Unit tests only
-make test-integration  # Integration tests only
-make test-security     # Security tests only
-make test-coverage     # With coverage report
-make test-fast         # Exclude slow tests
+# Individual pytest (works reliably)
+pytest tests/specific_test.py -v
 
-# Direct pytest (expect session conflicts in batch mode)
-pytest tests/specific_test.py -v    # Individual test file
-pytest tests/ --cov=app --cov-report=html    # Coverage report
-```
-
-### Code Quality
-```bash
-# Format code
-make format
-# OR
-uv run black app/ tests/
-uv run isort app/ tests/
-
-# Lint code
-make lint
-# OR
-uv run flake8 app/ tests/
-
-# Type checking
-make typecheck
-# OR
-uv run mypy app/
-
-# All quality checks
-make check-all    # lint + typecheck + test-fast
-make validate     # format + lint + typecheck + test-coverage
-```
-
-### Model Validation
-```bash
-# Validate SQLAlchemy/Pydantic model alignment
+# Model validation
 uv run python tests/validator/run_model_validation.py
 ```
 
-### Docker Commands (if available)
-```bash
-make docker-build     # Build Docker image
-make docker-run       # Run with docker-compose
-make docker-test      # Run tests in Docker
-make docker-down      # Stop containers
-```
+## Key Architecture Notes
 
-## Architecture Notes
+> **🏛️ See [README.md - Project Structure](README.md#project-structure) for complete directory structure and component descriptions**
 
-- **FastAPI**: Modern async web framework with lifespan management
-- **PostgreSQL**: Real production database (no test isolation)
-- **SQLAlchemy 2.0**: Async ORM with session management limitations
-- **Pydantic**: Data validation and serialization
-- **UV**: Modern Python package manager
-- **Pytest**: Testing framework with async support
-
-## Project Structure
-
-```
-backend/
-├── app/
-│   ├── api/
-│   │   ├── health.py          # Health check endpoint
-│   │   └── v1/
-│   │       ├── __init__.py    # API router aggregation
-│   │       ├── studies.py     # CRUD endpoints + WebSocket broadcasting
-│   │       └── websocket.py   # WebSocket connection manager
-│   ├── core/
-│   │   ├── config.py          # Application settings
-│   │   └── security.py        # Security utilities
-│   ├── crud/
-│   │   └── study.py           # Database operations
-│   ├── db/
-│   │   ├── base.py            # SQLAlchemy declarative base
-│   │   ├── init_db.py         # Database initialization
-│   │   └── session.py         # Async session factory
-│   ├── models/
-│   │   └── study.py           # SQLAlchemy models
-│   ├── schemas/
-│   │   └── study.py           # Pydantic schemas
-│   └── main.py                # FastAPI application with lifespan
-├── tests/
-│   ├── README.md              # Testing constraints documentation
-│   └── validator/             # Model validation system
-├── migrations/                # Alembic migration files
-├── Makefile                   # Development commands
-├── pyproject.toml             # UV project configuration
-├── run.py                     # Development server runner
-└── test_crud_simple.sh        # Simple CRUD testing script
-```
-
-## Key Architecture Patterns
-
-### Clean Architecture Layers
-- **API Layer** (`api/`): FastAPI routers and WebSocket endpoints
-- **Business Logic** (`crud/`): Database operations and business rules
-- **Data Layer** (`models/`, `schemas/`): SQLAlchemy models and Pydantic schemas
-- **Core** (`core/`): Configuration, security, and cross-cutting concerns
-
-### Async Session Management
-- Database sessions use async context managers
-- No connection pooling in tests (source of session conflicts)
-- Real PostgreSQL database for all environments
-
-### WebSocket Integration
-- All CRUD operations broadcast WebSocket events
-- Connection manager handles client lifecycle
-- Real-time synchronization across multiple clients
+### Critical Architecture Points
+- **Real PostgreSQL**: No test isolation (source of async session conflicts)
+- **WebSocket Broadcasting**: All CRUD operations broadcast real-time events
+- **Clean Architecture**: API → CRUD → Models with clear separation
+- **Async Session Management**: Context managers with session conflict limitations
 
 ## Development Workflow
 
-### Recommended Development Process
-1. **Start Development Server**: `uv run python run.py`
-2. **Make Code Changes**: Follow existing patterns in respective layers
-3. **Test Individually**: Use `./test_crud_simple.sh` for endpoint validation
-4. **Validate Models**: Run `uv run python tests/validator/run_model_validation.py`
-5. **Code Quality**: Use `make check-all` before committing
-6. **Database Changes**: Create migrations with `alembic revision --autogenerate`
+> **🛠️ See [README.md - Development](README.md#development) for complete development workflow, code formatting, and database migration instructions**
 
-### Working with Tests
-1. **Functional Testing**: Use `./test_crud_simple.sh` (reliable HTTP testing)
-2. **Individual Pytest**: `pytest tests/specific_test.py -v` (works perfectly)
-3. **Batch Pytest**: Expect session conflicts, focus on individual test reliability
-4. **Coverage Reports**: Use `make test-coverage` but expect some batch failures
+### Critical Development Points
+1. **Individual Testing Only**: Use `./test_crud_simple.sh` or `pytest single_test.py -v`
+2. **Model Validation**: Always run after model changes to catch SQLAlchemy/Pydantic misalignment
+3. **WebSocket Broadcasting**: CRUD operations automatically broadcast events - test with multiple browser sessions
+4. **Database Changes**: Use `alembic revision --autogenerate` for schema changes
+
+## WebSocket Implementation Details
+
+> **📡 Critical WebSocket patterns for Claude Code development**
+
+### Data Type Conversion Issue
+**Problem**: SQLAlchemy models don't have `model_dump()` method (Pydantic only)
+**Solution**: Convert in broadcast functions: `Study.model_validate(sqlalchemy_model).model_dump()`
+
+**Required in**:
+- `app/api/v1/websocket.py` - WebSocket endpoint initial data + refresh responses
+- `app/api/v1/websocket.py` - Broadcast functions (`broadcast_study_created`, etc.)
+
+### WebSocket Endpoint Patterns
+```python
+# ✅ CORRECT: Manual session management for WebSocket
+async with AsyncSessionLocal() as db:
+    studies_data = await study.get_multi(db, skip=0, limit=100)
+    studies_json = [Study.model_validate(item).model_dump() for item in studies_data]
+
+# ❌ INCORRECT: Dependency injection doesn't work reliably with WebSocket
+@router.websocket("/studies")
+async def websocket_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)):
+```
+
+### Broadcast Integration Pattern
+```python
+# In CRUD endpoints (app/api/v1/studies.py)
+created_study = await study.create(db, obj_in=study_in)
+await broadcast_study_created(created_study)  # SQLAlchemy model → conversion happens in broadcast function
+```
+
+### Testing WebSocket Functionality
+```bash
+# Test WebSocket broadcasting (from project root)
+uv run python test_websocket_broadcast.py
+
+# Manual test: Open multiple browser sessions and perform CRUD operations
+```
 
 ## For Test Architect Agents
 
