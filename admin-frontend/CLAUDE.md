@@ -204,3 +204,18 @@ These practices ensure consistent, accessible, and maintainable UI components th
 **Event Binding Pattern**: Use jQuery's `.off('click').on('click')` pattern in `drawCallback` to prevent duplicate event handlers and ensure events work after table redraws, pagination, or filtering.
 
 **Theme-Agnostic Events**: DataTable callbacks are immune to theme transitions and sidebar state changes, providing consistent button responsiveness in both light and dark modes without timing dependencies.
+
+### Adaptive Header Styling
+**Theme-Responsive Design**: Implement adaptive styling for the main application header that changes based on the selected theme mode to ensure optimal visibility of both text and interactive elements.
+
+**Light Mode Header**: Use subtle light gray background (`#f8f9fa`) with dark text (`#212529`) and a subtle bottom border (`#dee2e6`) for a professional, non-distracting appearance. This avoids bright colors that can be visually overwhelming.
+
+**Dark Mode Header**: Use dark background (`#212529`) with light text (`#f8f9fa`) for consistency with the overall dark theme aesthetic.
+
+**Toggle Switch Visibility**: Ensure the dark mode toggle switch is visible in both themes:
+- Light mode: Gray border with blue accent when checked (`#0d6efd`)
+- Dark mode: Gray styling that contrasts well with the dark background
+
+**CSS Implementation**: Use `[data-bs-theme="dark"]` selectors to automatically apply dark mode styles when bslib switches themes. Include smooth transitions (`0.3s ease`) for professional theme switching experience.
+
+**Professional Standards**: Avoid bright or "gaudy" colors in headers. Opt for subtle backgrounds that don't distract from content while maintaining clear visual hierarchy through borders and typography.

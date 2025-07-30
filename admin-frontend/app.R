@@ -21,21 +21,66 @@ source("modules/studies_ui.R")
 source("modules/studies_server.R")
 
 # Theme with automatic dark mode support
-pearl_theme <- bs_theme(
+pearl_theme <-  bs_theme(
   version = 5,
+  # Use a preset as base (try "vapor", "pulse", "morph", "quartz")
+  preset = "bootstrap",
+  
+  # Colors that make a big difference
+  primary = "#0d6efd",     # Bright blue
+  secondary = "#6c757d",   
+  success = "#198754",
+  info = "#0dcaf0",
+  warning = "#ffc107",
+  danger = "#dc3545",
+  
+  # Background and foreground
+  bg = "#ffffff",
+  fg = "#212529",
+  
+  # These Bootstrap variables make a big visual impact
+  "body-bg" = "#f8f9fa",   # Light gray background
+  "card-border-width" = "0px",
+  "card-shadow" = "0 0.5rem 1rem rgba(0, 0, 0, 0.15)",
+  "card-cap-bg" = "rgba(0, 0, 0, 0.03)",
+  
+  # Better spacing
+  "spacer" = "1.5rem",
+  
+  # Fonts
   base_font = font_google("Inter"),
-  heading_font = font_google("Inter", wght = "600")
+  heading_font = font_google("Inter", wght = "600"),
+  font_scale = 1.1,
+  
+  # Make everything bit rounder
+  "border-radius" = "0.5rem",
+  "border-radius-lg" = "0.8rem",
+  "border-radius-sm" = "0.3rem",
+  
+  # Enable shadows - this alone makes a big difference
+  "enable-shadows" = TRUE,
+  
+  # Better buttons
+  "btn-padding-y" = ".5rem",
+  "btn-padding-x" = "1.5rem",
+  "btn-font-weight" = "500",
+  
+  # Navbar styling
+  "navbar-padding-y" = "1rem",
+  "navbar-brand-font-size" = "1.5rem"
 )
-
 # UI
 ui <- page_sidebar(
   title = div(
-    class = "d-flex justify-content-between align-items-center w-100 bg-body-secondary px-3 py-2 rounded",
+    class = "pearl-topbar d-flex justify-content-between align-items-center w-100 px-3 py-2",
     span(
+      class = "fw-bold",
+      style = "font-size: 1.2rem;",
       bs_icon("database-fill", size = "1.2em"),
       " PEARL Admin"
     ),
-    input_dark_mode(id = "dark_mode", mode = "light")
+    div(class = "pearl-darkmode-switch", 
+        input_dark_mode(id = "dark_mode", mode = "light"))
   ),
   sidebar = sidebar(
     id = "main_sidebar",
@@ -86,8 +131,54 @@ ui <- page_sidebar(
   useShinyjs(),
   useSweetAlert(),
   
-  # Include custom JavaScript for WebSocket
+  # Include custom JavaScript for WebSocket and custom CSS
   tags$head(
+    tags$style(HTML('
+      /* Light mode styles (default) */
+      .pearl-topbar {
+        background: #f8f9fa !important;  /* Light gray background */
+        color: #212529 !important;       /* Dark text */
+        margin: -0.5rem -0.5rem 0.5rem -0.5rem !important;
+        padding: 1rem !important;
+        transition: background-color 0.3s ease, color 0.3s ease;
+        border-bottom: 1px solid #dee2e6 !important;  /* Subtle border */
+      }
+      .bslib-page-title {
+        background: #f8f9fa !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        transition: background-color 0.3s ease;
+      }
+      
+      /* Dark mode styles */
+      [data-bs-theme="dark"] .pearl-topbar {
+        background: #212529 !important;  /* Bootstrap dark */
+        color: #f8f9fa !important;       /* Light gray text */
+      }
+      [data-bs-theme="dark"] .bslib-page-title {
+        background: #212529 !important;
+      }
+      
+      /* Light mode toggle styling */
+      .pearl-darkmode-switch .form-switch .form-check-input {
+        border-color: #6c757d;
+        background-color: rgba(108, 117, 125, 0.2);
+      }
+      .pearl-darkmode-switch .form-switch .form-check-input:checked {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+      }
+      
+      /* Dark mode toggle styling */
+      [data-bs-theme="dark"] .pearl-darkmode-switch .form-switch .form-check-input {
+        border-color: #6c757d;
+        background-color: rgba(108, 117, 125, 0.3);
+      }
+      [data-bs-theme="dark"] .pearl-darkmode-switch .form-switch .form-check-input:checked {
+        background-color: #6c757d;
+        border-color: #6c757d;
+      }
+    ')),
     tags$script(src = "websocket_client.js"),
     tags$script(HTML("
       // Custom message handlers for WebSocket integration

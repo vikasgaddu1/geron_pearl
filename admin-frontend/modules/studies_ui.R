@@ -87,12 +87,14 @@ studies_ui <- function(id) {
                         ns("save_new_study"),
                         tagList(bs_icon("check"), "Create"),
                         class = "btn btn-success w-100",
+                        style = "height: auto; padding: 0.375rem 0.75rem;",
                         title = "Create the new study"
                       ),
                       actionButton(
                         ns("cancel_new_study"),
                         tagList(bs_icon("x"), "Cancel"),
                         class = "btn btn-secondary w-100",
+                        style = "height: auto; padding: 0.375rem 0.75rem;",
                         title = "Cancel and close the form"
                       )
                     )
