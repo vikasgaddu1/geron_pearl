@@ -7,13 +7,13 @@ studies_ui <- function(id) {
     div(
       style = "display: flex; justify-content: center; padding: 20px;",
       div(
-        style = "width: 100%; max-width: 900px;",
+        style = "width: 100%; max-width: 1200px;",
         
         # Main card
         card(
           class = "border border-2",
           full_screen = FALSE,
-          height = "600px",
+          height = "700px",
           
           # Header
           card_header(

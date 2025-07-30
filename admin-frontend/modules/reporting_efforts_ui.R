@@ -13,7 +13,7 @@ reporting_efforts_ui <- function(id) {
         card(
           class = "border border-2",
           full_screen = FALSE,
-          height = "650px",
+          height = "700px",
           
           # Header
           card_header(
@@ -52,7 +52,7 @@ reporting_efforts_ui <- function(id) {
                   bs_icon("journal-plus"),
                   span("Add New Reporting Effort", style = "margin-left: 15px;")
                 ),
-                width = 350,
+                width = 450,
                 open = FALSE,
                 position = "right",
                 padding = c(3, 3, 3, 4),
@@ -126,7 +126,7 @@ reporting_efforts_ui <- function(id) {
               # Main content
               div(
                 class = "p-3",
-                style = "height: 400px; overflow-y: auto;",
+                style = "height: 500px; overflow-y: auto;",
                 DT::dataTableOutput(ns("efforts_table"))
               )
             )

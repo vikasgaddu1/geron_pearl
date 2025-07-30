@@ -7,13 +7,13 @@ database_releases_ui <- function(id) {
     div(
       style = "display: flex; justify-content: center; padding: 20px;",
       div(
-        style = "width: 100%; max-width: 1000px;",
+        style = "width: 100%; max-width: 1200px;",
         
         # Main card
         card(
           class = "border border-2",
           full_screen = FALSE,
-          height = "600px",
+          height = "700px",
           
           # Header
           card_header(
@@ -52,7 +52,7 @@ database_releases_ui <- function(id) {
                   bs_icon("database-add"),
                   span("Add New Database Release", style = "margin-left: 15px;")
                 ),
-                width = 320,
+                width = 450,
                 open = FALSE,
                 position = "right",
                 padding = c(3, 3, 3, 4),
