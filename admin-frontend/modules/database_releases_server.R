@@ -123,10 +123,23 @@ database_releases_server <- function(id) {
     
     # Initialize filtered_releases to show all releases by default
     observeEvent(releases_data(), {
-      if (is.null(input$study_filter) || input$study_filter == "") {
+      if (is.null(input$new_study_id) || input$new_study_id == "") {
         filtered_releases(releases_data())
       }
     }, ignoreInit = FALSE)
+    
+    # Update dropdown choices when studies data changes
+    observeEvent(studies_data(), {
+      current_studies <- studies_data()
+      if (nrow(current_studies) > 0) {
+        choices <- c("Select a study" = "", setNames(current_studies$ID, current_studies$`Study Label`))
+        updateSelectInput(session, "new_study_id", choices = choices, selected = "")
+        cat("✅ Studies data updated, refreshed dropdown with", nrow(current_studies), "studies\n")
+      } else {
+        updateSelectInput(session, "new_study_id", choices = list("No studies available" = ""), selected = "")
+        cat("⚠️ No studies data available\n")
+      }
+    })
     
     # Note: WebSocket status is now handled in main app.R
     
@@ -310,9 +323,9 @@ database_releases_server <- function(id) {
     # Update filtered data when releases data changes
     observeEvent(releases_data(), {
       current_releases <- releases_data()
-      if (!is.null(input$study_filter) && input$study_filter != "") {
+      if (!is.null(input$new_study_id) && input$new_study_id != "") {
         # Filter to show only releases for selected study
-        filtered <- current_releases[current_releases$`Study ID` == as.numeric(input$study_filter), ]
+        filtered <- current_releases[current_releases$`Study ID` == as.numeric(input$new_study_id), ]
         filtered_releases(filtered)
       } else {
         # Show all releases when no study is selected
@@ -324,13 +337,15 @@ database_releases_server <- function(id) {
     observeEvent(input$toggle_add_form, {
       sidebar_toggle(id = "add_release_sidebar")
       
-      # Update study choices when opening
+      # Update study choices when opening with default "Select a study" option
       current_studies <- isolate(studies_data())
       if (nrow(current_studies) > 0) {
-        choices <- setNames(current_studies$ID, current_studies$`Study Label`)
-        updateSelectInput(session, "new_study_id", choices = choices, selected = NULL)
+        choices <- c("Select a study" = "", setNames(current_studies$ID, current_studies$`Study Label`))
+        updateSelectInput(session, "new_study_id", choices = choices, selected = "")
+        cat("✅ Updated study dropdown with", nrow(current_studies), "studies\n")
       } else {
         updateSelectInput(session, "new_study_id", choices = list("No studies available" = ""), selected = "")
+        cat("⚠️ No studies available for dropdown\n")
       }
       
       # Clear form when opening
@@ -341,9 +356,12 @@ database_releases_server <- function(id) {
     # Cancel new release
     observeEvent(input$cancel_new_release, {
       updateTextInput(session, "new_release_label", value = "")
-      updateSelectInput(session, "new_study_id", selected = NULL)
+      updateSelectInput(session, "new_study_id", selected = "")
       iv_new$disable()
       sidebar_toggle(id = "add_release_sidebar")
+      
+      # Reset table filter to show all releases
+      filtered_releases(releases_data())
     })
     
     # Save new release
@@ -374,7 +392,7 @@ database_releases_server <- function(id) {
           type = "message"
         )
         updateTextInput(session, "new_release_label", value = "")
-        updateSelectInput(session, "new_study_id", selected = NULL)
+        updateSelectInput(session, "new_study_id", selected = "")
         iv_new$disable()
         sidebar_toggle(id = "add_release_sidebar")
         # Data will be updated via WebSocket events or fallback to HTTP
