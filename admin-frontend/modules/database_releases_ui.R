@@ -19,7 +19,7 @@ database_releases_ui <- function(id) {
           card_header(
             class = "d-flex justify-content-between align-items-center",
             div(
-              tags$h4("Database Releases", class = "mb-0 text-primary"),
+              tags$h4(bs_icon("database-gear"), " Database Releases", class = "mb-0 text-primary"),
               tags$small("Manage database releases for studies", class = "text-muted")
             ),
             div(

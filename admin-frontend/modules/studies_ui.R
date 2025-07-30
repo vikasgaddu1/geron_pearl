@@ -18,10 +18,9 @@ studies_ui <- function(id) {
           # Header
           card_header(
             class = "d-flex justify-content-between align-items-center",
-            tags$h4(
-              bs_icon("database"),
-              "Studies Management",
-              class = "mb-0"
+            div(
+              tags$h4(bs_icon("table"), " Studies", class = "mb-0 text-primary"),
+              tags$small("Manage studies in the system", class = "text-muted")
             ),
             div(
               class = "d-flex gap-2",
