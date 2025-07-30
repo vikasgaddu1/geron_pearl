@@ -284,39 +284,19 @@ database_releases_server <- function(id) {
       )
     }, server = FALSE)
     
-    # Add study filter dropdown (separate from the add form dropdown)
-    output$study_filter_ui <- renderUI({
-      current_studies <- studies_data()
-      if (nrow(current_studies) > 0) {
-        choices <- c("Select a study" = "", setNames(current_studies$ID, current_studies$`Study Label`))
-        selectInput(
-          ns("study_filter"),
-          label = "Filter by Study:",
-          choices = choices,
-          selected = "",
-          width = "300px"
-        )
-      } else {
-        selectInput(
-          ns("study_filter"),
-          label = "Filter by Study:",
-          choices = c("No studies available" = ""),
-          selected = "",
-          width = "300px"
-        )
-      }
-    })
     
-    # Filter releases based on study filter dropdown
-    observeEvent(input$study_filter, {
+    # Filter releases based on selected study in add form dropdown
+    observeEvent(input$new_study_id, {
       current_releases <- releases_data()
-      if (!is.null(input$study_filter) && input$study_filter != "") {
+      if (!is.null(input$new_study_id) && input$new_study_id != "") {
         # Filter to show only releases for selected study
-        filtered <- current_releases[current_releases$`Study ID` == as.numeric(input$study_filter), ]
+        filtered <- current_releases[current_releases$`Study ID` == as.numeric(input$new_study_id), ]
         filtered_releases(filtered)
+        cat("🔍 Filtering table to show", nrow(filtered), "releases for study ID", input$new_study_id, "\n")
       } else {
         # Show all releases when no study is selected
         filtered_releases(current_releases)
+        cat("📋 Showing all", nrow(current_releases), "releases\n")
       }
     }, ignoreInit = TRUE)
     
