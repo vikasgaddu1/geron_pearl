@@ -186,3 +186,12 @@ Based on the implementation in `studies_ui.R`, follow these established UI progr
 **Consistent Naming**: Use descriptive, action-based naming for UI elements (`save_new_study`, `cancel_edit`, `toggle_add_form`) that clearly indicates functionality.
 
 These practices ensure consistent, accessible, and maintainable UI components that work seamlessly across different themes and provide excellent user experience.
+
+### Theme Transition Handling
+**Smooth Theme Switching**: When using `input_dark_mode()`, implement proper transition handling to prevent unresponsive buttons during theme changes. Use `observeEvent(input$dark_mode, {...}, ignoreInit = TRUE)` to avoid triggering on app load.
+
+**SweetAlert Feedback**: Provide user feedback during theme transitions using `sendSweetAlert()` with loading spinners and success confirmations. Temporarily disable interactions with `shinyjs::runjs("$('body').css('pointer-events', 'none');")` during the transition period.
+
+**String Value Handling**: Remember that `input_dark_mode()` returns string values ("light" or "dark"), not boolean values. Use proper string comparison: `if(input$dark_mode == "dark")` rather than `if(input$dark_mode)`.
+
+**Transition Timing**: Allow 1200ms for theme transitions to complete before re-enabling interactions and showing success feedback. This prevents the frustrating experience of clicking unresponsive buttons during bslib theme switches.

@@ -9,6 +9,7 @@ library(jsonlite)
 library(shinyWidgets)
 library(bsicons)
 library(shinyvalidate)
+library(shinyjs)
 
 # API Configuration
 API_BASE_URL <- "http://localhost:8000/api/v1"
@@ -81,6 +82,10 @@ ui <- page_sidebar(
   theme = pearl_theme,
   fillable = TRUE,
   
+  # Initialize shinyjs and SweetAlert
+  useShinyjs(),
+  useSweetAlert(),
+  
   # Include custom JavaScript for WebSocket
   tags$head(
     tags$script(src = "websocket_client.js"),
@@ -133,6 +138,52 @@ ui <- page_sidebar(
 
 # Server
 server <- function(input, output, session) {
+  # Handle theme transitions with SweetAlert feedback
+  observeEvent(input$dark_mode, {
+    # Skip if this is the initial load
+    if (is.null(input$dark_mode)) return()
+    
+    # Temporarily disable interactions during theme transition
+    shinyjs::runjs("$('body').css('pointer-events', 'none');")
+    
+    # Show loading SweetAlert
+    sendSweetAlert(
+      session = session,
+      title = NULL,
+      text = tags$div(
+        style = "text-align: center;",
+        tags$div(
+          class = "spinner-border text-primary",
+          style = "width: 3rem; height: 3rem;",
+          role = "status"
+        ),
+        tags$p("Switching theme...", style = "margin-top: 15px; font-size: 16px;")
+      ),
+      html = TRUE,
+      type = NULL,
+      btn_labels = NA,
+      closeOnClickOutside = FALSE,
+      showCloseButton = FALSE,
+      timer = 1200
+    )
+    
+    # Re-enable interactions and show success after theme transition
+    shinyjs::delay(1200, {
+      shinyjs::runjs("$('body').css('pointer-events', 'auto');")
+      
+      theme_mode <- if(input$dark_mode == "dark") "Dark Mode" else "Light Mode"
+      icon_name <- if(input$dark_mode == "dark") "🌙" else "☀️"
+      
+      sendSweetAlert(
+        session = session,
+        title = paste(icon_name, theme_mode, "Activated!"),
+        text = "Theme has been successfully applied.",
+        type = "success",
+        timer = 1500,
+        showConfirmButton = FALSE
+      )
+    })
+  }, ignoreInit = TRUE)
   
   # Studies module
   studies_server("studies")
