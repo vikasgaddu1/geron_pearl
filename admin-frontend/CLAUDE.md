@@ -84,6 +84,60 @@ This is the R Shiny admin frontend for the PEARL research data management system
 4. **Modal Timing**: Use delays for operations that depend on rendered modals
 5. **Reactive Value Access**: Always assign reactive values to variables before use in complex logic
 
+### UI Layout Standardization (Latest Updates)
+
+#### Card Dimension Consistency
+- **Problem**: Inconsistent card sizes causing poor visual hierarchy and usability issues
+- **Before**: Studies (900px/600px), Database Releases (1000px/600px), Reporting Efforts (1200px/650px)
+- **Solution**: Standardized all modules to consistent dimensions
+- **Standard Dimensions**: 
+  ```r
+  style = "width: 100%; max-width: 1200px;"
+  height = "700px"
+  ```
+- **Benefits**: Professional appearance, consistent navigation experience, better responsive design
+
+#### Sidebar Form Usability
+- **Problem**: Narrow sidebars (320-350px) causing form cramping and poor UX
+- **Solution**: Increased all sidebar widths to 450px (28% wider)
+- **Pattern**: 
+  ```r
+  sidebar(
+    width = 450,  # Standard width for all modules
+    position = "right",
+    padding = c(3, 3, 3, 4)
+  )
+  ```
+- **Benefits**: Better form field visibility, reduced horizontal scrolling, improved data entry experience
+
+#### Content Area Optimization
+- **Problem**: Small content areas requiring scrolling to access key functionality
+- **Solution**: Increased main content heights for better data visibility
+- **Reporting Efforts**: Increased from 400px to 500px content area height
+- **Pattern**: 
+  ```r
+  div(
+    class = "p-3",
+    style = "height: 500px; overflow-y: auto;",
+    DT::dataTableOutput(...)
+  )
+  ```
+- **Benefits**: More data rows visible, reduced scrolling, better user productivity
+
+#### Visual Consistency Standards
+- **Card Headers**: All modules use same icon + title pattern with `text-primary` styling
+- **Action Buttons**: Consistent placement and styling across all modules
+- **Form Elements**: Standardized padding, gaps, and responsive behavior
+- **Empty States**: Consistent messaging and layout for tables with no data
+
+#### Design System Guidelines
+1. **Card Dimensions**: Always use 1200px max-width and 700px height for main cards
+2. **Sidebar Width**: Always use 450px width for form sidebars
+3. **Content Height**: Use 500px+ for main content areas to minimize scrolling
+4. **Icon Consistency**: Match sidebar navigation icons in card headers
+5. **Spacing**: Use consistent padding (20px outer, c(3,3,3,4) sidebar)
+6. **Color Scheme**: text-primary for headers, text-muted for descriptions
+
 ### Key Implementation Patterns
 
 #### DataTable Configuration
