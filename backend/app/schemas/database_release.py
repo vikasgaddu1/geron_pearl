@@ -1,5 +1,6 @@
 """DatabaseRelease Pydantic schemas for request/response validation."""
 
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, Field, ConfigDict
@@ -28,6 +29,8 @@ class DatabaseReleaseInDB(DatabaseReleaseBase):
     """Schema representing a database release as stored in database."""
     
     id: int = Field(..., description="Database release ID")
+    created_at: datetime = Field(..., description="Timestamp when the database release was created")
+    updated_at: datetime = Field(..., description="Timestamp when the database release was last updated")
     
     model_config = ConfigDict(from_attributes=True)
 

@@ -4,9 +4,10 @@ from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.db.mixins import TimestampMixin
 
 
-class DatabaseRelease(Base):
+class DatabaseRelease(Base, TimestampMixin):
     """Database release table model."""
     
     __tablename__ = "database_releases"

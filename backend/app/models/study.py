@@ -4,9 +4,10 @@ from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.db.mixins import TimestampMixin
 
 
-class Study(Base):
+class Study(Base, TimestampMixin):
     """Study table model."""
     
     __tablename__ = "studies"

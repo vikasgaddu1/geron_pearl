@@ -1,6 +1,7 @@
 """Pydantic schemas for ReportingEffort."""
 
-from pydantic import BaseModel, Field
+from datetime import datetime
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 
 
@@ -28,9 +29,10 @@ class ReportingEffortUpdate(BaseModel):
 class ReportingEffortInDB(ReportingEffortBase):
     """Schema for ReportingEffort stored in database."""
     id: int = Field(..., description="Unique identifier for the reporting effort")
+    created_at: datetime = Field(..., description="Timestamp when the reporting effort was created")
+    updated_at: datetime = Field(..., description="Timestamp when the reporting effort was last updated")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ReportingEffort(ReportingEffortInDB):

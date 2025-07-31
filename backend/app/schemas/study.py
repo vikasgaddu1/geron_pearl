@@ -1,5 +1,6 @@
 """Study Pydantic schemas for request/response validation."""
 
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, Field, ConfigDict
@@ -27,6 +28,8 @@ class StudyInDB(StudyBase):
     """Schema representing a study as stored in database."""
     
     id: int = Field(..., description="Study ID")
+    created_at: datetime = Field(..., description="Timestamp when the study was created")
+    updated_at: datetime = Field(..., description="Timestamp when the study was last updated")
     
     model_config = ConfigDict(from_attributes=True)
 

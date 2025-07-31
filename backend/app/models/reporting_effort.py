@@ -5,13 +5,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
 
 from app.db.base import Base
+from app.db.mixins import TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.study import Study
     from app.models.database_release import DatabaseRelease
 
 
-class ReportingEffort(Base):
+class ReportingEffort(Base, TimestampMixin):
     """ReportingEffort model representing reporting efforts for database releases."""
     
     __tablename__ = "reporting_efforts"
