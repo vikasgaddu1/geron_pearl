@@ -113,7 +113,7 @@ database_releases_ui <- function(id) {
               # Main content
               div(
                 class = "p-3",
-                style = "height: 400px; overflow-y: auto;",
+                style = "height: 500px; overflow-y: auto;",
                 DT::dataTableOutput(ns("releases_table"))
               )
             )

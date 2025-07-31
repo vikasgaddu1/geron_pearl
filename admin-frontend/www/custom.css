@@ -1,0 +1,53 @@
+/* Light mode styles (default) */
+.pearl-topbar {
+  background: #f8f9fa !important;  /* Light gray background */
+  color: #212529 !important;       /* Dark text */
+  margin: -0.5rem -0.5rem 0.5rem -0.5rem !important;
+  padding: 1rem !important;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  border-bottom: 1px solid #dee2e6 !important;  /* Subtle border */
+}
+.bslib-page-title {
+  background: #f8f9fa !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  transition: background-color 0.3s ease;
+}
+
+/* Dark mode styles */
+/* Dark mode defaults */
+[data-bs-theme="dark"] {
+  /* Option A – Bootstrap-friendly: override the design token */
+  --bs-body-color: #ffffff;   /* all components that read this token inherit white */
+
+  /* Option B – plain CSS: force the body text color */
+  color: #ffffff;             /* fallback for anything that doesn’t use the token */
+}
+
+[data-bs-theme="dark"] .pearl-topbar {
+  background: #212529 !important;  /* Bootstrap dark */
+  color: #f8f9fa !important;       /* Light gray text */
+}
+[data-bs-theme="dark"] .bslib-page-title {
+  background: #212529 !important;
+}
+
+/* Light mode toggle styling */
+.pearl-darkmode-switch .form-switch .form-check-input {
+  border-color: #6c757d;
+  background-color: rgba(108, 117, 125, 0.2);
+}
+.pearl-darkmode-switch .form-switch .form-check-input:checked {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
+
+/* Dark mode toggle styling */
+[data-bs-theme="dark"] .pearl-darkmode-switch .form-switch .form-check-input {
+  border-color: #6c757d;
+  background-color: rgba(108, 117, 125, 0.3);
+}
+[data-bs-theme="dark"] .pearl-darkmode-switch .form-switch .form-check-input:checked {
+  background-color: #6c757d;
+  border-color: #6c757d;
+}

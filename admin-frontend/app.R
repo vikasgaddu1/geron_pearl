@@ -167,54 +167,10 @@ ui <- page_sidebar(
     # Browser tab title and favicon
     tags$title("PEARL Admin"),
     tags$link(rel = "icon", type = "image/svg+xml", href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='pearl' cx='0.3' cy='0.3'%3E%3Cstop offset='0%25' stop-color='%23ffffff' stop-opacity='0.8'/%3E%3Cstop offset='30%25' stop-color='%23f8f9fa' stop-opacity='0.6'/%3E%3Cstop offset='70%25' stop-color='%23e9ecef' stop-opacity='0.4'/%3E%3Cstop offset='100%25' stop-color='%23adb5bd' stop-opacity='0.8'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='50' r='45' fill='url(%23pearl)' stroke='%236c757d' stroke-width='2'/%3E%3Cellipse cx='35' cy='35' rx='8' ry='12' fill='%23ffffff' opacity='0.7' transform='rotate(-20 35 35)'/%3E%3C/svg%3E"),
-    tags$style(HTML('
-      /* Light mode styles (default) */
-      .pearl-topbar {
-        background: #f8f9fa !important;  /* Light gray background */
-        color: #212529 !important;       /* Dark text */
-        margin: -0.5rem -0.5rem 0.5rem -0.5rem !important;
-        padding: 1rem !important;
-        transition: background-color 0.3s ease, color 0.3s ease;
-        border-bottom: 1px solid #dee2e6 !important;  /* Subtle border */
-      }
-      .bslib-page-title {
-        background: #f8f9fa !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        transition: background-color 0.3s ease;
-      }
-      
-      /* Dark mode styles */
-      [data-bs-theme="dark"] .pearl-topbar {
-        background: #212529 !important;  /* Bootstrap dark */
-        color: #f8f9fa !important;       /* Light gray text */
-      }
-      [data-bs-theme="dark"] .bslib-page-title {
-        background: #212529 !important;
-      }
-      
-      /* Light mode toggle styling */
-      .pearl-darkmode-switch .form-switch .form-check-input {
-        border-color: #6c757d;
-        background-color: rgba(108, 117, 125, 0.2);
-      }
-      .pearl-darkmode-switch .form-switch .form-check-input:checked {
-        background-color: #0d6efd;
-        border-color: #0d6efd;
-      }
-      
-      /* Dark mode toggle styling */
-      [data-bs-theme="dark"] .pearl-darkmode-switch .form-switch .form-check-input {
-        border-color: #6c757d;
-        background-color: rgba(108, 117, 125, 0.3);
-      }
-      [data-bs-theme="dark"] .pearl-darkmode-switch .form-switch .form-check-input:checked {
-        background-color: #6c757d;
-        border-color: #6c757d;
-      }
-    ')),
+    tags$link(rel = "stylesheet", type = "text/css", href = "custom.css"),
     tags$script(HTML(sprintf("const pearlApiUrl = '%s'; const pearlWsPath = '%s';", API_BASE_URL, API_WEBSOCKET_PATH))),
     tags$script(src = "websocket_client.js"),
+    tags$script(src = "shiny_handlers.js"),
     tags$script(HTML("
       // Custom message handlers for WebSocket integration
       $(document).on('shiny:connected', function(event) {
@@ -331,20 +287,6 @@ server <- function(input, output, session) {
   
   # Reporting Efforts module
   reporting_efforts_server("reporting_efforts")
-  
-  # Tab change observer - refresh data when switching tabs
-  observeEvent(input$main_tabs, {
-    current_tab <- input$main_tabs
-    cat("📑 Tab changed to:", current_tab, "\n")
-    
-    if (current_tab == "releases_tab") {
-      # Trigger refresh in database releases module
-      shinyjs::runjs("Shiny.setInputValue('database_releases-refresh_database_releases', Math.random(), {priority: 'event'});")
-    } else if (current_tab == "efforts_tab") {
-      # Trigger refresh in reporting efforts module  
-      shinyjs::runjs("Shiny.setInputValue('reporting_efforts-refresh_reporting_efforts', Math.random(), {priority: 'event'});")
-    }
-  }, ignoreInit = TRUE)
   
   # Health check
   output$health_status <- renderText({
