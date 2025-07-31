@@ -287,31 +287,33 @@ output$efforts_table <- DT::renderDataTable({
 
 ### TNFP (Text/Note/Footnote/Population) Module Implementation
 
-**🆕 NEW MODULE**: Complete TNFP and Acronym management interface added to the R Shiny frontend.
+**📝 SIMPLIFIED MODULE**: Unified TNFP management interface for all text element types stored in a single database table.
 
 #### Module Overview
 - **File**: `modules/tnfp_server.R` + `modules/tnfp_ui.R`
-- **Purpose**: Dual-interface management for text elements and acronyms with real-time updates
-- **Features**: Tabbed interface, inline editing, bulk operations, search/filtering, WebSocket synchronization
+- **Purpose**: Single-interface management for all text element types with real-time updates
+- **Database Schema**: All TNFP elements stored in `text_elements` table with different `type` values
+- **Features**: Unified form, inline editing, search/filtering, WebSocket synchronization
 
 #### Key Implementation Features
 
-**Dual-Tab Interface**:
-- Text Elements tab: Manage titles, footnotes, and population sets
-- Acronyms tab: Manage key-value pairs with optional descriptions
-- Radio button switching with automatic sidebar form updates
+**Unified Interface**:
+- Single form for all text element types: `title`, `footnote`, `population_set`, `acronyms_set`
+- Type selection dropdown with four options
+- Consistent form validation and error handling
+- Streamlined sidebar layout following established patterns
 
 **Text Elements Management**:
-- Enum type selection: title, footnote, population_set  
+- Unified type selection: title, footnote, population_set, acronyms_set
 - Text area input with validation (minimum 3 characters)
-- Full-text search and type filtering
+- Full-text search and type filtering via DataTable
 - Inline editing with form pre-population
+- Single API endpoint for all CRUD operations
 
-**Acronym Management**:
-- Key-value pair entry with uniqueness validation
-- Optional description field
-- Search by key or value content
-- Duplicate key prevention with user-friendly error messages
+**Simplified Database Schema**:
+- All TNFP data stored as `text_elements` with `type` field
+- No separate acronym or key-value pair tables
+- Consistent data structure across all element types
 
 **DataTable Integration**:
 ```r
@@ -337,40 +339,25 @@ tags$button(
   class = "btn btn-warning btn-sm",
   `data-action` = "edit",
   `data-id` = element_id,
-  title = paste("Edit text element:", element_label),
+  title = paste("Edit text element:", element_content),
   tagList(bs_icon("pencil"), "Edit")
 )
 ```
 
 **WebSocket Real-time Updates**: 
-- Automatic refresh on `text_element_*` and `acronym_*` events
+- Automatic refresh on `text_element_*` events only
 - Cross-user synchronization for collaborative editing
-- Event type filtering with pattern matching
+- Simplified event routing to TNFP module
 
 **Form Validation Patterns**:
 ```r
-# InputValidator setup with custom rules
+# Simplified InputValidator setup for unified text elements
 iv_text_element_new <- InputValidator$new()
 iv_text_element_new$add_rule("new_text_element_type", sv_required())
+iv_text_element_new$add_rule("new_text_element_label", sv_required())
 iv_text_element_new$add_rule("new_text_element_label", function(value) {
   if (nchar(trimws(value)) < 3) {
-    "Label must be at least 3 characters long"
-  }
-})
-
-# Acronym uniqueness validation
-iv_acronym_new$add_rule("new_acronym_key", function(value) {
-  existing_acronyms <- acronyms_data()
-  current_id <- editing_acronym_id()
-  if (nrow(existing_acronyms) > 0) {
-    other_acronyms <- if (!is.null(current_id)) {
-      existing_acronyms[existing_acronyms$ID != current_id, ]
-    } else {
-      existing_acronyms
-    }
-    if (nrow(other_acronyms) > 0 && trimws(toupper(value)) %in% toupper(other_acronyms$Key)) {
-      "An acronym with this key already exists"
-    }
+    "Content must be at least 3 characters long"
   }
 })
 ```
@@ -383,7 +370,6 @@ iv_acronym_new$add_rule("new_acronym_key", function(value) {
 ```r
 # Fixed notification calls
 showNotification(paste("Text element", action_word, "successfully!"), type = "message")
-showNotification(paste("Acronym", action_word, "successfully!"), type = "message")
 ```
 
 #### Delete Confirmation Modals
@@ -391,31 +377,29 @@ showNotification(paste("Acronym", action_word, "successfully!"), type = "message
 # Delete confirmation with entity details
 showModal(modalDialog(
   title = "Confirm Deletion",
-  paste("Are you sure you want to delete the text element:", element_to_delete$Label[1], "?"),
+  paste("Are you sure you want to delete the text element:", element_to_delete$Content[1], "?"),
   footer = tagList(
     modalButton("Cancel"),
-    input_task_button(ns("confirm_delete_text_element"), "Delete", class = "btn-danger")
+    actionButton(ns("confirm_delete_text_element"), "Delete", class = "btn btn-danger")
   ),
   easyClose = TRUE
 ))
 ```
 
 #### API Integration
-- Text Elements: `/api/v1/text-elements/` endpoints
-- Acronyms: `/api/v1/acronyms/` endpoints  
-- Real-time WebSocket events for all CRUD operations
-- Error handling with user-friendly notifications
+- **Unified Endpoint**: `/api/v1/text-elements/` for all TNFP element types
+- **Simplified Data Model**: All elements use same structure with `type` and `label` fields
+- **Real-time WebSocket**: `text_element_*` events for all CRUD operations
+- **Error Handling**: Comprehensive error handling with user-friendly notifications
 
 #### WebSocket Event Handling
 ```r
-# TNFP-specific WebSocket event processing
+# Simplified TNFP WebSocket event processing
 observeEvent(input$websocket_event, {
   if (!is.null(input$websocket_event)) {
     event_data <- input$websocket_event
     if (startsWith(event_data$type, "text_element_")) {
-      load_text_elements_data()
-    } else if (startsWith(event_data$type, "acronym_")) {
-      load_acronyms_data()
+      load_text_elements_data()  # Single data loading function
     }
   }
 })
@@ -429,12 +413,25 @@ observeEvent(input$websocket_event, {
 
 #### Critical Implementation Notes
 
-1. **Notification Types**: Always use valid Shiny notification types ("message", "error", "warning", "default")
-2. **Validation**: Client-side validation prevents duplicate keys and enforces minimum lengths
-3. **Reactive State**: Proper management of editing state with reactive values
-4. **WebSocket Integration**: Automatic refresh on relevant event types only
-5. **Error Handling**: Comprehensive error handling with user-friendly messages
-6. **Bootstrap Integration**: Proper use of Bootstrap 5 classes and bslib theming
+1. **Unified Data Model**: All TNFP elements stored in single `text_elements` table with `type` field
+2. **Simplified API**: Single set of endpoints (`/api/v1/text-elements/`) handles all element types
+3. **Database Schema Alignment**: 
+   - Titles: `type = "title"`
+   - Footnotes: `type = "footnote"`
+   - Population Sets: `type = "population_set"`
+   - Acronym Sets: `type = "acronyms_set"`
+4. **Notification Types**: Always use valid Shiny notification types ("message", "error", "warning", "default")
+5. **Validation**: Unified validation rules for all text element types
+6. **WebSocket Integration**: Only `text_element_*` events, no separate acronym events
+7. **Error Handling**: Comprehensive error handling with user-friendly messages
+8. **Bootstrap Integration**: Consistent styling following established module patterns
+
+#### Migration from Dual-Interface System
+The TNFP module was simplified from a complex dual-interface system (text elements + key-value pairs) to a unified interface where all elements are stored as `text_elements` with different types. This eliminates:
+- Separate acronym API endpoints and data management
+- Complex dual-tab interface switching
+- Key-value pair specific validation and forms
+- Multiple data loading functions and reactive values
 
 ### WebSocket Message Routing System
 
