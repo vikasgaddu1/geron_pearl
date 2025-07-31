@@ -304,6 +304,162 @@ Study (1) ←→ (N) DatabaseRelease (1) ←→ (N) ReportingEffort
 
 **WebSocket Broadcasting**: All CRUD operations broadcast real-time events for each entity type
 
+## TNFP (Text/Note/Footnote/Population) and Acronym System
+
+**🆕 NEW FUNCTIONALITY**: Complete TNFP and Acronym management system added with real-time WebSocket updates.
+
+### TNFP System Overview
+
+**Purpose**: Comprehensive text element and acronym management for research data documentation
+**Key Features**: 
+- Text elements with categorization (title, footnote, population_set)
+- Acronym management with unique key constraints
+- Acronym set grouping with many-to-many relationships
+- Real-time WebSocket broadcasting for all operations
+- Search and filtering capabilities
+- Referential integrity with deletion protection
+
+### Database Schema
+
+**Four new entities with timestamp audit trails**:
+
+1. **TextElement** (`text_elements` table)
+   - Enum-constrained types: title, footnote, population_set
+   - Full-text searchable labels
+   - Created/updated timestamps
+
+2. **Acronym** (`acronyms` table)
+   - Unique key constraints with indexing
+   - Optional descriptions
+   - Created/updated timestamps
+
+3. **AcronymSet** (`acronym_sets` table)
+   - Named groups for organizing acronyms
+   - Unique name constraints
+   - Created/updated timestamps
+
+4. **AcronymSetMember** (`acronym_set_members` table)
+   - Junction table for many-to-many relationships
+   - Sort ordering support
+   - Composite unique constraints
+
+### API Endpoints (Complete CRUD)
+
+**TextElement Management** (`/api/v1/text-elements/`):
+- `POST /` - Create new text element with type validation
+- `GET /` - List text elements with pagination
+- `GET /search?q=term` - Search by label content with type filtering
+- `GET /filter?type=title` - Filter by element type
+- `GET /{id}` - Get specific text element
+- `PUT /{id}` - Update text element with validation
+- `DELETE /{id}` - Delete text element
+
+**Acronym Management** (`/api/v1/acronyms/`):
+- `POST /` - Create acronym with unique key validation
+- `GET /` - List acronyms with pagination
+- `GET /search?q=term` - Search by key or value
+- `GET /{id}` - Get specific acronym
+- `PUT /{id}` - Update acronym with key uniqueness check
+- `DELETE /{id}` - Delete acronym (checks for set membership)
+
+**AcronymSet Management** (`/api/v1/acronym-sets/`):
+- `POST /` - Create acronym set with unique name validation
+- `GET /` - List acronym sets with pagination
+- `GET /search?q=term` - Search by name or description
+- `GET /{id}` - Get specific acronym set
+- `GET /{id}/with-members` - Get set with all member acronyms loaded
+- `PUT /{id}` - Update acronym set with name validation
+- `DELETE /{id}` - Delete set (blocked if members exist)
+
+**AcronymSetMember Management** (`/api/v1/acronym-set-members/`):
+- `POST /` - Add acronym to set with duplicate validation
+- `GET /` - List memberships with pagination
+- `GET /by-set/{set_id}` - Get all members for specific set
+- `GET /by-acronym/{acronym_id}` - Get all sets containing acronym
+- `PUT /{id}` - Update membership (change sort order)
+- `DELETE /{id}` - Remove acronym from set
+- `POST /bulk` - Bulk add multiple acronyms to set
+- `DELETE /bulk?set_id=X&acronym_ids=1,2,3` - Bulk remove acronyms from set
+
+### WebSocket Real-time Events
+
+**Broadcast events for each entity type**:
+- `text_element_created` / `text_element_updated` / `text_element_deleted`
+- `acronym_created` / `acronym_updated` / `acronym_deleted`
+- `acronym_set_created` / `acronym_set_updated` / `acronym_set_deleted`
+- `acronym_set_member_created` / `acronym_set_member_updated` / `acronym_set_member_deleted`
+
+**JSON Serialization**: All WebSocket broadcasts use `model_dump(mode='json')` to properly serialize enums and datetime objects.
+
+### CRUD Implementation Patterns
+
+**Search Functionality**:
+```python
+# Text element search by label content and type filtering
+async def search(self, db: AsyncSession, *, search_term: str, type_filter: Optional[TextElementType] = None)
+
+# Acronym search by key or value content
+async def search_by_key_or_value(self, db: AsyncSession, *, search_term: str)
+
+# Acronym set search by name or description
+async def search_by_name(self, db: AsyncSession, *, search_term: str)
+```
+
+**Deletion Protection**:
+```python
+# AcronymSet deletion protection
+associated_members = await acronym_set_member.get_by_set_id(db, acronym_set_id=acronym_set_id)
+if associated_members:
+    raise HTTPException(status_code=400, detail="Cannot delete: members exist")
+```
+
+**Relationship Loading**:
+```python
+# Load acronym set with all member acronyms
+async def get_with_members(self, db: AsyncSession, *, id: int) -> Optional[AcronymSet]:
+    return await db.execute(
+        select(AcronymSet)
+        .options(selectinload(AcronymSet.acronym_set_members).selectinload(AcronymSetMember.acronym))
+        .where(AcronymSet.id == id)
+    )
+```
+
+### Frontend Integration
+
+**R Shiny Module**: `admin-frontend/modules/tnfp_server.R`
+- Dual-tab interface for text elements and acronyms  
+- Real-time WebSocket updates
+- DataTable integration with search and filtering
+- Inline editing with validation
+- Bulk operations support
+
+**WebSocket Client**: Automatic refresh on entity changes via JavaScript WebSocket client
+
+### Testing Constraints
+
+**Individual Test Pattern**: Due to async session conflicts, test each entity separately:
+```bash
+# Test individual endpoints
+pytest tests/test_text_elements_simple.py -v
+pytest tests/test_acronyms_simple.py -v  
+pytest tests/test_acronym_sets_simple.py -v
+```
+
+**Validation Testing**: Run model validator after any schema changes:
+```bash
+uv run python tests/validator/run_model_validation.py
+```
+
+### Key Implementation Notes
+
+1. **Enum Handling**: TextElementType enum with proper SQLAlchemy and Pydantic integration
+2. **Unique Constraints**: Acronym keys are unique across the system, set names are unique
+3. **Cascading Deletes**: Proper referential integrity with descriptive error messages
+4. **JSON Compatibility**: All WebSocket events use `mode='json'` for proper serialization
+5. **Audit Trails**: All entities inherit TimestampMixin for created_at/updated_at tracking
+6. **Search Performance**: Database indexes on searchable fields (type, key, name)
+7. **Bulk Operations**: Efficient bulk insert/delete for set membership management
+
 ## WebSocket Implementation Details
 
 > **📡 Critical WebSocket patterns for Claude Code development**

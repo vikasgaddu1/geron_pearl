@@ -285,6 +285,157 @@ output$efforts_table <- DT::renderDataTable({
 - **Error Reduction**: Eliminated "websocket.send after websocket.close" errors
 - **Real-time Updates**: Reporting efforts now have same real-time functionality as studies/database releases
 
+### TNFP (Text/Note/Footnote/Population) Module Implementation
+
+**🆕 NEW MODULE**: Complete TNFP and Acronym management interface added to the R Shiny frontend.
+
+#### Module Overview
+- **File**: `modules/tnfp_server.R` + `modules/tnfp_ui.R`
+- **Purpose**: Dual-interface management for text elements and acronyms with real-time updates
+- **Features**: Tabbed interface, inline editing, bulk operations, search/filtering, WebSocket synchronization
+
+#### Key Implementation Features
+
+**Dual-Tab Interface**:
+- Text Elements tab: Manage titles, footnotes, and population sets
+- Acronyms tab: Manage key-value pairs with optional descriptions
+- Radio button switching with automatic sidebar form updates
+
+**Text Elements Management**:
+- Enum type selection: title, footnote, population_set  
+- Text area input with validation (minimum 3 characters)
+- Full-text search and type filtering
+- Inline editing with form pre-population
+
+**Acronym Management**:
+- Key-value pair entry with uniqueness validation
+- Optional description field
+- Search by key or value content
+- Duplicate key prevention with user-friendly error messages
+
+**DataTable Integration**:
+```r
+# Enhanced DataTable with Bootstrap button styling
+DT::datatable(display_df,
+  filter = 'top',
+  options = list(
+    dom = 'frtip',
+    search = list(regex = TRUE, caseInsensitive = TRUE),
+    searching = TRUE,
+    pageLength = 10,
+    columnDefs = list(
+      list(targets = 2, width = "20%", orderable = FALSE, className = "text-center")
+    )
+  )
+)
+```
+
+**Action Button Implementation**:
+```r
+# Bootstrap-styled action buttons with proper data attributes
+tags$button(
+  class = "btn btn-warning btn-sm",
+  `data-action` = "edit",
+  `data-id` = element_id,
+  title = paste("Edit text element:", element_label),
+  tagList(bs_icon("pencil"), "Edit")
+)
+```
+
+**WebSocket Real-time Updates**: 
+- Automatic refresh on `text_element_*` and `acronym_*` events
+- Cross-user synchronization for collaborative editing
+- Event type filtering with pattern matching
+
+**Form Validation Patterns**:
+```r
+# InputValidator setup with custom rules
+iv_text_element_new <- InputValidator$new()
+iv_text_element_new$add_rule("new_text_element_type", sv_required())
+iv_text_element_new$add_rule("new_text_element_label", function(value) {
+  if (nchar(trimws(value)) < 3) {
+    "Label must be at least 3 characters long"
+  }
+})
+
+# Acronym uniqueness validation
+iv_acronym_new$add_rule("new_acronym_key", function(value) {
+  existing_acronyms <- acronyms_data()
+  current_id <- editing_acronym_id()
+  if (nrow(existing_acronyms) > 0) {
+    other_acronyms <- if (!is.null(current_id)) {
+      existing_acronyms[existing_acronyms$ID != current_id, ]
+    } else {
+      existing_acronyms
+    }
+    if (nrow(other_acronyms) > 0 && trimws(toupper(value)) %in% toupper(other_acronyms$Key)) {
+      "An acronym with this key already exists"
+    }
+  }
+})
+```
+
+#### showNotification Type Fix
+**Problem**: `showNotification(type = "success")` causing match.arg error
+**Solution**: Changed all success notifications to `type = "message"` to match Shiny's accepted types
+**Valid Types**: "default", "message", "warning", "error"
+
+```r
+# Fixed notification calls
+showNotification(paste("Text element", action_word, "successfully!"), type = "message")
+showNotification(paste("Acronym", action_word, "successfully!"), type = "message")
+```
+
+#### Delete Confirmation Modals
+```r
+# Delete confirmation with entity details
+showModal(modalDialog(
+  title = "Confirm Deletion",
+  paste("Are you sure you want to delete the text element:", element_to_delete$Label[1], "?"),
+  footer = tagList(
+    modalButton("Cancel"),
+    input_task_button(ns("confirm_delete_text_element"), "Delete", class = "btn-danger")
+  ),
+  easyClose = TRUE
+))
+```
+
+#### API Integration
+- Text Elements: `/api/v1/text-elements/` endpoints
+- Acronyms: `/api/v1/acronyms/` endpoints  
+- Real-time WebSocket events for all CRUD operations
+- Error handling with user-friendly notifications
+
+#### WebSocket Event Handling
+```r
+# TNFP-specific WebSocket event processing
+observeEvent(input$websocket_event, {
+  if (!is.null(input$websocket_event)) {
+    event_data <- input$websocket_event
+    if (startsWith(event_data$type, "text_element_")) {
+      load_text_elements_data()
+    } else if (startsWith(event_data$type, "acronym_")) {
+      load_acronyms_data()
+    }
+  }
+})
+```
+
+#### Layout and Styling
+- Consistent with other modules: 1200px max-width, 700px height
+- Sidebar width: 450px for comfortable form interaction
+- Bootstrap 5 styling with proper responsive behavior
+- Empty state handling with helpful user guidance
+
+#### Critical Implementation Notes
+
+1. **Notification Types**: Always use valid Shiny notification types ("message", "error", "warning", "default")
+2. **Validation**: Client-side validation prevents duplicate keys and enforces minimum lengths
+3. **Reactive State**: Proper management of editing state with reactive values
+4. **WebSocket Integration**: Automatic refresh on relevant event types only
+5. **Error Handling**: Comprehensive error handling with user-friendly messages
+6. **Bootstrap Integration**: Proper use of Bootstrap 5 classes and bslib theming
+
 ### WebSocket Message Routing System
 
 #### Message Format Mismatch Issue
