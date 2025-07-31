@@ -20,7 +20,16 @@ if config.config_file_name is not None:
 
 # Import models to ensure they are registered with SQLAlchemy metadata
 from app.db.base import Base
-from app.models import Study
+# Import all models to ensure they are registered
+from app.models import (
+    Study, 
+    DatabaseRelease, 
+    ReportingEffort,
+    TextElement,
+    Acronym,
+    AcronymSet,
+    AcronymSetMember
+)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
