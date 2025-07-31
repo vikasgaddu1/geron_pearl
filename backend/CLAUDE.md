@@ -11,6 +11,25 @@ PEARL Backend is a FastAPI application with async PostgreSQL CRUD operations and
 **Key Features**: FastAPI + async PostgreSQL + WebSocket broadcasting + UV package management  
 **Critical Constraint**: SQLAlchemy async session conflicts prevent reliable batch test execution
 
+### Package Management with UV
+
+This project uses **[UV](https://docs.astral.sh/uv/)** as the modern Python package manager for fast, deterministic builds:
+
+**Benefits**:
+- ⚡ Faster dependency resolution than pip
+- 🔒 Deterministic builds with `uv.lock`
+- 🐍 Python version management
+- 📦 Unified toolchain
+
+**Key Commands**:
+```bash
+# Use uv for all Python operations
+uv run python run.py           # Start development server
+uv run alembic upgrade head    # Database migrations
+uv run pytest tests/          # Run tests
+uv pip install -r requirements.txt  # Install dependencies
+```
+
 > **🏗️ See [README.md - Features & Project Structure](README.md#features) for complete technology stack and architecture details**
 
 ## Critical Testing Constraints
@@ -85,6 +104,37 @@ uv run python run.py
 # API docs: http://localhost:8000/docs
 ```
 
+### Code Quality & Formatting
+```bash
+# Format code
+make format             # Black + isort formatting
+uv run black app tests  # Format with black
+uv run isort app tests  # Sort imports
+
+# Lint and type check
+make lint               # flake8 + mypy
+make typecheck          # mypy only
+uv run mypy app        # Type checking
+uv run flake8 app tests # Linting
+
+# Clean up generated files
+make clean              # Remove coverage, cache files
+```
+
+### Database Management
+```bash
+# Alembic migrations
+uv run alembic revision --autogenerate -m "Description"
+uv run alembic upgrade head
+uv run alembic downgrade -1
+uv run alembic current
+uv run alembic history
+
+# Make commands
+make migrate            # Apply migrations (alembic upgrade head)
+make db-reset          # Reset database with Docker
+```
+
 ### Testing (Individual Files Only)
 ```bash
 # Functional testing (recommended)
@@ -93,8 +143,15 @@ uv run python run.py
 # Individual pytest (works reliably)
 pytest tests/specific_test.py -v
 
-# Model validation
+# Model validation (CRITICAL after model changes)
 uv run python tests/validator/run_model_validation.py
+
+# Make commands (comprehensive testing)
+make test-fast          # Fast tests excluding slow performance tests
+make test-unit          # Unit tests only
+make test-integration   # Integration tests only  
+make test-security      # Security tests only
+make test-coverage      # Tests with coverage report
 ```
 
 ## Key Architecture Notes
@@ -106,6 +163,10 @@ uv run python tests/validator/run_model_validation.py
 - **WebSocket Broadcasting**: All CRUD operations broadcast real-time events
 - **Clean Architecture**: API → CRUD → Models with clear separation
 - **Async Session Management**: Context managers with session conflict limitations
+- **Application Lifespan**: Automatic database initialization on startup, graceful shutdown
+- **Health Checks**: Built-in health endpoint (`/health`) with database connectivity testing
+- **CORS Configuration**: Pre-configured for frontend integration
+- **Global Exception Handling**: Comprehensive error handling with structured logging
 
 ## Development Workflow
 
@@ -117,6 +178,36 @@ uv run python tests/validator/run_model_validation.py
 3. **WebSocket Broadcasting**: CRUD operations automatically broadcast events - test with multiple browser sessions
 4. **Database Changes**: Use `alembic revision --autogenerate` for schema changes
 5. **Referential Integrity**: Always implement deletion protection for related entities (see Deletion Patterns below)
+
+### FastAPI Model Validator Tool
+
+**🎯 CRITICAL**: This project includes a specialized model validation tool that must be run after any model changes.
+
+**Purpose**: Validates SQLAlchemy and Pydantic model alignment to prevent frontend integration issues
+
+**Usage**:
+```bash
+# Run model validation (required after model changes)
+uv run python tests/validator/run_model_validation.py
+
+# Generate JSON report
+uv run python tests/validator/fastapi_model_validator.py . --format json
+
+# Save validation report
+uv run python tests/validator/fastapi_model_validator.py . -o validation_report.txt
+```
+
+**When to Run**:
+- After adding/modifying SQLAlchemy models (`app/models/*.py`)
+- After updating Pydantic schemas (`app/schemas/*.py`)
+- Before committing model-related changes
+- When experiencing unexplained frontend/backend integration issues
+
+**What it Validates**:
+- Type compatibility between SQLAlchemy and Pydantic models
+- Nullable/optional field consistency
+- Field constraint alignment
+- Missing field detection
 
 ### Deletion Patterns & Referential Integrity
 
