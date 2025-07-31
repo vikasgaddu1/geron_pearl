@@ -46,7 +46,7 @@ class AcronymSet(AcronymSetInDB):
 class AcronymSetWithMembers(AcronymSet):
     """Schema for acronym set responses with member acronyms."""
     
-    members: List["AcronymSetMemberWithAcronym"] = Field(default=[], description="List of acronyms in this set")
+    acronym_set_members: List["AcronymSetMemberWithAcronym"] = Field(default=[], description="List of acronyms in this set")
 
 
 # Forward reference resolution

@@ -34,8 +34,8 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('type', sa.Enum('title', 'footnote', 'population_set', name='textelementtype', create_type=False), nullable=False),
         sa.Column('label', sa.Text(), nullable=False),
-        sa.Column('created_at', sa.DateTime(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_text_elements_type'), 'text_elements', ['type'], unique=False)
@@ -47,8 +47,8 @@ def upgrade() -> None:
         sa.Column('key', sa.String(50), nullable=False),
         sa.Column('value', sa.String(255), nullable=False),
         sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('created_at', sa.DateTime(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('key', name='uq_acronym_key')
     )
@@ -61,8 +61,8 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('name', sa.String(255), nullable=False),
         sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('created_at', sa.DateTime(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('name', name='uq_acronym_set_name')
     )
@@ -74,9 +74,9 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('acronym_set_id', sa.Integer(), nullable=False),
         sa.Column('acronym_id', sa.Integer(), nullable=False),
-        sa.Column('sort_order', sa.Integer(), nullable=False, default=0),
-        sa.Column('created_at', sa.DateTime(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(), nullable=False),
+        sa.Column('sort_order', sa.Integer(), nullable=False, server_default='0'),
+        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['acronym_id'], ['acronyms.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['acronym_set_id'], ['acronym_sets.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),

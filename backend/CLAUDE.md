@@ -297,6 +297,10 @@ Study (1) ←→ (N) DatabaseRelease (1) ←→ (N) ReportingEffort
 - `/api/v1/studies/` - Study CRUD with DatabaseRelease deletion protection
 - `/api/v1/database-releases/` - DatabaseRelease CRUD with ReportingEffort deletion protection
 - `/api/v1/reporting-efforts/` - ReportingEffort CRUD (no dependent entities)
+- `/api/v1/text-elements/` - TextElement CRUD with search functionality (title, footnote, population_set)
+- `/api/v1/acronyms/` - Acronym CRUD with search functionality
+- `/api/v1/acronym-sets/` - AcronymSet CRUD with member deletion protection
+- `/api/v1/acronym-set-members/` - AcronymSetMember CRUD with bulk operations
 
 **WebSocket Broadcasting**: All CRUD operations broadcast real-time events for each entity type
 

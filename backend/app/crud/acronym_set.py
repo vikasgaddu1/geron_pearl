@@ -31,11 +31,14 @@ class AcronymSetCRUD:
     
     async def get_with_members(self, db: AsyncSession, *, id: int) -> Optional[AcronymSet]:
         """Get an acronym set by ID with its members loaded."""
+        from app.models.acronym_set_member import AcronymSetMember
+        from app.models.acronym import Acronym
+        
         result = await db.execute(
             select(AcronymSet)
             .options(
                 selectinload(AcronymSet.acronym_set_members)
-                .selectinload(AcronymSet.acronym_set_members.property.entity.acronym)
+                .selectinload(AcronymSetMember.acronym)
             )
             .where(AcronymSet.id == id)
         )

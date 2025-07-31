@@ -351,3 +351,115 @@ This architecture allows the backend to remain simple (only sending type + data)
 - **HTTP Client**: httr2 for REST API communication  
 - **Real-time**: WebSocket integration (JavaScript primary, R secondary)
 - **Package Management**: renv for reproducible environments
+
+## Using Claude Code Agents for Development
+
+### rshiny-modern-builder Agent
+
+This specialized agent is perfect for R Shiny development tasks in this codebase. Use it for:
+
+**UI Component Development**:
+- Creating new module UI components following the established bslib + Bootstrap 5 patterns
+- Implementing responsive layouts and modern design components
+- Adding new entity management interfaces (following studies/database releases/reporting efforts patterns)
+
+**Real-time Features**:
+- Implementing WebSocket integration for new modules
+- Creating reactive data flows and state management
+- Building real-time synchronization features
+
+**API Integration**:
+- Adding new CRUD endpoints to `modules/api_client.R`
+- Implementing form validation with `shinyvalidate`
+- Creating cascading dropdown functionality
+
+**Example Usage**:
+```bash
+# Use the Task tool to spawn the rshiny-modern-builder agent for:
+# - Adding a new entity module (e.g., "participants")
+# - Implementing complex form interactions
+# - Creating advanced DataTable configurations
+# - Building responsive dashboard layouts
+```
+
+### general-purpose Agent
+
+Use for broader development tasks that span multiple technologies:
+
+**System Integration**:
+- Analyzing WebSocket message flows between R Shiny frontend and FastAPI backend
+- Debugging environment variable configuration issues
+- Setting up development workflows and testing procedures
+
+**Cross-Platform Development**:
+- Coordinating frontend-backend API contract changes
+- Implementing end-to-end testing workflows
+- Analyzing system architecture and identifying improvement opportunities
+
+## MCP Tools for Development & Debugging
+
+### Using Playwright MCP for Browser Testing
+
+**UI/UX Testing and Debugging**:
+```bash
+# Start the R Shiny app first
+Rscript run_app.R
+
+# Then use Claude Code with Playwright MCP to:
+# - Take screenshots of UI components at different screen sizes
+# - Test responsive design breakpoints
+# - Validate CSS styling and layout issues
+# - Test form interactions and validations
+# - Debug WebSocket connection status indicators
+```
+
+**WebSocket Real-time Testing**:
+- Use Playwright to open multiple browser instances simultaneously
+- Test real-time synchronization by creating/editing/deleting records in one window
+- Verify updates appear instantly in other windows
+- Monitor WebSocket connection status indicators across sessions
+
+**CSS and Responsive Design Debugging**:
+- Capture screenshots at different viewport sizes (mobile: 375px, tablet: 768px, desktop: 1200px)
+- Test Bootstrap 5 responsive breakpoints and bslib theme consistency
+- Debug modal positioning and form layout issues
+- Validate action button styling and hover states
+
+### Using Other MCP Tools
+
+**Context7 MCP for Documentation**:
+- Look up R Shiny best practices and modular patterns
+- Find bslib theming examples and Bootstrap 5 component usage
+- Research httr2 usage patterns for robust API integration
+- Get WebSocket client implementation examples and error handling patterns
+
+**Sequential MCP for Complex Analysis**:
+- Systematic troubleshooting of WebSocket connection and message routing issues
+- Step-by-step analysis of reactive value flows in Shiny modules
+- Complex form validation debugging with interdependent fields
+- Architecture analysis for scaling and performance optimization
+
+### Agent and MCP Tool Coordination
+
+**For New Feature Development**:
+1. Use `rshiny-modern-builder` agent to implement R Shiny components
+2. Use `general-purpose` agent to coordinate backend API changes
+3. Use Playwright MCP to test the complete user workflow
+4. Use Context7 MCP to validate against R Shiny best practices
+
+**For Debugging Complex Issues**:
+1. Use Sequential MCP for systematic problem analysis
+2. Use `general-purpose` agent for cross-system debugging
+3. Use Playwright MCP for browser-specific testing and validation
+4. Use `rshiny-modern-builder` agent for R Shiny-specific fixes
+
+## Development Best Practices
+
+- Use `rshiny-modern-builder` agent for all R Shiny-specific development tasks
+- Leverage `general-purpose` agent for system-wide analysis and multi-technology coordination
+- Use environment variables for all configuration (see `config.env.template`)
+- Follow the established modular pattern for consistency across entities
+- Test WebSocket functionality with multiple browser sessions using Playwright MCP
+- Validate referential integrity before allowing deletions
+- Keep DataTable configurations consistent across all modules
+- Coordinate agent usage with MCP tools for comprehensive development workflows
