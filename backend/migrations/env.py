@@ -25,10 +25,7 @@ from app.models import (
     Study, 
     DatabaseRelease, 
     ReportingEffort,
-    TextElement,
-    Acronym,
-    AcronymSet,
-    AcronymSetMember
+    TextElement
 )
 
 # add your model's MetaData object here

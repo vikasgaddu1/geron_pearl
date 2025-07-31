@@ -7,15 +7,12 @@ from typing import Dict, List, Set
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud import study, database_release, reporting_effort, text_element, acronym, acronym_set, acronym_set_member
+from app.crud import study, database_release, reporting_effort, text_element
 from app.db.session import AsyncSessionLocal
 from app.schemas.study import Study
 from app.schemas.database_release import DatabaseRelease
 from app.schemas.reporting_effort import ReportingEffort
 from app.schemas.text_element import TextElement
-from app.schemas.acronym import Acronym
-from app.schemas.acronym_set import AcronymSet
-from app.schemas.acronym_set_member import AcronymSetMember
 
 logger = logging.getLogger(__name__)
 
@@ -412,121 +409,4 @@ async def broadcast_text_element_deleted(text_element_data):
     logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
 
-# Acronym WebSocket broadcasting functions
-async def broadcast_acronym_created(acronym_data):
-    """Broadcast that a new acronym was created."""
-    logger.info(f"🚀 Broadcasting acronym_created: {acronym_data.key} = {acronym_data.value}")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_acronym = Acronym.model_validate(acronym_data)
-    message = json.dumps({
-        "type": "acronym_created",
-        "data": pydantic_acronym.model_dump(mode='json')
-    })
-    await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
-
-async def broadcast_acronym_updated(acronym_data):
-    """Broadcast that an acronym was updated."""
-    logger.info(f"📝 Broadcasting acronym_updated: {acronym_data.key} = {acronym_data.value}")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_acronym = Acronym.model_validate(acronym_data)
-    message = json.dumps({
-        "type": "acronym_updated",
-        "data": pydantic_acronym.model_dump(mode='json')
-    })
-    await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
-
-
-async def broadcast_acronym_deleted(acronym_data):
-    """Broadcast that an acronym was deleted."""
-    logger.info(f"🗑️ Broadcasting acronym_deleted: {acronym_data.key} = {acronym_data.value} - ID {acronym_data.id}")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_acronym = Acronym.model_validate(acronym_data)
-    message = json.dumps({
-        "type": "acronym_deleted",
-        "data": pydantic_acronym.model_dump(mode='json')
-    })
-    await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
-
-
-# AcronymSet WebSocket broadcasting functions
-async def broadcast_acronym_set_created(acronym_set_data):
-    """Broadcast that a new acronym set was created."""
-    logger.info(f"🚀 Broadcasting acronym_set_created: {acronym_set_data.name}")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_acronym_set = AcronymSet.model_validate(acronym_set_data)
-    message = json.dumps({
-        "type": "acronym_set_created",
-        "data": pydantic_acronym_set.model_dump(mode='json')
-    })
-    await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
-
-
-async def broadcast_acronym_set_updated(acronym_set_data):
-    """Broadcast that an acronym set was updated."""
-    logger.info(f"📝 Broadcasting acronym_set_updated: {acronym_set_data.name}")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_acronym_set = AcronymSet.model_validate(acronym_set_data)
-    message = json.dumps({
-        "type": "acronym_set_updated",
-        "data": pydantic_acronym_set.model_dump(mode='json')
-    })
-    await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
-
-
-async def broadcast_acronym_set_deleted(acronym_set_data):
-    """Broadcast that an acronym set was deleted."""
-    logger.info(f"🗑️ Broadcasting acronym_set_deleted: {acronym_set_data.name} - ID {acronym_set_data.id}")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_acronym_set = AcronymSet.model_validate(acronym_set_data)
-    message = json.dumps({
-        "type": "acronym_set_deleted",
-        "data": pydantic_acronym_set.model_dump(mode='json')
-    })
-    await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
-
-
-# AcronymSetMember WebSocket broadcasting functions
-async def broadcast_acronym_set_member_created(member_data):
-    """Broadcast that a new acronym set member was created."""
-    logger.info(f"🚀 Broadcasting acronym_set_member_created: Set ID {member_data.acronym_set_id}, Acronym ID {member_data.acronym_id}")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_member = AcronymSetMember.model_validate(member_data)
-    message = json.dumps({
-        "type": "acronym_set_member_created",
-        "data": pydantic_member.model_dump(mode='json')
-    })
-    await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
-
-
-async def broadcast_acronym_set_member_updated(member_data):
-    """Broadcast that an acronym set member was updated."""
-    logger.info(f"📝 Broadcasting acronym_set_member_updated: ID {member_data.id}")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_member = AcronymSetMember.model_validate(member_data)
-    message = json.dumps({
-        "type": "acronym_set_member_updated",
-        "data": pydantic_member.model_dump(mode='json')
-    })
-    await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
-
-
-async def broadcast_acronym_set_member_deleted(member_data):
-    """Broadcast that an acronym set member was deleted."""
-    logger.info(f"🗑️ Broadcasting acronym_set_member_deleted: ID {member_data.id}")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_member = AcronymSetMember.model_validate(member_data)
-    message = json.dumps({
-        "type": "acronym_set_member_deleted",
-        "data": pydantic_member.model_dump(mode='json')
-    })
-    await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")

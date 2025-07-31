@@ -13,10 +13,11 @@ class TextElementType(enum.Enum):
     title = "title"
     footnote = "footnote"
     population_set = "population_set"
+    acronyms_set = "acronyms_set"
 
 
 class TextElement(Base, TimestampMixin):
-    """Text element table model for titles, footnotes, and population sets."""
+    """Text element table model for titles, footnotes, population sets, and acronym sets."""
     
     __tablename__ = "text_elements"
     

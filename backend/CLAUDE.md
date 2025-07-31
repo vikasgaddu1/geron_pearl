@@ -11,6 +11,12 @@ PEARL Backend is a FastAPI application with async PostgreSQL CRUD operations and
 **Key Features**: FastAPI + async PostgreSQL + WebSocket broadcasting + UV package management  
 **Critical Constraint**: SQLAlchemy async session conflicts prevent reliable batch test execution
 
+**🔄 Recent Changes (2025-07-31)**:
+- Reverted from key-value pairs system back to expanded text elements
+- Updated TextElementType enum to support 4 categories: `title`, `footnote`, `population_set`, `acronyms_set`
+- Removed all acronym-related entities and key-value-pair tables
+- Simplified to single-table text element system for easier schema evolution
+
 ### Package Management with UV
 
 This project uses **[UV](https://docs.astral.sh/uv/)** as the modern Python package manager for fast, deterministic builds:
@@ -99,6 +105,7 @@ uv run python -m app.db.init_db
 
 # Start development server
 uv run python run.py
+# Alternative: uv run uvicorn app.main:app --reload
 
 # Access at: http://localhost:8000
 # API docs: http://localhost:8000/docs
@@ -137,7 +144,7 @@ make db-reset          # Reset database with Docker
 
 ### Testing (Individual Files Only)
 ```bash
-# Functional testing (recommended)
+# Functional testing (recommended - must have server running)
 ./test_crud_simple.sh
 
 # Individual pytest (works reliably)
@@ -145,6 +152,9 @@ pytest tests/specific_test.py -v
 
 # Model validation (CRITICAL after model changes)
 uv run python tests/validator/run_model_validation.py
+
+# WebSocket integration test
+uv run python tests/integration/test_websocket_broadcast.py
 
 # Make commands (comprehensive testing)
 make test-fast          # Fast tests excluding slow performance tests
@@ -178,6 +188,7 @@ make test-coverage      # Tests with coverage report
 3. **WebSocket Broadcasting**: CRUD operations automatically broadcast events - test with multiple browser sessions
 4. **Database Changes**: Use `alembic revision --autogenerate` for schema changes
 5. **Referential Integrity**: Always implement deletion protection for related entities (see Deletion Patterns below)
+6. **Clean Architecture**: Follow the API → CRUD → Models pattern, never bypass CRUD layer in endpoints
 
 ### FastAPI Model Validator Tool
 
@@ -288,106 +299,69 @@ Study (1) ←→ (N) DatabaseRelease (1) ←→ (N) ReportingEffort
   └────────────── (1) ←→ (N) ──────────────────┘
 ```
 
+**Independent Entity**:
+```
+TextElement (standalone - four-category enum-based system)
+```
+
 **Deletion Order Requirements**:
 1. **ReportingEffort** (leaf nodes - can be deleted freely)
 2. **DatabaseRelease** (middle tier - blocked if ReportingEffort exists)  
 3. **Study** (root - blocked if DatabaseRelease exists)
+4. **TextElement** (independent - no relationships, can be deleted freely)
 
 **Current Endpoints**:
 - `/api/v1/studies/` - Study CRUD with DatabaseRelease deletion protection
 - `/api/v1/database-releases/` - DatabaseRelease CRUD with ReportingEffort deletion protection
 - `/api/v1/reporting-efforts/` - ReportingEffort CRUD (no dependent entities)
-- `/api/v1/text-elements/` - TextElement CRUD with search functionality (title, footnote, population_set)
-- `/api/v1/acronyms/` - Acronym CRUD with search functionality
-- `/api/v1/acronym-sets/` - AcronymSet CRUD with member deletion protection
-- `/api/v1/acronym-set-members/` - AcronymSetMember CRUD with bulk operations
+- `/api/v1/text-elements/` - TextElement CRUD with search functionality (title, footnote, population_set, acronyms_set)
 
 **WebSocket Broadcasting**: All CRUD operations broadcast real-time events for each entity type
 
-## TNFP (Text/Note/Footnote/Population) and Acronym System
+## Text Elements System (Current Implementation)
 
-**🆕 NEW FUNCTIONALITY**: Complete TNFP and Acronym management system added with real-time WebSocket updates.
+**📋 CURRENT FUNCTIONALITY**: Unified text element management system with four categories and real-time WebSocket updates.
 
-### TNFP System Overview
+### System Overview
 
-**Purpose**: Comprehensive text element and acronym management for research data documentation
+**Purpose**: Flexible text element management for research data documentation with categorization
 **Key Features**: 
-- Text elements with categorization (title, footnote, population_set)
-- Acronym management with unique key constraints
-- Acronym set grouping with many-to-many relationships
-- Real-time WebSocket broadcasting for all operations
-- Search and filtering capabilities
-- Referential integrity with deletion protection
+- Text elements with four-category enum: `title`, `footnote`, `population_set`, `acronyms_set`
+- Full-text search and filtering capabilities
+- Real-time WebSocket broadcasting for all CRUD operations
+- Clean, unified data model with timestamp audit trails
+- Designed for frequent database structure changes
 
 ### Database Schema
 
-**Four new entities with timestamp audit trails**:
+**Single entity with expanded enum support**:
 
-1. **TextElement** (`text_elements` table)
-   - Enum-constrained types: title, footnote, population_set
-   - Full-text searchable labels
-   - Created/updated timestamps
-
-2. **Acronym** (`acronyms` table)
-   - Unique key constraints with indexing
-   - Optional descriptions
-   - Created/updated timestamps
-
-3. **AcronymSet** (`acronym_sets` table)
-   - Named groups for organizing acronyms
-   - Unique name constraints
-   - Created/updated timestamps
-
-4. **AcronymSetMember** (`acronym_set_members` table)
-   - Junction table for many-to-many relationships
-   - Sort ordering support
-   - Composite unique constraints
+**TextElement** (`text_elements` table)
+- **ID**: Primary key, auto-increment
+- **Type**: Enum constraint with four values:
+  - `title` - Study titles and headings
+  - `footnote` - Study methodology footnotes and references
+  - `population_set` - Patient population definitions and criteria
+  - `acronyms_set` - Collections of acronyms and abbreviations
+- **Label**: Full-text searchable content
+- **Created/Updated**: Timestamp audit trail with TimestampMixin
 
 ### API Endpoints (Complete CRUD)
 
 **TextElement Management** (`/api/v1/text-elements/`):
 - `POST /` - Create new text element with type validation
 - `GET /` - List text elements with pagination
-- `GET /search?q=term` - Search by label content with type filtering
-- `GET /filter?type=title` - Filter by element type
+- `GET /search?q=term` - Search by label content across all types
 - `GET /{id}` - Get specific text element
 - `PUT /{id}` - Update text element with validation
 - `DELETE /{id}` - Delete text element
 
-**Acronym Management** (`/api/v1/acronyms/`):
-- `POST /` - Create acronym with unique key validation
-- `GET /` - List acronyms with pagination
-- `GET /search?q=term` - Search by key or value
-- `GET /{id}` - Get specific acronym
-- `PUT /{id}` - Update acronym with key uniqueness check
-- `DELETE /{id}` - Delete acronym (checks for set membership)
-
-**AcronymSet Management** (`/api/v1/acronym-sets/`):
-- `POST /` - Create acronym set with unique name validation
-- `GET /` - List acronym sets with pagination
-- `GET /search?q=term` - Search by name or description
-- `GET /{id}` - Get specific acronym set
-- `GET /{id}/with-members` - Get set with all member acronyms loaded
-- `PUT /{id}` - Update acronym set with name validation
-- `DELETE /{id}` - Delete set (blocked if members exist)
-
-**AcronymSetMember Management** (`/api/v1/acronym-set-members/`):
-- `POST /` - Add acronym to set with duplicate validation
-- `GET /` - List memberships with pagination
-- `GET /by-set/{set_id}` - Get all members for specific set
-- `GET /by-acronym/{acronym_id}` - Get all sets containing acronym
-- `PUT /{id}` - Update membership (change sort order)
-- `DELETE /{id}` - Remove acronym from set
-- `POST /bulk` - Bulk add multiple acronyms to set
-- `DELETE /bulk?set_id=X&acronym_ids=1,2,3` - Bulk remove acronyms from set
-
 ### WebSocket Real-time Events
 
-**Broadcast events for each entity type**:
-- `text_element_created` / `text_element_updated` / `text_element_deleted`
-- `acronym_created` / `acronym_updated` / `acronym_deleted`
-- `acronym_set_created` / `acronym_set_updated` / `acronym_set_deleted`
-- `acronym_set_member_created` / `acronym_set_member_updated` / `acronym_set_member_deleted`
+**Broadcast events for text element operations**:
+- `text_element_created` - New text element added
+- `text_element_updated` - Existing text element modified
+- `text_element_deleted` - Text element removed
 
 **JSON Serialization**: All WebSocket broadcasts use `model_dump(mode='json')` to properly serialize enums and datetime objects.
 
@@ -395,54 +369,37 @@ Study (1) ←→ (N) DatabaseRelease (1) ←→ (N) ReportingEffort
 
 **Search Functionality**:
 ```python
-# Text element search by label content and type filtering
-async def search(self, db: AsyncSession, *, search_term: str, type_filter: Optional[TextElementType] = None)
+# Text element search across all content with optional type filtering
+async def search(self, db: AsyncSession, *, search_term: str, type_filter: Optional[TextElementType] = None) -> List[TextElement]
 
-# Acronym search by key or value content
-async def search_by_key_or_value(self, db: AsyncSession, *, search_term: str)
-
-# Acronym set search by name or description
-async def search_by_name(self, db: AsyncSession, *, search_term: str)
+# Filter by specific type
+async def get_by_type(self, db: AsyncSession, *, element_type: TextElementType) -> List[TextElement]
 ```
 
-**Deletion Protection**:
+**Type Validation**:
 ```python
-# AcronymSet deletion protection
-associated_members = await acronym_set_member.get_by_set_id(db, acronym_set_id=acronym_set_id)
-if associated_members:
-    raise HTTPException(status_code=400, detail="Cannot delete: members exist")
-```
-
-**Relationship Loading**:
-```python
-# Load acronym set with all member acronyms
-async def get_with_members(self, db: AsyncSession, *, id: int) -> Optional[AcronymSet]:
-    return await db.execute(
-        select(AcronymSet)
-        .options(selectinload(AcronymSet.acronym_set_members).selectinload(AcronymSetMember.acronym))
-        .where(AcronymSet.id == id)
-    )
+# Enum validation in Pydantic schemas
+class TextElementCreate(BaseModel):
+    type: TextElementType = Field(..., description="Type: title, footnote, population_set, or acronyms_set")
+    label: str = Field(..., min_length=1, description="Text content")
 ```
 
 ### Frontend Integration
 
-**R Shiny Module**: `admin-frontend/modules/tnfp_server.R`
-- Dual-tab interface for text elements and acronyms  
+**R Shiny Module**: `admin-frontend/modules/tnfp_server.R` (may need updates)
+- Interface for managing all four text element types
 - Real-time WebSocket updates
 - DataTable integration with search and filtering
-- Inline editing with validation
-- Bulk operations support
+- Type-based organization and display
 
 **WebSocket Client**: Automatic refresh on entity changes via JavaScript WebSocket client
 
-### Testing Constraints
+### Testing Patterns
 
-**Individual Test Pattern**: Due to async session conflicts, test each entity separately:
+**Individual Test Pattern**: Due to async session conflicts, test individually:
 ```bash
-# Test individual endpoints
+# Test text elements endpoint
 pytest tests/test_text_elements_simple.py -v
-pytest tests/test_acronyms_simple.py -v  
-pytest tests/test_acronym_sets_simple.py -v
 ```
 
 **Validation Testing**: Run model validator after any schema changes:
@@ -450,15 +407,52 @@ pytest tests/test_acronym_sets_simple.py -v
 uv run python tests/validator/run_model_validation.py
 ```
 
+### Migration History & Database Evolution
+
+**Recent Changes**:
+1. **Migration c7087c378307**: Dropped `key_value_pairs` table and expanded `text_elements` enum
+2. **Migration 7a7096093ce9**: Removed acronym-related tables (`acronyms`, `acronym_sets`, `acronym_set_members`)
+3. **Current State**: Clean, unified text element system with four-category enum
+
+**Future Migration Strategy**: 
+- Database structure designed for frequent changes as requirements evolve
+- Enum values can be easily added/removed via migrations
+- Single-table approach minimizes complexity for schema changes
+
 ### Key Implementation Notes
 
-1. **Enum Handling**: TextElementType enum with proper SQLAlchemy and Pydantic integration
-2. **Unique Constraints**: Acronym keys are unique across the system, set names are unique
-3. **Cascading Deletes**: Proper referential integrity with descriptive error messages
-4. **JSON Compatibility**: All WebSocket events use `mode='json'` for proper serialization
-5. **Audit Trails**: All entities inherit TimestampMixin for created_at/updated_at tracking
-6. **Search Performance**: Database indexes on searchable fields (type, key, name)
-7. **Bulk Operations**: Efficient bulk insert/delete for set membership management
+1. **Enum Flexibility**: Four-value enum supports diverse content categorization while maintaining simplicity
+2. **Migration-Friendly**: Single-table design makes structural changes easier to implement
+3. **JSON Compatibility**: All WebSocket events use `mode='json'` for proper enum serialization
+4. **Audit Trails**: TimestampMixin provides created_at/updated_at tracking
+5. **Search Performance**: Database indexes on type and label fields for fast queries
+6. **Type Safety**: Pydantic schemas ensure proper enum validation at API boundaries
+
+### Usage Examples
+
+**Creating Text Elements**:
+```bash
+# Title
+curl -X POST /api/v1/text-elements/ -d '{"type": "title", "label": "Study Analysis Title"}'
+
+# Footnote
+curl -X POST /api/v1/text-elements/ -d '{"type": "footnote", "label": "Study methodology footnote"}'
+
+# Population Set
+curl -X POST /api/v1/text-elements/ -d '{"type": "population_set", "label": "Adult patients aged 18-65"}'
+
+# Acronyms Set
+curl -X POST /api/v1/text-elements/ -d '{"type": "acronyms_set", "label": "Common medical abbreviations"}'
+```
+
+**Search and Filter**:
+```bash
+# Search across all types
+curl "/api/v1/text-elements/search?q=medical"
+
+# Get all text elements
+curl "/api/v1/text-elements/"
+```
 
 ## WebSocket Implementation Details
 
@@ -493,10 +487,11 @@ await broadcast_study_created(created_study)  # SQLAlchemy model → conversion 
 
 ### Testing WebSocket Functionality
 ```bash
-# Test WebSocket broadcasting (from project root)
-uv run python test_websocket_broadcast.py
+# Test WebSocket broadcasting (from backend directory)
+uv run python tests/integration/test_websocket_broadcast.py
 
 # Manual test: Open multiple browser sessions and perform CRUD operations
+# Server must be running: uv run python run.py
 ```
 
 ## For Test Architect Agents
