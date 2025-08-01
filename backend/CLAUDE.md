@@ -17,6 +17,36 @@ PEARL Backend is a FastAPI application with async PostgreSQL CRUD operations and
 - Removed all acronym-related entities and key-value-pair tables
 - Simplified to single-table text element system for easier schema evolution
 
+### Architecture Layers & Clean Code Patterns
+
+**CRITICAL**: This project follows strict Clean Architecture patterns:
+- **API Layer** (`app/api/v1/`): FastAPI endpoints with dependency injection
+- **CRUD Layer** (`app/crud/`): Business logic and database operations
+- **Models Layer** (`app/models/`): SQLAlchemy ORM models with relationships
+- **Schemas Layer** (`app/schemas/`): Pydantic models for validation and serialization
+- **DB Layer** (`app/db/`): Database configuration and session management
+
+**Never bypass CRUD layer** - All database operations must go through CRUD classes
+
+### CRUD Class Patterns
+
+**Standard CRUD Interface**: All CRUD classes follow consistent patterns:
+```python
+class StudyCRUD:
+    async def create(self, db: AsyncSession, *, obj_in: CreateSchema) -> Model
+    async def get(self, db: AsyncSession, *, id: int) -> Optional[Model]
+    async def get_multi(self, db: AsyncSession, *, skip: int, limit: int) -> List[Model]
+    async def update(self, db: AsyncSession, *, db_obj: Model, obj_in: UpdateSchema) -> Model
+    async def delete(self, db: AsyncSession, *, id: int) -> Optional[Model]
+    async def get_by_label(self, db: AsyncSession, *, label: str) -> Optional[Model]  # Domain-specific
+```
+
+**Dependency Relationships**: Implement query methods for referential integrity:
+```python
+# In dependent entity CRUD (e.g., DatabaseReleaseCRUD)
+async def get_by_study_id(self, db: AsyncSession, *, study_id: int) -> List[DatabaseRelease]
+```
+
 ### Package Management with UV
 
 This project uses **[UV](https://docs.astral.sh/uv/)** as the modern Python package manager for fast, deterministic builds:
@@ -170,13 +200,14 @@ make test-coverage      # Tests with coverage report
 
 ### Critical Architecture Points
 - **Real PostgreSQL**: No test isolation (source of async session conflicts)
-- **WebSocket Broadcasting**: All CRUD operations broadcast real-time events
-- **Clean Architecture**: API → CRUD → Models with clear separation
+- **WebSocket Broadcasting**: All CRUD operations broadcast real-time events via ConnectionManager
+- **Clean Architecture**: API → CRUD → Models with clear separation (never bypass CRUD layer)
 - **Async Session Management**: Context managers with session conflict limitations
 - **Application Lifespan**: Automatic database initialization on startup, graceful shutdown
 - **Health Checks**: Built-in health endpoint (`/health`) with database connectivity testing
-- **CORS Configuration**: Pre-configured for frontend integration
+- **CORS Configuration**: Pre-configured for frontend integration at `http://localhost:3838`
 - **Global Exception Handling**: Comprehensive error handling with structured logging
+- **Connection Management**: WebSocket ConnectionManager tracks active connections with cleanup
 
 ## Development Workflow
 
@@ -189,6 +220,8 @@ make test-coverage      # Tests with coverage report
 4. **Database Changes**: Use `alembic revision --autogenerate` for schema changes
 5. **Referential Integrity**: Always implement deletion protection for related entities (see Deletion Patterns below)
 6. **Clean Architecture**: Follow the API → CRUD → Models pattern, never bypass CRUD layer in endpoints
+7. **Connection Manager Pattern**: WebSocket broadcasts use ConnectionManager for reliable message delivery
+8. **Error Handling**: All endpoints use structured error responses with proper HTTP status codes
 
 ### FastAPI Model Validator Tool
 
@@ -328,6 +361,7 @@ TextElement (standalone - four-category enum-based system)
 **Key Features**: 
 - Text elements with four-category enum: `title`, `footnote`, `population_set`, `acronyms_set`
 - Full-text search and filtering capabilities
+- **Case-insensitive duplicate prevention**: Prevents duplicate text elements by comparing normalized content (ignoring spaces and case)
 - Real-time WebSocket broadcasting for all CRUD operations
 - Clean, unified data model with timestamp audit trails
 - Designed for frequent database structure changes
@@ -374,6 +408,22 @@ async def search(self, db: AsyncSession, *, search_term: str, type_filter: Optio
 
 # Filter by specific type
 async def get_by_type(self, db: AsyncSession, *, element_type: TextElementType) -> List[TextElement]
+```
+
+**Duplicate Prevention (Case-Insensitive)**:
+```python
+# Check for duplicate labels (implemented in TextElementCRUD)
+async def check_duplicate_label(
+    self, db: AsyncSession, *, label: str, type: TextElementType, exclude_id: Optional[int] = None
+) -> Optional[TextElement]:
+    """
+    Check if a text element with the same normalized label already exists for the given type.
+    Normalization: removes spaces and converts to uppercase for comparison.
+    """
+    
+def _normalize_label(self, label: str) -> str:
+    """Normalize label for duplicate checking: remove spaces and convert to uppercase."""
+    return label.replace(" ", "").upper()
 ```
 
 **Type Validation**:
@@ -427,6 +477,7 @@ uv run python tests/validator/run_model_validation.py
 4. **Audit Trails**: TimestampMixin provides created_at/updated_at tracking
 5. **Search Performance**: Database indexes on type and label fields for fast queries
 6. **Type Safety**: Pydantic schemas ensure proper enum validation at API boundaries
+7. **Duplicate Prevention**: Case-insensitive duplicate checking prevents entries like "Study Analysis Title" and "STUDY ANALYSIS TITLE" from coexisting within the same type
 
 ### Usage Examples
 
@@ -454,6 +505,21 @@ curl "/api/v1/text-elements/search?q=medical"
 curl "/api/v1/text-elements/"
 ```
 
+**Duplicate Detection Examples**:
+```bash
+# These will be considered duplicates (ignoring spaces and case):
+# "Study Analysis Title" vs "STUDY ANALYSIS TITLE" 
+# "Adult patients aged 18-65" vs "ADULTPATIENTSAGED18-65"
+# "NA = North America, EU = Europe" vs "na=northamerica,eu=europe"
+
+# Example: First creation succeeds
+curl -X POST /api/v1/text-elements/ -d '{"type": "title", "label": "Study Analysis Title"}'
+
+# Second creation with similar content fails with HTTP 400
+curl -X POST /api/v1/text-elements/ -d '{"type": "title", "label": "STUDY ANALYSIS TITLE"}'
+# Returns: "A title with similar content already exists: 'Study Analysis Title'. Duplicate text elements are not allowed (comparison ignores spaces and case)."
+```
+
 ## WebSocket Implementation Details
 
 > **📡 Critical WebSocket patterns for Claude Code development**
@@ -471,11 +537,29 @@ curl "/api/v1/text-elements/"
 # ✅ CORRECT: Manual session management for WebSocket
 async with AsyncSessionLocal() as db:
     studies_data = await study.get_multi(db, skip=0, limit=100)
-    studies_json = [Study.model_validate(item).model_dump() for item in studies_data]
+    studies_json = [Study.model_validate(item).model_dump(mode='json') for item in studies_data]
 
 # ❌ INCORRECT: Dependency injection doesn't work reliably with WebSocket
 @router.websocket("/studies")
 async def websocket_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)):
+```
+
+### ConnectionManager Pattern
+```python
+# WebSocket connection management with proper cleanup
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: Set[WebSocket] = set()
+    
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.add(websocket)
+    
+    def cleanup_stale_connections(self):
+        # Remove connections that are no longer in CONNECTED state
+        for connection in self.active_connections.copy():
+            if connection.client_state.name != "CONNECTED":
+                self.active_connections.discard(connection)
 ```
 
 ### Broadcast Integration Pattern
@@ -503,3 +587,28 @@ uv run python tests/integration/test_websocket_broadcast.py
 **Key Constraint**: This project cannot support traditional test isolation patterns. Design tests accordingly or they will fail in batch execution due to async session conflicts.
 
 **Success Metric**: Individual test reliability, not batch test pass rates.
+
+## Current Project State & Debug Tools
+
+### Available Debug Scripts
+- `debug_apis.py` - API endpoint testing and debugging
+- `debug_crud.py` - CRUD operation testing
+- `debug_text_element.py` - Text element functionality testing
+- `test_new_api_endpoints.py` - New endpoint validation
+
+### Functional Test Scripts  
+- `test_crud_simple.sh` - Main CRUD functionality testing (recommended)
+- `test_database_releases_crud.sh` - Database release specific testing
+- `test_study_deletion_protection.sh` - Deletion protection testing
+- `test_study_deletion_protection_fixed.sh` - Updated deletion protection tests
+
+### Usage
+```bash
+# Primary functional testing (server must be running)
+./test_crud_simple.sh
+
+# Individual debug scripts
+uv run python debug_apis.py
+uv run python debug_crud.py
+uv run python debug_text_element.py
+```

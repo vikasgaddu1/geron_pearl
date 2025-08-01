@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.text_element import TextElement, TextElementType
@@ -80,6 +80,39 @@ class TextElementCRUD:
             .limit(limit)
         )
         return list(result.scalars().all())
+    
+    def _normalize_label(self, label: str) -> str:
+        """Normalize label for duplicate checking: remove spaces and convert to uppercase."""
+        return label.replace(" ", "").upper()
+    
+    async def check_duplicate_label(
+        self, db: AsyncSession, *, label: str, type: TextElementType, exclude_id: Optional[int] = None
+    ) -> Optional[TextElement]:
+        """
+        Check if a text element with the same normalized label already exists for the given type.
+        
+        Args:
+            label: The label to check for duplicates
+            type: The type of text element
+            exclude_id: ID to exclude from the check (useful for updates)
+            
+        Returns:
+            The existing TextElement if duplicate found, None otherwise
+        """
+        normalized_input = self._normalize_label(label)
+        
+        # Build query to find elements of the same type where normalized labels match
+        query = select(TextElement).where(
+            TextElement.type == type,
+            func.upper(func.replace(TextElement.label, ' ', '')) == normalized_input
+        )
+        
+        # Exclude the current record if updating
+        if exclude_id is not None:
+            query = query.where(TextElement.id != exclude_id)
+        
+        result = await db.execute(query)
+        return result.scalar_one_or_none()
 
 
 # Create a global instance

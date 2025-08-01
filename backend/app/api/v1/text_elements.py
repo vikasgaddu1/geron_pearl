@@ -24,6 +24,16 @@ async def create_text_element(
     Create a new text element.
     """
     try:
+        # Check for duplicate labels (case-insensitive, ignoring spaces)
+        existing_element = await text_element.check_duplicate_label(
+            db, label=text_element_in.label, type=text_element_in.type
+        )
+        if existing_element:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"A {text_element_in.type.value} with similar content already exists: '{existing_element.label}'. Duplicate text elements are not allowed (comparison ignores spaces and case)."
+            )
+        
         created_text_element = await text_element.create(db, obj_in=text_element_in)
         print(f"✅ TextElement created successfully: {created_text_element.type.value} - {created_text_element.label[:50]}... (ID: {created_text_element.id})")
         
@@ -142,6 +152,21 @@ async def update_text_element(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Text element not found"
             )
+        
+        # Check for duplicate labels if label or type is being updated
+        if text_element_in.label is not None or text_element_in.type is not None:
+            # Use the new values if provided, otherwise use existing values
+            check_label = text_element_in.label if text_element_in.label is not None else db_text_element.label
+            check_type = text_element_in.type if text_element_in.type is not None else db_text_element.type
+            
+            existing_element = await text_element.check_duplicate_label(
+                db, label=check_label, type=check_type, exclude_id=text_element_id
+            )
+            if existing_element:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"A {check_type.value} with similar content already exists: '{existing_element.label}'. Duplicate text elements are not allowed (comparison ignores spaces and case)."
+                )
         
         updated_text_element = await text_element.update(db, db_obj=db_text_element, obj_in=text_element_in)
         print(f"✏️ TextElement updated successfully: ID {updated_text_element.id}")
