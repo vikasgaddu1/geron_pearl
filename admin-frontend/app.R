@@ -154,6 +154,48 @@ ui <- page_sidebar(
       )
     ),
 
+    # Package Management section
+    card(
+      class = "border border-2",
+      card_header(
+        class = "bg-secondary text-white",
+        tags$h6(
+          bs_icon("box-seam"),
+          "Package Management",
+          class = "mb-0 d-flex align-items-center gap-2"
+        )
+      ),
+      card_body(
+        class = "p-2",
+        div(
+          class = "list-group list-group-flush",
+          tags$a(
+            href = "#",
+            class = "list-group-item list-group-item-action d-flex align-items-center gap-2 border-0",
+            onclick = "document.getElementById('main_tabs').querySelector('[data-value=\"packages_tab\"]').click();",
+            bs_icon("archive"),
+            "Package Registry"
+          ),
+          tags$a(
+            href = "#",
+            class = "list-group-item list-group-item-action d-flex align-items-center gap-2 border-0 text-muted",
+            style = "cursor: not-allowed;",
+            bs_icon("cloud-download"),
+            "Package Installer",
+            tags$small(class = "ms-auto", "(Coming Soon)")
+          ),
+          tags$a(
+            href = "#",
+            class = "list-group-item list-group-item-action d-flex align-items-center gap-2 border-0 text-muted",
+            style = "cursor: not-allowed;",
+            bs_icon("gear"),
+            "Package Config",
+            tags$small(class = "ms-auto", "(Coming Soon)")
+          )
+        )
+      )
+    ),
+
     # Footer
     div(
       class = "mt-auto pt-3 border-top text-center",
@@ -224,6 +266,83 @@ ui <- page_sidebar(
       "TFL Properties",
       value = "tnfp_tab",
       tnfp_ui("tnfp")
+    ),
+
+    nav_panel(
+      "Package Registry",
+      value = "packages_tab",
+      div(
+        style = "display: flex; justify-content: center; padding: 20px;",
+        div(
+          style = "width: 100%; max-width: 1200px;",
+          
+          # Main card
+          card(
+            class = "border border-2",
+            full_screen = FALSE,
+            height = "700px",
+            
+            # Header
+            card_header(
+              class = "d-flex justify-content-between align-items-center",
+              div(
+                tags$h4(bs_icon("archive"), "Package Registry", class = "mb-0 text-primary"),
+                tags$small("Manage and configure software packages", class = "text-muted")
+              ),
+              div(
+                class = "d-flex gap-2",
+                actionButton(
+                  "refresh_packages_btn",
+                  tagList(bs_icon("arrow-clockwise"), "Refresh"),
+                  class = "btn btn-primary btn-sm",
+                  title = "Refresh package data"
+                ),
+                actionButton(
+                  "add_package_btn",
+                  tagList(bs_icon("plus-lg"), "Add Package"),
+                  class = "btn btn-success btn-sm",
+                  title = "Add a new package",
+                  disabled = TRUE
+                )
+              )
+            ),
+            
+            # Body
+            card_body(
+              class = "p-3",
+              div(
+                class = "text-center py-5",
+                style = "height: 500px; display: flex; flex-direction: column; justify-content: center; align-items: center;",
+                
+                # Placeholder content
+                div(
+                  class = "mb-4",
+                  bs_icon("box-seam", size = "4rem", class = "text-muted")
+                ),
+                tags$h3("Package Management", class = "text-muted mb-3"),
+                tags$p(
+                  "Package registry and management features will be available in a future release.",
+                  class = "text-muted mb-4",
+                  style = "font-size: 1.1rem;"
+                ),
+                div(
+                  class = "d-flex gap-3 justify-content-center",
+                  tags$span(
+                    class = "badge bg-secondary",
+                    bs_icon("clock"),
+                    "Coming Soon"
+                  ),
+                  tags$span(
+                    class = "badge bg-info",
+                    bs_icon("gear"),
+                    "In Development"
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
     ),
 
     nav_panel(
@@ -305,6 +424,23 @@ server <- function(input, output, session) {
   
   # TNFP module
   tnfp_server("tnfp")
+  
+  # Package Management placeholder handlers
+  observeEvent(input$refresh_packages_btn, {
+    showNotification(
+      "Package refresh functionality will be available in a future release.",
+      type = "message",
+      duration = 3000
+    )
+  })
+  
+  observeEvent(input$add_package_btn, {
+    showNotification(
+      "Package addition functionality will be available in a future release.",
+      type = "message", 
+      duration = 3000
+    )
+  })
   
   # Health check
   output$health_status <- renderText({
