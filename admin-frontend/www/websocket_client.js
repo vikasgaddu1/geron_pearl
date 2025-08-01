@@ -113,6 +113,9 @@ class PearlWebSocketClient {
                 console.log('🔴 REPORTING EFFORT UPDATED EVENT RECEIVED:', data.data?.database_release_label || 'unknown');
             } else if (data.type.startsWith('database_release_')) {
                 data.module = 'database_releases';
+            } else if (data.type.startsWith('text_element_')) {
+                data.module = 'tnfp';
+                console.log('📝 TNFP EVENT RECEIVED:', data.type, data.data?.label || 'unknown');
             }
         }
         

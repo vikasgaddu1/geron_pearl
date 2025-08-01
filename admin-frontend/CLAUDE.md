@@ -6,131 +6,249 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the R Shiny admin frontend for the PEARL research data management system. It provides a modern, real-time CRUD interface for managing studies that communicates with the FastAPI backend via REST API and WebSocket connections.
+This is the R Shiny admin frontend for the PEARL research data management system. It provides a modern, real-time CRUD interface for managing studies, database releases, reporting efforts, and text elements that communicates with the FastAPI backend via REST API and WebSocket connections.
 
-**Key Features**: Real-time WebSocket updates, modern Bootstrap 5 UI, multi-user synchronization
-**Technology Stack**: R Shiny + bslib + WebSocket (JavaScript/R dual clients)
+**Key Features**: Real-time WebSocket updates, modern Bootstrap 5 UI, multi-user synchronization, comprehensive data management
+**Technology Stack**: R Shiny + bslib + httr2 + WebSocket (JavaScript/R dual clients) + renv
 
-## Development Memories
+## Essential Commands
 
-- Read the claude.md and readme.md file to get understanding of the project
+### Environment Setup
+```bash
+# First-time setup (installs all dependencies with latest versions)
+Rscript setup_environment.R
 
-### Recent UI Enhancements (Session Context)
+# Restore existing environment (for other developers)
+renv::restore()
+```
 
-#### Database Releases DataTable Improvements
-- **Search Box Display Fix**: Changed DOM configuration from 'ft' to 'frtip' to properly display search functionality
-- **Duplicate Label Fix**: Set `search = ""` to remove duplicate "Search" labels
-- **Enhanced Search**: Added regex search with `search = list(regex = TRUE, caseInsensitive = TRUE)`
-- **Column Filtering**: Added `filter = 'top'` for individual column filters on Study Label and Release Label
-- **Sorting**: Added sorting by Study ID and Release ID with `releases[order(releases$\`Study ID\`, releases$ID), ]`
+### Running the Application
+```bash
+# Primary method - using runner script
+Rscript run_app.R
 
-#### Study Deletion Validation
-- **Frontend Validation**: Added comprehensive check for associated database releases before allowing study deletion
-- **User-Friendly Error Messages**: Modal dialog shows specific database releases preventing deletion
-- **Integration**: Uses `get_database_releases()` API to check for dependencies
-- **Prevention Logic**: Shows informative modal with list of blocking releases instead of allowing deletion
+# From R console
+shiny::runApp(".", port = 3838, host = "0.0.0.0")
+```
 
-#### Reporting Efforts Implementation
-- **New Tab**: Added "Reporting Efforts" tab following Database Releases pattern
-- **Clean UI**: Removed redundant filter controls (DataTable column filters are sufficient)
-- **Cascading Form**: Study selection in add form filters available database releases
-- **API Integration**: Complete CRUD operations with `/api/v1/reporting-efforts` endpoint
-- **Enhanced Table**: Displays Study Label, Database Release Label, and Effort Label with regex search
-- **Action Buttons**: Edit and Delete buttons with confirmation dialogs (edit is placeholder for now)
-- **Empty State**: Proper empty dataframe with helpful message when no records exist
+### Development Commands
+```r
+# Add new package
+renv::install("package_name")
+renv::snapshot()
 
-### Debugging Session Lessons Learned (Latest Session)
+# Update packages
+renv::update()
+renv::snapshot()
 
-#### JavaScript sprintf Formatting Issues
-- **Problem**: Edit buttons not working due to sprintf formatting errors
-- **Root Cause**: Mismatch between number of `%s` placeholders (4) and arguments (5) in JavaScript callbacks
-- **Solution**: Carefully count placeholders and arguments in `sprintf()` calls
-- **Lesson**: Always validate sprintf formatting - R will give warnings but continue execution with broken JavaScript
-- **Detection**: Look for warnings like "one argument not used by format" in R console
+# Enable debugging
+options(shiny.reactlog = TRUE)
+options(shiny.trace = TRUE)
+```
 
-#### Custom Message Handler Syntax
-- **Problem**: `session$onCustomMessage()` causing "attempt to apply non-function" error
-- **Root Cause**: Incorrect Shiny syntax - this method doesn't exist in standard Shiny
-- **Solution**: Use `observeEvent(input$custom_input, {...})` pattern instead
-- **Implementation**: Trigger with `shinyjs::runjs("Shiny.setInputValue('module-input_name', value)")` from main app
-- **Lesson**: Always verify Shiny API methods - custom message handling requires input-based approach
+### Environment Configuration
+```bash
+# Copy template and configure
+cp config.env.template .env
+# Edit .env with your API endpoints
+```
 
-#### Modal Dropdown Population Issues
-- **Problem**: Database release dropdown not populated correctly in edit modal
-- **Root Cause**: Pre-filtering choices before modal creation prevented proper selection
-- **Solution**: Load all choices initially, then use `shinyjs::delay()` to filter after modal renders
-- **Pattern**: 
-  ```r
-  # Create modal with all choices
-  selectInput(..., choices = all_choices, selected = current_value)
-  # Then filter after rendering
-  shinyjs::delay(100, {
-    updateSelectInput(session, ..., choices = filtered_choices, selected = current_value)
+### Testing Commands
+```bash
+# Test WebSocket real-time updates
+cd ../backend && uv run python tests/integration/test_websocket_broadcast.py
+
+# Health check
+curl http://localhost:8000/health
+
+# Manual testing: Open multiple browser tabs to http://localhost:3838
+```
+
+## Core Architecture
+
+### Module-Based Design Pattern
+All functionality follows a strict UI/Server module pattern:
+- **UI Module** (`*_ui.R`): Interface components and layout
+- **Server Module** (`*_server.R`): Business logic and API integration
+- **API Client** (`api_client.R`): Centralized HTTP client functions
+
+### Entity Management Modules
+- **Studies** (`studies_*.R`): Core research study management
+- **Database Releases** (`database_releases_*.R`): Version control for data releases
+- **Reporting Efforts** (`reporting_efforts_*.R`): Reporting workflow management
+- **TNFP** (`tnfp_*.R`): Text/Note/Footnote/Population elements (unified interface)
+
+### Real-time WebSocket Architecture
+- **Dual Client Design**: JavaScript (primary) + R (secondary) WebSocket clients
+- **Message Routing**: Backend broadcasts → JavaScript client → Shiny modules
+- **Event Namespacing**: `{module}-websocket_event` pattern for module isolation
+- **Auto-reconnection**: Exponential backoff with connection health monitoring
+
+### Technology Integration
+- **bslib + Bootstrap 5**: Modern responsive UI with dark mode support
+- **httr2**: Modern HTTP client for robust API communication
+- **shinyvalidate**: Form validation with real-time feedback
+- **DT**: Interactive data tables with search, filtering, and pagination
+- **renv**: Reproducible package management
+
+## Critical Development Constraints
+
+### Environment Variable System
+**⚠️ MANDATORY**: All API endpoints MUST use environment variables
+```r
+# Correct pattern - dynamic loading in modules
+API_BASE_URL <- Sys.getenv("PEARL_API_URL", "http://localhost:8000")
+
+# Wrong - hardcoded URLs will break deployment
+ENDPOINT <- "http://localhost:8000/api/v1/studies"
+```
+
+**Required Variables**:
+- `PEARL_API_URL`: Base API URL
+- `PEARL_API_HEALTH_PATH`, `PEARL_API_STUDIES_PATH`: Endpoint paths
+- `PEARL_API_WEBSOCKET_PATH`: WebSocket endpoint path
+
+### Module Source Order Dependencies
+Critical file loading sequence in `app.R`:
+```r
+# MUST be loaded first - provides WEBSOCKET_URL to other modules
+source("modules/websocket_client.R")
+source("modules/api_client.R")
+# Then UI/Server modules...
+```
+
+### WebSocket Message Format Constraints
+**⚠️ CRITICAL**: Backend and frontend have specific message format expectations
+
+**Backend Sends**:
+```json
+{"type": "study_created", "data": {...}}
+```
+
+**JavaScript Client Processing**:
+- Automatically detects module from message type
+- Routes to appropriate Shiny module: `{module}-websocket_event`
+- **DO NOT** modify `www/websocket_client.js` message handling without verifying backend format
+
+**Event Types by Module**:
+- Studies: `study_*`, `studies_update`
+- Database Releases: `database_release_*`
+- Reporting Efforts: `reporting_effort_*`
+- TNFP: `text_element_*`
+
+### Referential Integrity Validation
+All deletion operations MUST check for dependencies:
+```r
+# Example: Check for database releases before deleting study
+releases_result <- get_database_releases()
+study_releases <- filter_releases_by_study(releases_result, study_id)
+if (length(study_releases) > 0) {
+  # Show informative modal, prevent deletion
+}
+```
+
+### Form Validation Patterns
+Use `shinyvalidate` for all forms:
+```r
+iv <- InputValidator$new()
+iv$add_rule("field_name", sv_required())
+iv$add_rule("field_name", function(value) {
+  if (nchar(trimws(value)) < 3) "Content must be at least 3 characters"
+})
+iv$enable()
+```
+
+### Notification Type Constraints
+**⚠️ CRITICAL**: Only use valid Shiny notification types
+```r
+# Correct
+showNotification("Success message", type = "message")  # not "success"
+showNotification("Error occurred", type = "error")
+
+# Wrong - will cause match.arg errors
+showNotification("Message", type = "success")  # Invalid type
+```
+
+Valid types: `"default"`, `"message"`, `"warning"`, `"error"`
+
+## Common Development Patterns
+
+### DataTable Configuration Standard
+```r
+DT::datatable(
+  data,
+  filter = 'top',
+  options = list(
+    dom = 'frtip',  # Proper search box display
+    search = list(regex = TRUE, caseInsensitive = TRUE),
+    pageLength = 25,
+    searching = TRUE
+  )
+)
+```
+
+### Action Button Implementation
+```r
+# In display data preparation
+display_df$Actions <- sapply(items$ID, function(item_id) {
+  sprintf(
+    '<button class="btn btn-primary btn-sm me-1" data-action="edit" data-id="%s">
+       <i class="bi bi-pencil"></i></button>
+     <button class="btn btn-danger btn-sm" data-action="delete" data-id="%s">
+       <i class="bi bi-trash"></i></button>',
+    item_id, item_id
+  )
+})
+```
+
+### WebSocket Event Handling
+```r
+# In server modules
+observeEvent(input$websocket_event, {
+  if (!is.null(input$websocket_event)) {
+    event_data <- input$websocket_event
+    if (startsWith(event_data$type, "entity_")) {
+      load_entity_data()  # Refresh data
+    }
+  }
+})
+```
+
+### API Client Error Handling
+```r
+api_function <- function() {
+  tryCatch({
+    response <- httr2::request(url) |> httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
   })
-  ```
-- **Lesson**: Modal rendering is asynchronous - use delays for post-modal operations
+}
+```
 
-#### Edit Functionality Missing Variables
-- **Problem**: "object 'current_id' not found" error in edit save handlers
-- **Root Cause**: Missing variable assignment from reactive value
-- **Solution**: Always add `current_id <- editing_[entity]_id()` at start of save handlers
-- **Pattern**: Every edit save function needs to retrieve the ID from the reactive value before use
-- **Lesson**: Reactive values must be explicitly called and assigned to variables within observers
+## UI/UX Standards
 
-#### Systematic Debugging Approach
-1. **JavaScript Console**: Add console.log statements to debug button click handlers
-2. **R Console Logging**: Add cat() statements to track R-side event processing  
-3. **Sprintf Validation**: Count placeholders vs arguments carefully
-4. **Modal Timing**: Use delays for operations that depend on rendered modals
-5. **Reactive Value Access**: Always assign reactive values to variables before use in complex logic
+### Card Layout Consistency
+**Standard Dimensions**: All modules use consistent card sizing
+- **Max Width**: 1200px for main cards
+- **Height**: 700px for main content cards
+- **Sidebar Width**: 450px for form sidebars
 
-### UI Layout Standardization (Latest Updates)
+### Bootstrap 5 Integration
+- **Icons**: Use `bsicons` package - `bs_icon("icon-name")`
+- **Classes**: Modern Bootstrap 5 classes (`d-flex`, `gap-2`, `text-primary`)
+- **Components**: Cards, modals, forms follow bslib patterns
 
-#### Card Dimension Consistency
-- **Problem**: Inconsistent card sizes causing poor visual hierarchy and usability issues
-- **Before**: Studies (900px/600px), Database Releases (1000px/600px), Reporting Efforts (1200px/650px)
-- **Solution**: Standardized all modules to consistent dimensions
-- **Standard Dimensions**: 
-  ```r
-  style = "width: 100%; max-width: 1200px;"
-  height = "700px"
-  ```
-- **Benefits**: Professional appearance, consistent navigation experience, better responsive design
+### Theme System
+- **Dark Mode**: Automatic toggle with `input_dark_mode()`
+- **Custom Theme**: Defined in `app.R` with consistent colors and shadows
+- **Responsive**: All layouts adapt to mobile/tablet/desktop
 
-#### Sidebar Form Usability
-- **Problem**: Narrow sidebars (320-350px) causing form cramping and poor UX
-- **Solution**: Increased all sidebar widths to 450px (28% wider)
-- **Pattern**: 
-  ```r
-  sidebar(
-    width = 450,  # Standard width for all modules
-    position = "right",
-    padding = c(3, 3, 3, 4)
-  )
-  ```
-- **Benefits**: Better form field visibility, reduced horizontal scrolling, improved data entry experience
-
-#### Content Area Optimization
-- **Problem**: Small content areas requiring scrolling to access key functionality
-- **Solution**: Increased main content heights for better data visibility
-- **Reporting Efforts**: Increased from 400px to 500px content area height
-- **Pattern**: 
-  ```r
-  div(
-    class = "p-3",
-    style = "height: 500px; overflow-y: auto;",
-    DT::dataTableOutput(...)
-  )
-  ```
-- **Benefits**: More data rows visible, reduced scrolling, better user productivity
-
-#### Visual Consistency Standards
-- **Card Headers**: All modules use same icon + title pattern with `text-primary` styling
-- **Action Buttons**: Consistent placement and styling across all modules
-- **Form Elements**: Standardized padding, gaps, and responsive behavior
-- **Empty States**: Consistent messaging and layout for tables with no data
-
-#### Design System Guidelines
+### Design System Guidelines
 1. **Card Dimensions**: Always use 1200px max-width and 700px height for main cards
 2. **Sidebar Width**: Always use 450px width for form sidebars
 3. **Content Height**: Use 500px+ for main content areas to minimize scrolling
@@ -138,322 +256,85 @@ This is the R Shiny admin frontend for the PEARL research data management system
 5. **Spacing**: Use consistent padding (20px outer, c(3,3,3,4) sidebar)
 6. **Color Scheme**: text-primary for headers, text-muted for descriptions
 
-### Key Implementation Patterns
+## Testing and Debugging
 
-#### DataTable Configuration
-```r
-DT::datatable(
-  display_df,
-  filter = 'top',  # Column filters
-  options = list(
-    dom = 'frtip',   # Proper search box display
-    search = list(regex = TRUE, caseInsensitive = TRUE),  # Enhanced search
-    searching = TRUE,
-    pageLength = 25
-  )
-)
+### Real-time WebSocket Testing
+```bash
+# 1. Start backend
+cd ../backend && uv run python run.py
+
+# 2. Start frontend
+Rscript run_app.R
+
+# 3. Open multiple browser sessions to http://localhost:3838
+# 4. Test CRUD operations and verify real-time sync across sessions
+
+# 5. Run automated WebSocket test
+cd ../backend && uv run python tests/integration/test_websocket_broadcast.py
 ```
 
-#### Referential Integrity Validation
-```r
-# Check for dependencies before deletion
-releases_result <- get_database_releases()
-study_releases <- if (length(releases_result) > 0) {
-  releases_for_study <- sapply(releases_result, function(x) x$study_id == study_id)
-  releases_result[releases_for_study]
-} else {
-  list()
-}
-```
+### Common Issues and Solutions
 
-#### Cascading Form Dropdowns (Reporting Efforts)
-```r
-# Cascading dropdown update based on study selection in add form
-update_database_release_choices <- function(selected_study_id = NULL) {
-  current_releases <- database_releases_data()
-  
-  if (!is.null(selected_study_id) && selected_study_id != "") {
-    filtered_releases <- current_releases[current_releases$`Study ID` == as.numeric(selected_study_id), ]
-  } else {
-    filtered_releases <- current_releases
-  }
-  
-  # Update form dropdown with filtered releases
-  choices <- setNames(filtered_releases$ID, 
-                     paste(filtered_releases$`Release Label`, 
-                          "(Study:", filtered_releases$`Study ID`, ")"))
-  updateSelectInput(session, "new_database_release_id", 
-                   choices = c("Select a database release..." = "", choices))
-}
+**"WebSocket not working"**: 
+- Check browser console for connection errors
+- Verify backend WebSocket endpoint is running
+- Ensure message routing matches expected format
 
-# DataTable with action buttons and empty state handling
-output$efforts_table <- DT::renderDataTable({
-  current_efforts <- efforts_data()
-  
-  if (nrow(current_efforts) == 0) {
-    # Proper empty dataframe structure
-    empty_df <- data.frame(
-      `Study Label` = character(0),
-      `Database Release Label` = character(0),
-      `Effort Label` = character(0),
-      `Actions` = character(0),
-      stringsAsFactors = FALSE, check.names = FALSE
-    )
-    
-    DT::datatable(empty_df, filter = 'top',
-      options = list(
-        language = list(emptyTable = "No reporting efforts found. Click 'Add Effort' to create your first reporting effort.")
-      ))
-  } else {
-    # Add action buttons to display dataframe
-    display_df$Actions <- sapply(current_efforts$ID, function(effort_id) {
-      paste0('<button class="btn btn-primary btn-sm me-1" data-action="edit" data-id="', effort_id, '">',
-             '<i class="bi bi-pencil"></i></button>',
-             '<button class="btn btn-danger btn-sm" data-action="delete" data-id="', effort_id, '">',
-             '<i class="bi bi-trash"></i></button>')
-    })
-  }
-})
-```
+**"Modal not opening"**:
+- Check JavaScript console for errors
+- Ensure proper modal dialog structure with Bootstrap 5
 
-## Critical Development Constraints
+**"Environment variables not loading"**:
+- Confirm `.env` file exists and has correct format
+- Check `load_dot_env()` called before variable usage
+- Verify file sourcing order in `app.R`
 
-> **🚨 IMPORTANT**: These constraints prevent breaking core functionality
+### Debugging Workflow
+1. **JavaScript Console**: Add console.log statements to debug button click handlers
+2. **R Console Logging**: Add cat() statements to track R-side event processing  
+3. **Network Tab**: Monitor HTTP requests and WebSocket messages
+4. **Modal Timing**: Use delays for operations that depend on rendered modals
+5. **Reactive Value Access**: Always assign reactive values to variables before use
 
-### Environment Variable Integration
-- **All URLs MUST use environment variables**: Never hardcode `localhost:8000` or API paths
-- **Dynamic Loading Pattern**: Use `Sys.getenv()` with fallbacks in modules, not global variables
-- **Correct Variables**: `PEARL_API_URL`, `PEARL_API_HEALTH_PATH`, `PEARL_API_STUDIES_PATH`, `PEARL_API_WEBSOCKET_PATH`
+## Package Management
 
-### WebSocket Integration Constraints
-- **⚠️ CRITICAL**: Do NOT modify `www/websocket_client.js` message handling without checking backend format
-- **Backend Message Format**: `{"type": "study_created", "data": {...}}` - no `module` property
-- **Shiny Event Routing**: JavaScript sends to `'studies-websocket_event'`, Shiny receives `input$websocket_event`
-- **Required Message Types**: `studies_update`, `study_created`, `study_updated`, `study_deleted`, `refresh_needed`
-- **Status Updates**: Go to main app (`'websocket_status'`), not studies module
+### renv Workflow
+- **New Packages**: `renv::install("package")` → `renv::snapshot()`
+- **Updates**: `renv::update()` → `renv::snapshot()`
+- **Collaboration**: New developers run `renv::restore()`
+- **Version Control**: `renv.lock` tracks exact package versions
 
-### WebSocket Reporting Efforts Implementation (Latest Session)
+### Key Dependencies
+- **shiny** (≥1.8.0): Core framework with modern features
+- **bslib** (≥0.6.0): Bootstrap 5 theming and modern UI
+- **httr2** (≥1.0.0): Modern HTTP client with better error handling
+- **shinyvalidate** (≥0.1.3): Form validation
+- **DT** (≥0.30): Interactive data tables
 
-#### Problem: Reporting Efforts WebSocket Not Working
-- **Issue**: User reported "websocket not working for reporting effort, they are working for studies and database release"
-- **Investigation**: Backend had all broadcast functions but JavaScript client was missing event handling
+## Integration Points
 
-#### Root Cause Analysis  
-- **Backend**: ✅ All broadcast functions existed (`broadcast_reporting_effort_*`)
-- **Backend API**: ✅ All CRUD endpoints were calling broadcast functions correctly  
-- **Frontend R**: ✅ WebSocket event handling already implemented in `reporting_efforts_server.R`
-- **Frontend JS**: ❌ Missing event handlers and routing in `websocket_client.js`
+### Backend API Coordination
+- All CRUD operations trigger WebSocket broadcasts
+- SQLAlchemy models require Pydantic conversion for WebSocket
+- API responses follow consistent JSON structure
+- Error handling provides user-friendly messages
 
-#### JavaScript WebSocket Client Fixes
-1. **Added Missing Event Handlers** in `handleMessage()`:
-   ```javascript
-   case 'reporting_effort_created':
-   case 'reporting_effort_updated': 
-   case 'reporting_effort_deleted':
-   ```
+### Multi-User Synchronization
+- WebSocket broadcasts ensure data consistency
+- UI updates happen immediately across all sessions
+- Connection status indicators provide user feedback
+- Automatic reconnection maintains reliability
 
-2. **Added Event Routing** in `notifyShiny()`:
-   ```javascript
-   // Send to reporting_efforts module for reporting effort events and related reference data updates
-   if (eventType.startsWith('reporting_effort') || eventType === 'studies_update' || eventType.startsWith('database_release')) {
-     Shiny.setInputValue('reporting_efforts-websocket_event', {
-       type: eventType, data: data, timestamp: Date.now()
-     });
-   }
-   ```
-
-#### Backend WebSocket Connection Management Improvements
-- **Problem**: Stale connection errors: "Unexpected ASGI message 'websocket.send', after sending 'websocket.close'"
-- **Solution**: Enhanced `ConnectionManager.broadcast()` method with:
-  - **Proactive Cleanup**: Call `cleanup_stale_connections()` before broadcasting
-  - **Connection State Checking**: Verify `client_state.name == "CONNECTED"` before sending
-  - **Error Level Adjustment**: Changed frequent broadcast logs from INFO to DEBUG to reduce noise
-  - **Better Error Handling**: Gracefully handle and remove stale connections during broadcast
-
-#### WebSocket Implementation Pattern
-```javascript
-// Complete flow for reporting efforts WebSocket events:
-// 1. Backend CRUD → broadcast_reporting_effort_*() 
-// 2. WebSocket server → all connected clients
-// 3. JavaScript client → handleMessage() → notifyShiny()
-// 4. R Shiny → observeEvent(input$websocket_event) → refresh data
-```
-
-#### Testing & Validation
-- **Backend Test Script**: Created `/test_websocket_fix.py` for connection management testing
-- **Connection Cleanup**: Now properly removes stale WebSocket connections
-- **Error Reduction**: Eliminated "websocket.send after websocket.close" errors
-- **Real-time Updates**: Reporting efforts now have same real-time functionality as studies/database releases
-
-### TNFP (Text/Note/Footnote/Population) Module Implementation
-
-**📝 SIMPLIFIED MODULE**: Unified TNFP management interface for all text element types stored in a single database table.
-
-#### Module Overview
-- **File**: `modules/tnfp_server.R` + `modules/tnfp_ui.R`
-- **Purpose**: Single-interface management for all text element types with real-time updates
-- **Database Schema**: All TNFP elements stored in `text_elements` table with different `type` values
-- **Features**: Unified form, inline editing, search/filtering, WebSocket synchronization
-
-#### Key Implementation Features
-
-**Unified Interface**:
-- Single form for all text element types: `title`, `footnote`, `population_set`, `acronyms_set`
-- Type selection dropdown with four options
-- Consistent form validation and error handling
-- Streamlined sidebar layout following established patterns
-
-**Text Elements Management**:
-- Unified type selection: title, footnote, population_set, acronyms_set
-- Text area input with validation (minimum 3 characters)
-- Full-text search and type filtering via DataTable
-- Inline editing with form pre-population
-- Single API endpoint for all CRUD operations
-
-**Simplified Database Schema**:
-- All TNFP data stored as `text_elements` with `type` field
-- No separate acronym or key-value pair tables
-- Consistent data structure across all element types
-
-**DataTable Integration**:
-```r
-# Enhanced DataTable with Bootstrap button styling
-DT::datatable(display_df,
-  filter = 'top',
-  options = list(
-    dom = 'frtip',
-    search = list(regex = TRUE, caseInsensitive = TRUE),
-    searching = TRUE,
-    pageLength = 10,
-    columnDefs = list(
-      list(targets = 2, width = "20%", orderable = FALSE, className = "text-center")
-    )
-  )
-)
-```
-
-**Action Button Implementation**:
-```r
-# Bootstrap-styled action buttons with proper data attributes
-tags$button(
-  class = "btn btn-warning btn-sm",
-  `data-action` = "edit",
-  `data-id` = element_id,
-  title = paste("Edit text element:", element_content),
-  tagList(bs_icon("pencil"), "Edit")
-)
-```
-
-**WebSocket Real-time Updates**: 
-- Automatic refresh on `text_element_*` events only
-- Cross-user synchronization for collaborative editing
-- Simplified event routing to TNFP module
-
-**Form Validation Patterns**:
-```r
-# Simplified InputValidator setup for unified text elements
-iv_text_element_new <- InputValidator$new()
-iv_text_element_new$add_rule("new_text_element_type", sv_required())
-iv_text_element_new$add_rule("new_text_element_label", sv_required())
-iv_text_element_new$add_rule("new_text_element_label", function(value) {
-  if (nchar(trimws(value)) < 3) {
-    "Content must be at least 3 characters long"
-  }
-})
-```
-
-#### showNotification Type Fix
-**Problem**: `showNotification(type = "success")` causing match.arg error
-**Solution**: Changed all success notifications to `type = "message"` to match Shiny's accepted types
-**Valid Types**: "default", "message", "warning", "error"
-
-```r
-# Fixed notification calls
-showNotification(paste("Text element", action_word, "successfully!"), type = "message")
-```
-
-#### Delete Confirmation Modals
-```r
-# Delete confirmation with entity details
-showModal(modalDialog(
-  title = "Confirm Deletion",
-  paste("Are you sure you want to delete the text element:", element_to_delete$Content[1], "?"),
-  footer = tagList(
-    modalButton("Cancel"),
-    actionButton(ns("confirm_delete_text_element"), "Delete", class = "btn btn-danger")
-  ),
-  easyClose = TRUE
-))
-```
-
-#### API Integration
-- **Unified Endpoint**: `/api/v1/text-elements/` for all TNFP element types
-- **Simplified Data Model**: All elements use same structure with `type` and `label` fields
-- **Real-time WebSocket**: `text_element_*` events for all CRUD operations
-- **Error Handling**: Comprehensive error handling with user-friendly notifications
-
-#### WebSocket Event Handling
-```r
-# Simplified TNFP WebSocket event processing
-observeEvent(input$websocket_event, {
-  if (!is.null(input$websocket_event)) {
-    event_data <- input$websocket_event
-    if (startsWith(event_data$type, "text_element_")) {
-      load_text_elements_data()  # Single data loading function
-    }
-  }
-})
-```
-
-#### Layout and Styling
-- Consistent with other modules: 1200px max-width, 700px height
-- Sidebar width: 450px for comfortable form interaction
-- Bootstrap 5 styling with proper responsive behavior
-- Empty state handling with helpful user guidance
-
-#### Critical Implementation Notes
-
-1. **Unified Data Model**: All TNFP elements stored in single `text_elements` table with `type` field
-2. **Simplified API**: Single set of endpoints (`/api/v1/text-elements/`) handles all element types
-3. **Database Schema Alignment**: 
-   - Titles: `type = "title"`
-   - Footnotes: `type = "footnote"`
-   - Population Sets: `type = "population_set"`
-   - Acronym Sets: `type = "acronyms_set"`
-4. **Notification Types**: Always use valid Shiny notification types ("message", "error", "warning", "default")
-5. **Validation**: Unified validation rules for all text element types
-6. **WebSocket Integration**: Only `text_element_*` events, no separate acronym events
-7. **Error Handling**: Comprehensive error handling with user-friendly messages
-8. **Bootstrap Integration**: Consistent styling following established module patterns
-
-#### Migration from Dual-Interface System
-The TNFP module was simplified from a complex dual-interface system (text elements + key-value pairs) to a unified interface where all elements are stored as `text_elements` with different types. This eliminates:
-- Separate acronym API endpoints and data management
-- Complex dual-tab interface switching
-- Key-value pair specific validation and forms
-- Multiple data loading functions and reactive values
+## Critical Implementation Notes
 
 ### WebSocket Message Routing System
 
-#### Message Format Mismatch Issue
-The WebSocket system had a critical routing issue where backend and frontend expected different message formats:
-
-**Backend sends (from FastAPI):**
-```json
-{
-  "type": "reporting_effort_updated",
-  "data": {...}
-}
-```
-
-**Frontend expected (in websocket_client.js):**
-```json
-{
-  "module": "reporting_efforts",
-  "type": "reporting_effort_updated", 
-  "data": {...}
-}
-```
+#### Complete Message Flow
+1. **Backend API** calls `broadcast_*()` function with message type only
+2. **WebSocket Server** broadcasts to all connected clients
+3. **JavaScript Client** receives message, detects module from type, adds module property
+4. **notifyShinyModule()** sends to `{module}-websocket_event` Shiny input
+5. **R Shiny Module** `observeEvent()` triggers and refreshes data via HTTP
 
 #### Module-Based Routing Solution
 The JavaScript WebSocket client (`websocket_client.js`) implements automatic module detection:
@@ -466,39 +347,80 @@ if (data.type === 'studies_update' || data.type.startsWith('study_')) {
     data.module = 'reporting_efforts';
 } else if (data.type.startsWith('database_release_')) {
     data.module = 'database_releases';
+} else if (data.type.startsWith('text_element_')) {
+    data.module = 'tnfp';
 }
 ```
 
-#### Shiny Event Routing
-Messages are routed to Shiny modules using the pattern `{module}-websocket_event`:
-- `studies-websocket_event` → handled by `studies_server.R`
-- `reporting_efforts-websocket_event` → handled by `reporting_efforts_server.R`
-- `database_releases-websocket_event` → handled by `database_releases_server.R`
+### TNFP (Text/Note/Footnote/Population) Module
+**📝 SIMPLIFIED MODULE**: Unified TNFP management interface for all text element types stored in a single database table.
 
-#### Complete Message Flow
-1. **Backend API** calls `broadcast_reporting_effort_updated()` with message type only
-2. **WebSocket Server** broadcasts to all connected clients
-3. **JavaScript Client** receives message, detects module from type, adds module property
-4. **notifyShinyModule()** sends to `reporting_efforts-websocket_event` Shiny input
-5. **R Shiny Module** `observeEvent()` triggers and refreshes data via HTTP
+#### Key Features
+- **Unified Interface**: Single form for all text element types: `title`, `footnote`, `population_set`, `acronyms_set`
+- **Simplified Database Schema**: All TNFP data stored as `text_elements` with `type` field
+- **Single API Endpoint**: `/api/v1/text-elements/` handles all element types
+- **WebSocket Integration**: Only `text_element_*` events, no separate acronym events
+- **Duplicate Prevention**: Advanced validation prevents duplicate content within each type
 
-This architecture allows the backend to remain simple (only sending type + data) while the frontend intelligently routes messages to the appropriate Shiny modules.
+#### Duplicate Validation System
+**⚠️ CRITICAL**: The TNFP module implements sophisticated duplicate detection to prevent similar content within each text element type.
+
+**Validation Logic**:
+- **Normalization**: Content is normalized by removing all spaces and converting to uppercase
+- **Type-Specific**: Duplicates are checked only within the same element type (title, footnote, etc.)
+- **Case-Insensitive**: "Test Title" and "test title" are considered duplicates
+- **Space-Insensitive**: "Test Title" and "TestTitle" are considered duplicates
+
+**Frontend Implementation**:
+```r
+# Error message parsing for duplicate validation
+format_error_message <- function(error_string) {
+  if (grepl("HTTP 400 -", error_string)) {
+    json_part <- sub(".*HTTP 400 - ", "", error_string)
+    error_data <- jsonlite::fromJSON(json_part)
+    return(error_data$detail)  # Returns backend's detailed message
+  }
+  return(error_string)
+}
+
+# Enhanced error notifications for duplicates
+if (grepl("Duplicate text elements are not allowed", formatted_error)) {
+  showNotification(
+    tagList(
+      tags$strong("Duplicate Content Detected"),
+      tags$br(),
+      formatted_error,  # Shows existing element content
+      tags$br(),
+      tags$small("Tip: The system compares content ignoring spaces and letter case.")
+    ),
+    type = "error",
+    duration = 8000
+  )
+}
+```
+
+**User Experience**:
+- **Proactive Hints**: Form includes tip about duplicate validation rules
+- **Detailed Error Messages**: Shows exactly which existing element conflicts
+- **Clear Guidance**: Explains the normalization rules (spaces/case ignored)
+- **Extended Duration**: Error notifications stay visible longer (8 seconds) for readability
+
+**Backend Error Format**:
+```
+"A {type} with similar content already exists: '{existing_label}'. 
+Duplicate text elements are not allowed (comparison ignores spaces and case)."
+```
+
+**Testing Duplicate Validation**:
+1. Create a text element: "Test Title"
+2. Try to create: "test title" → Should show duplicate error
+3. Try to create: "TestTitle" → Should show duplicate error  
+4. Try to create: "Test Title 2" → Should succeed (different content)
 
 ### Module Integration Rules
 - **Source Order Matters**: `websocket_client.R` must be sourced BEFORE other modules that use WebSocket URLs
 - **Environment Loading**: Call `load_dot_env()` BEFORE defining any endpoint URLs
 - **Self-Contained Modules**: Each module should read environment variables directly, not depend on globals
-
-## Architecture
-
-> **📋 See [README.md - Architecture](README.md#architecture) for detailed file structure and module descriptions**
-
-### Modern R Shiny Stack
-- **Framework**: R Shiny with modern bslib Bootstrap 5 theming
-- **UI Library**: bslib + bsicons for contemporary design
-- **HTTP Client**: httr2 for REST API communication  
-- **Real-time**: WebSocket integration (JavaScript primary, R secondary)
-- **Package Management**: renv for reproducible environments
 
 ## Using Claude Code Agents for Development
 
@@ -520,15 +442,6 @@ This specialized agent is perfect for R Shiny development tasks in this codebase
 - Adding new CRUD endpoints to `modules/api_client.R`
 - Implementing form validation with `shinyvalidate`
 - Creating cascading dropdown functionality
-
-**Example Usage**:
-```bash
-# Use the Task tool to spawn the rshiny-modern-builder agent for:
-# - Adding a new entity module (e.g., "participants")
-# - Implementing complex form interactions
-# - Creating advanced DataTable configurations
-# - Building responsive dashboard layouts
-```
 
 ### general-purpose Agent
 
@@ -567,12 +480,6 @@ Rscript run_app.R
 - Verify updates appear instantly in other windows
 - Monitor WebSocket connection status indicators across sessions
 
-**CSS and Responsive Design Debugging**:
-- Capture screenshots at different viewport sizes (mobile: 375px, tablet: 768px, desktop: 1200px)
-- Test Bootstrap 5 responsive breakpoints and bslib theme consistency
-- Debug modal positioning and form layout issues
-- Validate action button styling and hover states
-
 ### Using Other MCP Tools
 
 **Context7 MCP for Documentation**:
@@ -587,20 +494,6 @@ Rscript run_app.R
 - Complex form validation debugging with interdependent fields
 - Architecture analysis for scaling and performance optimization
 
-### Agent and MCP Tool Coordination
-
-**For New Feature Development**:
-1. Use `rshiny-modern-builder` agent to implement R Shiny components
-2. Use `general-purpose` agent to coordinate backend API changes
-3. Use Playwright MCP to test the complete user workflow
-4. Use Context7 MCP to validate against R Shiny best practices
-
-**For Debugging Complex Issues**:
-1. Use Sequential MCP for systematic problem analysis
-2. Use `general-purpose` agent for cross-system debugging
-3. Use Playwright MCP for browser-specific testing and validation
-4. Use `rshiny-modern-builder` agent for R Shiny-specific fixes
-
 ## Development Best Practices
 
 - Use `rshiny-modern-builder` agent for all R Shiny-specific development tasks
@@ -611,3 +504,4 @@ Rscript run_app.R
 - Validate referential integrity before allowing deletions
 - Keep DataTable configurations consistent across all modules
 - Coordinate agent usage with MCP tools for comprehensive development workflows
+- Always use `setup_environment.R` for fresh installations to ensure latest package versions

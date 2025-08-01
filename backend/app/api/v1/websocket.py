@@ -13,6 +13,7 @@ from app.schemas.study import Study
 from app.schemas.database_release import DatabaseRelease
 from app.schemas.reporting_effort import ReportingEffort
 from app.schemas.text_element import TextElement
+from app.utils import sqlalchemy_to_dict, broadcast_message
 
 logger = logging.getLogger(__name__)
 
@@ -136,25 +137,14 @@ async def websocket_studies_endpoint(websocket: WebSocket):
         async with AsyncSessionLocal() as db:
             try:
                 studies_data = await study.get_multi(db, skip=0, limit=100)
-                # Convert SQLAlchemy models to Pydantic schemas
-                studies_json = [Study.model_validate(study_item).model_dump() for study_item in studies_data]
-                await manager.send_personal_message(
-                    json.dumps({
-                        "type": "studies_update",
-                        "data": studies_json
-                    }),
-                    websocket
-                )
+                studies_json = [sqlalchemy_to_dict(s) for s in studies_data]
+                message = broadcast_message("studies_update", studies_json)
+                await manager.send_personal_message(message, websocket)
                 logger.info(f"Sent initial data with {len(studies_json)} studies")
             except Exception as e:
                 logger.error(f"Error sending initial data: {e}")
-                await manager.send_personal_message(
-                    json.dumps({
-                        "type": "error",
-                        "message": f"Error loading initial data: {str(e)}"
-                    }),
-                    websocket
-                )
+                message = broadcast_message("error", {"message": f"Error loading initial data: {str(e)}"})
+                await manager.send_personal_message(message, websocket)
         
         # Listen for client messages
         while True:
@@ -171,55 +161,33 @@ async def websocket_studies_endpoint(websocket: WebSocket):
                 except asyncio.TimeoutError:
                     # Send keep-alive ping if no message received
                     logger.debug("WebSocket timeout, sending keep-alive ping")
-                    await manager.send_personal_message(
-                        json.dumps({"type": "ping"}),
-                        websocket
-                    )
+                    await manager.send_personal_message(json.dumps({"type": "ping"}), websocket)
                     continue
-                message = json.loads(data)
+                message_data = json.loads(data)
                 
-                if message.get("action") == "refresh":
+                if message_data.get("action") == "refresh":
                     # Client requests data refresh
                     async with AsyncSessionLocal() as db:
                         try:
                             studies_data = await study.get_multi(db, skip=0, limit=100)
-                            # Convert SQLAlchemy models to Pydantic schemas
-                            studies_json = [Study.model_validate(study_item).model_dump() for study_item in studies_data]
-                            await manager.send_personal_message(
-                                json.dumps({
-                                    "type": "studies_update",
-                                    "data": studies_json
-                                }),
-                                websocket
-                            )
+                            studies_json = [sqlalchemy_to_dict(s) for s in studies_data]
+                            message = broadcast_message("studies_update", studies_json)
+                            await manager.send_personal_message(message, websocket)
                             logger.info(f"Sent refresh data with {len(studies_json)} studies")
                         except Exception as e:
                             logger.error(f"Error during refresh: {e}")
-                            await manager.send_personal_message(
-                                json.dumps({
-                                    "type": "error",
-                                    "message": f"Error refreshing data: {str(e)}"
-                                }),
-                                websocket
-                            )
-                elif message.get("action") == "ping":
+                            message = broadcast_message("error", {"message": f"Error refreshing data: {str(e)}"})
+                            await manager.send_personal_message(message, websocket)
+                elif message_data.get("action") == "ping":
                     # Keep connection alive
-                    await manager.send_personal_message(
-                        json.dumps({"type": "pong"}),
-                        websocket
-                    )
+                    await manager.send_personal_message(json.dumps({"type": "pong"}), websocket)
                     logger.info("Sent pong response")
                     
             except json.JSONDecodeError as e:
                 logger.error(f"JSON decode error: {e}")
                 try:
-                    await manager.send_personal_message(
-                        json.dumps({
-                            "type": "error",
-                            "message": "Invalid JSON format"
-                        }),
-                        websocket
-                    )
+                    message = broadcast_message("error", {"message": "Invalid JSON format"})
+                    await manager.send_personal_message(message, websocket)
                 except Exception:
                     logger.error("Failed to send error message, breaking loop")
                     break
@@ -229,13 +197,8 @@ async def websocket_studies_endpoint(websocket: WebSocket):
             except Exception as e:
                 logger.error(f"Error processing WebSocket message: {e}")
                 try:
-                    await manager.send_personal_message(
-                        json.dumps({
-                            "type": "error",
-                            "message": "Error processing message"
-                        }),
-                        websocket
-                    )
+                    message = broadcast_message("error", {"message": "Error processing message"})
+                    await manager.send_personal_message(message, websocket)
                 except Exception:
                     logger.error("Failed to send error message, breaking loop")
                     break
@@ -251,12 +214,7 @@ async def websocket_studies_endpoint(websocket: WebSocket):
 async def broadcast_study_created(study_data):
     """Broadcast that a new study was created."""
     logger.info(f"🚀 Broadcasting study_created: {study_data.study_label}")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_study = Study.model_validate(study_data)
-    message = json.dumps({
-        "type": "study_created",
-        "data": pydantic_study.model_dump()
-    })
+    message = broadcast_message("study_created", sqlalchemy_to_dict(study_data))
     await manager.broadcast(message)
     logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
@@ -264,12 +222,7 @@ async def broadcast_study_created(study_data):
 async def broadcast_study_updated(study_data):
     """Broadcast that a study was updated."""
     logger.info(f"📝 Broadcasting study_updated: {study_data.study_label}")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_study = Study.model_validate(study_data)
-    message = json.dumps({
-        "type": "study_updated",
-        "data": pydantic_study.model_dump()
-    })
+    message = broadcast_message("study_updated", sqlalchemy_to_dict(study_data))
     await manager.broadcast(message)
     logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
@@ -277,31 +230,21 @@ async def broadcast_study_updated(study_data):
 async def broadcast_study_deleted(study_id: int):
     """Broadcast that a study was deleted."""
     logger.info(f"🗑️ Broadcasting study_deleted: ID {study_id}")
-    message = json.dumps({
-        "type": "study_deleted",
-        "data": {"id": study_id}
-    })
+    message = broadcast_message("study_deleted", {"id": study_id})
     await manager.broadcast(message)
     logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_studies_refresh():
     """Broadcast a signal to refresh studies data."""
-    message = json.dumps({
-        "type": "refresh_needed"
-    })
+    message = json.dumps({"type": "refresh_needed"})
     await manager.broadcast(message)
 
 
 async def broadcast_database_release_created(database_release_data):
     """Broadcast that a new database release was created."""
     logger.info(f"🚀 Broadcasting database_release_created: {database_release_data.database_release_label}")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_database_release = DatabaseRelease.model_validate(database_release_data)
-    message = json.dumps({
-        "type": "database_release_created",
-        "data": pydantic_database_release.model_dump()
-    })
+    message = broadcast_message("database_release_created", sqlalchemy_to_dict(database_release_data))
     await manager.broadcast(message)
     logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
@@ -309,12 +252,7 @@ async def broadcast_database_release_created(database_release_data):
 async def broadcast_database_release_updated(database_release_data):
     """Broadcast that a database release was updated."""
     logger.info(f"📝 Broadcasting database_release_updated: {database_release_data.database_release_label}")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_database_release = DatabaseRelease.model_validate(database_release_data)
-    message = json.dumps({
-        "type": "database_release_updated",
-        "data": pydantic_database_release.model_dump()
-    })
+    message = broadcast_message("database_release_updated", sqlalchemy_to_dict(database_release_data))
     await manager.broadcast(message)
     logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
@@ -322,10 +260,7 @@ async def broadcast_database_release_updated(database_release_data):
 async def broadcast_database_release_deleted(database_release_id: int):
     """Broadcast that a database release was deleted."""
     logger.info(f"🗑️ Broadcasting database_release_deleted: ID {database_release_id}")
-    message = json.dumps({
-        "type": "database_release_deleted",
-        "data": {"id": database_release_id}
-    })
+    message = broadcast_message("database_release_deleted", {"id": database_release_id})
     await manager.broadcast(message)
     logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
@@ -333,12 +268,7 @@ async def broadcast_database_release_deleted(database_release_id: int):
 async def broadcast_reporting_effort_created(reporting_effort_data):
     """Broadcast that a new reporting effort was created."""
     logger.info(f"🚀 Broadcasting reporting_effort_created: {reporting_effort_data.database_release_label}")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_reporting_effort = ReportingEffort.model_validate(reporting_effort_data)
-    message = json.dumps({
-        "type": "reporting_effort_created",
-        "data": pydantic_reporting_effort.model_dump()
-    })
+    message = broadcast_message("reporting_effort_created", sqlalchemy_to_dict(reporting_effort_data))
     await manager.broadcast(message)
     logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
@@ -347,12 +277,7 @@ async def broadcast_reporting_effort_updated(reporting_effort_data):
     """Broadcast that a reporting effort was updated."""
     logger.info(f"📝 Broadcasting reporting_effort_updated: {reporting_effort_data.database_release_label}")
     logger.info(f"🔍 Active connections before broadcast: {len(manager.active_connections)}")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_reporting_effort = ReportingEffort.model_validate(reporting_effort_data)
-    message = json.dumps({
-        "type": "reporting_effort_updated",
-        "data": pydantic_reporting_effort.model_dump()
-    })
+    message = broadcast_message("reporting_effort_updated", sqlalchemy_to_dict(reporting_effort_data))
     await manager.broadcast(message)
     logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
@@ -360,10 +285,7 @@ async def broadcast_reporting_effort_updated(reporting_effort_data):
 async def broadcast_reporting_effort_deleted(reporting_effort_id: int):
     """Broadcast that a reporting effort was deleted."""
     logger.info(f"🗑️ Broadcasting reporting_effort_deleted: ID {reporting_effort_id}")
-    message = json.dumps({
-        "type": "reporting_effort_deleted",
-        "data": {"id": reporting_effort_id}
-    })
+    message = broadcast_message("reporting_effort_deleted", {"id": reporting_effort_id})
     await manager.broadcast(message)
     logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
@@ -372,13 +294,7 @@ async def broadcast_reporting_effort_deleted(reporting_effort_id: int):
 async def broadcast_text_element_created(text_element_data):
     """Broadcast that a new text element was created."""
     logger.info(f"🚀 Broadcasting text_element_created: {text_element_data.type.value} - {text_element_data.label[:50]}...")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_text_element = TextElement.model_validate(text_element_data)
-    # Use mode='json' to ensure proper enum serialization
-    message = json.dumps({
-        "type": "text_element_created",
-        "data": pydantic_text_element.model_dump(mode='json')
-    })
+    message = broadcast_message("text_element_created", sqlalchemy_to_dict(text_element_data))
     await manager.broadcast(message)
     logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
@@ -386,12 +302,7 @@ async def broadcast_text_element_created(text_element_data):
 async def broadcast_text_element_updated(text_element_data):
     """Broadcast that a text element was updated."""
     logger.info(f"📝 Broadcasting text_element_updated: {text_element_data.type.value} - {text_element_data.label[:50]}...")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_text_element = TextElement.model_validate(text_element_data)
-    message = json.dumps({
-        "type": "text_element_updated",
-        "data": pydantic_text_element.model_dump(mode='json')
-    })
+    message = broadcast_message("text_element_updated", sqlalchemy_to_dict(text_element_data))
     await manager.broadcast(message)
     logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
 
@@ -399,14 +310,6 @@ async def broadcast_text_element_updated(text_element_data):
 async def broadcast_text_element_deleted(text_element_data):
     """Broadcast that a text element was deleted."""
     logger.info(f"🗑️ Broadcasting text_element_deleted: {text_element_data.type.value} - ID {text_element_data.id}")
-    # Convert SQLAlchemy model to Pydantic schema
-    pydantic_text_element = TextElement.model_validate(text_element_data)
-    message = json.dumps({
-        "type": "text_element_deleted",
-        "data": pydantic_text_element.model_dump(mode='json')
-    })
+    message = broadcast_message("text_element_deleted", sqlalchemy_to_dict(text_element_data))
     await manager.broadcast(message)
     logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
-
-
-

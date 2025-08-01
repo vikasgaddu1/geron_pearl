@@ -308,12 +308,12 @@ studies_server <- function(id) {
         
         footer = div(
           class = "d-flex justify-content-end gap-2",
-          actionButton(
+          input_task_button(
             ns("cancel_edit"), 
             tagList(bs_icon("x"), "Cancel"),
             class = "btn btn-secondary"
           ),
-          actionButton(
+          input_task_button(
             ns("save_edit"), 
             tagList(bs_icon("check"), "Update Study"),
             class = "btn btn-warning"
@@ -436,7 +436,7 @@ studies_server <- function(id) {
           
           footer = div(
             class = "d-flex justify-content-end",
-            actionButton(
+            input_task_button(
               ns("close_cannot_delete"),
               tagList(bs_icon("x"), "Close"),
               class = "btn btn-secondary"
@@ -466,12 +466,12 @@ studies_server <- function(id) {
         
         footer = div(
           class = "d-flex justify-content-end gap-2",
-          actionButton(
+          input_task_button(
             ns("cancel_delete"),
             tagList(bs_icon("x"), "Cancel"),
             class = "btn btn-outline-secondary"
           ),
-          actionButton(
+          input_task_button(
             ns("confirm_delete"), 
             tagList(bs_icon("trash"), "Delete Study"),
             class = "btn btn-danger",

@@ -24,13 +24,13 @@ reporting_efforts_ui <- function(id) {
             ),
             div(
               class = "d-flex gap-2",
-              actionButton(
+              input_task_button(
                 ns("refresh_btn"),
                 tagList(bs_icon("arrow-clockwise"), "Refresh"),
                 class = "btn btn-outline-secondary btn-sm",
                 title = "Refresh the reporting efforts list"
               ),
-              actionButton(
+              input_task_button(
                 ns("toggle_add_form"),
                 tagList(bs_icon("plus-lg"), "Add Effort"),
                 class = "btn btn-success btn-sm",
@@ -104,14 +104,14 @@ reporting_efforts_ui <- function(id) {
                     layout_columns(
                       col_widths = c(6, 6),
                       gap = 2,
-                      actionButton(
+                      input_task_button(
                         ns("save_new_effort"),
                         tagList(bs_icon("check"), "Create"),
                         class = "btn btn-success w-100",
                         style = "height: auto; padding: 0.375rem 0.75rem;",
                         title = "Create the new reporting effort"
                       ),
-                      actionButton(
+                      input_task_button(
                         ns("cancel_new_effort"),
                         tagList(bs_icon("x"), "Cancel"),
                         class = "btn btn-secondary w-100",

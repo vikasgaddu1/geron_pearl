@@ -118,3 +118,60 @@ cd backend && uv run python tests/integration/test_websocket_broadcast.py  # Tes
 
 ### Development Best Practices
 - Do git commit at regular interval, we don't want to make lot of updates and then unable to go back.
+
+## Git Hook for Documentation Management
+
+### Automated CLAUDE.md Updates
+**🪝 ENABLED**: This repository includes a `prepare-commit-msg` hook that intelligently manages documentation across all three CLAUDE.md files.
+
+**Hook Features**:
+- **Smart Detection**: Automatically detects backend (FastAPI/SQLAlchemy) vs frontend (R Shiny) changes
+- **Interactive Prompts**: Asks which CLAUDE.md files to update based on changed files
+- **Cross-Component Awareness**: Detects WebSocket integration and API contract changes
+- **Commit Enhancement**: Automatically adds documentation update notes to commit messages
+
+### Quick Usage
+
+```bash
+# Normal development workflow - hook activates automatically
+git add backend/app/api/v1/new_endpoint.py
+git commit -m "feat: add user preferences endpoint"
+# Hook detects backend changes and prompts: "Update backend/CLAUDE.md? [Y/s/v]"
+# Choose Y to open editor, S to skip, V to view current content first
+
+# Skip hook for minor changes
+git commit --no-verify -m "fix: typo in comment"
+
+# Configure hook behavior
+git config pearl.hook.auto-prompt false    # Disable prompts
+git config pearl.hook.backend-docs false   # Skip backend doc prompts
+git config pearl.hook.verbosity detailed   # More verbose output
+```
+
+### File Pattern Detection
+
+The hook automatically detects when these files change and suggests appropriate CLAUDE.md updates:
+
+**Backend Changes** → `backend/CLAUDE.md`:
+- `backend/app/api/v1/*.py` (API endpoints)
+- `backend/app/models/*.py` (SQLAlchemy models) 
+- `backend/app/schemas/*.py` (Pydantic schemas)
+- `backend/app/crud/*.py` (CRUD operations)
+- `backend/migrations/versions/*.py` (Database migrations)
+
+**Frontend Changes** → `admin-frontend/CLAUDE.md`:
+- `admin-frontend/modules/*.R` (Shiny modules)
+- `admin-frontend/app.R` (Main application)
+- `admin-frontend/www/*.js` (WebSocket client)
+- `admin-frontend/renv.lock` (R package updates)
+
+**Cross-Component Changes** → Both backend and frontend CLAUDE.md:
+- WebSocket integration files (backend + frontend)
+- API contract changes affecting both layers
+
+**Project-Wide Changes** → Root `CLAUDE.md`:
+- Architecture modifications
+- New integration patterns
+- Major structural changes
+
+> **📖 Complete hook documentation**: See [.git/hooks/HOOK_README.md](.git/hooks/HOOK_README.md) for full configuration options, troubleshooting, and examples.

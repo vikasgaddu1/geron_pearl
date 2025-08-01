@@ -24,13 +24,13 @@ database_releases_ui <- function(id) {
             ),
             div(
               class = "d-flex gap-2",
-              actionButton(
+              input_task_button(
                 ns("refresh_btn"),
                 tagList(bs_icon("arrow-clockwise"), "Refresh"),
                 class = "btn btn-outline-secondary btn-sm",
                 title = "Refresh the database releases list"
               ),
-              actionButton(
+              input_task_button(
                 ns("toggle_add_form"),
                 tagList(bs_icon("plus-lg"), "Add Release"),
                 class = "btn btn-success btn-sm",
@@ -49,7 +49,7 @@ database_releases_ui <- function(id) {
                 title = div(
                   class = "d-flex align-items-center",
                   style = "margin-left: 8px; margin-top: 30px;",
-                  bs_icon("database-add"),
+                  bs_icon("database-fill"),
                   span("Add New Database Release", style = "margin-left: 15px;")
                 ),
                 width = 450,
@@ -91,14 +91,14 @@ database_releases_ui <- function(id) {
                     layout_columns(
                       col_widths = c(6, 6),
                       gap = 2,
-                      actionButton(
+                      input_task_button(
                         ns("save_new_release"),
                         tagList(bs_icon("check"), "Create"),
                         class = "btn btn-success w-100",
                         style = "height: auto; padding: 0.375rem 0.75rem;",
                         title = "Create the new database release"
                       ),
-                      actionButton(
+                      input_task_button(
                         ns("cancel_new_release"),
                         tagList(bs_icon("x"), "Cancel"),
                         class = "btn btn-secondary w-100",

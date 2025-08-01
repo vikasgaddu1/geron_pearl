@@ -33,6 +33,8 @@ source("modules/database_releases_ui.R")
 source("modules/database_releases_server.R")
 source("modules/reporting_efforts_ui.R")
 source("modules/reporting_efforts_server.R")
+source("modules/tnfp_ui.R")
+source("modules/tnfp_server.R")
 
 # Theme with automatic dark mode support
 pearl_theme <-  bs_theme(
@@ -140,6 +142,13 @@ ui <- page_sidebar(
             onclick = "document.getElementById('main_tabs').querySelector('[data-value=\"efforts_tab\"]').click();",
             bs_icon("journal-plus"),
             "Reporting Efforts"
+          ),
+          tags$a(
+            href = "#",
+            class = "list-group-item list-group-item-action d-flex align-items-center gap-2 border-0",
+            onclick = "document.getElementById('main_tabs').querySelector('[data-value=\"tnfp_tab\"]').click();",
+            bs_icon("file-text"),
+            "TFL Properties"
           )
         )
       )
@@ -209,6 +218,12 @@ ui <- page_sidebar(
       "Reporting Efforts",
       value = "efforts_tab",
       reporting_efforts_ui("reporting_efforts")
+    ),
+
+    nav_panel(
+      "TFL Properties",
+      value = "tnfp_tab",
+      tnfp_ui("tnfp")
     ),
 
     nav_panel(
@@ -287,6 +302,9 @@ server <- function(input, output, session) {
   
   # Reporting Efforts module
   reporting_efforts_server("reporting_efforts")
+  
+  # TNFP module
+  tnfp_server("tnfp")
   
   # Health check
   output$health_status <- renderText({

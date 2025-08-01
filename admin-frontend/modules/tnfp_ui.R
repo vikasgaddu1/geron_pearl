@@ -72,11 +72,20 @@ tnfp_ui <- function(id) {
                   ),
                   
                   # Text Element Label
-                  textAreaInput(
-                    ns("new_text_element_label"),
-                    "Content",
-                    placeholder = "Enter text content...",
-                    rows = 4
+                  div(
+                    textAreaInput(
+                      ns("new_text_element_label"),
+                      "Content",
+                      placeholder = "Enter text content...",
+                      rows = 4
+                    ),
+                    tags$small(
+                      class = "text-muted form-text",
+                      tagList(
+                        bs_icon("info-circle", size = "0.8em"),
+                        " Duplicate content is not allowed (comparison ignores spaces and letter case)"
+                      )
+                    )
                   ),
                   
                   # Action buttons

@@ -178,6 +178,32 @@ tnfp_server <- function(id) {
       updateTextAreaInput(session, "new_text_element_label", value = "")
     })
     
+    # Helper function to extract and format error messages
+    format_error_message <- function(error_string) {
+      if (is.null(error_string) || error_string == "") {
+        return("An unknown error occurred")
+      }
+      
+      # Check if this is an HTTP error with response body
+      if (grepl("HTTP 400 -", error_string)) {
+        # Extract the JSON error message from HTTP 400 response
+        json_part <- sub(".*HTTP 400 - ", "", error_string)
+        tryCatch({
+          # Parse the JSON response to get the detail message
+          error_data <- jsonlite::fromJSON(json_part)
+          if (!is.null(error_data$detail)) {
+            return(error_data$detail)
+          }
+        }, error = function(e) {
+          # If JSON parsing fails, return the original error
+          return(error_string)
+        })
+      }
+      
+      # For other errors, return as-is
+      return(error_string)
+    }
+    
     # Save Text Element (Add new element)
     observeEvent(input$save_text_element, {
       # Validate first
@@ -198,7 +224,28 @@ tnfp_server <- function(id) {
       
       # Handle result
       if (!is.null(result$error)) {
-        showNotification(paste("Error:", result$error), type = "error")
+        formatted_error <- format_error_message(result$error)
+        
+        # Show detailed error message with better formatting
+        if (grepl("Duplicate text elements are not allowed", formatted_error)) {
+          # Special handling for duplicate errors
+          showNotification(
+            tagList(
+              tags$strong("Duplicate Content Detected"),
+              tags$br(),
+              formatted_error,
+              tags$br(),
+              tags$small(
+                class = "text-muted",
+                "Tip: The system compares content ignoring spaces and letter case."
+              )
+            ),
+            type = "error",
+            duration = 8000
+          )
+        } else {
+          showNotification(formatted_error, type = "error")
+        }
       } else {
         showNotification("Text element created successfully!", type = "message")
         
@@ -242,7 +289,28 @@ tnfp_server <- function(id) {
       
       # Handle result
       if (!is.null(result$error)) {
-        showNotification(paste("Error:", result$error), type = "error")
+        formatted_error <- format_error_message(result$error)
+        
+        # Show detailed error message with better formatting
+        if (grepl("Duplicate text elements are not allowed", formatted_error)) {
+          # Special handling for duplicate errors
+          showNotification(
+            tagList(
+              tags$strong("Duplicate Content Detected"),
+              tags$br(),
+              formatted_error,
+              tags$br(),
+              tags$small(
+                class = "text-muted",
+                "Tip: The system compares content ignoring spaces and letter case."
+              )
+            ),
+            type = "error",
+            duration = 8000
+          )
+        } else {
+          showNotification(formatted_error, type = "error")
+        }
       } else {
         showNotification("Text element updated successfully!", type = "message")
         
