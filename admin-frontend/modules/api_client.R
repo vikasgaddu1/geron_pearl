@@ -270,13 +270,19 @@ delete_reporting_effort <- function(id) {
 # Get the text elements endpoint dynamically
 get_text_elements_endpoint <- function() {
   api_base <- Sys.getenv("PEARL_API_URL", "http://localhost:8000")
+  return(paste0(api_base, "/api/v1/text-elements"))
+}
+
+# Get the text elements endpoint with trailing slash for POST operations
+get_text_elements_endpoint_post <- function() {
+  api_base <- Sys.getenv("PEARL_API_URL", "http://localhost:8000")
   return(paste0(api_base, "/api/v1/text-elements/"))
 }
 
 # Get all text elements
 get_text_elements <- function() {
   tryCatch({
-    response <- httr2::request(get_text_elements_endpoint()) |> 
+    response <- httr2::request(get_text_elements_endpoint_post()) |> 
       httr2::req_perform()
     if (httr2::resp_status(response) == 200) {
       httr2::resp_body_json(response)
@@ -291,7 +297,7 @@ get_text_elements <- function() {
 # Get single text element by ID
 get_text_element <- function(id) {
   tryCatch({
-    response <- httr2::request(paste0(get_text_elements_endpoint(), "/", id)) |> 
+    response <- httr2::request(paste0(get_text_elements_endpoint_post(), id)) |> 
       httr2::req_perform()
     if (httr2::resp_status(response) == 200) {
       httr2::resp_body_json(response)
@@ -306,7 +312,7 @@ get_text_element <- function(id) {
 # Create new text element
 create_text_element <- function(element_data) {
   tryCatch({
-    response <- httr2::request(get_text_elements_endpoint()) |>
+    response <- httr2::request(get_text_elements_endpoint_post()) |>
       httr2::req_method("POST") |>
       httr2::req_body_json(element_data) |>
       httr2::req_error(is_error = function(resp) FALSE) |>  # Don't throw errors, let us handle
@@ -327,7 +333,7 @@ create_text_element <- function(element_data) {
 # Update existing text element
 update_text_element <- function(id, element_data) {
   tryCatch({
-    response <- httr2::request(paste0(get_text_elements_endpoint(), id)) |>
+    response <- httr2::request(paste0(get_text_elements_endpoint(), "/", id)) |>
       httr2::req_method("PUT") |>
       httr2::req_body_json(element_data) |>
       httr2::req_error(is_error = function(resp) FALSE) |>  # Don't throw errors, let us handle
@@ -348,7 +354,7 @@ update_text_element <- function(id, element_data) {
 # Delete text element
 delete_text_element <- function(id) {
   tryCatch({
-    response <- httr2::request(paste0(get_text_elements_endpoint(), "/", id)) |>
+    response <- httr2::request(paste0(get_text_elements_endpoint_post(), id)) |>
       httr2::req_method("DELETE") |>
       httr2::req_perform()
     if (httr2::resp_status(response) == 200) {

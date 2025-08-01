@@ -1,13 +1,16 @@
 import json
 from datetime import datetime, date
+from enum import Enum
 
 def json_serializer(obj):
     """
     Custom JSON serializer for objects not serializable by default json code.
-    Handles datetime and date objects.
+    Handles datetime, date, and enum objects.
     """
     if isinstance(obj, (datetime, date)):
         return obj.isoformat()
+    elif isinstance(obj, Enum):
+        return obj.value
     raise TypeError(f"Type {type(obj)} not serializable")
 
 def sqlalchemy_to_dict(model_instance):
@@ -22,6 +25,8 @@ def sqlalchemy_to_dict(model_instance):
         value = getattr(model_instance, column.name)
         if isinstance(value, (datetime, date)):
             d[column.name] = value.isoformat()
+        elif isinstance(value, Enum):
+            d[column.name] = value.value
         else:
             d[column.name] = value
     return d

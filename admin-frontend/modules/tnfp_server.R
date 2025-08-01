@@ -9,6 +9,38 @@ tnfp_server <- function(id) {
     last_text_elements_update <- reactiveVal(Sys.time())
     editing_text_element_id <- reactiveVal(NULL)
     
+    # Helper function to normalize text for duplicate checking (ignore spaces and case)
+    normalize_text <- function(text) {
+      if (is.null(text) || text == "") return("")
+      return(toupper(gsub("\\s+", "", trimws(text))))
+    }
+    
+    # Helper function to check for duplicates client-side
+    check_duplicate_content <- function(new_content, new_type, exclude_id = NULL) {
+      current_data <- text_elements_data()
+      if (nrow(current_data) == 0) return(FALSE)
+      
+      # Get raw data to access original labels
+      raw_result <- get_text_elements()
+      if (is.null(raw_result) || !is.null(raw_result$error) || length(raw_result) == 0) {
+        return(FALSE)
+      }
+      
+      normalized_new <- normalize_text(new_content)
+      if (normalized_new == "") return(FALSE)
+      
+      for (element in raw_result) {
+        # Skip if this is the element being edited
+        if (!is.null(exclude_id) && element$id == exclude_id) next
+        
+        # Check if same type and normalized content matches
+        if (element$type == new_type && normalize_text(element$label) == normalized_new) {
+          return(list(exists = TRUE, existing_label = element$label))
+        }
+      }
+      return(FALSE)
+    }
+    
     # Set up validation for new text element form
     iv_text_element_new <- InputValidator$new()
     iv_text_element_new$add_rule("new_text_element_type", sv_required())
@@ -16,6 +48,33 @@ tnfp_server <- function(id) {
     iv_text_element_new$add_rule("new_text_element_label", function(value) {
       if (nchar(trimws(value)) < 3) {
         "Content must be at least 3 characters long"
+      }
+    })
+    iv_text_element_new$add_rule("new_text_element_label", function(value) {
+      if (!is.null(input$new_text_element_type)) {
+        duplicate_check <- check_duplicate_content(value, input$new_text_element_type)
+        if (is.list(duplicate_check) && duplicate_check$exists) {
+          paste0("Similar content already exists: '", duplicate_check$existing_label, "' (ignoring spaces and case)")
+        }
+      }
+    })
+    
+    # Set up validation for edit text element form
+    iv_text_element_edit <- InputValidator$new()
+    iv_text_element_edit$add_rule("edit_text_element_type", sv_required())
+    iv_text_element_edit$add_rule("edit_text_element_label", sv_required())
+    iv_text_element_edit$add_rule("edit_text_element_label", function(value) {
+      if (nchar(trimws(value)) < 3) {
+        "Content must be at least 3 characters long"
+      }
+    })
+    iv_text_element_edit$add_rule("edit_text_element_label", function(value) {
+      current_id <- editing_text_element_id()
+      if (!is.null(input$edit_text_element_type) && !is.null(current_id)) {
+        duplicate_check <- check_duplicate_content(value, input$edit_text_element_type, current_id)
+        if (is.list(duplicate_check) && duplicate_check$exists) {
+          paste0("Similar content already exists: '", duplicate_check$existing_label, "' (ignoring spaces and case)")
+        }
       }
     })
     
@@ -269,11 +328,9 @@ tnfp_server <- function(id) {
       current_id <- editing_text_element_id()
       if (is.null(current_id)) return()
       
-      # Basic validation
-      if (is.null(input$edit_text_element_type) || input$edit_text_element_type == "" ||
-          is.null(input$edit_text_element_label) || trimws(input$edit_text_element_label) == "" ||
-          nchar(trimws(input$edit_text_element_label)) < 3) {
-        showNotification("Please fill in all fields. Content must be at least 3 characters long.", type = "error")
+      # Validate using InputValidator
+      iv_text_element_edit$enable()
+      if (!iv_text_element_edit$is_valid()) {
         return()
       }
       
@@ -316,6 +373,9 @@ tnfp_server <- function(id) {
         
         # Reset state
         editing_text_element_id(NULL)
+        
+        # Disable validation
+        iv_text_element_edit$disable()
         
         # Close modal
         removeModal()
@@ -386,13 +446,22 @@ tnfp_server <- function(id) {
           div(
             class = "mb-3",
             tags$label("Content", class = "form-label fw-bold"),
-            textAreaInput(
-              ns("edit_text_element_label"),
-              NULL,
-              value = element_result$label,
-              placeholder = "Enter text content...",
-              rows = 4,
-              width = "100%"
+            div(
+              textAreaInput(
+                ns("edit_text_element_label"),
+                NULL,
+                value = element_result$label,
+                placeholder = "Enter text content...",
+                rows = 4,
+                width = "100%"
+              ),
+              tags$small(
+                class = "text-muted form-text",
+                tagList(
+                  bs_icon("info-circle", size = "0.8em"),
+                  " Duplicate content is not allowed (comparison ignores spaces and letter case)"
+                )
+              )
             )
           ),
           
@@ -405,6 +474,9 @@ tnfp_server <- function(id) {
             )
           )
         ))
+        
+        # Enable validation for the edit form
+        iv_text_element_edit$enable()
       }
     })
     

@@ -578,6 +578,24 @@ uv run python tests/integration/test_websocket_broadcast.py
 # Server must be running: uv run python run.py
 ```
 
+#### Recent Fixes (August 2025)
+
+**WebSocket Enum Serialization Fixed**:
+- **Issue**: `TextElementType` enum causing WebSocket broadcast failures: "Type <enum 'TextElementType'> not serializable"
+- **Root Cause**: `sqlalchemy_to_dict()` and `json_serializer()` functions in `app/utils.py` didn't handle enum types
+- **Solution**: Enhanced serialization functions to convert enums to their string values:
+  ```python
+  # Enhanced json_serializer()
+  elif isinstance(obj, Enum):
+      return obj.value
+  
+  # Enhanced sqlalchemy_to_dict()
+  elif isinstance(value, Enum):
+      d[column.name] = value.value
+  ```
+- **Impact**: Fixed database rollbacks and WebSocket broadcast errors for all text element operations
+- **Status**: ✅ All WebSocket broadcasts now work correctly with enum types
+
 ## For Test Architect Agents
 
 **MANDATORY**: Before creating ANY tests, read:

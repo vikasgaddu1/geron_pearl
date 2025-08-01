@@ -417,6 +417,29 @@ Duplicate text elements are not allowed (comparison ignores spaces and case)."
 3. Try to create: "TestTitle" → Should show duplicate error  
 4. Try to create: "Test Title 2" → Should succeed (different content)
 
+#### Recent Fixes (August 2025)
+
+**TNFP Module CRUD Operations Fixed**:
+- **Issue**: All CRUD operations (create, edit, delete) were returning 404 errors
+- **Root Cause**: URL inconsistencies in API client - FastAPI required trailing slash for collection endpoints
+- **Solution**: Updated API client functions to use consistent endpoint patterns:
+  - `get_text_elements_endpoint_post()` for all operations requiring trailing slash
+  - Fixed create, read, update, delete URL construction
+- **Status**: ✅ All CRUD operations now work correctly
+
+**Enhanced Duplicate Validation**:
+- **Issue**: Duplicate validation only worked with exact text matches
+- **Enhancement**: Implemented space/case-insensitive duplicate checking
+- **Client-side validation**: Added real-time form validation with `normalize_text()` function
+- **Server-side validation**: Backend already had proper duplicate checking with detailed error messages
+- **Features**:
+  - ✅ Case-insensitive: "Test Title" vs "test title"
+  - ✅ Space-insensitive: "Test Title" vs "TestTitle" vs "Test  Title"
+  - ✅ Type-specific: Only checks duplicates within same element type
+  - ✅ Edit-aware: Excludes current element when editing
+  - ✅ Real-time feedback: Shows validation errors immediately
+- **Status**: ✅ Duplicate validation working as expected
+
 ### Module Integration Rules
 - **Source Order Matters**: `websocket_client.R` must be sourced BEFORE other modules that use WebSocket URLs
 - **Environment Loading**: Call `load_dot_env()` BEFORE defining any endpoint URLs

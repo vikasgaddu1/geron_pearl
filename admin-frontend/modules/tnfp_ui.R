@@ -94,10 +94,10 @@ tnfp_ui <- function(id) {
                     gap = 2,
                     actionButton(
                       ns("save_text_element"),
-                      tagList(bs_icon("check"), "Save"),
+                      tagList(bs_icon("check"), "Create"),
                       class = "btn btn-success w-100",
                       style = "height: auto; padding: 0.375rem 0.75rem;",
-                      title = "Save the text element"
+                      title = "Create the text element"
                     ),
                     actionButton(
                       ns("cancel_text_element"),
