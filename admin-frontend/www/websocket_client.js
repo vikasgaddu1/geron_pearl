@@ -116,6 +116,12 @@ class PearlWebSocketClient {
             } else if (data.type.startsWith('text_element_')) {
                 data.module = 'tnfp';
                 console.log('📝 TNFP EVENT RECEIVED:', data.type, data.data?.label || 'unknown');
+            } else if (data.type.startsWith('package_')) {
+                data.module = 'packages';
+                console.log('📦 PACKAGE EVENT RECEIVED:', data.type, data.data?.package_name || 'unknown');
+            } else if (data.type.startsWith('package_item_')) {
+                data.module = 'packages';
+                console.log('📦 PACKAGE ITEM EVENT RECEIVED:', data.type, data.data?.item_code || 'unknown');
             }
         }
         

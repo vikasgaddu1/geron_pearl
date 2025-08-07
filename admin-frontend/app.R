@@ -35,6 +35,8 @@ source("modules/reporting_efforts_ui.R")
 source("modules/reporting_efforts_server.R")
 source("modules/tnfp_ui.R")
 source("modules/tnfp_server.R")
+source("modules/packages_ui.R")
+source("modules/packages_server.R")
 
 # Theme with automatic dark mode support
 pearl_theme <-  bs_theme(
@@ -271,78 +273,7 @@ ui <- page_sidebar(
     nav_panel(
       "Package Registry",
       value = "packages_tab",
-      div(
-        style = "display: flex; justify-content: center; padding: 20px;",
-        div(
-          style = "width: 100%; max-width: 1200px;",
-          
-          # Main card
-          card(
-            class = "border border-2",
-            full_screen = FALSE,
-            height = "700px",
-            
-            # Header
-            card_header(
-              class = "d-flex justify-content-between align-items-center",
-              div(
-                tags$h4(bs_icon("archive"), "Package Registry", class = "mb-0 text-primary"),
-                tags$small("Manage and configure software packages", class = "text-muted")
-              ),
-              div(
-                class = "d-flex gap-2",
-                actionButton(
-                  "refresh_packages_btn",
-                  tagList(bs_icon("arrow-clockwise"), "Refresh"),
-                  class = "btn btn-primary btn-sm",
-                  title = "Refresh package data"
-                ),
-                actionButton(
-                  "add_package_btn",
-                  tagList(bs_icon("plus-lg"), "Add Package"),
-                  class = "btn btn-success btn-sm",
-                  title = "Add a new package",
-                  disabled = TRUE
-                )
-              )
-            ),
-            
-            # Body
-            card_body(
-              class = "p-3",
-              div(
-                class = "text-center py-5",
-                style = "height: 500px; display: flex; flex-direction: column; justify-content: center; align-items: center;",
-                
-                # Placeholder content
-                div(
-                  class = "mb-4",
-                  bs_icon("box-seam", size = "4rem", class = "text-muted")
-                ),
-                tags$h3("Package Management", class = "text-muted mb-3"),
-                tags$p(
-                  "Package registry and management features will be available in a future release.",
-                  class = "text-muted mb-4",
-                  style = "font-size: 1.1rem;"
-                ),
-                div(
-                  class = "d-flex gap-3 justify-content-center",
-                  tags$span(
-                    class = "badge bg-secondary",
-                    bs_icon("clock"),
-                    "Coming Soon"
-                  ),
-                  tags$span(
-                    class = "badge bg-info",
-                    bs_icon("gear"),
-                    "In Development"
-                  )
-                )
-              )
-            )
-          )
-        )
-      )
+      packages_ui("packages")
     ),
 
     nav_panel(
@@ -415,6 +346,9 @@ server <- function(input, output, session) {
   
   # Studies module
   studies_server("studies")
+  
+  # Packages module
+  packages_server("packages")
   
   # Database Releases module
   database_releases_server("database_releases")

@@ -367,3 +367,157 @@ delete_text_element <- function(id) {
   })
 }
 
+# ===== PACKAGES FUNCTIONS =====
+
+# Get the packages endpoint dynamically
+get_packages_endpoint <- function() {
+  api_base <- Sys.getenv("PEARL_API_URL", "http://localhost:8000")
+  return(paste0(api_base, "/api/v1/packages"))
+}
+
+# Get all packages
+get_packages <- function() {
+  tryCatch({
+    response <- httr2::request(get_packages_endpoint()) |> 
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Get single package by ID
+get_package <- function(id) {
+  tryCatch({
+    response <- httr2::request(paste0(get_packages_endpoint(), "/", id)) |> 
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Create new package
+create_package <- function(package_data) {
+  tryCatch({
+    response <- httr2::request(paste0(get_packages_endpoint(), "/")) |>
+      httr2::req_method("POST") |>
+      httr2::req_body_json(package_data) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 201) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Update existing package
+update_package <- function(id, package_data) {
+  tryCatch({
+    response <- httr2::request(paste0(get_packages_endpoint(), "/", id)) |>
+      httr2::req_method("PUT") |>
+      httr2::req_body_json(package_data) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Delete package
+delete_package <- function(id) {
+  tryCatch({
+    response <- httr2::request(paste0(get_packages_endpoint(), "/", id)) |>
+      httr2::req_method("DELETE") |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Get package items
+get_package_items <- function(package_id) {
+  tryCatch({
+    response <- httr2::request(paste0(get_packages_endpoint(), "/", package_id, "/items")) |> 
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Create package item
+create_package_item <- function(package_id, item_data) {
+  tryCatch({
+    response <- httr2::request(paste0(get_packages_endpoint(), "/", package_id, "/items")) |>
+      httr2::req_method("POST") |>
+      httr2::req_body_json(item_data) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 201) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Delete package item
+delete_package_item <- function(item_id) {
+  tryCatch({
+    response <- httr2::request(paste0(get_packages_endpoint(), "/items/", item_id)) |>
+      httr2::req_method("DELETE") |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Health check function
+health_check <- function() {
+  api_base <- Sys.getenv("PEARL_API_URL", "http://localhost:8000")
+  health_path <- Sys.getenv("PEARL_API_HEALTH_PATH", "/health")
+  
+  tryCatch({
+    response <- httr2::request(paste0(api_base, health_path)) |> 
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("Health check failed with status:", httr2::resp_status(response)))
+    }
+  }, error = function(e) {
+    list(error = paste("Health check error:", e$message))
+  })
+}
+

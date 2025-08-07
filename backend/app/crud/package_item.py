@@ -109,11 +109,15 @@ class PackageItemCRUD:
                 selectinload(PackageItem.tlf_details),
                 selectinload(PackageItem.dataset_details),
                 selectinload(PackageItem.footnotes),
-                selectinload(PackageItem.acronyms)
+                selectinload(PackageItem.acronyms),
+                selectinload(PackageItem.study)
             )
             .where(PackageItem.id == id)
         )
-        return result.scalar_one_or_none()
+        item = result.scalar_one_or_none()
+        if item and item.study:
+            item.study_label = item.study.study_label
+        return item
     
     async def get_multi(
         self, db: AsyncSession, *, skip: int = 0, limit: int = 100
@@ -142,11 +146,17 @@ class PackageItemCRUD:
                 selectinload(PackageItem.tlf_details),
                 selectinload(PackageItem.dataset_details),
                 selectinload(PackageItem.footnotes),
-                selectinload(PackageItem.acronyms)
+                selectinload(PackageItem.acronyms),
+                selectinload(PackageItem.study)
             )
             .where(PackageItem.package_id == package_id)
         )
-        return list(result.scalars().all())
+        items = list(result.scalars().all())
+        # Add study_label to each item for convenience
+        for item in items:
+            if item.study:
+                item.study_label = item.study.study_label
+        return items
     
     async def get_by_study_id(
         self, db: AsyncSession, *, study_id: int

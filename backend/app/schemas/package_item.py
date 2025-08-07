@@ -143,6 +143,7 @@ class PackageItem(PackageItemInDB):
     dataset_details: Optional[PackageDatasetDetailsInDB] = None
     footnotes: List[PackageItemFootnoteBase] = Field(default_factory=list)
     acronyms: List[PackageItemAcronymBase] = Field(default_factory=list)
+    study_label: Optional[str] = Field(None, description="Study label from related study")
     
     model_config = ConfigDict(from_attributes=True)
 

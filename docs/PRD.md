@@ -164,11 +164,41 @@ Admin dashboard built with R Shiny providing CRUD UI over the backend APIs with 
 - TNFP (Text Elements)
   - Unified management of types: title, footnote, population_set, acronyms_set.
   - Duplicate-prevention UX: show detailed backend error and guidance; normalize preview hints (space/case-insensitive).
+- **Packages Management (NEW - Added 2025-08-07)**
+  - **Package CRUD Operations**:
+    - List all packages with creation timestamps in sortable/searchable table
+    - Create new packages with unique name validation (minimum 3 characters)
+    - Delete packages (blocked if package items exist - shows first 5 item codes in error)
+    - Edit package names (UI buttons present, backend ready, implementation pending)
+  - **Package Items Management**:
+    - Two-tab interface: "Packages" tab for package management, "Package Items" tab for items
+    - Package selector dropdown to switch between packages
+    - Support for two item types: TLF (Tables/Listings/Figures) and Dataset (SDTM/ADaM)
+    - TLF items require: study, subtype (Table/Listing/Figure), and TLF ID code
+    - Dataset items require: study, subtype (SDTM/ADaM), dataset name, and optional label
+    - Each item displays associated study label fetched from backend
+    - Delete individual items with confirmation modal
+    - Unique constraint: (package_id, item_type, item_subtype, item_code) must be unique
+  - **Real-time WebSocket Events**:
+    - package_created, package_updated, package_deleted for package operations
+    - package_item_created, package_item_updated, package_item_deleted for item operations
+    - All events broadcast to synchronized sessions immediately
+  - **Validation Rules**:
+    - Package names must be unique across system
+    - Package deletion blocked if any items exist (referential integrity)
+    - Item creation requires valid study_id (verified against studies table)
+    - Item type/subtype combinations validated (TLF→Table/Listing/Figure, Dataset→SDTM/ADaM)
+  - **UI Components**:
+    - Located in "Package Registry" navigation section
+    - Sliding sidebar form for new package creation
+    - Modal dialog for adding package items with conditional fields based on type
+    - Action buttons (edit/delete) on each table row
+    - Refresh button to manually reload data
 - Health Monitoring
   - Surface /health status in UI; show connected/disconnected indicators.
 - WebSocket Real-time Updates
   - Endpoint: ws://{API_HOST}/api/v1/ws/studies.
-  - Handle events: study_created/updated/deleted, studies_update; extendable to database_release_*, reporting_effort_*, text_element_*.
+  - Handle events: study_created/updated/deleted, studies_update, database_release_*, reporting_effort_*, text_element_*, **package_*, package_item_***.
   - Auto-reconnect with exponential backoff; 30s ping/pong keep-alive.
 - Environment Configuration
   - All endpoints configurable via env vars (e.g., PEARL_API_URL, PEARL_API_WEBSOCKET_PATH).
@@ -214,4 +244,144 @@ Admin dashboard built with R Shiny providing CRUD UI over the backend APIs with 
 #### 14. References
 - Docs: admin-frontend/README.md, admin-frontend/CLAUDE.md
 - Code: admin-frontend/app.R, modules/*.R, www/websocket_client.js
+
+### TestSprite Testing Guidelines for Packages Feature
+
+#### Test Environment Setup
+1. **Backend**: Ensure FastAPI backend is running on http://localhost:8000
+2. **Frontend**: R Shiny app running on http://localhost:3838
+3. **Database**: PostgreSQL with packages tables migrated
+4. **Test Data**: Use provided test script `/test_packages_frontend.sh` to create sample data
+
+#### Test Scenarios for Packages Feature
+
+##### 1. Package CRUD Operations
+**Test Case P1: Create Package**
+- Navigate to "Package Registry" tab in sidebar
+- Click "Add Package" button
+- Enter package name (min 3 chars)
+- Verify success notification
+- Verify package appears in table
+- Test duplicate name rejection
+
+**Test Case P2: Delete Package (Empty)**
+- Create a test package
+- Click delete button (trash icon)
+- Confirm deletion in modal
+- Verify package removed from table
+
+**Test Case P3: Delete Package (With Items - Should Fail)**
+- Create package with items
+- Attempt deletion
+- Verify error message shows item codes
+- Verify package NOT deleted
+
+##### 2. Package Items Management
+**Test Case PI1: Add TLF Item**
+- Select "Package Items" tab
+- Choose package from dropdown
+- Click "Add Item"
+- Select Study, Type=TLF, Subtype=Table
+- Enter TLF ID (e.g., T14.1.1)
+- Verify item appears in table with study label
+
+**Test Case PI2: Add Dataset Item**
+- Select package from dropdown
+- Click "Add Item"
+- Select Study, Type=Dataset, Subtype=ADaM
+- Enter dataset name (e.g., ADSL)
+- Enter optional label
+- Verify item appears correctly
+
+**Test Case PI3: Delete Item**
+- Select package with items
+- Click delete on any item
+- Confirm in modal
+- Verify item removed
+- Verify package can now be deleted if last item
+
+##### 3. Real-time WebSocket Synchronization
+**Test Case WS1: Multi-Session Package Updates**
+- Open app in two browser tabs/windows
+- Create package in Tab 1
+- Verify appears immediately in Tab 2
+- Add item in Tab 2
+- Verify appears in Tab 1
+
+**Test Case WS2: Cross-Module Updates**
+- Create/modify study in Studies tab
+- Navigate to Packages → Package Items
+- Verify new study available in dropdown
+
+##### 4. Validation and Error Handling
+**Test Case V1: Package Name Validation**
+- Try empty name → should show error
+- Try <3 characters → should show error  
+- Try duplicate name → should show error
+- Try valid unique name → should succeed
+
+**Test Case V2: Item Validation**
+- Try creating item without study → error
+- Try invalid type/subtype combo → error
+- Try duplicate item code → error
+
+**Test Case V3: Referential Integrity**
+- Delete study used in package items → should fail
+- Error should list dependent packages
+
+##### 5. UI/UX Consistency
+**Test Case UX1: Interface Elements**
+- Verify tab navigation works
+- Verify dropdown updates after package creation
+- Verify table search/filter/pagination
+- Verify modal forms display correctly
+- Verify all buttons have proper icons
+
+**Test Case UX2: Responsive Design**
+- Test at different screen sizes
+- Verify sidebar collapses properly
+- Verify tables remain usable on smaller screens
+
+#### Expected WebSocket Events
+Monitor browser console (F12) for these events:
+- `📦 PACKAGE EVENT RECEIVED: package_created`
+- `📦 PACKAGE EVENT RECEIVED: package_updated`
+- `📦 PACKAGE EVENT RECEIVED: package_deleted`
+- `📦 PACKAGE ITEM EVENT RECEIVED: package_item_created`
+- `📦 PACKAGE ITEM EVENT RECEIVED: package_item_deleted`
+
+#### API Endpoints to Verify
+- `GET /api/v1/packages/` - List packages
+- `POST /api/v1/packages/` - Create package
+- `DELETE /api/v1/packages/{id}` - Delete package
+- `GET /api/v1/packages/{id}/items` - Get package items
+- `POST /api/v1/packages/{id}/items` - Create item
+- `DELETE /api/v1/packages/items/{id}` - Delete item
+
+#### Known Limitations to Note
+1. Edit functionality for packages not yet implemented (buttons present but inactive)
+2. No bulk operations support
+3. No export/import functionality
+4. Package items cannot be moved between packages
+
+#### Test Data Creation Script
+```bash
+# Run from project root
+chmod +x test_packages_frontend.sh
+./test_packages_frontend.sh
+```
+
+This creates:
+- 1 test package
+- 1 test study (if none exist)
+- 1 TLF item (Table type)
+- 1 Dataset item (ADaM type)
+
+#### Success Criteria
+- All CRUD operations function correctly
+- WebSocket updates occur within 1 second
+- Validation messages are clear and helpful
+- No console errors during normal operation
+- UI remains responsive during operations
+- Multi-session synchronization works reliably
 
