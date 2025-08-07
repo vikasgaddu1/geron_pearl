@@ -1,49 +1,63 @@
 import json
-import threading
 import time
-import websocket
+import threading
 import requests
+import websocket
 
-BASE_URL = "http://localhost:8000"
-WS_URL = "ws://localhost:8000/api/v1/ws/studies"
+BASE_API_URL = "http://0.0.0.0:8000"
+WS_URL = "ws://0.0.0.0:8000/api/v1/ws/studies"
 HEADERS = {"Content-Type": "application/json"}
-REQUEST_TIMEOUT = 30
+TIMEOUT = 30
 
 
-def test_websocket_real_time_updates_and_initial_snapshot():
-    # Storage for received websocket messages
-    received_messages = []
+def test_websocket_endpoint_real_time_updates_and_initial_snapshot():
+    # Helper functions for CRUD on studies
+    def create_study(label):
+        payload = {"study_label": label}
+        resp = requests.post(f"{BASE_API_URL}/api/v1/studies", json=payload, headers=HEADERS, timeout=TIMEOUT)
+        resp.raise_for_status()
+        return resp.json()
 
+    def update_study(study_id, new_label):
+        payload = {"study_label": new_label}
+        resp = requests.put(f"{BASE_API_URL}/api/v1/studies/{study_id}", json=payload, headers=HEADERS, timeout=TIMEOUT)
+        resp.raise_for_status()
+        return resp.json()
+
+    def delete_study(study_id):
+        resp = requests.delete(f"{BASE_API_URL}/api/v1/studies/{study_id}", headers=HEADERS, timeout=TIMEOUT)
+        # Deletion might be blocked if dependent releases exist, but for our test it should succeed
+        if resp.status_code not in (200, 404):
+            resp.raise_for_status()
+        return resp
+
+    # Storage for websocket messages
+    ws_messages = []
+
+    # WebSocket event handler
     def on_message(ws, message):
         try:
             data = json.loads(message)
-            received_messages.append(data)
+            ws_messages.append(data)
         except Exception:
-            # Ignore malformed messages
             pass
 
     def on_error(ws, error):
-        # Append error info to messages for assertion
-        received_messages.append({"error": str(error)})
+        ws_messages.append({"error": str(error)})
 
     def on_close(ws, close_status_code, close_msg):
-        received_messages.append({"closed": True, "code": close_status_code, "msg": close_msg})
+        ws_messages.append({"closed": True, "code": close_status_code, "msg": close_msg})
 
     def on_open(ws):
-        # No special action needed on open
         pass
 
-    # Create a new study to trigger websocket broadcast
-    study_payload = {
-        "label": "ws_test_study_unique_label_12345",
-        "description": "Test study for websocket real-time updates"
-    }
-
-    study_id = None
-    ws = None
+    # Create a study to test create event broadcast
+    study_label = f"ws_test_study_{int(time.time())}"
+    study = create_study(study_label)
+    study_id = study["id"]
 
     try:
-        # Connect to websocket in a separate thread
+        # Start websocket client in a thread
         ws = websocket.WebSocketApp(
             WS_URL,
             on_message=on_message,
@@ -55,119 +69,80 @@ def test_websocket_real_time_updates_and_initial_snapshot():
         ws_thread.daemon = True
         ws_thread.start()
 
-        # Wait briefly for websocket connection to establish and receive initial snapshot
+        # Wait for connection upgrade and initial snapshot
         timeout = time.time() + 10
-        while not received_messages and time.time() < timeout:
-            time.sleep(0.1)
-
-        # Assert initial snapshot received (at least one message)
-        assert len(received_messages) > 0, "No initial snapshot message received from websocket"
-
-        # Create study via REST API to trigger broadcast
-        resp = requests.post(
-            f"{BASE_URL}/api/v1/studies",
-            headers=HEADERS,
-            json=study_payload,
-            timeout=REQUEST_TIMEOUT,
-        )
-        assert resp.status_code == 201, f"Failed to create study, status code: {resp.status_code}"
-        study_data = resp.json()
-        study_id = study_data.get("id")
-        assert study_id is not None, "Created study response missing 'id'"
-
-        # Wait for websocket to receive broadcast of new study creation
-        timeout = time.time() + 10
-        while True:
-            # Check if any received message contains the created study id and action create
-            found = False
-            for msg in received_messages:
-                if (
-                    isinstance(msg, dict)
-                    and msg.get("action") in ("create", "refresh", "update")
-                    and isinstance(msg.get("data"), dict)
-                    and msg["data"].get("id") == study_id
-                ):
-                    found = True
-                    break
-            if found or time.time() > timeout:
+        while time.time() < timeout:
+            if ws.sock and ws.sock.connected:
                 break
             time.sleep(0.1)
+        else:
+            ws.close()
+            assert False, "WebSocket connection failed to upgrade"
 
-        assert found, "Did not receive websocket broadcast for study creation"
+        # Wait to receive initial snapshot message
+        time.sleep(2)
+        # Check initial snapshot presence: expect a message with type 'studies_update' containing studies list
+        initial_snapshots = [m for m in ws_messages if isinstance(m, dict) and "type" in m and m["type"] == "studies_update"]
+        assert initial_snapshots, "No initial snapshot message received on WebSocket"
 
-        # Update the study to trigger update broadcast
-        update_payload = {
-            "label": study_payload["label"],
-            "description": "Updated description for websocket test"
-        }
-        resp = requests.put(
-            f"{BASE_URL}/api/v1/studies/{study_id}",
-            headers=HEADERS,
-            json=update_payload,
-            timeout=REQUEST_TIMEOUT,
-        )
-        assert resp.status_code == 200, f"Failed to update study, status code: {resp.status_code}"
+        # Check that the created study is in the initial snapshot
+        studies_list = initial_snapshots[-1].get("data", [])
+        assert any(s.get("id") == study_id and s.get("study_label") == study_label for s in studies_list), "Created study not in initial snapshot"
 
-        # Wait for websocket to receive broadcast of study update
+        # Clear messages for next events
+        ws_messages.clear()
+
+        # Test create event broadcast: create another study
+        new_study_label = f"ws_test_study_create_{int(time.time())}"
+        new_study = create_study(new_study_label)
+        new_study_id = new_study["id"]
+
+        # Wait for create event broadcast
         timeout = time.time() + 10
-        found_update = False
-        while True:
-            for msg in received_messages:
-                if (
-                    isinstance(msg, dict)
-                    and msg.get("action") == "update"
-                    and isinstance(msg.get("data"), dict)
-                    and msg["data"].get("id") == study_id
-                    and msg["data"].get("description") == update_payload["description"]
-                ):
-                    found_update = True
-                    break
-            if found_update or time.time() > timeout:
+        while time.time() < timeout:
+            if any(m.get("type") == "study_created" and m.get("data", {}).get("id") == new_study_id for m in ws_messages):
                 break
             time.sleep(0.1)
+        else:
+            assert False, "Create event not broadcasted via WebSocket"
 
-        assert found_update, "Did not receive websocket broadcast for study update"
+        # Clear messages for update event
+        ws_messages.clear()
 
-        # Delete the study to trigger delete broadcast
-        resp = requests.delete(
-            f"{BASE_URL}/api/v1/studies/{study_id}",
-            headers=HEADERS,
-            timeout=REQUEST_TIMEOUT,
-        )
-        assert resp.status_code == 200, f"Failed to delete study, status code: {resp.status_code}"
+        # Test update event broadcast: update the new study label
+        updated_label = new_study_label + "_updated"
+        updated_study = update_study(new_study_id, updated_label)
 
-        # Wait for websocket to receive broadcast of study deletion
+        # Wait for update event broadcast
         timeout = time.time() + 10
-        found_delete = False
-        while True:
-            for msg in received_messages:
-                if (
-                    isinstance(msg, dict)
-                    and msg.get("action") == "delete"
-                    and isinstance(msg.get("data"), dict)
-                    and msg["data"].get("id") == study_id
-                ):
-                    found_delete = True
-                    break
-            if found_delete or time.time() > timeout:
+        while time.time() < timeout:
+            if any(m.get("type") == "study_updated" and m.get("data", {}).get("id") == new_study_id and m.get("data", {}).get("study_label") == updated_label for m in ws_messages):
                 break
             time.sleep(0.1)
+        else:
+            assert False, "Update event not broadcasted via WebSocket"
 
-        assert found_delete, "Did not receive websocket broadcast for study deletion"
+        # Clear messages for delete event
+        ws_messages.clear()
+
+        # Test delete event broadcast: delete the new study
+        del_resp = delete_study(new_study_id)
+        assert del_resp.status_code == 200, f"Failed to delete study {new_study_id}"
+
+        # Wait for delete event broadcast
+        timeout = time.time() + 10
+        while time.time() < timeout:
+            if any(m.get("type") == "study_deleted" and m.get("data", {}).get("id") == new_study_id for m in ws_messages):
+                break
+            time.sleep(0.1)
+        else:
+            assert False, "Delete event not broadcasted via WebSocket"
 
     finally:
-        # Cleanup: ensure study is deleted if still exists
-        if study_id is not None:
-            try:
-                requests.delete(
-                    f"{BASE_URL}/api/v1/studies/{study_id}",
-                    headers=HEADERS,
-                    timeout=REQUEST_TIMEOUT,
-                )
-            except Exception:
-                pass
-        if ws:
-            ws.close()
+        # Cleanup: delete the first created study
+        delete_study(study_id)
+        ws.close()
+        ws_thread.join(timeout=5)
 
 
-test_websocket_real_time_updates_and_initial_snapshot()
+test_websocket_endpoint_real_time_updates_and_initial_snapshot()
