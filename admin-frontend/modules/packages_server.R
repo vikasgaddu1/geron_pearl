@@ -41,7 +41,7 @@ packages_server <- function(id) {
         df <- convert_packages_to_df(result)
         packages_data(df)
         last_update(Sys.time())
-        update_package_selector()
+        update_package_selector(df)
       }
     }
     
@@ -116,9 +116,13 @@ packages_server <- function(id) {
     }
     
     # Update package selector dropdown
-    update_package_selector <- function() {
-      pkgs <- packages_data()
-      if (nrow(pkgs) > 0) {
+    # Accepts optional df to avoid reactive read outside reactive context
+    update_package_selector <- function(pkgs_df = NULL) {
+      pkgs <- pkgs_df
+      if (is.null(pkgs)) {
+        pkgs <- isolate(packages_data())
+      }
+      if (!is.null(pkgs) && nrow(pkgs) > 0) {
         choices <- setNames(pkgs$ID, pkgs$`Package Name`)
         updateSelectInput(session, "selected_package", choices = choices)
       } else {
@@ -181,7 +185,7 @@ packages_server <- function(id) {
     
     # Toggle add package form
     observeEvent(input$toggle_add_form, {
-      toggle_sidebar(ns("add_package_sidebar"))
+      sidebar_toggle(id = "add_package_sidebar")
       updateTextInput(session, "new_package_name", value = "")
       iv_new$enable()
     })
@@ -208,7 +212,7 @@ packages_server <- function(id) {
             duration = 3
           )
           
-          toggle_sidebar(ns("add_package_sidebar"))
+          sidebar_toggle(id = "add_package_sidebar")
           updateTextInput(session, "new_package_name", value = "")
           iv_new$disable()
           
@@ -219,7 +223,7 @@ packages_server <- function(id) {
     
     # Cancel new package
     observeEvent(input$cancel_new_package, {
-      toggle_sidebar(ns("add_package_sidebar"))
+      sidebar_toggle(id = "add_package_sidebar")
       updateTextInput(session, "new_package_name", value = "")
     })
     
