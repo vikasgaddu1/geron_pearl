@@ -148,6 +148,20 @@ backend/
 - `PUT /api/v1/studies/{study_id}` - Update study
 - `DELETE /api/v1/studies/{study_id}` - Delete study
 
+### Packages CRUD
+- `POST /api/v1/packages` - Create a new package
+- `GET /api/v1/packages` - List all packages (with pagination)
+- `GET /api/v1/packages/{id}` - Get package by ID with items
+- `PUT /api/v1/packages/{id}` - Update package
+- `DELETE /api/v1/packages/{id}` - Delete package (protected if items exist)
+
+### Package Items CRUD
+- `POST /api/v1/packages/{id}/items` - Create package item with details
+- `GET /api/v1/packages/{id}/items` - Get all items for a package
+- `GET /api/v1/packages/items/{id}` - Get specific package item
+- `PUT /api/v1/packages/items/{id}` - Update package item
+- `DELETE /api/v1/packages/items/{id}` - Delete package item
+
 ### Documentation
 - `GET /docs` - Swagger UI documentation
 - `GET /redoc` - ReDoc documentation
@@ -190,6 +204,15 @@ curl -X DELETE "http://localhost:8000/api/v1/studies/1"
 |--------|------|-------------|
 | id | INTEGER | PRIMARY KEY, AUTOINCREMENT |
 | study_label | VARCHAR(255) | NOT NULL, INDEXED |
+
+### Packages Tables
+- **packages** - Main package table (id, package_name, timestamps)
+- **package_items** - Polymorphic items table for TLFs and Datasets
+  - Unique constraint: (package_id, item_type, item_subtype, item_code)
+- **package_tlf_details** - TLF-specific attributes (title_id, population_flag_id)
+- **package_dataset_details** - Dataset-specific attributes (label, sorting_order, acronyms)
+- **package_item_footnotes** - Junction table for footnote associations
+- **package_item_acronyms** - Junction table for acronym associations
 
 ## Development
 

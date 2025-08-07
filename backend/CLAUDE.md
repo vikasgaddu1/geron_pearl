@@ -520,6 +520,121 @@ curl -X POST /api/v1/text-elements/ -d '{"type": "title", "label": "STUDY ANALYS
 # Returns: "A title with similar content already exists: 'Study Analysis Title'. Duplicate text elements are not allowed (comparison ignores spaces and case)."
 ```
 
+## Packages System (Implemented August 2025)
+
+**📦 CURRENT FUNCTIONALITY**: Comprehensive package management system for organizing TLFs (Tables, Listings, Figures) and Datasets with study associations.
+
+### System Overview
+
+**Purpose**: Organize and manage research outputs (TLFs and Datasets) into packages with full relationship tracking
+**Key Features**:
+- Polymorphic item system supporting TLF and Dataset types
+- Detailed metadata storage for each item type
+- Many-to-many relationships with text elements (footnotes, acronyms)
+- Full CRUD operations with WebSocket real-time updates
+- Deletion protection to maintain referential integrity
+
+### Database Schema
+
+**Six interconnected tables**:
+
+1. **packages** - Main package table
+   - ID: Primary key, auto-increment
+   - package_name: VARCHAR(255), indexed
+   - Created/Updated: Timestamp audit trail
+
+2. **package_items** - Polymorphic items table
+   - ID: Primary key
+   - package_id: FK to packages
+   - study_id: FK to studies
+   - item_type: Enum (TLF, Dataset)
+   - item_subtype: VARCHAR(50) - Table/Listing/Figure for TLF, SDTM/ADaM for Dataset
+   - item_code: VARCHAR(255) - TLF ID or dataset name
+   - UNIQUE: (package_id, item_type, item_subtype, item_code)
+
+3. **package_tlf_details** - TLF-specific attributes
+   - package_item_id: FK to package_items (unique)
+   - title_id: FK to text_elements (optional)
+   - population_flag_id: FK to text_elements (optional)
+
+4. **package_dataset_details** - Dataset-specific attributes
+   - package_item_id: FK to package_items (unique)
+   - label: VARCHAR(255) - Dataset description
+   - sorting_order: Integer for display ordering
+   - acronyms: Text/JSON field for dataset-specific acronyms
+
+5. **package_item_footnotes** - Junction table
+   - package_item_id: FK to package_items (PK)
+   - footnote_id: FK to text_elements (PK)
+   - sequence_number: Integer for ordering
+
+6. **package_item_acronyms** - Junction table
+   - package_item_id: FK to package_items (PK)
+   - acronym_id: FK to text_elements (PK)
+
+### API Endpoints
+
+**Package Management** (`/api/v1/packages/`):
+- `POST /` - Create new package with duplicate name checking
+- `GET /` - List packages with pagination
+- `GET /{id}` - Get package with all items
+- `PUT /{id}` - Update package with validation
+- `DELETE /{id}` - Delete package (protected if items exist)
+
+**Package Item Management**:
+- `POST /packages/{id}/items` - Create item with all details
+- `GET /packages/{id}/items` - Get all items for a package
+- `GET /packages/items/{id}` - Get specific item with details
+- `PUT /packages/items/{id}` - Update item
+- `DELETE /packages/items/{id}` - Delete item and associations
+
+### WebSocket Real-time Events
+
+**Package events**:
+- `package_created` - New package added
+- `package_updated` - Package modified
+- `package_deleted` - Package removed
+
+**Package Item events**:
+- `package_item_created` - New item added
+- `package_item_updated` - Item modified
+- `package_item_deleted` - Item removed
+
+### CRUD Implementation Details
+
+**Complex Creation Pattern** (`PackageItemCRUD.create_with_details`):
+```python
+# Creates item with all relationships in single transaction
+# 1. Create main package_item
+# 2. Create type-specific details (TLF or Dataset)
+# 3. Create footnote associations
+# 4. Create acronym associations
+# Returns fully loaded item with all relationships
+```
+
+**Deletion Protection**:
+- Packages cannot be deleted if package_items exist
+- Error messages list first 5 dependent items
+- Follow pattern from Study/DatabaseRelease deletion
+
+### Testing
+
+**Functional Test Script**: `test_packages_crud.sh`
+- Complete CRUD operations for packages and items
+- Tests both TLF and Dataset item types
+- Validates deletion protection
+- Verifies unique constraints
+- Tests WebSocket broadcasting
+
+### Key Implementation Notes
+
+1. **Polymorphic Design**: Single package_items table with type discriminator
+2. **Type Safety**: Pydantic validators ensure correct details for each item type
+3. **Efficient Loading**: Uses SQLAlchemy selectinload for relationships
+4. **Transaction Safety**: Complex operations use flush() for ID generation
+5. **Enum Handling**: ItemType enum properly serialized in WebSocket events
+6. **Migration**: Comprehensive migration with all indexes and constraints
+
 ## WebSocket Implementation Details
 
 > **📡 Critical WebSocket patterns for Claude Code development**

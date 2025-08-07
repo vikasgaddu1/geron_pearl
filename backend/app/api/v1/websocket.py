@@ -313,3 +313,53 @@ async def broadcast_text_element_deleted(text_element_data):
     message = broadcast_message("text_element_deleted", sqlalchemy_to_dict(text_element_data))
     await manager.broadcast(message)
     logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+
+
+# Package WebSocket broadcasting functions
+async def broadcast_package_created(package_data):
+    """Broadcast that a new package was created."""
+    logger.info(f"🚀 Broadcasting package_created: {package_data.package_name}")
+    message = broadcast_message("package_created", sqlalchemy_to_dict(package_data))
+    await manager.broadcast(message)
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_package_updated(package_data):
+    """Broadcast that a package was updated."""
+    logger.info(f"📝 Broadcasting package_updated: {package_data.package_name}")
+    message = broadcast_message("package_updated", sqlalchemy_to_dict(package_data))
+    await manager.broadcast(message)
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_package_deleted(package_data):
+    """Broadcast that a package was deleted."""
+    logger.info(f"🗑️ Broadcasting package_deleted: {package_data.package_name} - ID {package_data.id}")
+    message = broadcast_message("package_deleted", sqlalchemy_to_dict(package_data))
+    await manager.broadcast(message)
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+
+
+# PackageItem WebSocket broadcasting functions
+async def broadcast_package_item_created(package_item_data):
+    """Broadcast that a new package item was created."""
+    logger.info(f"🚀 Broadcasting package_item_created: {package_item_data.item_code}")
+    message = broadcast_message("package_item_created", sqlalchemy_to_dict(package_item_data))
+    await manager.broadcast(message)
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_package_item_updated(package_item_data):
+    """Broadcast that a package item was updated."""
+    logger.info(f"📝 Broadcasting package_item_updated: {package_item_data.item_code}")
+    message = broadcast_message("package_item_updated", sqlalchemy_to_dict(package_item_data))
+    await manager.broadcast(message)
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_package_item_deleted(package_item_data):
+    """Broadcast that a package item was deleted."""
+    logger.info(f"🗑️ Broadcasting package_item_deleted: {package_item_data.item_code} - ID {package_item_data.id}")
+    message = broadcast_message("package_item_deleted", sqlalchemy_to_dict(package_item_data))
+    await manager.broadcast(message)
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")

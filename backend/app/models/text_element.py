@@ -1,7 +1,7 @@
 """TextElement SQLAlchemy model."""
 
 from sqlalchemy import String, Enum, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 import enum
 
 from app.db.base import Base
@@ -33,6 +33,10 @@ class TextElement(Base, TimestampMixin):
         nullable=False,
         doc="Text content for the element"
     )
+    
+    # Relationships - These are for reference and won't be used directly
+    # package_item_footnotes = relationship("PackageItemFootnote", back_populates="footnote")
+    # package_item_acronyms = relationship("PackageItemAcronym", back_populates="acronym")
     
     def __repr__(self) -> str:
         return f"<TextElement(id={self.id}, type={self.type.value}, label='{self.label[:50]}...')>"
