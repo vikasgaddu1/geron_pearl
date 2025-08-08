@@ -19,7 +19,7 @@ packages_ui <- function(id) {
           card_header(
             class = "d-flex justify-content-between align-items-center",
             div(
-              tags$h4(bs_icon("package"), " Packages", class = "mb-0 text-primary"),
+              tags$h4(bs_icon("box-seam"), " Packages", class = "mb-0 text-primary"),
               tags$small("Manage TLF and Dataset packages", class = "text-muted")
             ),
             div(

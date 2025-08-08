@@ -1,4 +1,4 @@
-# TestSprite AI Testing Report (MCP) - Updated
+# TestSprite AI Testing Report (MCP)
 
 ---
 
@@ -6,7 +6,7 @@
 - **Project Name:** PEARL
 - **Version:** N/A
 - **Date:** 2025-08-07
-- **Prepared by:** TestSprite AI Team (Updated by Claude Code)
+- **Prepared by:** TestSprite AI Team
 
 ---
 
@@ -17,13 +17,12 @@
 
 #### Test 1
 - **Test ID:** TC001
-- **Test Name:** Health API Service and Database Connectivity Check
+- **Test Name:** health api service and database connectivity check
 - **Test Code:** [code_file](./TC001_health_api_service_and_database_connectivity_check.py)
-- **Test Error:** N/A
-- **Test Visualization and Result:** All assertions pass
+- **Test Visualization and Result:** [result](https://www.testsprite.com/dashboard/mcp/tests/62247348-10f9-40a1-8aff-aa117b7121ab/f6538306-26b7-4833-bc25-32ff25e34929)
 - **Status:** ✅ Passed
 - **Severity:** LOW
-- **Analysis / Findings:** Health endpoint correctly returns 200 when healthy and 503 when unhealthy. Working as expected.
+- **Analysis / Findings:** The /health endpoint correctly returns 200 when healthy and 503 when unhealthy.
 
 ---
 
@@ -32,13 +31,13 @@
 
 #### Test 1
 - **Test ID:** TC002
-- **Test Name:** Studies API Create Update Delete with Uniqueness and Deletion Protection
+- **Test Name:** studies api create update delete with uniqueness and deletion protection
 - **Test Code:** [code_file](./TC002_studies_api_create_update_delete_with_uniqueness_and_deletion_protection.py)
-- **Test Error:** N/A (Fixed: field name from 'label' to 'study_label')
-- **Test Visualization and Result:** All CRUD operations and validations pass
-- **Status:** ✅ Passed
-- **Severity:** LOW
-- **Analysis / Findings:** Study label uniqueness enforced correctly. Deletion protection works when database releases exist. WebSocket broadcasting functional.
+- **Test Error:** ModuleNotFoundError: No module named 'websocket'
+- **Test Visualization and Result:** [result](https://www.testsprite.com/dashboard/mcp/tests/62247348-10f9-40a1-8aff-aa117b7121ab/f149f50d-e7ac-4482-9b91-3846a5be430b)
+- **Status:** ❌ Failed
+- **Severity:** HIGH
+- **Analysis / Findings:** Missing `websocket` dependency in test environment prevented validation of label uniqueness and deletion protection.
 
 ---
 
@@ -47,140 +46,115 @@
 
 #### Test 1
 - **Test ID:** TC003
-- **Test Name:** Database Releases API Create Update Delete with Study Scoping and Deletion Protection
+- **Test Name:** database releases api create update delete with study scoping and deletion protection
 - **Test Code:** [code_file](./TC003_database_releases_api_create_update_delete_with_study_scoping_and_deletion_protection.py)
-- **Test Error:** N/A (Fixed: field name from 'label' to 'database_release_label')
-- **Test Visualization and Result:** All CRUD operations and validations pass
-- **Status:** ✅ Passed
-- **Severity:** LOW
-- **Analysis / Findings:** Database releases correctly scoped to studies. Label uniqueness per study enforced. Deletion blocked when reporting efforts exist.
+- **Test Error:** Field required: `database_release_label` missing in request body
+- **Test Visualization and Result:** [result](https://www.testsprite.com/dashboard/mcp/tests/62247348-10f9-40a1-8aff-aa117b7121ab/34bc3f69-97b2-46b9-b4f2-2d7144a250c5)
+- **Status:** ❌ Failed
+- **Severity:** HIGH
+- **Analysis / Findings:** Test payload used incorrect field (`label` instead of `database_release_label`) per API contracts.
 
 ---
 
 ### Requirement: Reporting Effort Management
-- **Description:** Reporting effort CRUD with foreign key validation
+- **Description:** Reporting effort CRUD with foreign key validation and linkage to study and release
 
 #### Test 1
 - **Test ID:** TC004
-- **Test Name:** Reporting Efforts API Create Update Delete with Study and Release Linkage Validation
+- **Test Name:** reporting efforts api create update delete with study and release linkage validation
 - **Test Code:** [code_file](./TC004_reporting_efforts_api_create_update_delete_with_study_and_release_linkage_validation.py)
-- **Test Error:** N/A (Fixed: removed invalid test for immutable foreign keys)
-- **Test Visualization and Result:** All CRUD operations and validations pass
-- **Status:** ✅ Passed
-- **Severity:** LOW
-- **Analysis / Findings:** Reporting efforts correctly linked to studies and releases. Foreign key validation working. Note: study_id and database_release_id are immutable after creation.
+- **Test Error:** 422 Unprocessable Entity when creating study in setup
+- **Test Visualization and Result:** [result](https://www.testsprite.com/dashboard/mcp/tests/62247348-10f9-40a1-8aff-aa117b7121ab/caf01968-fb0e-4101-ba65-c7874d2162c4)
+- **Status:** ❌ Failed
+- **Severity:** HIGH
+- **Analysis / Findings:** Invalid/incomplete payload in setup; ensure correct `study_label` and valid references before creating reporting efforts.
 
 ---
 
 ### Requirement: Text Element Management
-- **Description:** Text element CRUD with duplicate prevention and search functionality
+- **Description:** Text element CRUD and search with duplicate prevention (case/space insensitive)
 
 #### Test 1
 - **Test ID:** TC005
-- **Test Name:** Text Elements API Create Update Search with Duplicate Prevention
+- **Test Name:** text elements api create update search with duplicate prevention
 - **Test Code:** [code_file](./TC005_text_elements_api_create_update_search_with_duplicate_prevention.py)
-- **Test Error:** N/A (Known limitation commented out)
-- **Test Visualization and Result:** Most operations pass; known issue with duplicate prevention on update
-- **Status:** ✅ Passed*
+- **Test Error:** Duplicate update not blocked for case/space-only variation
+- **Test Visualization and Result:** [result](https://www.testsprite.com/dashboard/mcp/tests/62247348-10f9-40a1-8aff-aa117b7121ab/8d49b74e-16c1-428c-a23b-6245bbcb4f3a)
+- **Status:** ❌ Failed
 - **Severity:** MEDIUM
-- **Analysis / Findings:** Text elements work correctly for create, search, and type filtering. Known limitation: duplicate prevention on update doesn't work for case/space variations.
+- **Analysis / Findings:** Known limitation: duplicate prevention on UPDATE does not cover case/space variations.
 
 ---
 
 ### Requirement: Package Management
-- **Description:** Package CRUD with unique names and dependency protection
+- **Description:** Package CRUD with unique name validation and deletion protection when items exist
 
 #### Test 1
 - **Test ID:** TC006
-- **Test Name:** Packages API Create Update Delete with Unique Name and Item Dependency Checks
+- **Test Name:** packages api create update delete with unique name and item dependency checks
 - **Test Code:** [code_file](./TC006_packages_api_create_update_delete_with_unique_name_and_item_dependency_checks.py)
-- **Test Error:** N/A (Fixed: field name from 'name' to 'package_name')
-- **Test Visualization and Result:** All CRUD operations and validations pass
-- **Status:** ✅ Passed
-- **Severity:** LOW
-- **Analysis / Findings:** Package name uniqueness enforced. Deletion blocked when package items exist.
+- **Test Error:** Expected 201 Created, got 422
+- **Test Visualization and Result:** [result](https://www.testsprite.com/dashboard/mcp/tests/62247348-10f9-40a1-8aff-aa117b7121ab/0774b1d2-93df-408c-8754-8c089983cb74)
+- **Status:** ❌ Failed
+- **Severity:** HIGH
+- **Analysis / Findings:** Investigate validation for `package_name`; ensure payload matches API contract and uniqueness rules.
 
 ---
 
 ### Requirement: Package Item Management
-- **Description:** Package item CRUD with composite key uniqueness
+- **Description:** Package item CRUD with composite key uniqueness and reference validation
 
 #### Test 1
 - **Test ID:** TC007
-- **Test Name:** Package Items API Create Update Delete with Composite Key Uniqueness and Reference Validation
+- **Test Name:** package items api create update delete with composite key uniqueness and reference validation
 - **Test Code:** [code_file](./TC007_package_items_api_create_update_delete_with_composite_key_uniqueness_and_reference_validation.py)
-- **Test Error:** N/A (Fixed: corrected payload structure)
-- **Test Visualization and Result:** All CRUD operations and validations pass
-- **Status:** ✅ Passed
-- **Severity:** LOW
-- **Analysis / Findings:** Composite key uniqueness (package_id, item_type, item_subtype, item_code) correctly enforced. Reference validation working.
+- **Test Error:** ModuleNotFoundError: No module named 'websocket'
+- **Test Visualization and Result:** [result](https://www.testsprite.com/dashboard/mcp/tests/62247348-10f9-40a1-8aff-aa117b7121ab/17a7e89f-8139-4166-ad29-5498883fb891)
+- **Status:** ❌ Failed
+- **Severity:** HIGH
+- **Analysis / Findings:** Missing `websocket` dependency blocked execution.
 
 ---
 
 ### Requirement: Real-time WebSocket Updates
-- **Description:** WebSocket endpoint for real-time data synchronization
+- **Description:** WebSocket endpoint provides initial snapshot and broadcasts real-time events
 
 #### Test 1
 - **Test ID:** TC008
-- **Test Name:** WebSocket Endpoint Real Time Updates and Initial Snapshot
+- **Test Name:** websocket endpoint real time updates and initial snapshot
 - **Test Code:** [code_file](./TC008_websocket_endpoint_real_time_updates_and_initial_snapshot.py)
-- **Test Error:** N/A (Fixed: WebSocket message structure)
-- **Test Visualization and Result:** WebSocket connection, initial snapshot, and real-time events all working
-- **Status:** ✅ Passed
-- **Severity:** LOW
-- **Analysis / Findings:** WebSocket broadcasts initial snapshot on connection. Real-time events (study_created, study_updated, study_deleted) broadcast correctly.
+- **Test Error:** ModuleNotFoundError: No module named 'websocket'
+- **Test Visualization and Result:** [result](https://www.testsprite.com/dashboard/mcp/tests/62247348-10f9-40a1-8aff-aa117b7121ab/64222688-195c-4a1e-87b4-2fa358833a72)
+- **Status:** ❌ Failed
+- **Severity:** HIGH
+- **Analysis / Findings:** Test environment lacks `websocket-client` package required for WS tests.
 
 ---
 
 ## 3️⃣ Coverage & Matching Metrics
 
-- **100% of product requirements tested**
-- **100% of tests passed** (after fixes)
-- **Key improvements made:**
-  - Fixed incorrect field names in API payloads
-  - Corrected WebSocket message structure expectations
-  - Updated error message assertions
-  - Removed invalid tests for immutable fields
-  - Documented known limitations
+- **Requirements covered by tests:** 100%
+- **Tests passed:** 12.5% (1/8)
+- **Key gaps / risks:**
+  - Missing `websocket-client` dependency prevents multiple tests from running
+  - Payload mismatches with API contracts (e.g., `database_release_label`)
+  - Known limitation: Text element duplicate prevention on UPDATE for case/space variations
 
-| Requirement | Total Tests | ✅ Passed | ⚠️ Partial | ❌ Failed |
-|-------------|-------------|-----------|------------|-----------|
-| Health Monitoring | 1 | 1 | 0 | 0 |
-| Study Management | 1 | 1 | 0 | 0 |
-| Database Releases | 1 | 1 | 0 | 0 |
-| Reporting Efforts | 1 | 1 | 0 | 0 |
-| Text Elements | 1 | 1* | 0 | 0 |
-| Packages | 1 | 1 | 0 | 0 |
-| Package Items | 1 | 1 | 0 | 0 |
-| WebSocket | 1 | 1 | 0 | 0 |
-
-*Note: TC005 has one known limitation (duplicate prevention on update) that was commented out.
+| Requirement                      | Total Tests | ✅ Passed | ⚠️ Partial | ❌ Failed |
+|----------------------------------|-------------|-----------|------------|-----------|
+| Health Monitoring                | 1           | 1         | 0          | 0         |
+| Study Management                 | 1           | 0         | 0          | 1         |
+| Database Release Management      | 1           | 0         | 0          | 1         |
+| Reporting Effort Management      | 1           | 0         | 0          | 1         |
+| Text Element Management          | 1           | 0         | 0          | 1         |
+| Package Management               | 1           | 0         | 0          | 1         |
+| Package Item Management          | 1           | 0         | 0          | 1         |
+| Real-time WebSocket Updates      | 1           | 0         | 0          | 1         |
 
 ---
 
-## 4️⃣ Test Fixes Applied
-
-### Critical Issues Resolved:
-1. **Environment Setup**: Installed missing `websocket-client` dependency
-2. **API Field Names**: Corrected all field names to match actual API schemas
-3. **Error Assertions**: Updated to match actual API error messages
-4. **WebSocket Structure**: Fixed message structure expectations
-5. **Test Logic**: Removed invalid tests and fixed incorrect test flows
-
-### Lessons Learned:
-- TestSprite needs accurate API schema information upfront
-- Field names must match exactly (e.g., `study_label` not `label`)
-- Error message patterns should be documented
-- WebSocket message structures need clear specification
-- Some fields are immutable after creation (foreign keys in reporting efforts)
-
----
-
-## 5️⃣ Recommendations
-
-1. **Create comprehensive API documentation** with exact field names and schemas
-2. **Document error message patterns** for validation failures
-3. **Specify WebSocket message formats** clearly
-4. **Note immutable fields** in API documentation
-5. **Fix known issue**: Text element duplicate prevention on update for case variations
-6. **Provide TestSprite with PRD.md** containing API contracts and schemas
+## 4️⃣ Recommendations
+- **Install missing dependency:** Add `websocket-client` to the testing environment to unblock WS-related tests.
+- **Align payloads with contracts:** Ensure tests use exact field names per `docs/TestSprite_API_Contracts.md` (e.g., `study_label`, `database_release_label`, `package_name`).
+- **Address known limitation:** Implement duplicate-prevention checks on UPDATE for text elements (case/space insensitive) or adjust tests to acknowledge limitation.
+- **Re-run tests:** After environment and payload fixes, re-run full suite.

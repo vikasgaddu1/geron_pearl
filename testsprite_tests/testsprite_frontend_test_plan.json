@@ -1,0 +1,680 @@
+[
+  {
+    "id": "TC001",
+    "title": "Health API Endpoint Success",
+    "description": "Verify that the health API endpoint returns status 200 and correct service and database connectivity state when the system is healthy.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send GET request to /health endpoint"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP response status is 200"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response payload indicates service is healthy and database connectivity is confirmed"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Health API Endpoint Failure Handling",
+    "description": "Verify that the health API endpoint returns status 503 and correct unhealthy state when the backend service or database is unreachable.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Simulate database connectivity failure"
+      },
+      {
+        "type": "action",
+        "description": "Send GET request to /health endpoint"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP response status is 503"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response payload indicates service unhealthy state"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Create Study with Unique Label",
+    "description": "Validate that creating a new study with a unique label succeeds and broadcasts the creation event via WebSocket.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send POST request to /api/v1/studies with unique study label"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP status 201 Created is returned"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response body contains created study details with correct label"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify WebSocket clients receive create event notification with correct study data"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Create Study with Duplicate Label",
+    "description": "Verify that attempting to create a study with a label that already exists returns HTTP 400 with an appropriate error message.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send POST request to /api/v1/studies with a label already in use (case insensitive and trimmed)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP status 400 Bad Request is returned"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response error message indicates duplicate label violation"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Get Study by Valid ID",
+    "description": "Verify retrieving an existing study by valid ID returns 200 with correct study details.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send GET request to /api/v1/studies/{study_id} with a valid existing study ID"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP status 200 OK"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response body contains correct study data including label and identifiers"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Get Study by Invalid ID",
+    "description": "Verify that requesting a study by a non-existent ID returns 404 Not Found.",
+    "category": "error handling",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send GET request to /api/v1/studies/{study_id} with non-existent study ID"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP status 404 Not Found"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Update Study with Unique Label",
+    "description": "Verify updating a study's label to a new unique value succeeds and broadcasts update event.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send PUT request to /api/v1/studies/{study_id} with new unique label"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP status 200 OK"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify study label updated in response"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify WebSocket clients receive update event with correct updated data"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Update Study with Duplicate Label",
+    "description": "Verify updating a study's label to an existing label returns 400 with duplicate error.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send PUT request to /api/v1/studies/{study_id} with label already assigned to another study"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP 400 Bad Request"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify error message indicates duplicate label violation"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Delete Study Without Dependent Releases",
+    "description": "Verify that deleting a study without dependent database releases succeeds and broadcasts delete event.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Ensure the study has no linked database releases"
+      },
+      {
+        "type": "action",
+        "description": "Send DELETE request to /api/v1/studies/{study_id}"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP status 200 OK"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify study is removed from system"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify WebSocket clients receive delete event for the study"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Delete Study With Dependent Releases Blocked",
+    "description": "Verify that deleting a study with linked database releases fails with HTTP 400 and descriptive error message.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Ensure the study has one or more linked database releases"
+      },
+      {
+        "type": "action",
+        "description": "Send DELETE request to /api/v1/studies/{study_id}"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP status 400 Bad Request"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify error message indicates deletion is blocked due to dependent database releases"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Create Database Release With Unique Label Within Study",
+    "description": "Verify creation of a database release with label unique within its study succeeds and broadcasts creation event.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send POST request to /api/v1/database-releases with a unique label scoped to an existing study"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP status 201 Created"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response contains created release details including label and linked study"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify WebSocket clients receive create event for new database release"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Create Database Release Duplicate Label Within Same Study",
+    "description": "Verify attempting to create a database release with a label already existing within the same study returns HTTP 400 error.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send POST request to /api/v1/database-releases with a label that duplicates another release label under the same study"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP status 400 Bad Request"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify error message indicates duplicate label within study"
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Delete Database Release Without Dependent Reporting Efforts",
+    "description": "Verify deleting a database release without linked reporting efforts succeeds and broadcasts deletion event.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Ensure the database release has no linked reporting efforts"
+      },
+      {
+        "type": "action",
+        "description": "Send DELETE request to /api/v1/database-releases/{database_release_id}"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP status 200 OK"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify database release is deleted and removed in response"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify WebSocket clients receive delete event for database release"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "Delete Database Release Blocked Due to Reporting Efforts",
+    "description": "Verify that deleting a database release with dependent reporting efforts fails with HTTP 400 and appropriate error message.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Ensure the database release has one or more linked reporting efforts"
+      },
+      {
+        "type": "action",
+        "description": "Send DELETE request to /api/v1/database-releases/{database_release_id}"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP status 400 Bad Request"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response error indicates deletion is blocked due to linked reporting efforts"
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Create Reporting Effort with Valid Study and Release",
+    "description": "Verify creating a reporting effort linked to existing study and database release succeeds and broadcasts the event.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send POST request to /api/v1/reporting-efforts with valid references to existing study and database release"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP status 201 Created"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response contains created reporting effort details with study and release association"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify WebSocket clients receive create event for reporting effort"
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "Create Reporting Effort with Foreign Key Mismatch",
+    "description": "Verify that creating a reporting effort linked to a database release not belonging to the specified study returns HTTP 400 error.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send POST request to /api/v1/reporting-efforts with mismatched study_id and database_release_id"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP status 400 Bad Request"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify error messaging indicates foreign key mismatch"
+      }
+    ]
+  },
+  {
+    "id": "TC017",
+    "title": "CRUD Operations for Text Elements with Duplicate Prevention",
+    "description": "Validate CRUD APIs for text elements enforcing duplicate prevention insensitive to case and spaces, across all four text types.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Create a text element of a given type with a unique label"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify creation succeeds with 201 status"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to create another text element of same type with label differing only by case or spaces"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify API returns 400 indicating duplicate"
+      },
+      {
+        "type": "action",
+        "description": "Update existing text element to label violating duplicate rule"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify update blocked with 400 duplicate error"
+      },
+      {
+        "type": "action",
+        "description": "Delete text element by valid ID"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify deletion returns 200 and text element no longer available"
+      },
+      {
+        "type": "action",
+        "description": "Request text elements filtered by type with pagination"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify correct subset of text elements returned with expected pagination"
+      },
+      {
+        "type": "action",
+        "description": "Perform full-text search on text elements by label substring"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify search results contain expected matching text elements"
+      }
+    ]
+  },
+  {
+    "id": "TC018",
+    "title": "Create Package with Unique Name",
+    "description": "Verify package creation enforces unique name constraint and broadcasts create events successfully.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send POST request to /api/v1/packages with unique package name"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP 201 Created response"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify create event broadcast is received on WebSocket"
+      }
+    ]
+  },
+  {
+    "id": "TC019",
+    "title": "Create Package Duplicate Name",
+    "description": "Verify that creating a package with a name already in use returns 400 with descriptive error.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send POST request to /api/v1/packages with a duplicate name"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP 400 Bad Request with duplicate name error"
+      }
+    ]
+  },
+  {
+    "id": "TC020",
+    "title": "Create Polymorphic Package Items with Unique Composite Key",
+    "description": "Verify creation of package items (TLF and Dataset) enforces unique composite key constraints and references must exist.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send POST request to /api/v1/packages/{package_id}/items with valid polymorphic details and unique composite key"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP 201 Created response with correct item data"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to create another item with same composite key"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify 400 Bad Request duplicate composite key error"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to create item with missing referenced Package or Study"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify 404 Not Found error indicating missing references"
+      }
+    ]
+  },
+  {
+    "id": "TC021",
+    "title": "Delete Package Blocked When Dependent Items Exist",
+    "description": "Verify that attempting to delete a package with dependent items fails with 400 and appropriate error message.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Ensure the package has one or more dependent items"
+      },
+      {
+        "type": "action",
+        "description": "Send DELETE request to /api/v1/packages/{package_id}"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify HTTP 400 Bad Request"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response indicates deletion blocked due to dependent items"
+      }
+    ]
+  },
+  {
+    "id": "TC022",
+    "title": "WebSocket Subscription Provides Initial Snapshot and Broadcasts",
+    "description": "Verify the WebSocket endpoint for studies sends initial data snapshot upon connection and broadcasts create/update/delete events correctly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Open WebSocket connection to /api/v1/ws/studies"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify initial snapshot of studies is received immediately upon connection"
+      },
+      {
+        "type": "action",
+        "description": "Perform create, update, and delete operations on Study via REST API"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify corresponding real-time events (create, update, delete) are received via WebSocket with correctly serialized data, including enums and timestamps"
+      },
+      {
+        "type": "action",
+        "description": "Send a refresh action message over WebSocket to request resync"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify fresh snapshot is received in response"
+      }
+    ]
+  },
+  {
+    "id": "TC023",
+    "title": "Frontend Form Validation and Backend Error Parsing",
+    "description": "Verify frontend R Shiny admin dashboard validates form inputs with immediate feedback, correctly parses backend error messages, and displays user-friendly messages.",
+    "category": "ui",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Open Study creation form in R Shiny frontend"
+      },
+      {
+        "type": "action",
+        "description": "Enter invalid data (e.g., empty label, invalid characters) and observe immediate validation feedback"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify frontend prevents submission and visually indicates input errors"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to create a study with a duplicate label that passes frontend checks but triggers backend error"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify frontend parses the backend HTTP 400 error response and displays a clear, user-friendly error message"
+      },
+      {
+        "type": "action",
+        "description": "Simulate WebSocket disconnection in frontend"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify frontend shows connection lost indicator and attempts automatic reconnect"
+      }
+    ]
+  },
+  {
+    "id": "TC024",
+    "title": "Pagination and Performance for List Endpoints",
+    "description": "Verify that list endpoints support pagination parameters correctly and ORM optimized loading reduces query times.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send GET request to /api/v1/studies with skip and limit query parameters"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify returned list respects pagination parameters"
+      },
+      {
+        "type": "action",
+        "description": "Send GET request to /api/v1/text-elements with pagination and type filtering"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response contains expected subset and filters correctly applied"
+      },
+      {
+        "type": "action",
+        "description": "Monitor query count and response times for list API calls"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify efficient ORM loading strategies (selectinload) reduce database queries as expected"
+      }
+    ]
+  },
+  {
+    "id": "TC025",
+    "title": "OpenAPI Documentation Accessible and Accurate",
+    "description": "Verify that the OpenAPI specification endpoints (/docs and /redoc) load correctly and accurately describe all API endpoints and their parameters.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Access OpenAPI doc UI at /docs"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify UI loads without errors and all API endpoints including parameters, responses, and descriptions are present"
+      },
+      {
+        "type": "action",
+        "description": "Access Redoc UI at /redoc"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify UI loads and displays complete API contract"
+      }
+    ]
+  },
+  {
+    "id": "TC026",
+    "title": "Consistent Model Validation After Schema Changes",
+    "description": "Verify that model validation between SQLAlchemy and Pydantic schemas align correctly after schema or model changes, preventing validation errors during CRUD operations.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Make schema/model changes introducing new required/optional fields"
+      },
+      {
+        "type": "action",
+        "description": "Perform create and update operations on the affected resource"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify validation passes or returns consistent errors according to updated schema between ORM and API input validation"
+      }
+    ]
+  }
+]

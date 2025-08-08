@@ -1,52 +1,42 @@
 [
   {
     "id": "TC001",
-    "title": "health api service liveness and db connectivity check",
-    "description": "Test the /health GET endpoint to verify that the service returns 200 when healthy and 503 when the database connectivity is down."
+    "title": "health api service and database connectivity check",
+    "description": "Test the /health GET endpoint to verify it returns 200 when the service and database are healthy, and 503 when unhealthy."
   },
   {
     "id": "TC002",
-    "title": "studies api create study with uniqueness and websocket broadcast",
-    "description": "Test POST /api/v1/studies to create a new study ensuring duplicate labels are rejected with 400, and successful creation returns 201 and triggers a WebSocket broadcast."
+    "title": "studies api create update delete with uniqueness and deletion protection",
+    "description": "Test /api/v1/studies POST, PUT, DELETE endpoints to ensure study label uniqueness is enforced, deletion is blocked if dependent database releases exist, and appropriate status codes and messages are returned."
   },
   {
     "id": "TC003",
-    "title": "database releases api deletion protection with reporting efforts",
-    "description": "Test DELETE /api/v1/database-releases/{database_release_id} to ensure deletion is blocked with 400 if dependent reporting efforts exist, otherwise deletion succeeds with 200."
+    "title": "database releases api create update delete with study scoping and deletion protection",
+    "description": "Test /api/v1/database-releases POST, PUT, DELETE endpoints to verify releases are scoped to studies, label uniqueness per study is enforced, deletion is blocked if reporting efforts exist, and correct error handling is implemented."
   },
   {
     "id": "TC004",
-    "title": "reporting efforts api create and link to study and release",
-    "description": "Test POST /api/v1/reporting-efforts to create a reporting effort linked to a valid study and database release, rejecting foreign key mismatches with 400 and missing references with 404."
+    "title": "reporting efforts api create update delete with study and release linkage validation",
+    "description": "Test /api/v1/reporting-efforts POST, PUT, DELETE endpoints to ensure reporting efforts are correctly linked to studies and database releases, foreign key mismatches are rejected, and proper status codes are returned."
   },
   {
     "id": "TC005",
-    "title": "text elements api duplicate prevention case insensitive",
-    "description": "Test POST and PUT /api/v1/text-elements endpoints to ensure duplicate text elements are prevented case- and space-insensitively, returning 400 on duplicates."
+    "title": "text elements api create update search with duplicate prevention",
+    "description": "Test /api/v1/text-elements POST, PUT, GET, and /api/v1/text-elements/search GET endpoints to verify duplicate prevention logic (case and space insensitive), type filtering, and search functionality work as expected."
   },
   {
     "id": "TC006",
-    "title": "packages api create package with unique name and deletion protection",
-    "description": "Test POST /api/v1/packages to create packages with unique names rejecting duplicates with 400, and DELETE /api/v1/packages/{package_id} to block deletion if dependent items exist."
+    "title": "packages api create update delete with unique name and item dependency checks",
+    "description": "Test /api/v1/packages POST, PUT, DELETE endpoints to ensure package names are unique, deletion is blocked if dependent items exist, and appropriate error responses are returned."
   },
   {
     "id": "TC007",
-    "title": "packages api create polymorphic package item with composite key uniqueness",
-    "description": "Test POST /api/v1/packages/{package_id}/items to create polymorphic package items ensuring composite key uniqueness and proper references, rejecting duplicates or missing refs with 400 or 404."
+    "title": "package items api create update delete with composite key uniqueness and reference validation",
+    "description": "Test /api/v1/packages/{package_id}/items POST and /api/v1/packages/items/{item_id} PUT, DELETE endpoints to verify composite key uniqueness, required references to package and study, and correct error handling."
   },
   {
     "id": "TC008",
     "title": "websocket endpoint real time updates and initial snapshot",
-    "description": "Test WebSocket connection to /api/v1/ws/studies to verify initial snapshot is sent and CRUD operations on studies trigger real-time JSON broadcasts."
-  },
-  {
-    "id": "TC009",
-    "title": "studies api deletion blocked if releases exist",
-    "description": "Test DELETE /api/v1/studies/{study_id} to ensure deletion is blocked with 400 if dependent database releases exist, otherwise deletion succeeds with 200."
-  },
-  {
-    "id": "TC010",
-    "title": "text elements api search by label with filtering and pagination",
-    "description": "Test GET /api/v1/text-elements/search to verify search by label returns correct filtered and paginated results based on query parameters."
+    "description": "Test /api/v1/ws/studies WebSocket endpoint to confirm it upgrades connection, provides initial snapshot of studies, and broadcasts real-time create, update, and delete events correctly."
   }
 ]
