@@ -112,11 +112,11 @@ ui <- page_navbar(
         document.addEventListener('DOMContentLoaded', function() {
           var ws = document.getElementById('ws_badge');
           if (ws && ws.innerHTML.trim() === '') {
-            ws.innerHTML = '<span class="badge bg-danger">WS: Disconnected</span>';
+            ws.innerHTML = '<span class=\'badge bg-danger\'>WS: Disconnected</span>';
           }
           var api = document.getElementById('api_health_badge');
           if (api && api.innerHTML.trim() === '') {
-            api.innerHTML = '<span class="badge bg-danger">API: Unknown</span>';
+            api.innerHTML = '<span class=\'badge bg-danger\'>API: Unknown</span>';
           }
         });
         $(document).on('shiny:connected', function() {

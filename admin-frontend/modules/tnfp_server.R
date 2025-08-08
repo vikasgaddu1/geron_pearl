@@ -185,7 +185,7 @@ tnfp_server <- function(id) {
             columnDefs = list(
               list(targets = 0, width = "25%"), # Type column
               list(targets = 1, width = "55%"), # Content column
-              list(targets = 2, width = "20%", orderable = FALSE, searchable = FALSE, className = "text-center") # Actions column
+              list(targets = 2, orderable = FALSE, searchable = FALSE, className = "text-center dt-nowrap", width = "1%") # Actions column minimal width
             ),
             initComplete = JS(sprintf("function(){ $('#%s thead tr:nth-child(2) th:last input, #%s thead tr:nth-child(2) th:last select').prop('disabled', true).attr('placeholder',''); }", ns("text_elements_table"), ns("text_elements_table"))),
             drawCallback = JS(sprintf("

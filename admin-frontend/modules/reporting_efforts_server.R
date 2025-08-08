@@ -383,7 +383,7 @@ reporting_efforts_server <- function(id) {
             scrollX = TRUE,
             language = list(search = "", searchPlaceholder = "Search (regex supported):"),
             columnDefs = list(
-              list(orderable = FALSE, searchable = FALSE, className = 'text-center', targets = ncol(display_df) - 1),
+              list(orderable = FALSE, searchable = FALSE, className = 'text-center dt-nowrap', width = '1%', targets = ncol(display_df) - 1),
               list(className = 'text-start', targets = 0:(ncol(display_df)-2))
             ),
             initComplete = JS(sprintf("function() { $('#%s thead tr:nth-child(2) th:last input, #%s thead tr:nth-child(2) th:last select').prop('disabled', true).attr('placeholder',''); }", ns("efforts_table"), ns("efforts_table"))),

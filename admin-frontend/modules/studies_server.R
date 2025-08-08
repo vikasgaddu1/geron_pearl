@@ -168,10 +168,9 @@ studies_server <- function(id) {
         options = list(
           dom = 'frtip', # Filter, processing, table, info, pagination
           pageLength = 10,
-          autoWidth = FALSE,
+          autoWidth = TRUE,
           columnDefs = list(
-            list(targets = 0, width = "70%"), # Study column
-            list(targets = 1, width = "30%", orderable = FALSE, searchable = FALSE, className = "text-center") # Actions column
+            list(targets = 1, orderable = FALSE, searchable = FALSE, className = "text-center dt-nowrap", width = "1%") # Actions column minimal width
           ),
           language = list(search = "", searchPlaceholder = "Search (regex supported):"),
           initComplete = JS(sprintf("function(){ $('#%s thead tr:nth-child(2) th:last').html(''); }", ns("studies_table"))),

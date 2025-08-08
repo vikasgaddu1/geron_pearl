@@ -112,7 +112,6 @@ tnfp_ui <- function(id) {
               
               # Main content area
               div(class = "p-3",
-                  div(class = "mb-3", tags$h5("Text Elements", class = "mb-0")),
                   DT::dataTableOutput(ns("text_elements_table")))
             )
           )

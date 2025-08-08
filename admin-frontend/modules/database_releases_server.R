@@ -269,12 +269,10 @@ database_releases_server <- function(id) {
         options = list(
           dom = 'frtip', # Show filter, processing, table, info, pagination
           pageLength = 10,
-          autoWidth = FALSE,
+          autoWidth = TRUE,
           search = list(regex = TRUE, caseInsensitive = TRUE), # Enable regex search
           columnDefs = list(
-            list(targets = 0, width = "35%"), # Study column
-            list(targets = 1, width = "35%"), # Database Release column
-            list(targets = 2, width = "30%", orderable = FALSE, className = "text-center", searchable = FALSE) # Actions column - not searchable
+            list(targets = 2, orderable = FALSE, className = "text-center dt-nowrap", searchable = FALSE, width = "1%") # Actions column minimal width
           ),
           initComplete = JS(sprintf("function(){ $('#%s thead tr:nth-child(2) th:last').html(''); }", ns("releases_table"))),
           language = list(
