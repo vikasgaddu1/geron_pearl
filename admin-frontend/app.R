@@ -100,11 +100,8 @@ ui <- page_navbar(
     useSweetAlert(),
     tags$head(
       tags$title("PEARL Admin"),
-      tags$link(
-        rel = "icon",
-        type = "image/svg+xml",
-        href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='pearl' cx='0.3' cy='0.3'%3E%3Cstop offset='0%25' stop-color='%23ffffff' stop-opacity='0.8'/%3E%3Cstop offset='30%25' stop-color='%23f8f9fa' stop-opacity='0.6'/%3E%3Cstop offset='70%25' stop-color='%23e9ecef' stop-opacity='0.4'/%3E%3Cstop offset='100%25' stop-color='%23adb5bd' stop-opacity='0.8'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='50' r='45' fill='url(%23pearl)' stroke='%236c757d' stroke-width='2'/%3E%3Cellipse cx='35' cy='35' rx='8' ry='12' fill='%23ffffff' opacity='0.7' transform='rotate(-20 35 35)'/%3E%3C/svg%3E"
-      ),
+      # Use a local SVG favicon for better tab rendering
+      tags$link(rel = "icon", type = "image/svg+xml", href = "favicon-pearl.svg"),
       tags$link(rel = "stylesheet", type = "text/css", href = "custom.css"),
       tags$script(HTML(sprintf("const pearlApiUrl = '%s'; const pearlWsPath = '%s';", API_BASE_URL, API_WEBSOCKET_PATH))),
       tags$script(src = "websocket_client.js"),
