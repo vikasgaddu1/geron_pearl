@@ -93,6 +93,7 @@ ui <- page_navbar(
     bs_icon("database-fill", size = "1.2em"),
     " PEARL Admin"
   ),
+  window_title = "PEARL Admin",
   theme = pearl_theme,
   header = tagList(
     # Global dependencies and head content
@@ -107,6 +108,17 @@ ui <- page_navbar(
       tags$script(src = "websocket_client.js"),
       tags$script(src = "shiny_handlers.js"),
       tags$script(HTML("
+        // Provide default red badges so users see status even before Shiny renders
+        document.addEventListener('DOMContentLoaded', function() {
+          var ws = document.getElementById('ws_badge');
+          if (ws && ws.innerHTML.trim() === '') {
+            ws.innerHTML = '<span class="badge bg-danger">WS: Disconnected</span>';
+          }
+          var api = document.getElementById('api_health_badge');
+          if (api && api.innerHTML.trim() === '') {
+            api.innerHTML = '<span class="badge bg-danger">API: Unknown</span>';
+          }
+        });
         $(document).on('shiny:connected', function() {
           console.log('Shiny connected - WebSocket should be initializing...');
         });
@@ -234,12 +246,12 @@ server <- function(input, output, session) {
         req_perform()
       
       if (resp_status(response) == 200) {
-        tags$span(class = "badge bg-success", "API: Healthy")
+        tags$span(id = "api_health_badge", class = "badge bg-success", "API: Healthy")
       } else {
-        tags$span(class = "badge bg-danger", paste0("API: ", resp_status(response)))
+        tags$span(id = "api_health_badge", class = "badge bg-danger", paste0("API: ", resp_status(response)))
       }
     }, error = function(e) {
-      tags$span(class = "badge bg-danger", "API: Unreachable")
+      tags$span(id = "api_health_badge", class = "badge bg-danger", "API: Unreachable")
     })
   })
   
@@ -259,7 +271,7 @@ server <- function(input, output, session) {
       "Disconnected" = "bg-danger",
       "bg-secondary"
     )
-    tags$span(class = paste("badge", badge_class), paste("WS:", status))
+    tags$span(id = "ws_badge", class = paste("badge", badge_class), paste("WS:", status))
   })
 }
 

@@ -122,7 +122,7 @@ reporting_efforts_server <- function(id) {
         releases_df <- data.frame(
           ID = sapply(releases_result, function(x) x$id),
           `Study ID` = sapply(releases_result, function(x) x$study_id),
-          `Release Label` = sapply(releases_result, function(x) x$database_release_label),
+          `Database Release` = sapply(releases_result, function(x) x$database_release_label),
           stringsAsFactors = FALSE,
           check.names = FALSE
         )
@@ -138,7 +138,7 @@ reporting_efforts_server <- function(id) {
         cat("❌ Error loading reporting efforts:", efforts_result$error, "\n")
         output$status_message <- renderText("❌ Error loading reporting efforts")
       } else {
-        efforts_df <- convert_efforts_to_df(efforts_result, studies_data(), database_releases_data())
+         efforts_df <- convert_efforts_to_df(efforts_result, studies_data(), database_releases_data())
         efforts_data(efforts_df)
         last_update(Sys.time())
         cat("✅ Reporting efforts loaded:", nrow(efforts_df), "efforts\n")
@@ -172,7 +172,7 @@ reporting_efforts_server <- function(id) {
         
         if (nrow(filtered_releases) > 0) {
           choices <- setNames(filtered_releases$ID, 
-                             filtered_releases$`Release Label`)
+                             filtered_releases$`Database Release`)
           
           # Update form dropdown
           updateSelectInput(session, "new_database_release_id", 
