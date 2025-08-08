@@ -11,6 +11,21 @@ This is the R Shiny admin frontend for the PEARL research data management system
 **Key Features**: Real-time WebSocket updates, modern Bootstrap 5 UI, multi-user synchronization, comprehensive data management
 **Technology Stack**: R Shiny + bslib + httr2 + WebSocket (JavaScript/R dual clients) + renv
 
+## Recent UI/UX updates (Design A)
+
+- Switched layout to `page_navbar` with grouped menus; removed legacy left-rail navigation
+- Added right-aligned, always-visible status badges: `WS:` (WebSocket) and `API:` (health)
+- Standardized DataTables configuration across modules:
+  - Search placeholder: "Search (regex supported):"
+  - Column filters on top; Actions column is non-searchable/non-sortable and minimal width
+  - Pagination enabled; consistent page lengths
+- Hierarchical edit modals lock parent fields (read-only):
+  - Database Release: Study is read-only, only release can be changed
+  - Reporting Effort: Study and Database Release are read-only, only effort can be changed
+  - TNFP Edit: Type is read-only, only Content can be changed
+- TNFP page: removed redundant "Text Elements" heading for consistency
+- Navbar/window title shows "PEARL Admin"; local pearl SVG favicon added at `www/favicon-pearl.svg`
+
 ## Essential Commands
 
 ### Environment Setup
