@@ -87,212 +87,75 @@ pearl_theme <-  bs_theme(
   "navbar-padding-y" = "1rem",
   "navbar-brand-font-size" = "1.5rem"
 )
-# UI
-ui <- page_sidebar(
+## UI - Design A: Top navbar with contextual sidebars per module
+ui <- page_navbar(
+  title = tagList(
+    bs_icon("database-fill", size = "1.2em"),
+    " PEARL Admin"
+  ),
   window_title = "PEARL Admin",
-  title = div(
-    class = "pearl-topbar d-flex justify-content-between align-items-center w-100 px-3 py-2",
-    span(
-      class = "fw-bold",
-      style = "font-size: 1.2rem;",
-      bs_icon("database-fill", size = "1.2em"),
-      " PEARL Admin"
-    ),
-    div(class = "pearl-darkmode-switch", 
-        input_dark_mode(id = "dark_mode", mode = "light"),
-        textOutput("websocket_status_display", inline = TRUE)
-    )
-  ),
-  sidebar = sidebar(
-    id = "main_sidebar",
-    width = 250,
-    padding = 3,
-    gap = 3,
-
-    # Navigation section
-    card(
-      class = "border border-2",
-      card_header(
-        class = "bg-primary text-white",
-        tags$h6(
-          bs_icon("database"),
-          "Data Management",
-          class = "mb-0 d-flex align-items-center gap-2"
-        )
-      ),
-      card_body(
-        class = "p-2",
-        div(
-          class = "list-group list-group-flush",
-          tags$a(
-            href = "#",
-            class = "list-group-item list-group-item-action d-flex align-items-center gap-2 border-0",
-            onclick = "document.getElementById('main_tabs').querySelector('[data-value=\"data_tab\"]').click();",
-            bs_icon("table"),
-            "Studies"
-          ),
-          tags$a(
-            href = "#",
-            class = "list-group-item list-group-item-action d-flex align-items-center gap-2 border-0",
-            onclick = "document.getElementById('main_tabs').querySelector('[data-value=\"releases_tab\"]').click();",
-            bs_icon("database-gear"),
-            "Database Releases"
-          ),
-          tags$a(
-            href = "#",
-            class = "list-group-item list-group-item-action d-flex align-items-center gap-2 border-0",
-            onclick = "document.getElementById('main_tabs').querySelector('[data-value=\"efforts_tab\"]').click();",
-            bs_icon("journal-plus"),
-            "Reporting Efforts"
-          ),
-          tags$a(
-            href = "#",
-            class = "list-group-item list-group-item-action d-flex align-items-center gap-2 border-0",
-            onclick = "document.getElementById('main_tabs').querySelector('[data-value=\"tnfp_tab\"]').click();",
-            bs_icon("file-text"),
-            "TFL Properties"
-          )
-        )
-      )
-    ),
-
-    # Package Management section
-    card(
-      class = "border border-2",
-      card_header(
-        class = "bg-secondary text-white",
-        tags$h6(
-          bs_icon("box-seam"),
-          "Package Management",
-          class = "mb-0 d-flex align-items-center gap-2"
-        )
-      ),
-      card_body(
-        class = "p-2",
-        div(
-          class = "list-group list-group-flush",
-          tags$a(
-            href = "#",
-            class = "list-group-item list-group-item-action d-flex align-items-center gap-2 border-0",
-            onclick = "document.getElementById('main_tabs').querySelector('[data-value=\"packages_tab\"]').click();",
-            bs_icon("archive"),
-            "Package Registry"
-          ),
-          tags$a(
-            href = "#",
-            class = "list-group-item list-group-item-action d-flex align-items-center gap-2 border-0 text-muted",
-            style = "cursor: not-allowed;",
-            bs_icon("cloud-download"),
-            "Package Installer",
-            tags$small(class = "ms-auto", "(Coming Soon)")
-          ),
-          tags$a(
-            href = "#",
-            class = "list-group-item list-group-item-action d-flex align-items-center gap-2 border-0 text-muted",
-            style = "cursor: not-allowed;",
-            bs_icon("gear"),
-            "Package Config",
-            tags$small(class = "ms-auto", "(Coming Soon)")
-          )
-        )
-      )
-    ),
-
-    # Footer
-    div(
-      class = "mt-auto pt-3 border-top text-center",
-      tags$small(
-        class = "text-muted",
-        "v1.0 • ",
-        tags$a("GitHub", href = "#", class = "text-decoration-none")
-      )
-    )
-  ),
   theme = pearl_theme,
-  fillable = TRUE,
-  
-  # Initialize shinyjs and SweetAlert
-  useShinyjs(),
-  useSweetAlert(),
-  
-  # Include custom JavaScript for WebSocket and custom CSS
-  tags$head(
-    # Browser tab title and favicon
-    tags$title("PEARL Admin"),
-    tags$link(rel = "icon", type = "image/svg+xml", href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='pearl' cx='0.3' cy='0.3'%3E%3Cstop offset='0%25' stop-color='%23ffffff' stop-opacity='0.8'/%3E%3Cstop offset='30%25' stop-color='%23f8f9fa' stop-opacity='0.6'/%3E%3Cstop offset='70%25' stop-color='%23e9ecef' stop-opacity='0.4'/%3E%3Cstop offset='100%25' stop-color='%23adb5bd' stop-opacity='0.8'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='50' r='45' fill='url(%23pearl)' stroke='%236c757d' stroke-width='2'/%3E%3Cellipse cx='35' cy='35' rx='8' ry='12' fill='%23ffffff' opacity='0.7' transform='rotate(-20 35 35)'/%3E%3C/svg%3E"),
-    tags$link(rel = "stylesheet", type = "text/css", href = "custom.css"),
-    tags$script(HTML(sprintf("const pearlApiUrl = '%s'; const pearlWsPath = '%s';", API_BASE_URL, API_WEBSOCKET_PATH))),
-    tags$script(src = "websocket_client.js"),
-    tags$script(src = "shiny_handlers.js"),
-    tags$script(HTML("
-      // Custom message handlers for WebSocket integration
-      $(document).on('shiny:connected', function(event) {
-        console.log('Shiny connected - WebSocket should be initializing...');
-      });
-      
-      // Handle WebSocket refresh requests from Shiny
-      Shiny.addCustomMessageHandler('websocket_refresh', function(message) {
-        if (window.pearlWebSocket && window.pearlWebSocket.isConnected()) {
-          window.pearlWebSocket.refresh();
-          console.log('WebSocket refresh requested');
-        } else {
-          console.log('WebSocket not connected, skipping refresh');
-        }
-      });
-    "))
-  ),
-  
-  # Main content area
-  navset_tab(
-    id = "main_tabs",
-
-    nav_panel(
-      "Studies",
-      value = "data_tab",
-      studies_ui("studies")
-    ),
-
-    nav_panel(
-      "Database Releases",
-      value = "releases_tab",
-      database_releases_ui("database_releases")
-    ),
-
-    nav_panel(
-      "Reporting Efforts",
-      value = "efforts_tab",
-      reporting_efforts_ui("reporting_efforts")
-    ),
-
-    nav_panel(
-      "TFL Properties",
-      value = "tnfp_tab",
-      tnfp_ui("tnfp")
-    ),
-
-    nav_panel(
-      "Package Registry",
-      value = "packages_tab",
-      packages_ui("packages")
-    ),
-
-    nav_panel(
-      "Health Check",
-      value = "health_tab",
-      card(
-        card_header(
-          tags$h4(
-            bs_icon("activity"), 
-            "API Health Status",
-            class = "mb-0"
-          )
-        ),
-        card_body(
-          verbatimTextOutput("health_status")
-        )
-      )
+  header = tagList(
+    # Global dependencies and head content
+    useShinyjs(),
+    useSweetAlert(),
+    tags$head(
+      tags$title("PEARL Admin"),
+      # Use a local SVG favicon for better tab rendering
+      tags$link(rel = "icon", type = "image/svg+xml", href = "favicon-pearl.svg"),
+      tags$link(rel = "stylesheet", type = "text/css", href = "custom.css"),
+      tags$script(HTML(sprintf("const pearlApiUrl = '%s'; const pearlWsPath = '%s';", API_BASE_URL, API_WEBSOCKET_PATH))),
+      tags$script(src = "websocket_client.js"),
+      tags$script(src = "shiny_handlers.js"),
+      tags$script(HTML("
+        // Provide default red badges so users see status even before Shiny renders
+        document.addEventListener('DOMContentLoaded', function() {
+          var ws = document.getElementById('ws_badge');
+          if (ws && ws.innerHTML.trim() === '') {
+            ws.innerHTML = '<span class=\'badge bg-danger\'>WS: Disconnected</span>';
+          }
+          var api = document.getElementById('api_health_badge');
+          if (api && api.innerHTML.trim() === '') {
+            api.innerHTML = '<span class=\'badge bg-danger\'>API: Unknown</span>';
+          }
+        });
+        $(document).on('shiny:connected', function() {
+          console.log('Shiny connected - WebSocket should be initializing...');
+        });
+        Shiny.addCustomMessageHandler('websocket_refresh', function(message) {
+          if (window.pearlWebSocket && window.pearlWebSocket.isConnected()) {
+            window.pearlWebSocket.refresh();
+            console.log('WebSocket refresh requested');
+          } else {
+            console.log('WebSocket not connected, skipping refresh');
+          }
+        });
+      "))
     )
-  )
+  ),
+
+  # Primary navigation (grouped)
+  nav_menu(
+    "Data Management",
+    nav_panel("Studies", value = "data_tab", studies_ui("studies")),
+    nav_panel("Database Releases", value = "releases_tab", database_releases_ui("database_releases")),
+    nav_panel("Reporting Efforts", value = "efforts_tab", reporting_efforts_ui("reporting_efforts")),
+    nav_panel("TFL Properties", value = "tnfp_tab", tnfp_ui("tnfp"))
+  ),
+
+  nav_menu(
+    "Packages",
+    nav_panel("Package Registry", value = "packages_tab", packages_ui("packages")),
+    nav_panel("Package Installer", disabled = TRUE),
+    nav_panel("Package Config", disabled = TRUE)
+  ),
+
+  # (Removed Health Check nav; show compact health badge instead)
+  # Right-aligned controls inside navbar
+  nav_spacer(),
+  nav_item(input_dark_mode(id = "dark_mode", mode = "light")),
+  nav_item(uiOutput("ws_badge")),
+  nav_item(uiOutput("api_health_badge"))
 )
 
 # Server
@@ -377,44 +240,38 @@ server <- function(input, output, session) {
   })
   
   # Health check
-  output$health_status <- renderText({
+  output$api_health_badge <- renderUI({
     tryCatch({
       response <- request(paste0(API_BASE_URL, API_HEALTH_PATH)) |>
         req_perform()
       
       if (resp_status(response) == 200) {
-        content <- resp_body_json(response)
-        paste("✅ Backend API is healthy\n",
-              "Status:", content$status, "\n",
-              "Message:", content$message)
+        tags$span(id = "api_health_badge", class = "badge bg-success", "API: Healthy")
       } else {
-        paste("❌ Backend API unhealthy\n",
-              "Status Code:", resp_status(response))
+        tags$span(id = "api_health_badge", class = "badge bg-danger", paste0("API: ", resp_status(response)))
       }
     }, error = function(e) {
-      paste("❌ Cannot connect to backend API\n",
-            "Error:", e$message, "\n",
-            paste("Please ensure the FastAPI server is running on", API_BASE_URL))
+      tags$span(id = "api_health_badge", class = "badge bg-danger", "API: Unreachable")
     })
   })
   
-  # WebSocket status display
+  # WebSocket status badge for navbar
   websocket_status <- reactiveVal("Initializing")
   observeEvent(input$websocket_status, {
     websocket_status(input$websocket_status)
   })
-  
-  output$websocket_status_display <- renderText({
+
+  output$ws_badge <- renderUI({
     status <- websocket_status()
-    icon <- switch(status,
-      "Connected" = "🟢",
-      "Connecting" = "🟡", 
-      "Disconnected" = "🔴",
-      "Failed" = "🔴",
-      "Reconnecting" = "🟡",
-      "🔴"
+    badge_class <- switch(status,
+      "Connected" = "bg-success",
+      "Connecting" = "bg-warning text-dark",
+      "Reconnecting" = "bg-warning text-dark",
+      "Failed" = "bg-danger",
+      "Disconnected" = "bg-danger",
+      "bg-secondary"
     )
-    paste(icon, "WS:", status)
+    tags$span(id = "ws_badge", class = paste("badge", badge_class), paste("WS:", status))
   })
 }
 

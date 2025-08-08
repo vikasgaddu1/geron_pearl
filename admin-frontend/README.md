@@ -1,4 +1,4 @@
-# PEARL Admin Frontend - R Shiny
+# PEARL Admin Frontend – R Shiny
 
 R Shiny admin dashboard providing CRUD interface for the PEARL Studies management system.
 
@@ -8,13 +8,12 @@ This R Shiny application provides a web-based admin interface for managing studi
 
 ## Features
 
-- **Studies Management**: Complete CRUD operations (Create, Read, Update, Delete)
+- **Entity Management**: Studies, Database Releases, Reporting Efforts, TNFP (Title/Footnote/Population/Acronyms)
 - **Real-time Updates**: WebSocket-based live data synchronization across multiple browser sessions
-- **Modern UI**: Bootstrap 5 theming with bslib and responsive design
-- **Data Tables**: Interactive tables with sorting, filtering, and pagination
-- **Form Validation**: Client-side and server-side validation
-- **Health Monitoring**: Backend API health check
-- **Auto-reconnect**: Robust WebSocket connection management with automatic reconnection
+- **Modern UI**: Bootstrap 5 theming with `bslib`, dark/light mode, and responsive design
+- **Data Tables**: Sorting, filtering (column filters on top), pagination; Actions column has minimal width
+- **Form Validation**: `shinyvalidate` for consistent validation across forms
+- **Connection Status**: Always-visible badges for WebSocket and API health in the navbar
 
 ## Prerequisites
 
@@ -94,7 +93,7 @@ shiny::runApp(".", port = 3838, host = "0.0.0.0")
 
 ## Architecture
 
-### File Structure
+### File Structure (simplified)
 ```
 admin-frontend/
 ├── app.R                    # Main Shiny application
@@ -116,8 +115,8 @@ admin-frontend/
 ### Module Architecture
 
 **Main App (`app.R`)**:
-- Application configuration and routing
-- Dashboard layout with sidebar navigation
+- Application configuration and routing via `page_navbar`
+- Grouped menus (Data Management, Packages) and right-aligned status badges
 - Module integration and orchestration
 
 **API Client (`modules/api_client.R`)**:
@@ -137,8 +136,8 @@ admin-frontend/
 - WebSocket event handling and UI updates
 
 **WebSocket Clients**:
-- **R Client (`modules/websocket_client.R`)**: Server-side WebSocket connection management
-- **JavaScript Client (`www/websocket_client.js`)**: Browser-side real-time communication
+- JavaScript (`www/websocket_client.js`) for browser-side real-time communication
+- R helper available but currently not used for connection management
 
 ## API Integration
 

@@ -15,7 +15,7 @@ studies_server <- function(id) {
     iv_new$add_rule("new_study_label", sv_required())
     iv_new$add_rule("new_study_label", function(value) {
       existing_studies <- studies_data()
-      if (nrow(existing_studies) > 0 && trimws(value) %in% existing_studies$`Study Label`) {
+      if (nrow(existing_studies) > 0 && trimws(value) %in% existing_studies$`Study`) {
         "A study with this label already exists"
       }
     })
@@ -28,7 +28,7 @@ studies_server <- function(id) {
       current_id <- editing_study_id()
       if (nrow(existing_studies) > 0 && !is.null(current_id)) {
         other_studies <- existing_studies[existing_studies$ID != current_id, ]
-        if (nrow(other_studies) > 0 && trimws(value) %in% other_studies$`Study Label`) {
+        if (nrow(other_studies) > 0 && trimws(value) %in% other_studies$`Study`) {
           "A study with this label already exists"
         }
       }
@@ -39,7 +39,7 @@ studies_server <- function(id) {
       if (length(studies_list) > 0) {
         df <- data.frame(
           ID = sapply(studies_list, function(x) x$id),
-          `Study Label` = sapply(studies_list, function(x) x$study_label),
+          `Study` = sapply(studies_list, function(x) x$study_label),
           Actions = sapply(studies_list, function(x) x$id), # Will be replaced with buttons
           stringsAsFactors = FALSE,
           check.names = FALSE
@@ -48,7 +48,7 @@ studies_server <- function(id) {
       } else {
         return(data.frame(
           ID = character(0),
-          `Study Label` = character(0),
+          `Study` = character(0),
           Actions = character(0),
           stringsAsFactors = FALSE,
           check.names = FALSE
@@ -138,11 +138,11 @@ studies_server <- function(id) {
           stringsAsFactors = FALSE,
           check.names = FALSE
         )
-        return(DT::datatable(
+      return(DT::datatable(
           empty_df,
           options = list(
-            dom = 'ft',
-            pageLength = 10,
+          dom = 'frtip',
+          pageLength = 10,
             language = list(emptyTable = "No studies found. Click 'Add Study' to create your first study.")
           ),
           rownames = FALSE,
@@ -154,40 +154,26 @@ studies_server <- function(id) {
       studies$Actions <- sapply(studies$ID, function(id) {
         as.character(div(
           class = "d-flex gap-2 justify-content-center",
-          tags$button(
-            class = "btn btn-warning btn-sm",
-            `data-action` = "edit",
-            `data-id` = id,
-            title = paste("Edit study", studies$`Study Label`[studies$ID == id]),
-            tagList(bs_icon("pencil"), "Edit")
-          ),
-          tags$button(
-            class = "btn btn-danger btn-sm",
-            `data-action` = "delete",
-            `data-id` = id,
-            title = paste("Delete study", studies$`Study Label`[studies$ID == id]),
-            tagList(bs_icon("trash"), "Delete")
-          )
+          tags$button(class = "btn btn-warning btn-sm", `data-action` = "edit", `data-id` = id, title = paste("Edit study", studies$`Study`[studies$ID == id]), bs_icon("pencil")),
+          tags$button(class = "btn btn-danger btn-sm", `data-action` = "delete", `data-id` = id, title = paste("Delete study", studies$`Study`[studies$ID == id]), bs_icon("trash"))
         ))
       })
       
       # Hide ID column but keep for reference
-      display_df <- studies[, c("Study Label", "Actions"), drop = FALSE]
+      display_df <- studies[, c("Study", "Actions"), drop = FALSE]
       
       DT::datatable(
         display_df,
+        filter = 'top',
         options = list(
-          dom = 'ft', # Only show filter and table (f=filter, t=table)
+          dom = 'frtip', # Filter, processing, table, info, pagination
           pageLength = 10,
-          autoWidth = FALSE,
+          autoWidth = TRUE,
           columnDefs = list(
-            list(targets = 0, width = "70%"), # Study Label column
-            list(targets = 1, width = "30%", orderable = FALSE, className = "text-center") # Actions column
+            list(targets = 1, orderable = FALSE, searchable = FALSE, className = "text-center dt-nowrap", width = "1%") # Actions column minimal width
           ),
-          language = list(
-            search = "Search studies:",
-            searchPlaceholder = "Type to filter..."
-          ),
+          language = list(search = "", searchPlaceholder = "Search (regex supported):"),
+          initComplete = JS(sprintf("function(){ $('#%s thead tr:nth-child(2) th:last').html(''); }", ns("studies_table"))),
           drawCallback = JS(sprintf("
             function() {
               var table = this;

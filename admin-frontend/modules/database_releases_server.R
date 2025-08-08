@@ -52,17 +52,17 @@ database_releases_server <- function(id) {
         df <- data.frame(
           ID = sapply(releases_list, function(x) x$id),
           `Study ID` = sapply(releases_list, function(x) x$study_id),
-          `Study Label` = sapply(releases_list, function(x) {
+          `Study` = sapply(releases_list, function(x) {
             study_id <- x$study_id
             if (!is.null(current_studies) && nrow(current_studies) > 0) {
               study_row <- current_studies[current_studies$ID == study_id, ]
               if (nrow(study_row) > 0) {
-                return(study_row$`Study Label`[1])
+                return(study_row$`Study`[1])
               }
             }
             return(paste("Study", study_id))
           }),
-          `Release Label` = sapply(releases_list, function(x) x$database_release_label),
+          `Database Release` = sapply(releases_list, function(x) x$database_release_label),
           stringsAsFactors = FALSE,
           check.names = FALSE
         )
@@ -71,8 +71,8 @@ database_releases_server <- function(id) {
         return(data.frame(
           ID = character(0),
           `Study ID` = numeric(0),
-          `Study Label` = character(0),
-          `Release Label` = character(0),
+           `Study` = character(0),
+           `Database Release` = character(0),
           stringsAsFactors = FALSE,
           check.names = FALSE
         ))
@@ -207,7 +207,7 @@ database_releases_server <- function(id) {
         empty_message <- if (!is.null(input$new_study_id) && input$new_study_id != "") {
           # Filtered view - show study-specific message
           study_row <- current_studies[current_studies$ID == as.numeric(input$new_study_id), ]
-          study_name <- if (nrow(study_row) > 0) study_row$`Study Label`[1] else "Selected Study"
+          study_name <- if (nrow(study_row) > 0) study_row$`Study`[1] else "Selected Study"
           paste("No database releases found for", study_name, ". Click 'Create' to add the first release.")
         } else {
           # Default view - show general message
@@ -216,8 +216,8 @@ database_releases_server <- function(id) {
         
         # Return empty table with consistent structure (only visible columns)
         empty_df <- data.frame(
-          `Study Label` = character(0),
-          `Release Label` = character(0),
+          `Study` = character(0),
+          `Database Release` = character(0),
           Actions = character(0),
           stringsAsFactors = FALSE,
           check.names = FALSE
@@ -231,8 +231,8 @@ database_releases_server <- function(id) {
             autoWidth = FALSE,
             search = list(regex = TRUE, caseInsensitive = TRUE), # Enable regex search
             columnDefs = list(
-              list(targets = 0, width = "35%"), # Study Label column
-              list(targets = 1, width = "35%"), # Release Label column
+              list(targets = 0, width = "35%"), # Study column
+              list(targets = 1, width = "35%"), # Database Release column
               list(targets = 2, width = "30%", orderable = FALSE, className = "text-center", searchable = FALSE) # Actions column - not searchable
             ),
             language = list(
@@ -248,24 +248,12 @@ database_releases_server <- function(id) {
         ))
       }
       
-      # Add action buttons to the Actions column
+      # Add action buttons to the Actions column (icon-only, consistent)
       releases$Actions <- sapply(releases$ID, function(id) {
         as.character(div(
           class = "d-flex gap-2 justify-content-center",
-          tags$button(
-            class = "btn btn-warning btn-sm",
-            `data-action` = "edit",
-            `data-id` = id,
-            title = paste("Edit database release", releases$`Release Label`[releases$ID == id]),
-            tagList(bs_icon("pencil"), "Edit")
-          ),
-          tags$button(
-            class = "btn btn-danger btn-sm",
-            `data-action` = "delete",
-            `data-id` = id,
-            title = paste("Delete database release", releases$`Release Label`[releases$ID == id]),
-            tagList(bs_icon("trash"), "Delete")
-          )
+          tags$button(class = "btn btn-warning btn-sm", `data-action` = "edit", `data-id` = id, title = paste("Edit database release", releases$`Database Release`[releases$ID == id]), bs_icon("pencil")),
+          tags$button(class = "btn btn-danger btn-sm", `data-action` = "delete", `data-id` = id, title = paste("Delete database release", releases$`Database Release`[releases$ID == id]), bs_icon("trash"))
         ))
       })
       
@@ -273,7 +261,7 @@ database_releases_server <- function(id) {
       releases <- releases[order(releases$`Study ID`, releases$ID), ]
       
       # Hide ID and Study ID columns but keep for reference
-      display_df <- releases[, c("Study Label", "Release Label", "Actions"), drop = FALSE]
+      display_df <- releases[, c("Study", "Database Release", "Actions"), drop = FALSE]
       
       DT::datatable(
         display_df,
@@ -281,16 +269,15 @@ database_releases_server <- function(id) {
         options = list(
           dom = 'frtip', # Show filter, processing, table, info, pagination
           pageLength = 10,
-          autoWidth = FALSE,
+          autoWidth = TRUE,
           search = list(regex = TRUE, caseInsensitive = TRUE), # Enable regex search
           columnDefs = list(
-            list(targets = 0, width = "35%"), # Study Label column
-            list(targets = 1, width = "35%"), # Release Label column
-            list(targets = 2, width = "30%", orderable = FALSE, className = "text-center", searchable = FALSE) # Actions column - not searchable
+            list(targets = 2, orderable = FALSE, className = "text-center dt-nowrap", searchable = FALSE, width = "1%") # Actions column minimal width
           ),
+          initComplete = JS(sprintf("function(){ $('#%s thead tr:nth-child(2) th:last').html(''); }", ns("releases_table"))),
           language = list(
             search = "",
-            searchPlaceholder = "Search (regex supported): e.g., MYF.*|jan_.*"
+            searchPlaceholder = "Search (regex supported):"
           ),
           searching = TRUE, # Explicitly enable searching
           info = TRUE, # Show table info
@@ -477,13 +464,12 @@ database_releases_server <- function(id) {
       is_editing(TRUE)
       editing_release_id(release_id)
       
-      # Get current studies for dropdown
+      # Derive current study label for display-only field
       current_studies <- isolate(studies_data())
-      study_choices <- if (nrow(current_studies) > 0) {
-        setNames(current_studies$ID, current_studies$`Study Label`)
-      } else {
-        list("No studies available" = "")
-      }
+      study_label <- if (nrow(current_studies) > 0) {
+        row <- current_studies[current_studies$ID == result$study_id, ]
+        if (nrow(row) > 0) row$`Study Label`[1] else paste("Study", result$study_id)
+      } else paste("Study", result$study_id)
       
       showModal(modalDialog(
         title = tagList(bs_icon("pencil"), "Edit Database Release"),
@@ -493,13 +479,8 @@ database_releases_server <- function(id) {
         div(
           class = "mb-3",
           tags$label("Study", class = "form-label fw-bold"),
-          selectInput(
-            ns("edit_study_id"),
-            NULL,
-            choices = study_choices,
-            selected = result$study_id,
-            width = "100%"
-          )
+          tags$input(id = ns("edit_study_label_display"), class = "form-control", value = study_label, disabled = TRUE),
+          tags$input(id = ns("edit_study_id"), type = "hidden", value = result$study_id)
         ),
         
         div(
