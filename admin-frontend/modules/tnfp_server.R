@@ -181,6 +181,7 @@ tnfp_server <- function(id) {
             searching = TRUE,
             pageLength = 10,
             autoWidth = FALSE,
+            language = list(search = "", searchPlaceholder = "Search (regex supported):"),
             columnDefs = list(
               list(targets = 0, width = "25%"), # Type column
               list(targets = 1, width = "55%"), # Content column

@@ -54,28 +54,28 @@ reporting_efforts_server <- function(id) {
         df <- data.frame(
           ID = sapply(efforts_list, function(x) x$id),
           `Study ID` = sapply(efforts_list, function(x) x$study_id),
-          `Study Label` = sapply(efforts_list, function(x) {
+          `Study` = sapply(efforts_list, function(x) {
             study_id <- x$study_id
             if (!is.null(current_studies) && nrow(current_studies) > 0) {
               study_row <- current_studies[current_studies$ID == study_id, ]
               if (nrow(study_row) > 0) {
-                return(study_row$`Study Label`[1])
+                return(study_row$`Study`[1])
               }
             }
             return(paste("Study", study_id))
           }),
           `Database Release ID` = sapply(efforts_list, function(x) x$database_release_id),
-          `Database Release Label` = sapply(efforts_list, function(x) {
+          `Database Release` = sapply(efforts_list, function(x) {
             db_release_id <- x$database_release_id
             if (!is.null(current_releases) && nrow(current_releases) > 0) {
               release_row <- current_releases[current_releases$ID == db_release_id, ]
               if (nrow(release_row) > 0) {
-                return(release_row$`Release Label`[1])
+                return(release_row$`Database Release`[1])
               }
             }
             return(paste("Release", db_release_id))
           }),
-          `Effort Label` = sapply(efforts_list, function(x) x$database_release_label),
+          `Reporting Effort` = sapply(efforts_list, function(x) x$database_release_label),
           stringsAsFactors = FALSE,
           check.names = FALSE
         )
@@ -84,10 +84,10 @@ reporting_efforts_server <- function(id) {
         return(data.frame(
           ID = integer(0),
           `Study ID` = integer(0),
-          `Study Label` = character(0),
+           `Study` = character(0),
           `Database Release ID` = integer(0),
-          `Database Release Label` = character(0),
-          `Effort Label` = character(0),
+           `Database Release` = character(0),
+           `Reporting Effort` = character(0),
           stringsAsFactors = FALSE,
           check.names = FALSE
         ))
@@ -101,9 +101,9 @@ reporting_efforts_server <- function(id) {
         cat("❌ Error loading studies:", studies_result$error, "\n")
         studies_data(data.frame())
       } else {
-        studies_df <- data.frame(
+         studies_df <- data.frame(
           ID = sapply(studies_result, function(x) x$id),
-          `Study Label` = sapply(studies_result, function(x) x$study_label),
+          `Study` = sapply(studies_result, function(x) x$study_label),
           stringsAsFactors = FALSE,
           check.names = FALSE
         )
@@ -150,7 +150,7 @@ reporting_efforts_server <- function(id) {
     update_study_choices <- function() {
       current_studies <- studies_data()
       if (nrow(current_studies) > 0) {
-        choices <- setNames(current_studies$ID, current_studies$`Study Label`)
+        choices <- setNames(current_studies$ID, current_studies$`Study`)
         
         # Update form dropdown
         updateSelectInput(session, "new_study_id", 
@@ -230,16 +230,16 @@ reporting_efforts_server <- function(id) {
     # Helper function for studies data
     convert_studies_to_df_simple <- function(studies_list) {
       if (length(studies_list) > 0) {
-        data.frame(
+         data.frame(
           ID = sapply(studies_list, function(x) x$id),
-          `Study Label` = sapply(studies_list, function(x) x$study_label),
+          `Study` = sapply(studies_list, function(x) x$study_label),
           stringsAsFactors = FALSE,
           check.names = FALSE
         )
       } else {
-        data.frame(
+         data.frame(
           ID = numeric(0),
-          `Study Label` = character(0),
+          `Study` = character(0),
           stringsAsFactors = FALSE,
           check.names = FALSE
         )
@@ -361,7 +361,7 @@ reporting_efforts_server <- function(id) {
         current_efforts <- current_efforts[order(current_efforts$`Study ID`, current_efforts$ID), ]
         
         # Prepare display dataframe (exclude ID columns for display)
-        display_df <- current_efforts[, c("Study Label", "Database Release Label", "Effort Label"), drop = FALSE]
+        display_df <- current_efforts[, c("Study", "Database Release", "Reporting Effort"), drop = FALSE]
         
         # Add Actions column with edit and delete buttons
         display_df$Actions <- sapply(current_efforts$ID, function(id) {
@@ -381,6 +381,7 @@ reporting_efforts_server <- function(id) {
             searching = TRUE,
             pageLength = 25,
             scrollX = TRUE,
+            language = list(search = "", searchPlaceholder = "Search (regex supported):"),
             columnDefs = list(
               list(orderable = FALSE, searchable = FALSE, className = 'text-center', targets = ncol(display_df) - 1),
               list(className = 'text-start', targets = 0:(ncol(display_df)-2))
@@ -424,7 +425,7 @@ reporting_efforts_server <- function(id) {
       # Reset dropdowns to default options
       current_studies <- isolate(studies_data())
       if (nrow(current_studies) > 0) {
-        choices <- c("Select a study..." = "", setNames(current_studies$ID, current_studies$`Study Label`))
+        choices <- c("Select a study..." = "", setNames(current_studies$ID, current_studies$`Study`))
         updateSelectInput(session, "new_study_id", choices = choices, selected = "")
       } else {
         updateSelectInput(session, "new_study_id", choices = list("No studies available" = ""), selected = "")
