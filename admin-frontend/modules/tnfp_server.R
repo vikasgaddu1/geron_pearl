@@ -168,20 +168,8 @@ tnfp_server <- function(id) {
           element_content <- current_elements$Content[current_elements$ID == element_id]
           as.character(div(
             class = "d-flex gap-2 justify-content-center",
-            tags$button(
-              class = "btn btn-warning btn-sm",
-              `data-action` = "edit",
-              `data-id` = element_id,
-              title = paste("Edit text element:", element_content),
-              tagList(bs_icon("pencil"), "Edit")
-            ),
-            tags$button(
-              class = "btn btn-danger btn-sm",
-              `data-action` = "delete",
-              `data-id` = element_id,
-              title = paste("Delete text element:", element_content),
-              tagList(bs_icon("trash"), "Delete")
-            )
+            tags$button(class = "btn btn-warning btn-sm", `data-action` = "edit", `data-id` = element_id, title = paste("Edit text element:", element_content), bs_icon("pencil")),
+            tags$button(class = "btn btn-danger btn-sm", `data-action` = "delete", `data-id` = element_id, title = paste("Delete text element:", element_content), bs_icon("trash"))
           ))
         })
         
@@ -196,8 +184,9 @@ tnfp_server <- function(id) {
             columnDefs = list(
               list(targets = 0, width = "25%"), # Type column
               list(targets = 1, width = "55%"), # Content column
-              list(targets = 2, width = "20%", orderable = FALSE, className = "text-center") # Actions column
+              list(targets = 2, width = "20%", orderable = FALSE, searchable = FALSE, className = "text-center") # Actions column
             ),
+            initComplete = JS(sprintf("function(){ $('#%s thead tr:nth-child(2) th:last input, #%s thead tr:nth-child(2) th:last select').prop('disabled', true).attr('placeholder',''); }", ns("text_elements_table"), ns("text_elements_table"))),
             drawCallback = JS(sprintf("
               function() {
                 var table = this;
@@ -429,18 +418,13 @@ tnfp_server <- function(id) {
           div(
             class = "mb-3",
             tags$label("Type", class = "form-label fw-bold"),
-            selectInput(
-              ns("edit_text_element_type"),
-              NULL,
-              choices = list(
-                "Title" = "title",
-                "Footnote" = "footnote",
-                "Population Set" = "population_set",
-                "Acronym Set" = "acronyms_set"
-              ),
-              selected = element_result$type,
-              width = "100%"
-            )
+            tags$input(
+              id = ns("edit_text_element_type_display"),
+              class = "form-control",
+              value = tools::toTitleCase(gsub("_", " ", element_result$type)),
+              disabled = TRUE
+            ),
+            tags$input(id = ns("edit_text_element_type"), type = "hidden", value = element_result$type)
           ),
           
           div(

@@ -367,20 +367,8 @@ reporting_efforts_server <- function(id) {
         display_df$Actions <- sapply(current_efforts$ID, function(id) {
           as.character(div(
             class = "d-flex gap-2 justify-content-center",
-            tags$button(
-              class = "btn btn-warning btn-sm",
-              `data-action` = "edit",
-              `data-id` = id,
-              title = "Edit reporting effort",
-              bs_icon("pencil")
-            ),
-            tags$button(
-              class = "btn btn-danger btn-sm",
-              `data-action` = "delete",
-              `data-id` = id,
-              title = "Delete reporting effort",
-              bs_icon("trash")
-            )
+            tags$button(class = "btn btn-warning btn-sm", `data-action` = "edit", `data-id` = id, title = "Edit reporting effort", bs_icon("pencil")),
+            tags$button(class = "btn btn-danger btn-sm", `data-action` = "delete", `data-id` = id, title = "Delete reporting effort", bs_icon("trash"))
           ))
         })
         
@@ -394,9 +382,10 @@ reporting_efforts_server <- function(id) {
             pageLength = 25,
             scrollX = TRUE,
             columnDefs = list(
-              list(className = 'text-center', targets = '_all'),
-              list(orderable = FALSE, targets = ncol(display_df) - 1) # Actions column not sortable
+              list(orderable = FALSE, searchable = FALSE, className = 'text-center', targets = ncol(display_df) - 1),
+              list(className = 'text-start', targets = 0:(ncol(display_df)-2))
             ),
+            initComplete = JS(sprintf("function() { $('#%s thead tr:nth-child(2) th:last input, #%s thead tr:nth-child(2) th:last select').prop('disabled', true).attr('placeholder',''); }", ns("efforts_table"), ns("efforts_table"))),
             drawCallback = JS(sprintf("
               function(settings) {
                 $('#%s button[data-action=\"edit\"]').off('click').on('click', function() {
@@ -520,24 +509,12 @@ reporting_efforts_server <- function(id) {
       is_editing(TRUE)
       editing_effort_id(effort_id)
       
-      # Get current studies and database releases for dropdowns
+      # Get current labels (read-only in edit)
       current_studies <- isolate(studies_data())
       current_releases <- isolate(database_releases_data())
-      
-      study_choices <- if (nrow(current_studies) > 0) {
-        setNames(current_studies$ID, current_studies$`Study Label`)
-      } else {
-        list("No studies available" = "")
-      }
-      
-      # Create choices for all database releases (will be filtered dynamically)
-      all_release_choices <- if (nrow(current_releases) > 0) {
-        setNames(current_releases$ID, 
-                 current_releases$`Release Label`)
-      } else {
-        list("No releases available" = "")
-      }
-      
+      study_label <- if (nrow(current_studies) > 0) current_studies$`Study Label`[match(result$study_id, current_studies$ID)] else result$study_id
+      release_label <- if (nrow(current_releases) > 0) current_releases$`Release Label`[match(result$database_release_id, current_releases$ID)] else result$database_release_id
+
       showModal(modalDialog(
         title = tagList(bs_icon("pencil"), "Edit Reporting Effort"),
         size = "m",
@@ -546,25 +523,15 @@ reporting_efforts_server <- function(id) {
         div(
           class = "mb-3",
           tags$label("Study", class = "form-label fw-bold"),
-          selectInput(
-            ns("edit_study_id"),
-            NULL,
-            choices = study_choices,
-            selected = result$study_id,
-            width = "100%"
-          )
+          tags$input(id = ns("edit_study_label_display"), class = "form-control", value = study_label, disabled = TRUE),
+          tags$input(id = ns("edit_study_id"), type = "hidden", value = result$study_id)
         ),
         
         div(
           class = "mb-3",
           tags$label("Database Release", class = "form-label fw-bold"),
-          selectInput(
-            ns("edit_database_release_id"),
-            NULL,
-            choices = all_release_choices,
-            selected = result$database_release_id,
-            width = "100%"
-          )
+          tags$input(id = ns("edit_database_release_label_display"), class = "form-control", value = release_label, disabled = TRUE),
+          tags$input(id = ns("edit_database_release_id"), type = "hidden", value = result$database_release_id)
         ),
         
         div(

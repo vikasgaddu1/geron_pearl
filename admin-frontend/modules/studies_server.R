@@ -138,11 +138,11 @@ studies_server <- function(id) {
           stringsAsFactors = FALSE,
           check.names = FALSE
         )
-        return(DT::datatable(
+      return(DT::datatable(
           empty_df,
           options = list(
-            dom = 'ft',
-            pageLength = 10,
+          dom = 'frtip',
+          pageLength = 10,
             language = list(emptyTable = "No studies found. Click 'Add Study' to create your first study.")
           ),
           rownames = FALSE,
@@ -154,20 +154,8 @@ studies_server <- function(id) {
       studies$Actions <- sapply(studies$ID, function(id) {
         as.character(div(
           class = "d-flex gap-2 justify-content-center",
-          tags$button(
-            class = "btn btn-warning btn-sm",
-            `data-action` = "edit",
-            `data-id` = id,
-            title = paste("Edit study", studies$`Study Label`[studies$ID == id]),
-            tagList(bs_icon("pencil"), "Edit")
-          ),
-          tags$button(
-            class = "btn btn-danger btn-sm",
-            `data-action` = "delete",
-            `data-id` = id,
-            title = paste("Delete study", studies$`Study Label`[studies$ID == id]),
-            tagList(bs_icon("trash"), "Delete")
-          )
+          tags$button(class = "btn btn-warning btn-sm", `data-action` = "edit", `data-id` = id, title = paste("Edit study", studies$`Study Label`[studies$ID == id]), bs_icon("pencil")),
+          tags$button(class = "btn btn-danger btn-sm", `data-action` = "delete", `data-id` = id, title = paste("Delete study", studies$`Study Label`[studies$ID == id]), bs_icon("trash"))
         ))
       })
       
@@ -176,18 +164,16 @@ studies_server <- function(id) {
       
       DT::datatable(
         display_df,
+        filter = 'top',
         options = list(
-          dom = 'ft', # Only show filter and table (f=filter, t=table)
+          dom = 'frtip', # Filter, processing, table, info, pagination
           pageLength = 10,
           autoWidth = FALSE,
           columnDefs = list(
             list(targets = 0, width = "70%"), # Study Label column
-            list(targets = 1, width = "30%", orderable = FALSE, className = "text-center") # Actions column
+            list(targets = 1, width = "30%", orderable = FALSE, searchable = FALSE, className = "text-center") # Actions column
           ),
-          language = list(
-            search = "Search studies:",
-            searchPlaceholder = "Type to filter..."
-          ),
+          initComplete = JS(sprintf("function(){ $('#%s thead tr:nth-child(2) th:last').html(''); }", ns("studies_table"))),
           drawCallback = JS(sprintf("
             function() {
               var table = this;

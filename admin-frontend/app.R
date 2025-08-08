@@ -94,36 +94,35 @@ ui <- page_navbar(
     " PEARL Admin"
   ),
   theme = pearl_theme,
-
-  # Global dependencies
-  useShinyjs(),
-  useSweetAlert(),
-
-  # Head: favicon, styles, websocket bootstrapping
-  tags$head(
-    tags$title("PEARL Admin"),
-    tags$link(
-      rel = "icon",
-      type = "image/svg+xml",
-      href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='pearl' cx='0.3' cy='0.3'%3E%3Cstop offset='0%25' stop-color='%23ffffff' stop-opacity='0.8'/%3E%3Cstop offset='30%25' stop-color='%23f8f9fa' stop-opacity='0.6'/%3E%3Cstop offset='70%25' stop-color='%23e9ecef' stop-opacity='0.4'/%3E%3Cstop offset='100%25' stop-color='%23adb5bd' stop-opacity='0.8'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='50' r='45' fill='url(%23pearl)' stroke='%236c757d' stroke-width='2'/%3E%3Cellipse cx='35' cy='35' rx='8' ry='12' fill='%23ffffff' opacity='0.7' transform='rotate(-20 35 35)'/%3E%3C/svg%3E"
-    ),
-    tags$link(rel = "stylesheet", type = "text/css", href = "custom.css"),
-    tags$script(HTML(sprintf("const pearlApiUrl = '%s'; const pearlWsPath = '%s';", API_BASE_URL, API_WEBSOCKET_PATH))),
-    tags$script(src = "websocket_client.js"),
-    tags$script(src = "shiny_handlers.js"),
-    tags$script(HTML("
-      $(document).on('shiny:connected', function() {
-        console.log('Shiny connected - WebSocket should be initializing...');
-      });
-      Shiny.addCustomMessageHandler('websocket_refresh', function(message) {
-        if (window.pearlWebSocket && window.pearlWebSocket.isConnected()) {
-          window.pearlWebSocket.refresh();
-          console.log('WebSocket refresh requested');
-        } else {
-          console.log('WebSocket not connected, skipping refresh');
-        }
-      });
-    "))
+  header = tagList(
+    # Global dependencies and head content
+    useShinyjs(),
+    useSweetAlert(),
+    tags$head(
+      tags$title("PEARL Admin"),
+      tags$link(
+        rel = "icon",
+        type = "image/svg+xml",
+        href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='pearl' cx='0.3' cy='0.3'%3E%3Cstop offset='0%25' stop-color='%23ffffff' stop-opacity='0.8'/%3E%3Cstop offset='30%25' stop-color='%23f8f9fa' stop-opacity='0.6'/%3E%3Cstop offset='70%25' stop-color='%23e9ecef' stop-opacity='0.4'/%3E%3Cstop offset='100%25' stop-color='%23adb5bd' stop-opacity='0.8'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='50' r='45' fill='url(%23pearl)' stroke='%236c757d' stroke-width='2'/%3E%3Cellipse cx='35' cy='35' rx='8' ry='12' fill='%23ffffff' opacity='0.7' transform='rotate(-20 35 35)'/%3E%3C/svg%3E"
+      ),
+      tags$link(rel = "stylesheet", type = "text/css", href = "custom.css"),
+      tags$script(HTML(sprintf("const pearlApiUrl = '%s'; const pearlWsPath = '%s';", API_BASE_URL, API_WEBSOCKET_PATH))),
+      tags$script(src = "websocket_client.js"),
+      tags$script(src = "shiny_handlers.js"),
+      tags$script(HTML("
+        $(document).on('shiny:connected', function() {
+          console.log('Shiny connected - WebSocket should be initializing...');
+        });
+        Shiny.addCustomMessageHandler('websocket_refresh', function(message) {
+          if (window.pearlWebSocket && window.pearlWebSocket.isConnected()) {
+            window.pearlWebSocket.refresh();
+            console.log('WebSocket refresh requested');
+          } else {
+            console.log('WebSocket not connected, skipping refresh');
+          }
+        });
+      "))
+    )
   ),
 
   # Primary navigation (grouped)
@@ -142,19 +141,12 @@ ui <- page_navbar(
     nav_panel("Package Config", disabled = TRUE)
   ),
 
-  nav_panel(
-    "Health Check",
-    value = "health_tab",
-    card(
-      card_header(tags$h4(bs_icon("activity"), "API Health Status", class = "mb-0")),
-      card_body(verbatimTextOutput("health_status"))
-    )
-  ),
-
-  # Right-aligned utilities
+  # (Removed Health Check nav; show compact health badge instead)
+  # Right-aligned controls inside navbar
   nav_spacer(),
-  input_dark_mode(id = "dark_mode", mode = "light"),
-  uiOutput("ws_badge")
+  nav_item(input_dark_mode(id = "dark_mode", mode = "light")),
+  nav_item(uiOutput("ws_badge")),
+  nav_item(uiOutput("api_health_badge"))
 )
 
 # Server
@@ -239,24 +231,18 @@ server <- function(input, output, session) {
   })
   
   # Health check
-  output$health_status <- renderText({
+  output$api_health_badge <- renderUI({
     tryCatch({
       response <- request(paste0(API_BASE_URL, API_HEALTH_PATH)) |>
         req_perform()
       
       if (resp_status(response) == 200) {
-        content <- resp_body_json(response)
-        paste("✅ Backend API is healthy\n",
-              "Status:", content$status, "\n",
-              "Message:", content$message)
+        tags$span(class = "badge bg-success", "API: Healthy")
       } else {
-        paste("❌ Backend API unhealthy\n",
-              "Status Code:", resp_status(response))
+        tags$span(class = "badge bg-danger", paste0("API: ", resp_status(response)))
       }
     }, error = function(e) {
-      paste("❌ Cannot connect to backend API\n",
-            "Error:", e$message, "\n",
-            paste("Please ensure the FastAPI server is running on", API_BASE_URL))
+      tags$span(class = "badge bg-danger", "API: Unreachable")
     })
   })
   

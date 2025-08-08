@@ -13,7 +13,7 @@ studies_ui <- function(id) {
         card(
           class = "border border-2",
           full_screen = FALSE,
-          height = "700px",
+          height = NULL,
           
           # Header
           card_header(
@@ -102,11 +102,7 @@ studies_ui <- function(id) {
               ),
               
               # Main content
-              div(
-                class = "p-3",
-                style = "height: 500px; overflow-y: auto;",
-                DT::dataTableOutput(ns("studies_table"))
-              )
+              div(class = "p-3", DT::dataTableOutput(ns("studies_table")))
             )
           ),
           

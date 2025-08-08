@@ -15,7 +15,7 @@ tnfp_ui <- function(id) {
         card(
           class = "border border-2",
           full_screen = FALSE,
-          height = "700px",
+          height = NULL,
           
           # Header
           card_header(
@@ -111,17 +111,9 @@ tnfp_ui <- function(id) {
               ),
               
               # Main content area
-              div(
-                class = "p-3",
-                style = "height: 500px; overflow-y: auto;",
-                
-                # Text Elements Table
-                div(
-                  class = "mb-3",
-                  tags$h5("Text Elements", class = "mb-0")
-                ),
-                DT::dataTableOutput(ns("text_elements_table"))
-              )
+              div(class = "p-3",
+                  div(class = "mb-3", tags$h5("Text Elements", class = "mb-0")),
+                  DT::dataTableOutput(ns("text_elements_table")))
             )
           )
         )
