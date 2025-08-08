@@ -122,26 +122,23 @@ packages_ui <- function(id) {
                       class = "mt-3",
                       # Package selector
                       div(
-                        class = "row mb-3",
+                        class = "row mb-3 align-items-end",
                         div(
                           class = "col-md-8",
-                          selectInput(
+                          selectizeInput(
                             ns("selected_package"),
                             "Select Package:",
                             choices = NULL,
+                            options = list(placeholder = "Choose a package to manage items", maxItems = 1),
                             width = "100%"
                           )
                         ),
                         div(
                           class = "col-md-4",
-                          input_task_button(
-                            ns("add_item"),
-                            tagList(bs_icon("plus"), "Add Item"),
-                            class = "btn btn-success btn-sm w-100",
-                            title = "Add item to selected package"
-                          )
+                          uiOutput(ns("add_item_container"))
                         )
                       ),
+                      uiOutput(ns("package_items_hint")),
                       # Items table
                       DT::dataTableOutput(ns("items_table"))
                     )

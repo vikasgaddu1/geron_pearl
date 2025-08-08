@@ -15,6 +15,8 @@ packages_server <- function(id) {
     studies_list <- reactiveVal(list())
     text_elements_list <- reactiveVal(list())
     last_update <- reactiveVal(Sys.time())
+    is_editing <- reactiveVal(FALSE)
+    editing_package_id <- reactiveVal(NULL)
     
     # Set up validation for new package form
     iv_new <- InputValidator$new()
@@ -28,6 +30,25 @@ packages_server <- function(id) {
       existing_packages <- packages_data()
       if (nrow(existing_packages) > 0 && trimws(value) %in% existing_packages$`Package Name`) {
         "A package with this name already exists"
+      }
+    })
+
+    # Validation for edit package form
+    iv_edit <- InputValidator$new()
+    iv_edit$add_rule("edit_package_name", sv_required())
+    iv_edit$add_rule("edit_package_name", function(value) {
+      if (nchar(trimws(value)) < 3) {
+        return("Package name must be at least 3 characters")
+      }
+    })
+    iv_edit$add_rule("edit_package_name", function(value) {
+      current_id <- editing_package_id()
+      existing <- packages_data()
+      if (nrow(existing) > 0 && !is.null(current_id)) {
+        others <- existing[existing$ID != current_id, ]
+        if (nrow(others) > 0 && trimws(value) %in% others$`Package Name`) {
+          return("A package with this name already exists")
+        }
       }
     })
     
@@ -67,9 +88,6 @@ packages_server <- function(id) {
         df <- data.frame(
           ID = sapply(packages_list, function(x) x$id),
           `Package Name` = sapply(packages_list, function(x) x$package_name),
-          `Created` = sapply(packages_list, function(x) {
-            format(as.POSIXct(x$created_at, format = "%Y-%m-%dT%H:%M:%S"), "%Y-%m-%d %H:%M")
-          }),
           Actions = sapply(packages_list, function(x) x$id),
           stringsAsFactors = FALSE,
           check.names = FALSE
@@ -79,7 +97,6 @@ packages_server <- function(id) {
         return(data.frame(
           ID = character(0),
           `Package Name` = character(0),
-          `Created` = character(0),
           Actions = character(0),
           stringsAsFactors = FALSE,
           check.names = FALSE
@@ -162,6 +179,61 @@ packages_server <- function(id) {
     load_studies_list()
     load_text_elements()
     
+    # Contextual hint under the items toolbar
+    output$package_items_hint <- renderUI({
+      if (is.null(input$selected_package) || input$selected_package == "") {
+        div(
+          class = "alert alert-info py-2 px-3 mb-3",
+          tagList(
+            bs_icon("info-circle"),
+            span(" First select a package from the dropdown above, then click ", tags$strong("Add Item"), ".")
+          )
+        )
+      } else {
+        NULL
+      }
+    })
+    observeEvent(input$selected_package, {
+      output$package_items_hint <- renderUI({
+        if (is.null(input$selected_package) || input$selected_package == "") {
+          div(
+            class = "alert alert-info py-2 px-3 mb-3",
+            tagList(bs_icon("info-circle"), span(" First select a package from the dropdown above, then click ", tags$strong("Add Item"), "."))
+          )
+        } else { NULL }
+      })
+    })
+
+    # Dynamic Add Item button that disables when no package is selected
+    output$add_item_container <- renderUI({
+      selected <- input$selected_package
+      disabled <- is.null(selected) || selected == ""
+      btn_class <- if (disabled) "btn btn-success btn-sm w-100 disabled" else "btn btn-success btn-sm w-100"
+      tags$button(
+        class = btn_class,
+        title = if (disabled) "Select a package first" else "Add item to selected package",
+        `data-bs-toggle` = if (disabled) NA else "tooltip",
+        `data-bs-title` = if (disabled) "Select a package from the dropdown to enable this" else NA,
+        onclick = if (disabled) NULL else sprintf("Shiny.setInputValue('%s', true, {priority:'event'})", ns("add_item")),
+        tagList(bs_icon("plus"), " Add Item")
+      )
+    })
+    observeEvent(input$selected_package, {
+      output$add_item_container <- renderUI({
+        selected <- input$selected_package
+        disabled <- is.null(selected) || selected == ""
+        btn_class <- if (disabled) "btn btn-success btn-sm w-100 disabled" else "btn btn-success btn-sm w-100"
+        tags$button(
+          class = btn_class,
+          title = if (disabled) "Select a package first" else "Add item to selected package",
+          `data-bs-toggle` = if (disabled) NA else "tooltip",
+          `data-bs-title` = if (disabled) "Select a package from the dropdown to enable this" else NA,
+          onclick = if (disabled) NULL else sprintf("Shiny.setInputValue('%s', true, {priority:'event'})", ns("add_item")),
+          tagList(bs_icon("plus"), " Add Item")
+        )
+      })
+    })
+
     # Load package items when package is selected
     load_package_items <- function(package_id) {
       if (!is.null(package_id) && package_id != "") {
@@ -187,11 +259,13 @@ packages_server <- function(id) {
     observeEvent(input$toggle_add_form, {
       sidebar_toggle(id = "add_package_sidebar")
       updateTextInput(session, "new_package_name", value = "")
-      iv_new$enable()
+      iv_new$disable()  # Validate only on Create button click
     })
     
     # Save new package
     observeEvent(input$save_new_package, {
+      # Enable validation only on submit
+      iv_new$enable()
       if (iv_new$is_valid()) {
         package_data <- list(
           package_name = trimws(input$new_package_name)
@@ -218,6 +292,8 @@ packages_server <- function(id) {
           
           load_packages_data()
         }
+      } else {
+        return()
       }
     })
     
@@ -225,6 +301,7 @@ packages_server <- function(id) {
     observeEvent(input$cancel_new_package, {
       sidebar_toggle(id = "add_package_sidebar")
       updateTextInput(session, "new_package_name", value = "")
+      iv_new$disable()
     })
     
     # Refresh button
@@ -236,50 +313,93 @@ packages_server <- function(id) {
       showNotification("Data refreshed", type = "message", duration = 2)
     })
     
-    # Handle package table clicks
+    # Handle package table clicks (edit/delete)
     observeEvent(input$package_action_click, {
       info <- input$package_action_click
-      if (!is.null(info)) {
-        action <- info$action
-        package_id <- info$id
-        
-        if (action == "edit") {
-          # Edit functionality can be added here
-          showNotification("Edit functionality coming soon", type = "message")
-        } else if (action == "delete") {
+      if (is.null(info)) return()
+      action <- info$action
+      package_id <- as.integer(info$id)
+
+      if (action == "edit") {
+        # Use existing table data (avoid extra API call and potential 500s)
+        current <- isolate(packages_data())
+        pkg_row <- current[current$ID == package_id, , drop = FALSE]
+        pkg_name <- if (nrow(pkg_row) > 0) pkg_row$`Package Name`[1] else ""
+
+        is_editing(TRUE)
+        editing_package_id(package_id)
+
+        showModal(modalDialog(
+          title = tagList(bs_icon("pencil"), "Edit Package"),
+          size = "m",
+          easyClose = FALSE,
+          div(
+            class = "mb-3",
+            tags$label("Package Name", class = "form-label fw-bold"),
+            textInput(ns("edit_package_name"), NULL, value = pkg_name, placeholder = "Enter unique package name", width = "100%"),
+            tags$small(class = "form-text text-muted", "Package names must be unique across the system")
+          ),
+          footer = div(
+            class = "d-flex justify-content-end gap-2",
+            input_task_button(ns("cancel_edit_package"), tagList(bs_icon("x"), "Cancel"), class = "btn btn-secondary"),
+            input_task_button(ns("save_edit_package"), tagList(bs_icon("check"), "Update Package"), class = "btn btn-warning")
+          )
+        ))
+      } else if (action == "delete") {
+        # Prevent deletion if items exist; show first 5 codes
+        items_result <- get_package_items(package_id)
+        if (!("error" %in% names(items_result)) && length(items_result) > 0) {
+          codes <- unique(sapply(items_result, function(x) x$item_code))
+          preview <- head(codes, 5)
           showModal(modalDialog(
-            title = "Confirm Deletion",
-            "Are you sure you want to delete this package? This action cannot be undone.",
-            footer = tagList(
-              actionButton(ns("confirm_delete_package"), "Delete", class = "btn-danger"),
-              modalButton("Cancel")
-            ),
-            tags$script(paste0("
-              $('#", ns("confirm_delete_package"), "').data('package-id', '", package_id, "');
-            "))
+            title = tagList(bs_icon("exclamation-triangle"), "Cannot Delete Package"),
+            size = "m",
+            div(class = "alert alert-warning",
+                tagList(tags$strong("Package has associated items!"), tags$br(),
+                        "This package cannot be deleted because it has ", length(codes), " item(s).")),
+            tags$p("Please delete all items in this package first, then try deleting the package again."),
+            tags$p("First few item codes:"),
+            tags$ul(lapply(preview, function(code) tags$li(tags$code(code)))),
+            footer = div(class = "d-flex justify-content-end",
+                        input_task_button(ns("close_cannot_delete_package"), tagList(bs_icon("x"), "Close"), class = "btn btn-secondary"))
           ))
+          return()
         }
+
+        showModal(modalDialog(
+          title = tagList(bs_icon("exclamation-triangle"), "Confirm Deletion"),
+          size = "m",
+          div(class = "alert alert-danger", tagList(tags$strong("Warning: "), "This action cannot be undone.")),
+          tags$p("Are you sure you want to delete this package?"),
+          footer = div(
+            class = "d-flex justify-content-end gap-2",
+            input_task_button(ns("cancel_delete_package"), tagList(bs_icon("x"), "Cancel"), class = "btn btn-outline-secondary"),
+            input_task_button(ns("confirm_delete_package"), tagList(bs_icon("trash"), "Delete Package"), class = "btn btn-danger",
+                              onclick = sprintf("Shiny.setInputValue('%s', %s)", ns("confirm_delete_package_id"), package_id))
+          )
+        ))
       }
     })
+
+    observeEvent(input$close_cannot_delete_package, { removeModal() })
     
     # Confirm package deletion
     observeEvent(input$confirm_delete_package, {
-      package_id <- input$package_action_click$id
+      package_id <- input$confirm_delete_package_id
+      if (is.null(package_id) || package_id == "") return()
       result <- delete_package(package_id)
-      
+
       if ("error" %in% names(result)) {
-        showNotification(
-          paste("Error deleting package:", result$error),
-          type = "error",
-          duration = 5
-        )
+        showNotification(paste("Error deleting package:", result$error), type = "error", duration = 5)
       } else {
         showNotification("Package deleted successfully", type = "message", duration = 3)
         load_packages_data()
       }
-      
       removeModal()
     })
+
+    # Cancel delete
+    observeEvent(input$cancel_delete_package, { removeModal() })
     
     # Add item button
     observeEvent(input$add_item, {
@@ -290,7 +410,7 @@ packages_server <- function(id) {
       
       # Show modal for adding item
       showModal(modalDialog(
-        title = "Add Package Item",
+        title = tagList(bs_icon("plus"), "Add Package Item"),
         size = "l",
         
         fluidRow(
@@ -302,12 +422,14 @@ packages_server <- function(id) {
                   sapply(studies_list(), function(x) x$study_label)
                 )
               )
-            )
+            ),
+            tags$small(class="text-muted", "Pick the study this item belongs to")
           ),
           column(6,
             selectInput(ns("item_type"), "Type:",
               choices = c("Select..." = "", "TLF" = "TLF", "Dataset" = "Dataset")
-            )
+            ),
+            tags$small(class="text-muted", "TLF = Table/Listing/Figure; Dataset = SDTM/ADaM")
           )
         ),
         
@@ -346,9 +468,10 @@ packages_server <- function(id) {
           )
         ),
         
-        footer = tagList(
-          actionButton(ns("save_item"), "Save", class = "btn-success"),
-          modalButton("Cancel")
+        footer = div(
+          class = "d-flex justify-content-end gap-2",
+          input_task_button(ns("save_item"), tagList(bs_icon("check"), "Save"), class = "btn btn-success"),
+          input_task_button(ns("cancel_add_item"), tagList(bs_icon("x"), "Cancel"), class = "btn btn-secondary")
         )
       ))
     })
@@ -409,48 +532,88 @@ packages_server <- function(id) {
         load_package_items(input$selected_package)
       }
     })
+
+    # Cancel add item
+    observeEvent(input$cancel_add_item, { removeModal() })
+
+    # Cancel edit package
+    observeEvent(input$cancel_edit_package, {
+      is_editing(FALSE)
+      editing_package_id(NULL)
+      iv_edit$disable()
+      removeModal()
+    })
+
+    # Save edit package
+    observeEvent(input$save_edit_package, {
+      iv_edit$enable()
+      if (!iv_edit$is_valid()) return()
+      pkg_id <- editing_package_id()
+      pkg_name <- trimws(input$edit_package_name)
+      result <- update_package(pkg_id, list(package_name = pkg_name))
+
+      if ("error" %in% names(result)) {
+        error_msg <- result$error
+        if (grepl("duplicate|unique|already exists", error_msg, ignore.case = TRUE)) {
+          showNotification(tagList(bs_icon("exclamation-triangle"), "Package name already exists. Please choose a different name."), type = "error")
+        } else {
+          showNotification(tagList(bs_icon("x-circle"), "Error updating package:", error_msg), type = "error")
+        }
+      } else {
+        showNotification(tagList(bs_icon("check"), "Package updated successfully"), type = "message")
+        is_editing(FALSE)
+        editing_package_id(NULL)
+        iv_edit$disable()
+        removeModal()
+        load_packages_data()
+      }
+    })
     
     # Render packages table
     output$packages_table <- DT::renderDataTable({
       packages <- packages_data()
-      
+
       if (nrow(packages) == 0) {
+        # Empty state with standardized config and messaging
         empty_df <- data.frame(
-          ID = character(0),
           `Package Name` = character(0),
-          `Created` = character(0),
-          Actions = character(0),
+          `Actions` = character(0),
           stringsAsFactors = FALSE,
           check.names = FALSE
         )
         return(DT::datatable(
           empty_df,
+          filter = 'top',
           options = list(
-            dom = 'ft',
+            dom = 'frtip',
             pageLength = 10,
-            language = list(emptyTable = "No packages found. Click 'Add Package' to create your first package.")
+            language = list(
+              emptyTable = "No packages found. Click 'Add Package' to create your first package.",
+              search = "",
+              searchPlaceholder = "Search (regex supported):"
+            ),
+            columnDefs = list(
+              list(targets = 1, orderable = FALSE, searchable = FALSE, className = 'text-center dt-nowrap', width = '1%')
+            ),
+            initComplete = JS(sprintf("function(){ $('#%s thead tr:nth-child(2) th:last').html(''); }", ns("packages_table")))
           ),
           rownames = FALSE,
           escape = FALSE
         ))
       }
-      
-      # Add action buttons
-      packages$Actions <- sapply(packages$ID, function(package_id) {
-        sprintf(
-          '<button class="btn btn-primary btn-sm me-1" data-action="edit" data-id="%s" onclick="Shiny.setInputValue(\'%s\', {action: \'edit\', id: \'%s\'}, {priority: \'event\'})">
-             <i class="bi bi-pencil"></i>
-           </button>
-           <button class="btn btn-danger btn-sm" data-action="delete" data-id="%s" onclick="Shiny.setInputValue(\'%s\', {action: \'delete\', id: \'%s\'}, {priority: \'event\'})">
-             <i class="bi bi-trash"></i>
-           </button>',
-          package_id, ns("package_action_click"), package_id,
-          package_id, ns("package_action_click"), package_id
-        )
+
+      # Build display data frame (hide ID) and add Actions column
+      display_df <- packages[, c("Package Name"), drop = FALSE]
+      display_df$Actions <- sapply(packages$ID, function(package_id) {
+        as.character(div(
+          class = "d-flex gap-2 justify-content-center",
+          tags$button(class = "btn btn-warning btn-sm", `data-action` = "edit", `data-id` = package_id, title = "Edit package", bs_icon("pencil")),
+          tags$button(class = "btn btn-danger btn-sm", `data-action` = "delete", `data-id` = package_id, title = "Delete package", bs_icon("trash"))
+        ))
       })
-      
+
       DT::datatable(
-        packages,
+        display_df,
         filter = 'top',
         options = list(
           dom = 'frtip',
@@ -458,57 +621,68 @@ packages_server <- function(id) {
           pageLength = 10,
           searching = TRUE,
           columnDefs = list(
-            list(targets = 0, visible = FALSE)
-          )
+            list(targets = ncol(display_df) - 1, orderable = FALSE, searchable = FALSE, className = 'text-center dt-nowrap', width = '1%')
+          ),
+          language = list(search = "", searchPlaceholder = "Search (regex supported):"),
+          initComplete = JS(sprintf("function(){ $('#%s thead tr:nth-child(2) th:last').html(''); }", ns("packages_table"))),
+          drawCallback = JS(sprintf(
+            "function(){\n              var tbl = $('#%s');\n              tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){\n                var id = $(this).attr('data-id');\n                Shiny.setInputValue('%s', {action: 'edit', id: id}, {priority: 'event'});\n              });\n              tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(){\n                var id = $(this).attr('data-id');\n                Shiny.setInputValue('%s', {action: 'delete', id: id}, {priority: 'event'});\n              });\n            }",
+            ns("packages_table"), ns("package_action_click"), ns("package_action_click")))
         ),
         rownames = FALSE,
-        escape = FALSE
+        escape = FALSE,
+        selection = 'none'
       )
-    })
+    }, server = FALSE)
     
     # Render items table
     output$items_table <- DT::renderDataTable({
       items <- items_data()
-      
+
       if (nrow(items) == 0) {
+        # Empty state with standardized config and messaging
         empty_df <- data.frame(
-          ID = character(0),
           `Study` = character(0),
           `Type` = character(0),
           `Subtype` = character(0),
           `Code` = character(0),
-          Actions = character(0),
+          `Actions` = character(0),
           stringsAsFactors = FALSE,
           check.names = FALSE
         )
         return(DT::datatable(
           empty_df,
+          filter = 'top',
           options = list(
-            dom = 'ft',
+            dom = 'frtip',
             pageLength = 10,
-            language = list(emptyTable = "No items in this package. Click 'Add Item' to add items.")
+            language = list(
+              emptyTable = "No items in this package. Click 'Add Item' to add items.",
+              search = "",
+              searchPlaceholder = "Search (regex supported):"
+            ),
+            columnDefs = list(
+              list(targets = 4, orderable = FALSE, searchable = FALSE, className = 'text-center dt-nowrap', width = '1%')
+            ),
+            initComplete = JS(sprintf("function(){ $('#%s thead tr:nth-child(2) th:last').html(''); }", ns("items_table")))
           ),
           rownames = FALSE,
           escape = FALSE
         ))
       }
-      
-      # Add action buttons
-      items$Actions <- sapply(items$ID, function(item_id) {
-        sprintf(
-          '<button class="btn btn-primary btn-sm me-1" data-action="edit" data-id="%s" onclick="Shiny.setInputValue(\'%s\', {action: \'edit\', id: \'%s\'}, {priority: \'event\'})">
-             <i class="bi bi-pencil"></i>
-           </button>
-           <button class="btn btn-danger btn-sm" data-action="delete" data-id="%s" onclick="Shiny.setInputValue(\'%s\', {action: \'delete\', id: \'%s\'}, {priority: \'event\'})">
-             <i class="bi bi-trash"></i>
-           </button>',
-          item_id, ns("item_action_click"), item_id,
-          item_id, ns("item_action_click"), item_id
-        )
+
+      # Build display data frame (hide ID) and add Actions column
+      display_df <- items[, c("Study", "Type", "Subtype", "Code"), drop = FALSE]
+      display_df$Actions <- sapply(items$ID, function(item_id) {
+        as.character(div(
+          class = "d-flex gap-2 justify-content-center",
+          tags$button(class = "btn btn-warning btn-sm", `data-action` = "edit", `data-id` = item_id, title = "Edit item", bs_icon("pencil")),
+          tags$button(class = "btn btn-danger btn-sm", `data-action` = "delete", `data-id` = item_id, title = "Delete item", bs_icon("trash"))
+        ))
       })
-      
+
       DT::datatable(
-        items,
+        display_df,
         filter = 'top',
         options = list(
           dom = 'frtip',
@@ -516,13 +690,19 @@ packages_server <- function(id) {
           pageLength = 10,
           searching = TRUE,
           columnDefs = list(
-            list(targets = 0, visible = FALSE)
-          )
+            list(targets = ncol(display_df) - 1, orderable = FALSE, searchable = FALSE, className = 'text-center dt-nowrap', width = '1%')
+          ),
+          language = list(search = "", searchPlaceholder = "Search (regex supported):"),
+          initComplete = JS(sprintf("function(){ $('#%s thead tr:nth-child(2) th:last').html(''); }", ns("items_table"))),
+          drawCallback = JS(sprintf(
+            "function(){\n              var tbl = $('#%s');\n              tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){\n                var id = $(this).attr('data-id');\n                Shiny.setInputValue('%s', {action: 'edit', id: id}, {priority: 'event'});\n              });\n              tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(){\n                var id = $(this).attr('data-id');\n                Shiny.setInputValue('%s', {action: 'delete', id: id}, {priority: 'event'});\n              });\n            }",
+            ns("items_table"), ns("item_action_click"), ns("item_action_click")))
         ),
         rownames = FALSE,
-        escape = FALSE
+        escape = FALSE,
+        selection = 'none'
       )
-    })
+    }, server = FALSE)
     
     # Handle item table clicks
     observeEvent(input$item_action_click, {
