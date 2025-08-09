@@ -154,8 +154,8 @@ ui <- page_navbar(
   # Right-aligned controls inside navbar
   nav_spacer(),
   nav_item(input_dark_mode(id = "dark_mode", mode = "light")),
-  nav_item(uiOutput("ws_badge")),
-  nav_item(uiOutput("api_health_badge"))
+  # Bell dropdown (BS5)
+  nav_item(uiOutput("status_dropdown"))
 )
 
 # Server
@@ -239,39 +239,64 @@ server <- function(input, output, session) {
     )
   })
   
-  # Health check
-  output$api_health_badge <- renderUI({
+  # Health check (internal helper for dropdown)
+  api_health_reactive <- reactiveVal(list(status = NA_integer_, detail = "Unknown"))
+  check_api_health <- function() {
     tryCatch({
       response <- request(paste0(API_BASE_URL, API_HEALTH_PATH)) |>
         req_perform()
       
-      if (resp_status(response) == 200) {
-        tags$span(id = "api_health_badge", class = "badge bg-success", "API: Healthy")
-      } else {
-        tags$span(id = "api_health_badge", class = "badge bg-danger", paste0("API: ", resp_status(response)))
-      }
+      status_code <- resp_status(response)
+      api_health_reactive(list(status = status_code, detail = if (status_code == 200) "Healthy" else paste("HTTP", status_code)))
     }, error = function(e) {
-      tags$span(id = "api_health_badge", class = "badge bg-danger", "API: Unreachable")
+      api_health_reactive(list(status = NA_integer_, detail = "Unreachable"))
     })
-  })
+  }
+  check_api_health()
   
-  # WebSocket status badge for navbar
+  # WebSocket status reactive
   websocket_status <- reactiveVal("Initializing")
   observeEvent(input$websocket_status, {
     websocket_status(input$websocket_status)
   })
 
-  output$ws_badge <- renderUI({
-    status <- websocket_status()
-    badge_class <- switch(status,
-      "Connected" = "bg-success",
-      "Connecting" = "bg-warning text-dark",
-      "Reconnecting" = "bg-warning text-dark",
-      "Failed" = "bg-danger",
-      "Disconnected" = "bg-danger",
-      "bg-secondary"
+  ws_ok <- reactive({ websocket_status() == "Connected" })
+  api_ok <- reactive({ !is.na(api_health_reactive()$status) && api_health_reactive()$status == 200 })
+
+  # Bell dropdown UI
+  output$status_dropdown <- renderUI({
+    ok <- ws_ok() && api_ok()
+    dot_class <- if (ok) "bg-success" else "bg-danger"
+    tags$div(class = "dropdown",
+      tags$button(
+        class = "btn nav-link position-relative",
+        id = "statusBtn", `data-bs-toggle` = "dropdown", `aria-expanded` = "false",
+        bs_icon("bell"),
+        tags$span(class = paste("position-absolute top-0 start-100 translate-middle p-1 border border-light rounded-circle", dot_class), style = "width:10px;height:10px;")
+      ),
+      tags$ul(class = "dropdown-menu dropdown-menu-end shadow", `aria-labelledby` = "statusBtn",
+        tags$li(class = "dropdown-item d-flex align-items-center gap-2",
+          tags$span(class = paste("badge rounded-pill", if (ws_ok()) "bg-success" else "bg-danger"), " "),
+          tags$div(tags$strong("WebSocket"), tags$br(), tags$small(class = "text-muted", websocket_status()))
+        ),
+        tags$li(class = "dropdown-item d-flex align-items-center gap-2",
+          tags$span(class = paste("badge rounded-pill", if (api_ok()) "bg-success" else "bg-danger"), " "),
+          tags$div(tags$strong("API"), tags$br(), tags$small(class = "text-muted", api_health_reactive()$detail))
+        ),
+        tags$li(class = "dropdown-divider"),
+        tags$li(tags$button(class = "dropdown-item d-flex align-items-center gap-2",
+          onclick = "Shiny.setInputValue('refresh_status', true, {priority:'event'})",
+          bs_icon("arrow-clockwise"), "Refresh status")),
+        tags$li(tags$small(class = "dropdown-item-text text-muted", paste("Checked", format(Sys.time(), "%H:%M:%S"))))
+      )
     )
-    tags$span(id = "ws_badge", class = paste("badge", badge_class), paste("WS:", status))
+  })
+
+  # Refresh handler
+  observeEvent(input$refresh_status, {
+    check_api_health()
+    # Ask JS websocket client to refresh if connected
+    session$sendCustomMessage(type = "websocket_refresh", message = list(action = "refresh"))
   })
 }
 
