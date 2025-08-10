@@ -6,8 +6,10 @@ test.describe('Study Management Tree - Hierarchical CRUD', () => {
     await page.goto('/');
 
     // Go to Data Management → Study Management
-    await page.getByRole('button', { name: 'Data Management' }).click();
-    await page.getByRole('link', { name: 'Study Management' }).click();
+    // Navbar structure uses nav_menu with button + dropdown list
+    const dmTrigger = page.locator('button', { hasText: 'Data Management' }).first();
+    await dmTrigger.click();
+    await page.locator('a', { hasText: 'Study Management' }).first().click();
 
     // Add Study
     await page.getByRole('button', { name: 'Add Study' }).click();
@@ -37,6 +39,8 @@ test.describe('Study Management Tree - Hierarchical CRUD', () => {
     // Verify Add Child is disabled for effort
     await page.getByText(eff, { exact: true }).click();
     const addChildBtn = page.getByRole('button', { name: 'Add Child' });
+    // Footer should reflect selection type and label
+    await expect(page.getByText(`Selection: Reporting Effort — ${eff}`)).toBeVisible();
     await expect(addChildBtn).toBeDisabled();
 
     // Edit effort label

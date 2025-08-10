@@ -64,8 +64,12 @@ study_tree_ui <- function(id) {
           ),
 
           card_footer(
-            class = "d-flex flex-wrap justify-content-between align-items-center small text-muted gap-2",
-            div(textOutput(ns("status_message"))),
+            class = "d-flex flex-wrap justify-content-between align-items-center small text-muted gap-3",
+            div(
+              class = "d-flex align-items-center gap-3",
+              textOutput(ns("selection_display"), container = span),
+              textOutput(ns("status_message"), container = span)
+            ),
             textOutput(ns("last_updated_display"))
           )
         )

@@ -3,7 +3,7 @@ study_tree_server <- function(id) {
     ns <- session$ns
 
     last_update <- reactiveVal(Sys.time())
-    selected_node <- reactiveVal(NULL)
+    selected_node <- reactiveVal(list(type = NULL, label = NULL))
 
     # Load hierarchical data from APIs and build tree structure
     build_tree_data <- function() {
@@ -65,11 +65,33 @@ study_tree_server <- function(id) {
     # Track selection; enable/disable buttons accordingly
     observeEvent(input$study_tree, {
       sel <- shinyTree::get_selected(input$study_tree, format = "names")
-      selected_node(sel)
+      # Default: nothing selected
+      selected_node(list(type = NULL, label = NULL))
       # Enable Add Child by default; disable only when an effort is selected
       shinyjs::enable(ns("add_child"))
       if (length(sel) > 0) {
         selected_label <- sel[[1]]
+        # Determine type by matching label against studies/releases/efforts
+        studies <- get_studies(); if (is.null(studies$error)) {
+          if (any(vapply(studies, function(s) identical(s$study_label, selected_label), logical(1)))) {
+            selected_node(list(type = "study", label = selected_label))
+          }
+        }
+        if (is.null(selected_node()$type)) {
+          releases <- get_database_releases(); if (is.null(releases$error)) {
+            if (any(vapply(releases, function(r) identical(r$database_release_label, selected_label), logical(1)))) {
+              selected_node(list(type = "release", label = selected_label))
+            }
+          }
+        }
+        if (is.null(selected_node()$type)) {
+          efforts <- get_reporting_efforts(); if (is.null(efforts$error)) {
+            if (any(vapply(efforts, function(e) identical(e$database_release_label, selected_label), logical(1)))) {
+              selected_node(list(type = "effort", label = selected_label))
+            }
+          }
+        }
+
         efforts <- get_reporting_efforts(); if (is.null(efforts$error)) {
           effort_labels <- vapply(efforts, function(e) e$database_release_label, character(1))
           if (selected_label %in% effort_labels) {
@@ -148,8 +170,7 @@ study_tree_server <- function(id) {
         return()
       }
 
-      # We will resolve by rebuilding and walking to find stinfo
-      st <- shinyTree::get_selected(input$study_tree, format = "vector")
+      # We will resolve by rebuilding and walking to find stinfo using label matching
       # Use internal input$study_tree structure to get attributes
       # As a practical approach, offer a small chooser modal for ambiguous cases
 
@@ -419,6 +440,17 @@ study_tree_server <- function(id) {
     # Status outputs
     output$status_message <- renderText({
       "Use the toolbar to add/edit/delete items."
+    })
+    output$selection_display <- renderText({
+      s <- selected_node()
+      if (is.null(s$type) || is.null(s$label)) return("Selection: none")
+      type_label <- switch(s$type,
+        study = "Study",
+        release = "Database Release",
+        effort = "Reporting Effort",
+        "Item"
+      )
+      paste0("Selection: ", type_label, " — ", s$label)
     })
     output$last_updated_display <- renderText({ paste("Updated:", format(last_update(), "%H:%M:%S")) })
   })
