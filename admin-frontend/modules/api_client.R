@@ -1,6 +1,7 @@
 # API Client Module for PEARL Backend Communication
 
 library(httr2)
+library(jsonlite)
 
 # Get the studies endpoint dynamically
 get_studies_endpoint <- function() {

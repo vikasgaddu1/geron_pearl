@@ -677,4 +677,26 @@
       }
     ]
   }
+  ,
+  {
+    "id": "TC027",
+    "title": "Study Management Tree - Hierarchical CRUD",
+    "description": "Verify tree view allows adding, editing, and deleting studies, releases, and efforts with correct child constraints.",
+    "category": "ui",
+    "priority": "High",
+    "steps": [
+      { "type": "action", "description": "Open admin frontend and navigate to Data Management → Study Management" },
+      { "type": "action", "description": "Click Add Study and create a unique study label" },
+      { "type": "assertion", "description": "Verify new study node appears in tree" },
+      { "type": "action", "description": "Select the study and click Add Child to create a database release" },
+      { "type": "assertion", "description": "Verify release appears under the study" },
+      { "type": "action", "description": "Select the release and click Add Child to create a reporting effort" },
+      { "type": "assertion", "description": "Verify effort appears under the release" },
+      { "type": "action", "description": "Select the effort and verify Add Child is disabled" },
+      { "type": "action", "description": "Use Edit to rename study, release, and effort" },
+      { "type": "assertion", "description": "Verify labels updated in tree" },
+      { "type": "action", "description": "Attempt to delete study while it has children and verify blocked message" },
+      { "type": "action", "description": "Delete effort, then release, then study; verify each deletion succeeds when no children remain" }
+    ]
+  }
 ]

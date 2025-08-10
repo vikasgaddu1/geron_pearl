@@ -20,9 +20,47 @@ PEARL is a **full-stack research data management system** with real-time WebSock
 - **Real-time Updates**: Live data synchronization via WebSocket broadcasting
 - **Production-like**: Real PostgreSQL database with specific testing constraints
 
-## Quick Start
+## Quick Commands
 
-> **🚀 For complete setup and development instructions, see component-specific documentation**
+### Backend Commands
+```bash
+cd backend
+
+# Development
+uv run python run.py                      # Start development server
+uv run python -m app.db.init_db           # Initialize database
+
+# Testing
+./test_crud_simple.sh                     # Run functional CRUD tests
+./test_packages_crud.sh                   # Test packages system
+./test_study_deletion_protection_fixed.sh # Test deletion protection
+uv run python tests/integration/test_websocket_broadcast.py  # Test WebSocket
+
+# Code Quality
+make format                               # Format with black + isort
+make lint                                 # Run flake8 + mypy
+make typecheck                            # Type checking only
+
+# Database
+uv run alembic upgrade head               # Apply migrations
+uv run alembic revision --autogenerate -m "Description"  # Create migration
+```
+
+### Frontend Commands
+```bash
+cd admin-frontend
+
+# Development
+Rscript run_app.R                         # Start R Shiny app
+Rscript setup_environment.R               # First-time setup
+
+# Package Management (renv)
+renv::restore()                           # Restore packages
+renv::install("package")                  # Add new package
+renv::snapshot()                          # Save package state
+```
+
+## Quick Start
 
 ### Full System Startup
 ```bash
@@ -51,12 +89,8 @@ cd backend && uv run python tests/integration/test_websocket_broadcast.py
 
 ## Critical System Constraints
 
-> **🚨 See [backend/CLAUDE.md - Critical Testing Constraints](backend/CLAUDE.md#critical-testing-constraints) for complete testing limitations and patterns**
-
 ### SQLAlchemy Async Session Conflicts
 **⚠️ CRITICAL**: This system cannot reliably run batch tests due to async session management issues.
-
-**Key Points**:
 - ✅ Individual tests work perfectly
 - ❌ Batch test execution frequently fails  
 - 📋 **MANDATORY**: Read `backend/tests/README.md` before creating ANY tests
@@ -64,18 +98,13 @@ cd backend && uv run python tests/integration/test_websocket_broadcast.py
 
 ### WebSocket Real-time Implementation
 **📡 CRITICAL**: WebSocket integration requires specific data conversion patterns.
-
-**Key Points**:
 - SQLAlchemy models → Pydantic conversion required in broadcast functions
 - Dual WebSocket clients (JavaScript primary, R secondary)
 - Shiny module namespacing: `studies-websocket_*` event format
 - Manual session management in WebSocket endpoints
 
-## System Architecture
+## High-Level Architecture
 
-> **🏗️ For detailed project structure, API endpoints, and file organization, see component README files**
-
-### High-Level Structure
 ```
 PEARL/
 ├── backend/                    # FastAPI + PostgreSQL + WebSocket
@@ -89,89 +118,61 @@ PEARL/
 └── test_websocket*.py         # Real-time testing scripts
 ```
 
-### Critical System Integration Points
+### Critical Integration Points
 - **API Gateway**: `backend/app/api/v1/studies.py` (CRUD + WebSocket broadcasting)
 - **WebSocket Hub**: `backend/app/api/v1/websocket.py` (connection management)
 - **Frontend Integration**: `admin-frontend/modules/studies_server.R` (WebSocket event handling)
 - **Real-time Client**: `admin-frontend/www/websocket_client.js` (browser WebSocket)
 
-## For AI Agents
+## Key Development Patterns
 
-### Component-Specific Development
-- **Backend Development**: See [backend/CLAUDE.md](backend/CLAUDE.md) for FastAPI patterns, testing constraints, and WebSocket implementation
-- **Frontend Development**: See [admin-frontend/CLAUDE.md](admin-frontend/CLAUDE.md) for R Shiny patterns, WebSocket integration, and real-time updates
+### Backend Development (FastAPI)
+- **Clean Architecture**: API → CRUD → Models with clear separation
+- **Deletion Protection**: Check for dependent entities before deletion
+- **WebSocket Broadcasting**: All CRUD operations trigger real-time events
+- **Model Validation**: Run validator after model changes: `uv run python tests/validator/run_model_validation.py`
 
-### Critical AI Development Guidelines
-1. **Testing**: Individual tests only - batch failures are expected due to async session conflicts
-2. **WebSocket**: SQLAlchemy → Pydantic conversion required in all broadcast functions  
-3. **Real-time**: Test with multiple browser sessions to verify WebSocket synchronization
-4. **Model Validation**: Run `backend/tests/validator/` after any model changes
-5. **Documentation**: Update component README.md files for user-facing changes, CLAUDE.md for technical patterns
+### Frontend Development (R Shiny)
+- **Module Pattern**: UI/Server separation for all components
+- **Environment Variables**: All API endpoints use Sys.getenv()
+- **WebSocket Events**: Observes `{module}-websocket_event` inputs
+- **Form Validation**: Use shinyvalidate for all user inputs
 
-### Multi-Component Integration Testing
-```bash
-# Full system integration test
-cd backend && uv run python run.py &                                    # Start backend
-cd admin-frontend && Rscript run_app.R &                               # Start frontend  
-cd backend && uv run python tests/integration/test_websocket_broadcast.py  # Test real-time updates
-```
+### Testing Strategy
+- **Backend**: Use `./test_crud_simple.sh` for functional testing
+- **Frontend**: Open multiple browser sessions to test real-time sync
+- **Integration**: Run `test_websocket_broadcast.py` for end-to-end testing
 
-### Development Best Practices
-- Do git commit at regular interval, we don't want to make lot of updates and then unable to go back.
+## Common Development Tasks
 
-## Git Hook for Documentation Management
+### Adding a New Entity Type
+1. **Backend**: Create model, schema, CRUD, and API endpoints
+2. **Frontend**: Create UI and server modules following existing patterns  
+3. **WebSocket**: Add broadcast functions and event types
+4. **Testing**: Create functional test script like `test_crud_simple.sh`
 
-### Automated CLAUDE.md Updates
-**🪝 ENABLED**: This repository includes a `prepare-commit-msg` hook that intelligently manages documentation across all three CLAUDE.md files.
+### Debugging WebSocket Issues
+1. Check browser console for connection errors
+2. Verify backend WebSocket endpoint is running
+3. Ensure message type matches expected format
+4. Test with `test_websocket_broadcast.py`
 
-**Hook Features**:
-- **Smart Detection**: Automatically detects backend (FastAPI/SQLAlchemy) vs frontend (R Shiny) changes
-- **Interactive Prompts**: Asks which CLAUDE.md files to update based on changed files
-- **Cross-Component Awareness**: Detects WebSocket integration and API contract changes
-- **Commit Enhancement**: Automatically adds documentation update notes to commit messages
+### Database Schema Changes
+1. Modify SQLAlchemy models in `backend/app/models/`
+2. Run: `uv run alembic revision --autogenerate -m "Description"`
+3. Review generated migration in `backend/migrations/versions/`
+4. Apply: `uv run alembic upgrade head`
+5. Run model validator: `uv run python tests/validator/run_model_validation.py`
 
-### Quick Usage
+## Git Workflow
 
-```bash
-# Normal development workflow - hook activates automatically
-git add backend/app/api/v1/new_endpoint.py
-git commit -m "feat: add user preferences endpoint"
-# Hook detects backend changes and prompts: "Update backend/CLAUDE.md? [Y/s/v]"
-# Choose Y to open editor, S to skip, V to view current content first
+### Commit Regularly
+- Make frequent commits to track progress
+- Use descriptive commit messages
+- Follow conventional commit format: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`
 
-# Skip hook for minor changes
-git commit --no-verify -m "fix: typo in comment"
-
-# Configure hook behavior
-git config pearl.hook.auto-prompt false    # Disable prompts
-git config pearl.hook.backend-docs false   # Skip backend doc prompts
-git config pearl.hook.verbosity detailed   # More verbose output
-```
-
-### File Pattern Detection
-
-The hook automatically detects when these files change and suggests appropriate CLAUDE.md updates:
-
-**Backend Changes** → `backend/CLAUDE.md`:
-- `backend/app/api/v1/*.py` (API endpoints)
-- `backend/app/models/*.py` (SQLAlchemy models) 
-- `backend/app/schemas/*.py` (Pydantic schemas)
-- `backend/app/crud/*.py` (CRUD operations)
-- `backend/migrations/versions/*.py` (Database migrations)
-
-**Frontend Changes** → `admin-frontend/CLAUDE.md`:
-- `admin-frontend/modules/*.R` (Shiny modules)
-- `admin-frontend/app.R` (Main application)
-- `admin-frontend/www/*.js` (WebSocket client)
-- `admin-frontend/renv.lock` (R package updates)
-
-**Cross-Component Changes** → Both backend and frontend CLAUDE.md:
-- WebSocket integration files (backend + frontend)
-- API contract changes affecting both layers
-
-**Project-Wide Changes** → Root `CLAUDE.md`:
-- Architecture modifications
-- New integration patterns
-- Major structural changes
-
-> **📖 Complete hook documentation**: See [.git/hooks/HOOK_README.md](.git/hooks/HOOK_README.md) for full configuration options, troubleshooting, and examples.
+### Before Committing
+1. **Backend**: Run `make format` and `make lint`
+2. **Frontend**: Ensure app runs without errors
+3. **Tests**: Run relevant test scripts
+4. **Documentation**: Update CLAUDE.md if patterns change

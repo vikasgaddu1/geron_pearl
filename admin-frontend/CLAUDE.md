@@ -27,6 +27,16 @@ This is the R Shiny admin frontend for the PEARL research data management system
 - Navbar/window title shows "PEARL Admin"; local pearl SVG favicon added at `www/favicon-pearl.svg`
 
 ## Essential Commands
+# Study Management (Tree)
+
+- The `Study Management` navigation entry uses `shinyTree` to present the hierarchy: Study → Database Release → Reporting Effort.
+- Toolbar actions:
+  - Add Study: creates a new Study (same validation rules as Studies module)
+  - Add Child: enabled for Study (adds Release) and Release (adds Effort); disabled for Effort
+  - Edit: edits the selected node label using corresponding API
+  - Delete: prevents deletion when children exist (mirrors table-based modules)
+- Labels are used to resolve selection; ensure labels are unique per scope to avoid ambiguity.
+
 
 ### Environment Setup
 ```bash

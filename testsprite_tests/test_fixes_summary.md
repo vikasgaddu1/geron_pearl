@@ -101,3 +101,7 @@ TestSprite's test generation was helpful but had significant issues:
 - Wrong assumptions about error messages and WebSocket protocols
 
 After fixing these issues, all tests pass and correctly validate the PEARL backend functionality.
+
+### New Feature
+
+- Added a new `Study Management` tree view in the admin frontend using `shinyTree`, enabling hierarchical CRUD (Study → Database Release → Reporting Effort) with appropriate child checks and scoped Add Child behavior.

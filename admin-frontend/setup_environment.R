@@ -88,6 +88,7 @@ enhancement_packages <- list(
   list(name = "shinyWidgets", min_version = "0.8.0"),
   list(name = "shinyvalidate", min_version = "0.1.3"),
   list(name = "shinyfeedback", min_version = "0.4.0"),
+  list(name = "shinyTree", min_version = "0.2.7"),
   list(name = "reactlog", min_version = "1.1.1"),
   list(name = "htmltools", min_version = "0.5.7"),
   list(name = "sass", min_version = "0.4.7")

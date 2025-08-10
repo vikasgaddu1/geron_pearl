@@ -9,6 +9,7 @@ This R Shiny application provides a web-based admin interface for managing studi
 ## Features
 
 - **Entity Management**: Studies, Database Releases, Reporting Efforts, TNFP (Title/Footnote/Population/Acronyms)
+- **Study Management Tree**: Hierarchical view using `shinyTree` for Study → Database Release → Reporting Effort with toolbar actions (Add Study, Add Child, Edit, Delete)
 - **Real-time Updates**: WebSocket-based live data synchronization across multiple browser sessions
 - **Modern UI**: Bootstrap 5 theming with `bslib`, dark/light mode, and responsive design
 - **Data Tables**: Sorting, filtering (column filters on top), pagination; Actions column has minimal width
@@ -53,6 +54,7 @@ renv::restore()
 - `later` - Async scheduling for WebSocket reconnection
 - `dplyr` - Data manipulation
 - `lubridate` - Date handling
+- `shinyTree` - Tree view for hierarchical Study Management
 
 ### Alternative: Manual Installation (Not Recommended)
 

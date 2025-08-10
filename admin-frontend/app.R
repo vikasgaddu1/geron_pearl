@@ -33,6 +33,8 @@ source("modules/database_releases_ui.R")
 source("modules/database_releases_server.R")
 source("modules/reporting_efforts_ui.R")
 source("modules/reporting_efforts_server.R")
+  source("modules/study_tree_ui.R")
+  source("modules/study_tree_server.R")
 source("modules/tnfp_ui.R")
 source("modules/tnfp_server.R")
 source("modules/packages_ui.R")
@@ -140,6 +142,7 @@ ui <- page_navbar(
     nav_panel("Studies", value = "data_tab", studies_ui("studies")),
     nav_panel("Database Releases", value = "releases_tab", database_releases_ui("database_releases")),
     nav_panel("Reporting Efforts", value = "efforts_tab", reporting_efforts_ui("reporting_efforts")),
+    nav_panel("Study Management", value = "study_tree_tab", study_tree_ui("study_tree")),
     nav_panel("TFL Properties", value = "tnfp_tab", tnfp_ui("tnfp"))
   ),
 
@@ -218,6 +221,9 @@ server <- function(input, output, session) {
   
   # Reporting Efforts module
   reporting_efforts_server("reporting_efforts")
+  
+  # Study Tree module
+  study_tree_server("study_tree")
   
   # TNFP module
   tnfp_server("tnfp")
