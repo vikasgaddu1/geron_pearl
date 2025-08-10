@@ -10,38 +10,47 @@ study_tree_server <- function(id) {
       studies <- get_studies()
       if (!is.null(studies$error)) return(list())
 
-      releases <- get_database_releases()
-      if (!is.null(releases$error)) releases <- list()
+      releases <- get_database_releases(); if (!is.null(releases$error)) releases <- list()
+      efforts  <- get_reporting_efforts();  if (!is.null(efforts$error))  efforts  <- list()
 
-      efforts <- get_reporting_efforts()
-      if (!is.null(efforts$error)) efforts <- list()
-
-      # index by study and release
+      # Index collections by parent IDs
       releases_by_study <- split(releases, vapply(releases, function(x) x$study_id, numeric(1)))
       efforts_by_release <- split(efforts, vapply(efforts, function(x) x$database_release_id, numeric(1)))
 
-      # Build shinyTree expected nested named list
-      tree <- lapply(studies, function(study) {
+      tree <- list()
+      for (study in studies) {
         study_id <- study$id
         study_label <- study$study_label
 
-        study_children <- lapply(releases_by_study[[as.character(study_id)]] %||% list(), function(rel) {
+        # Build releases under this study
+        releases_list <- releases_by_study[[as.character(study_id)]] %||% list()
+        release_nodes <- lapply(releases_list, function(rel) {
           rel_id <- rel$id
           rel_label <- rel$database_release_label
 
-          rel_children <- lapply(efforts_by_release[[as.character(rel_id)]] %||% list(), function(eff) {
-            eff_id <- eff$id
-            eff_label <- eff$database_release_label
-            structure(list(), stinfo = list(type = "effort", id = eff_id, study_id = eff$study_id, release_id = eff$database_release_id), sticon = "journal-plus", names = eff_label)
+          # Build efforts under this release
+          efforts_list <- efforts_by_release[[as.character(rel_id)]] %||% list()
+          effort_nodes <- lapply(efforts_list, function(eff) {
+            structure(list(), stinfo = list(type = "effort", id = eff$id, study_id = eff$study_id, release_id = eff$database_release_id))
           })
+          if (length(effort_nodes) > 0) {
+            names(effort_nodes) <- vapply(efforts_list, function(eff) eff$database_release_label, character(1))
+          }
 
-          structure(rel_children, stinfo = list(type = "release", id = rel_id, study_id = rel$study_id), sticon = "database", names = rel_label)
+          node <- structure(effort_nodes, stinfo = list(type = "release", id = rel_id, study_id = rel$study_id))
+          setNames(list(node), rel_label)
         })
+        # Flatten release_nodes (list of single-named lists) into a single named list
+        if (length(release_nodes) > 0) {
+          study_children <- do.call(c, release_nodes)
+        } else {
+          study_children <- list()
+        }
 
-        structure(study_children, stinfo = list(type = "study", id = study_id), sticon = "mortarboard", names = study_label)
-      })
+        study_node <- structure(study_children, stinfo = list(type = "study", id = study_id))
+        tree[[study_label]] <- study_node
+      }
 
-      names(tree) <- vapply(studies, function(s) s$study_label, character(1))
       tree
     }
 
@@ -56,12 +65,18 @@ study_tree_server <- function(id) {
     # Track selection; enable/disable buttons accordingly
     observeEvent(input$study_tree, {
       sel <- shinyTree::get_selected(input$study_tree, format = "names")
-      # get node data via get_selected with format = "slices" is not available; we can use input$study_tree_full to inspect attributes
       selected_node(sel)
-      # Disable Add Child when an effort is selected (only study or release allowed)
-      node_info <- tryCatch({ shinyTree::get_selected(input$study_tree, format = "classid") }, error = function(e) NULL)
-      # Fallback: use internal data stored in input$study_tree (tree with attributes)
-      # We will compute on server side after resolving by name when performing actions
+      # Enable Add Child by default; disable only when an effort is selected
+      shinyjs::enable(ns("add_child"))
+      if (length(sel) > 0) {
+        selected_label <- sel[[1]]
+        efforts <- get_reporting_efforts(); if (is.null(efforts$error)) {
+          effort_labels <- vapply(efforts, function(e) e$database_release_label, character(1))
+          if (selected_label %in% effort_labels) {
+            shinyjs::disable(ns("add_child"))
+          }
+        }
+      }
     })
 
     # Refresh tree
