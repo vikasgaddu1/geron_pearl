@@ -37,10 +37,9 @@ study_tree_server <- function(id) {
             names(effort_nodes) <- vapply(efforts_list, function(eff) eff$database_release_label, character(1))
           }
 
-          # Mark release node as expanded if it has children
+          # Build release node with metadata
           node <- structure(effort_nodes, 
-                          stinfo = list(type = "release", id = rel_id, study_id = rel$study_id),
-                          stopen = length(effort_nodes) > 0)  # Auto-expand if has children
+                          stinfo = list(type = "release", id = rel_id, study_id = rel$study_id))
           setNames(list(node), rel_label)
         })
         # Flatten release_nodes (list of single-named lists) into a single named list
@@ -50,10 +49,9 @@ study_tree_server <- function(id) {
           study_children <- list()
         }
 
-        # Mark study node as expanded if it has children
+        # Build study node with metadata
         study_node <- structure(study_children, 
-                              stinfo = list(type = "study", id = study_id),
-                              stopen = length(study_children) > 0)  # Auto-expand if has children
+                              stinfo = list(type = "study", id = study_id))
         tree[[study_label]] <- study_node
       }
 
@@ -63,7 +61,7 @@ study_tree_server <- function(id) {
     # Helper null-coalescing for lists
     `%||%` <- function(x, y) if (is.null(x)) y else x
 
-    # Render tree
+    # Render tree (collapsed by default)
     output$study_tree <- shinyTree::renderTree({
       build_tree_data()
     })
