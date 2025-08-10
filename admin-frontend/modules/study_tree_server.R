@@ -64,47 +64,126 @@ study_tree_server <- function(id) {
 
     # Track selection; enable/disable buttons accordingly
     observeEvent(input$study_tree, {
-      sel <- shinyTree::get_selected(input$study_tree, format = "names")
+      cat("\n\n=== DEBUG: observeEvent triggered for study_tree at", format(Sys.time()), "===\n")
+      cat("DEBUG: input$study_tree raw value:\n")
+      print(str(input$study_tree))
+      
+      # Try different formats to understand the structure
+      sel_names <- shinyTree::get_selected(input$study_tree, format = "names")
+      cat("DEBUG: get_selected result (format='names'):\n")
+      print(sel_names)
+      
+      sel_slices <- shinyTree::get_selected(input$study_tree, format = "slices")
+      cat("DEBUG: get_selected result (format='slices'):\n")
+      print(sel_slices)
+      
+      sel_classid <- shinyTree::get_selected(input$study_tree, format = "classid")
+      cat("DEBUG: get_selected result (format='classid'):\n")
+      print(sel_classid)
+      
+      # Use the names format
+      sel <- sel_names
+      
       # Default: nothing selected
       selected_node(list(type = NULL, label = NULL))
+      cat("DEBUG: Reset selected_node to NULL\n")
+      
       # Enable Add Child by default; disable only when an effort is selected
       shinyjs::enable(ns("add_child"))
+      
       if (length(sel) > 0) {
         selected_label <- sel[[1]]
+        cat(sprintf("DEBUG: Selected label: '%s'\n", selected_label))
+        
         # Determine type by matching label against studies/releases/efforts
-        studies <- get_studies(); if (is.null(studies$error)) {
-          if (any(vapply(studies, function(s) identical(s$study_label, selected_label), logical(1)))) {
+        studies <- get_studies()
+        cat(sprintf("DEBUG: Fetched %d studies\n", if(is.null(studies$error)) length(studies) else 0))
+        if (is.null(studies$error)) {
+          study_labels <- vapply(studies, function(s) s$study_label, character(1))
+          cat("DEBUG: Study labels:", paste(study_labels, collapse=", "), "\n")
+          
+          # Debug the matching process
+          for (s in studies) {
+            cat(sprintf("DEBUG: Comparing '%s' with '%s': identical=%s, ===%s\n", 
+                        s$study_label, selected_label, 
+                        identical(s$study_label, selected_label),
+                        s$study_label == selected_label))
+          }
+          
+          if (any(vapply(studies, function(s) s$study_label == selected_label, logical(1)))) {
+            cat(sprintf("DEBUG: Found matching study: '%s'\n", selected_label))
             selected_node(list(type = "study", label = selected_label))
+            cat("DEBUG: Set selected_node type to 'study'\n")
           }
         }
+        
+        current_selection <- selected_node()
+        cat(sprintf("DEBUG: Current selected_node after study check - type: %s, label: %s\n", 
+                    current_selection$type %||% "NULL", current_selection$label %||% "NULL"))
+        
         if (is.null(selected_node()$type)) {
-          releases <- get_database_releases(); if (is.null(releases$error)) {
-            if (any(vapply(releases, function(r) identical(r$database_release_label, selected_label), logical(1)))) {
+          releases <- get_database_releases()
+          cat(sprintf("DEBUG: Fetched %d releases\n", if(is.null(releases$error)) length(releases) else 0))
+          if (is.null(releases$error)) {
+            release_labels <- vapply(releases, function(r) r$database_release_label, character(1))
+            cat("DEBUG: Release labels:", paste(release_labels, collapse=", "), "\n")
+            
+            if (any(vapply(releases, function(r) r$database_release_label == selected_label, logical(1)))) {
+              cat(sprintf("DEBUG: Found matching release: '%s'\n", selected_label))
               selected_node(list(type = "release", label = selected_label))
+              cat("DEBUG: Set selected_node type to 'release'\n")
             }
           }
         }
+        
+        current_selection <- selected_node()
+        cat(sprintf("DEBUG: Current selected_node after release check - type: %s, label: %s\n", 
+                    current_selection$type %||% "NULL", current_selection$label %||% "NULL"))
+        
         if (is.null(selected_node()$type)) {
-          efforts <- get_reporting_efforts(); if (is.null(efforts$error)) {
-            if (any(vapply(efforts, function(e) identical(e$database_release_label, selected_label), logical(1)))) {
+          efforts <- get_reporting_efforts()
+          cat(sprintf("DEBUG: Fetched %d efforts\n", if(is.null(efforts$error)) length(efforts) else 0))
+          if (is.null(efforts$error)) {
+            effort_labels <- vapply(efforts, function(e) e$database_release_label, character(1))
+            cat("DEBUG: Effort labels:", paste(effort_labels, collapse=", "), "\n")
+            
+            if (any(vapply(efforts, function(e) e$database_release_label == selected_label, logical(1)))) {
+              cat(sprintf("DEBUG: Found matching effort: '%s'\n", selected_label))
               selected_node(list(type = "effort", label = selected_label))
+              cat("DEBUG: Set selected_node type to 'effort'\n")
             }
           }
         }
-
-        efforts <- get_reporting_efforts(); if (is.null(efforts$error)) {
+        
+        final_selection <- selected_node()
+        cat(sprintf("DEBUG: FINAL selected_node - type: %s, label: %s\n", 
+                    final_selection$type %||% "NULL", final_selection$label %||% "NULL"))
+        
+        # Check if we should disable Add Child for efforts
+        efforts <- get_reporting_efforts()
+        if (is.null(efforts$error)) {
           effort_labels <- vapply(efforts, function(e) e$database_release_label, character(1))
           if (selected_label %in% effort_labels) {
+            cat("DEBUG: Disabling Add Child button (effort selected)\n")
             shinyjs::disable(ns("add_child"))
           }
         }
+      } else {
+        cat("DEBUG: No selection (length(sel) == 0)\n")
       }
-    })
+      
+      cat("=== DEBUG: observeEvent completed ===\n\n")
+    }, ignoreNULL = FALSE, ignoreInit = FALSE)
 
     # Refresh tree
     observeEvent(input$refresh_tree, {
       output$study_tree <- shinyTree::renderTree({ build_tree_data() })
       last_update(Sys.time())
+      
+      # DEBUG: Test setting selected_node manually when refresh is clicked
+      cat("DEBUG: Testing manual selected_node update on refresh\n")
+      selected_node(list(type = "study", label = "Test Selection"))
+      cat("DEBUG: Manually set selected_node to:", selected_node()$type, "-", selected_node()$label, "\n")
     })
 
     # Add Study (reuse studies module behavior)
@@ -183,7 +262,7 @@ study_tree_server <- function(id) {
 
       # Try to match label to study first
       study_hit <- NULL
-      for (s in studies) { if (identical(s$study_label, selected_label)) { study_hit <- s; break } }
+      for (s in studies) { if (s$study_label == selected_label) { study_hit <- s; break } }
       if (!is.null(study_hit)) {
         # Add Database Release to this study
         showModal(modalDialog(
@@ -213,7 +292,7 @@ study_tree_server <- function(id) {
 
       # Try to match label to release
       release_hit <- NULL
-      for (r in releases) { if (identical(r$database_release_label, selected_label)) { release_hit <- r; break } }
+      for (r in releases) { if (r$database_release_label == selected_label) { release_hit <- r; break } }
       if (!is.null(release_hit)) {
         # Add Reporting Effort under this release
         showModal(modalDialog(
@@ -247,7 +326,7 @@ study_tree_server <- function(id) {
 
       # If the label matches a reporting effort, do nothing and warn
       effort_hit <- NULL
-      for (e in efforts) { if (identical(e$database_release_label, selected_label)) { effort_hit <- e; break } }
+      for (e in efforts) { if (e$database_release_label == selected_label) { effort_hit <- e; break } }
       if (!is.null(effort_hit)) {
         showNotification("Add Child is disabled for Reporting Efforts", type = "warning")
         return()
@@ -264,7 +343,7 @@ study_tree_server <- function(id) {
 
       # Try study
       studies <- get_studies(); if (is.null(studies$error)) {
-        for (s in studies) if (identical(s$study_label, selected_label)) {
+        for (s in studies) if (s$study_label == selected_label) {
           showModal(modalDialog(
             title = tagList(bs_icon("pencil"), "Edit Study"),
             textInput(ns("edit_study_label"), NULL, value = s$study_label),
@@ -290,7 +369,7 @@ study_tree_server <- function(id) {
 
       # Try release
       releases <- get_database_releases(); if (is.null(releases$error)) {
-        for (r in releases) if (identical(r$database_release_label, selected_label)) {
+        for (r in releases) if (r$database_release_label == selected_label) {
           showModal(modalDialog(
             title = tagList(bs_icon("pencil"), "Edit Database Release"),
             textInput(ns("edit_release_label"), NULL, value = r$database_release_label),
@@ -316,7 +395,7 @@ study_tree_server <- function(id) {
 
       # Try effort
       efforts <- get_reporting_efforts(); if (is.null(efforts$error)) {
-        for (e in efforts) if (identical(e$database_release_label, selected_label)) {
+        for (e in efforts) if (e$database_release_label == selected_label) {
           showModal(modalDialog(
             title = tagList(bs_icon("pencil"), "Edit Reporting Effort"),
             textInput(ns("edit_effort_label"), NULL, value = e$database_release_label),
@@ -351,7 +430,7 @@ study_tree_server <- function(id) {
 
       # Try study delete with release children check
       studies <- get_studies();
-      for (s in studies) if (identical(s$study_label, selected_label)) {
+      for (s in studies) if (s$study_label == selected_label) {
         releases <- get_database_releases();
         rels <- Filter(function(r) r$study_id == s$id, if (!is.null(releases$error)) list() else releases)
         if (length(rels) > 0) {
@@ -383,7 +462,7 @@ study_tree_server <- function(id) {
 
       # Try release delete with effort children check
       releases <- get_database_releases();
-      for (r in if (!is.null(releases$error)) list() else releases) if (identical(r$database_release_label, selected_label)) {
+      for (r in if (!is.null(releases$error)) list() else releases) if (r$database_release_label == selected_label) {
         efforts <- get_reporting_efforts();
         effs <- Filter(function(e) e$database_release_id == r$id, if (!is.null(efforts$error)) list() else efforts)
         if (length(effs) > 0) {
@@ -415,7 +494,7 @@ study_tree_server <- function(id) {
 
       # Try effort delete (no child check needed)
       efforts <- get_reporting_efforts();
-      for (e in if (!is.null(efforts$error)) list() else efforts) if (identical(e$database_release_label, selected_label)) {
+      for (e in if (!is.null(efforts$error)) list() else efforts) if (e$database_release_label == selected_label) {
         showModal(modalDialog(
           title = tagList(bs_icon("exclamation-triangle"), "Confirm Deletion"),
           p("Delete reporting effort:", tags$strong(e$database_release_label), "?"),
@@ -443,14 +522,25 @@ study_tree_server <- function(id) {
     })
     output$selection_display <- renderText({
       s <- selected_node()
-      if (is.null(s$type) || is.null(s$label)) return("Selection: none")
+      cat("DEBUG: renderText for selection_display triggered\n")
+      cat(sprintf("DEBUG: selected_node value - type: %s, label: %s\n", 
+                  s$type %||% "NULL", s$label %||% "NULL"))
+      
+      if (is.null(s$type) || is.null(s$label)) {
+        cat("DEBUG: Returning 'Selection: none'\n")
+        return("Selection: none")
+      }
+      
       type_label <- switch(s$type,
         study = "Study",
         release = "Database Release",
         effort = "Reporting Effort",
         "Item"
       )
-      paste0("Selection: ", type_label, " — ", s$label)
+      
+      result <- paste0("Selection: ", type_label, " — ", s$label)
+      cat(sprintf("DEBUG: Returning selection display: '%s'\n", result))
+      return(result)
     })
     output$last_updated_display <- renderText({ paste("Updated:", format(last_update(), "%H:%M:%S")) })
   })
