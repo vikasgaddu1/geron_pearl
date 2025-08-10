@@ -27,15 +27,26 @@ This is the R Shiny admin frontend for the PEARL research data management system
 - Navbar/window title shows "PEARL Admin"; local pearl SVG favicon added at `www/favicon-pearl.svg`
 
 ## Essential Commands
-# Study Management (Tree)
+## Study Management (Tree)
 
-- The `Study Management` navigation entry uses `shinyTree` to present the hierarchy: Study → Database Release → Reporting Effort.
-- Toolbar actions:
+### Overview
+The `Study Management` navigation entry uses `shinyTree` to present the hierarchy: Study → Database Release → Reporting Effort in a collapsible tree view.
+
+### Key Features
+- **Collapsed by Default**: Tree starts collapsed for easier navigation with many items
+- **Manual Expansion**: Users can click to expand/collapse nodes as needed
+- **Selection Display**: Footer shows currently selected item type and label
+- **Toolbar Actions**:
   - Add Study: creates a new Study (same validation rules as Studies module)
   - Add Child: enabled for Study (adds Release) and Release (adds Effort); disabled for Effort
   - Edit: edits the selected node label using corresponding API
   - Delete: prevents deletion when children exist (mirrors table-based modules)
-- Labels are used to resolve selection; ensure labels are unique per scope to avoid ambiguity.
+
+### Recent Updates (August 2025)
+- **Fixed Selection Detection**: Changed from `identical()` to `==` for string comparisons
+- **Removed Auto-Expansion**: Tree now starts collapsed for better navigation
+- **Simplified UI**: Removed expand/collapse all checkbox feature
+- **Labels Resolution**: Labels are used to resolve selection; ensure labels are unique per scope to avoid ambiguity
 
 
 ### Environment Setup
@@ -88,6 +99,46 @@ curl http://localhost:8000/health
 
 # Manual testing: Open multiple browser tabs to http://localhost:3838
 ```
+
+### Automated Testing with Playwright MCP
+
+Claude Code has integrated Playwright MCP for browser automation testing. This enables:
+
+#### UI Testing Capabilities
+- **Navigate & Interact**: Automatically navigate to pages, click buttons, fill forms
+- **Visual Testing**: Take screenshots for documentation and verification
+- **Tree Testing**: Test shinyTree expand/collapse, selection, and CRUD operations
+- **Real-time Testing**: Open multiple browser instances to test WebSocket synchronization
+- **Form Validation**: Test input validation and error handling
+
+#### Common Playwright Testing Patterns
+```python
+# Navigate to the app
+mcp__playwright__browser_navigate(url="http://localhost:3838")
+
+# Click on navigation elements
+mcp__playwright__browser_click(element="Data Management dropdown", ref="e13")
+mcp__playwright__browser_click(element="Study Management tab", ref="e166")
+
+# Test tree interactions
+mcp__playwright__browser_click(element="Test Study in tree", ref="e218", doubleClick=true)  # Expand node
+mcp__playwright__browser_click(element="abc123 study", ref="e220")  # Select item
+
+# Take screenshots for documentation
+mcp__playwright__browser_take_screenshot(filename="study_tree_test.png", fullPage=false)
+
+# Verify element states
+# Check if tree is expanded/collapsed
+# Verify selection appears in footer
+# Test CRUD operations
+```
+
+#### Benefits for R Shiny Testing
+- **No Manual Testing**: Automate repetitive UI testing tasks
+- **Cross-browser Testing**: Test on different browser engines
+- **Visual Regression**: Compare screenshots to detect UI changes
+- **Real-time Sync**: Test WebSocket updates across multiple sessions
+- **Rapid Iteration**: Quickly test changes without manual browser interaction
 
 ## Core Architecture
 
@@ -512,9 +563,11 @@ Use for broader development tasks that span multiple technologies:
 **UI/UX Testing and Debugging**:
 ```bash
 # Start the R Shiny app first
-Rscript run_app.R
+Rscript run_app.R  # Or on Windows: "C:\Program Files\R\R-4.2.2\bin\Rscript.exe" run_app.R
 
-# Then use Claude Code with Playwright MCP to:
+# Claude Code will automatically use Playwright MCP to:
+# - Navigate through the application pages
+# - Test shinyTree interactions (expand/collapse, selection)
 # - Take screenshots of UI components at different screen sizes
 # - Test responsive design breakpoints
 # - Validate CSS styling and layout issues
@@ -527,6 +580,13 @@ Rscript run_app.R
 - Test real-time synchronization by creating/editing/deleting records in one window
 - Verify updates appear instantly in other windows
 - Monitor WebSocket connection status indicators across sessions
+
+**Study Management Tree Testing**:
+- Test tree node expansion/collapse by double-clicking
+- Verify selection appears in footer with correct type and label
+- Test Add Child button enable/disable based on selection
+- Verify deletion protection when nodes have children
+- Test CRUD operations through toolbar buttons
 
 ### Using Other MCP Tools
 
