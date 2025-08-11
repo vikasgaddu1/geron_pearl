@@ -8,6 +8,7 @@ tnfp_server <- function(id) {
     text_elements_data <- reactiveVal(data.frame())
     last_text_elements_update <- reactiveVal(Sys.time())
     editing_text_element_id <- reactiveVal(NULL)
+    editing_text_element_type <- reactiveVal(NULL)
     
     # Helper function to normalize text for duplicate checking (ignore spaces and case)
     normalize_text <- function(text) {
@@ -61,7 +62,7 @@ tnfp_server <- function(id) {
     
     # Set up validation for edit text element form
     iv_text_element_edit <- InputValidator$new()
-    iv_text_element_edit$add_rule("edit_text_element_type", sv_required())
+    # Don't validate the type field since it's disabled/hidden and can't be changed
     iv_text_element_edit$add_rule("edit_text_element_label", sv_required())
     iv_text_element_edit$add_rule("edit_text_element_label", function(value) {
       if (nchar(trimws(value)) < 3) {
@@ -70,8 +71,9 @@ tnfp_server <- function(id) {
     })
     iv_text_element_edit$add_rule("edit_text_element_label", function(value) {
       current_id <- editing_text_element_id()
-      if (!is.null(input$edit_text_element_type) && !is.null(current_id)) {
-        duplicate_check <- check_duplicate_content(value, input$edit_text_element_type, current_id)
+      current_type <- editing_text_element_type()
+      if (!is.null(current_type) && !is.null(current_id)) {
+        duplicate_check <- check_duplicate_content(value, current_type, current_id)
         if (is.list(duplicate_check) && duplicate_check$exists) {
           paste0("Similar content already exists: '", duplicate_check$existing_label, "' (ignoring spaces and case)")
         }
@@ -326,7 +328,7 @@ tnfp_server <- function(id) {
       
       # Prepare data
       element_data <- list(
-        type = input$edit_text_element_type,
+        type = editing_text_element_type(),
         label = trimws(input$edit_text_element_label)
       )
       
@@ -378,6 +380,7 @@ tnfp_server <- function(id) {
     # Cancel button
     observeEvent(input$cancel_text_element, {
       editing_text_element_id(NULL)
+      editing_text_element_type(NULL)
       updateSelectInput(session, "new_text_element_type", selected = "title")
       updateTextAreaInput(session, "new_text_element_label", value = "")
       iv_text_element_new$disable()
@@ -409,6 +412,7 @@ tnfp_server <- function(id) {
         
         # Set editing state
         editing_text_element_id(element_id)
+        editing_text_element_type(element_result$type)
         
         # Show edit modal
         showModal(modalDialog(
@@ -424,8 +428,7 @@ tnfp_server <- function(id) {
               class = "form-control",
               value = tools::toTitleCase(gsub("_", " ", element_result$type)),
               disabled = TRUE
-            ),
-            tags$input(id = ns("edit_text_element_type"), type = "hidden", value = element_result$type)
+            )
           ),
           
           div(
@@ -459,9 +462,6 @@ tnfp_server <- function(id) {
             )
           )
         ))
-        
-        # Enable validation for the edit form
-        iv_text_element_edit$enable()
       }
     })
     

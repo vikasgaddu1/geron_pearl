@@ -291,7 +291,6 @@ study_tree_server <- function(id) {
 
     # Add Study (reuse studies module behavior)
     observeEvent(input$add_study, {
-      iv_study_new$enable()  # Enable validation
       showModal(modalDialog(
         title = tagList(bs_icon("plus-lg"), "Add Study"),
         size = "m",
@@ -311,7 +310,8 @@ study_tree_server <- function(id) {
     })
 
     observeEvent(input$save_add_study, {
-      # Validate first
+      # Enable validation and check
+      iv_study_new$enable()
       if (!iv_study_new$is_valid()) {
         return()  # Don't proceed if validation fails
       }
@@ -437,7 +437,6 @@ study_tree_server <- function(id) {
         
         if (!is.null(study_hit)) {
         # Add Database Release to this study
-        iv_release_new$enable()  # Enable validation
         showModal(modalDialog(
           title = tagList(bs_icon("plus"), "Add Database Release"),
           textInput(ns("new_release_label"), NULL, placeholder = "Enter database release label"),
@@ -451,7 +450,8 @@ study_tree_server <- function(id) {
           removeModal() 
         }, once = TRUE, ignoreInit = TRUE)
         observeEvent(input$save_add_release, {
-          # Validate first
+          # Enable validation and check
+          iv_release_new$enable()
           if (!iv_release_new$is_valid()) {
             return()  # Don't proceed if validation fails
           }
@@ -558,7 +558,6 @@ study_tree_server <- function(id) {
         
         if (!is.null(release_hit)) {
         # Add Reporting Effort under this release
-        iv_effort_new$enable()  # Enable validation
         showModal(modalDialog(
           title = tagList(bs_icon("plus"), "Add Reporting Effort"),
           textInput(ns("new_effort_label"), NULL, placeholder = "Enter reporting effort label"),
@@ -572,7 +571,8 @@ study_tree_server <- function(id) {
           removeModal() 
         }, once = TRUE, ignoreInit = TRUE)
         observeEvent(input$save_add_effort, {
-          # Validate first
+          # Enable validation and check
+          iv_effort_new$enable()
           if (!iv_effort_new$is_valid()) {
             return()  # Don't proceed if validation fails
           }

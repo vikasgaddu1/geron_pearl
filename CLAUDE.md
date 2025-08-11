@@ -21,6 +21,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Implementation**: Added `find_selected_paths()` helper function that recursively traverses tree structure
 - **Impact**: Now correctly identifies node type (Study/DB Release/Effort) based on path depth, even with duplicate names
 
+### Frontend - Form Validation UX Improvements (January 2025)
+- **Issue**: Form validation triggered immediately when modals opened, showing errors before users could type
+- **Root Cause**: `InputValidator$enable()` was called when modals opened instead of on save
+- **Solution**: Implemented deferred validation pattern - only enable validation when Save/Create buttons clicked
+- **Impact**: Better user experience with validation only when attempting to save
+- **Modules Fixed**: Study Tree (Add Study, Add Child), TNFP (Edit modal)
+
 ## Project Overview
 
 PEARL is a **full-stack research data management system** with real-time WebSocket updates:

@@ -146,6 +146,7 @@ async def update_database_release(
                     detail="Database release with this label already exists for this study"
                 )
         
+        print(f"About to update database release ID {database_release_id} to '{database_release_in.database_release_label}'")
         updated_release = await database_release.update(db, db_obj=db_release, obj_in=database_release_in)
         print(f"✅ Database release updated successfully: {updated_release.database_release_label} (ID: {updated_release.id})")
         
@@ -161,11 +162,6 @@ async def update_database_release(
         return updated_release
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update database release"
-        )
 
 
 @router.delete("/{database_release_id}", response_model=DatabaseRelease)

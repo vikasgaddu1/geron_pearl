@@ -48,6 +48,12 @@ The `Study Management` navigation entry uses `shinyTree` to present the hierarch
 - **Handles Duplicate Names**: Now correctly distinguishes between nodes with same name at different tree levels
 - **Robust Selection Logic**: Uses recursive tree traversal instead of formatted selection methods
 
+### Recent Updates (January 2025)
+- **Fixed Validation Timing**: Validation now only triggers when Save/Create buttons are clicked, not when modals open
+- **Improved User Experience**: Removed premature validation errors that appeared immediately upon modal opening
+- **TNFP Edit Modal Fix**: Resolved issue where Save button couldn't be clicked due to validation on hidden fields
+- **Consistent Pattern**: Applied deferred validation pattern across all modules (Study Tree, TNFP)
+
 ### Selection Implementation
 The module uses a helper function to walk the shinyTree structure and find selected nodes:
 ```r
@@ -236,15 +242,32 @@ if (length(study_releases) > 0) {
 ```
 
 ### Form Validation Patterns
-Use `shinyvalidate` for all forms:
+Use `shinyvalidate` for all forms with **deferred validation** pattern:
+
+**Best Practice - Deferred Validation** (Enable only on Save/Submit):
 ```r
+# Setup validation rules (but don't enable yet)
 iv <- InputValidator$new()
 iv$add_rule("field_name", sv_required())
 iv$add_rule("field_name", function(value) {
   if (nchar(trimws(value)) < 3) "Content must be at least 3 characters"
 })
-iv$enable()
+
+# In the Save/Submit button observer
+observeEvent(input$save_button, {
+  iv$enable()  # Enable validation only when user tries to save
+  if (!iv$is_valid()) {
+    return()  # Don't proceed if validation fails
+  }
+  # ... save logic ...
+  iv$disable()  # Disable after successful save
+})
 ```
+
+**Important Notes**:
+- Never validate hidden or disabled input fields
+- Use reactive values to store data that needs to be accessed but not edited
+- Always disable validation after successful operations or when canceling
 
 ### Notification Type Constraints
 **⚠️ CRITICAL**: Only use valid Shiny notification types
