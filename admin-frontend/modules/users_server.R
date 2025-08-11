@@ -53,14 +53,12 @@ users_server <- function(id) {
     
     # Load Users data
     load_users_data <- function() {
-      cat("Loading users data...\n")
       result <- get_users()
       if (!is.null(result$error)) {
         cat("Error loading users:", result$error, "\n")
         showNotification("Error loading users", type = "error")
         users_data(data.frame())
       } else {
-        cat("Loaded", length(result), "users\n")
         users_data(convert_users_to_df(result))
         last_users_update(Sys.time())
       }
@@ -288,8 +286,6 @@ users_server <- function(id) {
     
     # Toggle add user sidebar
     observeEvent(input$toggle_add_user, {
-      cat("Add user button clicked\n")
-      
       # Reset form for new user
       editing_user_id(NULL)
       updateTextInput(session, "new_username", value = "")

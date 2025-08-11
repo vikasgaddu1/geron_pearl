@@ -109,6 +109,25 @@ Rscript run_app.R
 cd backend && uv run python tests/integration/test_websocket_broadcast.py
 ```
 
+### Stopping Running Processes (Windows)
+
+When you need to stop the backend or frontend services on Windows:
+
+```bash
+# Find processes using specific ports
+netstat -ano | findstr :8000     # Backend port
+netstat -ano | findstr :3838     # Frontend port
+
+# Kill processes by PID (use PowerShell for reliability)
+powershell -Command "Stop-Process -Id <PID> -Force"
+
+# Alternative: Kill all Python/R processes
+powershell -Command "Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force"
+powershell -Command "Get-Process Rscript -ErrorAction SilentlyContinue | Stop-Process -Force"
+```
+
+**Note**: Windows command syntax in Git Bash can be tricky. Use PowerShell commands wrapped in `powershell -Command` for reliable process termination.
+
 ## Critical System Constraints
 
 ### SQLAlchemy Async Session Conflicts

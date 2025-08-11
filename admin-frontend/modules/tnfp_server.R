@@ -109,14 +109,12 @@ tnfp_server <- function(id) {
     
     # Load Text Elements data
     load_text_elements_data <- function() {
-      cat("Loading text elements data...\n")
       result <- get_text_elements()
       if (!is.null(result$error)) {
         cat("Error loading text elements:", result$error, "\n")
         showNotification("Error loading text elements", type = "error")
         text_elements_data(data.frame())
       } else {
-        cat("Loaded", length(result), "text elements\n")
         text_elements_data(convert_text_elements_to_df(result))
         last_text_elements_update(Sys.time())
       }
