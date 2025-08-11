@@ -508,6 +508,121 @@ delete_package_item <- function(item_id) {
   })
 }
 
+# ===== USERS FUNCTIONS =====
+
+# Get the users endpoint dynamically
+get_users_endpoint <- function() {
+  api_base <- Sys.getenv("PEARL_API_URL", "http://localhost:8000")
+  return(paste0(api_base, "/api/v1/users"))
+}
+
+# Get all users
+get_users <- function() {
+  tryCatch({
+    response <- httr::GET(paste0(get_users_endpoint(), "/"))
+    
+    if (httr::status_code(response) == 200) {
+      content <- httr::content(response, "text", encoding = "UTF-8")
+      if (content == "" || content == "[]") {
+        return(list())
+      }
+      users <- jsonlite::fromJSON(content, simplifyVector = FALSE)
+      return(users)
+    } else {
+      return(list(error = paste("HTTP", httr::status_code(response))))
+    }
+  }, error = function(e) {
+    return(list(error = paste("Failed to fetch users:", e$message)))
+  })
+}
+
+# Get user by ID
+get_user_by_id <- function(user_id) {
+  tryCatch({
+    response <- httr::GET(paste0(get_users_endpoint(), "/", user_id))
+    
+    if (httr::status_code(response) == 200) {
+      content <- httr::content(response, "text", encoding = "UTF-8")
+      user <- jsonlite::fromJSON(content)
+      return(user)
+    } else {
+      return(list(error = paste("HTTP", httr::status_code(response))))
+    }
+  }, error = function(e) {
+    return(list(error = paste("Failed to fetch user:", e$message)))
+  })
+}
+
+# Create a new user
+create_user <- function(username, role) {
+  payload <- list(
+    username = username,
+    role = role
+  )
+  
+  tryCatch({
+    response <- httr::POST(
+      paste0(get_users_endpoint(), "/"),
+      body = jsonlite::toJSON(payload, auto_unbox = TRUE),
+      httr::content_type_json()
+    )
+    
+    if (httr::status_code(response) == 200 || httr::status_code(response) == 201) {
+      content <- httr::content(response, "text", encoding = "UTF-8")
+      user <- jsonlite::fromJSON(content)
+      return(user)
+    } else {
+      error_content <- httr::content(response, "text", encoding = "UTF-8")
+      return(list(error = paste("HTTP", httr::status_code(response), "-", error_content)))
+    }
+  }, error = function(e) {
+    return(list(error = paste("Failed to create user:", e$message)))
+  })
+}
+
+# Update an existing user
+update_user <- function(user_id, username, role) {
+  payload <- list(
+    username = username,
+    role = role
+  )
+  
+  tryCatch({
+    response <- httr::PUT(
+      paste0(get_users_endpoint(), "/", user_id),
+      body = jsonlite::toJSON(payload, auto_unbox = TRUE),
+      httr::content_type_json()
+    )
+    
+    if (httr::status_code(response) == 200) {
+      content <- httr::content(response, "text", encoding = "UTF-8")
+      user <- jsonlite::fromJSON(content)
+      return(user)
+    } else {
+      error_content <- httr::content(response, "text", encoding = "UTF-8")
+      return(list(error = paste("HTTP", httr::status_code(response), "-", error_content)))
+    }
+  }, error = function(e) {
+    return(list(error = paste("Failed to update user:", e$message)))
+  })
+}
+
+# Delete a user
+delete_user <- function(user_id) {
+  tryCatch({
+    response <- httr::DELETE(paste0(get_users_endpoint(), "/", user_id))
+    
+    if (httr::status_code(response) == 200) {
+      return(list(success = TRUE))
+    } else {
+      error_content <- httr::content(response, "text", encoding = "UTF-8")
+      return(list(error = paste("HTTP", httr::status_code(response), "-", error_content)))
+    }
+  }, error = function(e) {
+    return(list(error = paste("Failed to delete user:", e$message)))
+  })
+}
+
 # Health check function
 health_check <- function() {
   api_base <- Sys.getenv("PEARL_API_URL", "http://localhost:8000")

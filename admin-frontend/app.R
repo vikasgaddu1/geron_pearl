@@ -35,7 +35,6 @@ source("modules/tnfp_ui.R")
 source("modules/tnfp_server.R")
 source("modules/packages_ui.R")
 source("modules/packages_server.R")
-source("modules/users_api.R")
 source("modules/users_ui.R")
 source("modules/users_server.R")
 
