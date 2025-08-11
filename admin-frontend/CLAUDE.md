@@ -42,11 +42,24 @@ The `Study Management` navigation entry uses `shinyTree` to present the hierarch
   - Edit: edits the selected node label using corresponding API
   - Delete: prevents deletion when children exist (mirrors table-based modules)
 
-### Recent Updates (August 2025)
-- **Fixed Selection Detection**: Changed from `identical()` to `==` for string comparisons
-- **Removed Auto-Expansion**: Tree now starts collapsed for better navigation
-- **Simplified UI**: Removed expand/collapse all checkbox feature
-- **Labels Resolution**: Labels are used to resolve selection; ensure labels are unique per scope to avoid ambiguity
+### Recent Updates (December 2024)
+- **Fixed Selection Ambiguity**: Implemented proper path-based selection using shinyTree's `stselected` attribute
+- **Path Traversal**: Added `find_selected_paths()` helper to correctly identify node depth and type
+- **Handles Duplicate Names**: Now correctly distinguishes between nodes with same name at different tree levels
+- **Robust Selection Logic**: Uses recursive tree traversal instead of formatted selection methods
+
+### Selection Implementation
+The module uses a helper function to walk the shinyTree structure and find selected nodes:
+```r
+find_selected_paths <- function(tree, path = character()) {
+  # Recursively traverse tree looking for nodes with stselected=TRUE
+  # Returns list of paths (character vectors) to selected nodes
+}
+```
+Node type is determined by path depth:
+- Depth 1: Study
+- Depth 2: Database Release  
+- Depth 3: Reporting Effort
 
 
 ### Environment Setup

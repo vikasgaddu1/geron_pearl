@@ -166,34 +166,59 @@ study_tree_server <- function(id) {
       build_tree_data()
     })
 
+    # Helper function to walk the shinyTree input and find selected paths
+    # shinyTree marks selected nodes with the "stselected" attribute
+    find_selected_paths <- function(tree, path = character()) {
+      out <- list()
+      if (length(tree) == 0) return(out)
+      
+      for (nm in names(tree)) {
+        child <- tree[[nm]]
+        this_path <- c(path, nm)
+        
+        # Check if this node is selected
+        is_selected <- isTRUE(attr(child, "stselected"))
+        
+        if (is_selected) {
+          out <- c(out, list(this_path))
+        }
+        
+        # Recursively check children
+        if (is.list(child)) {
+          out <- c(out, find_selected_paths(child, this_path))
+        }
+      }
+      out
+    }
+    
     # Track selection; enable/disable buttons accordingly
     observeEvent(input$study_tree, {
-      sel <- shinyTree::get_selected(input$study_tree, format = "slices")
-      
       # Default: nothing selected
       selected_node(list(type = NULL, label = NULL, path = NULL))
       
       # Enable Add Child by default; disable only when an effort is selected
       shinyjs::enable(ns("add_child"))
       
-      if (length(sel) > 0) {
-        # Get the path to the selected node
-        # sel is a list with the path as nested names
-        path <- names(sel[[1]])
+      # Find all selected paths in the tree
+      selected_paths <- find_selected_paths(input$study_tree)
+      
+      # We only support single selection, so take the first path if any
+      if (length(selected_paths) > 0) {
+        path_components <- selected_paths[[1]]
+        path_depth <- length(path_components)
         
-        # Determine the type based on the depth of the path
-        if (length(path) == 1) {
+        if (path_depth == 1) {
           # Top level = study
-          selected_label <- path[1]
-          selected_node(list(type = "study", label = selected_label, path = path))
-        } else if (length(path) == 2) {
+          selected_label <- path_components[1]
+          selected_node(list(type = "study", label = selected_label, path = path_components))
+        } else if (path_depth == 2) {
           # Second level = database release
-          selected_label <- path[2]
-          selected_node(list(type = "release", label = selected_label, path = path))
-        } else if (length(path) == 3) {
+          selected_label <- path_components[2]
+          selected_node(list(type = "release", label = selected_label, path = path_components))
+        } else if (path_depth == 3) {
           # Third level = reporting effort
-          selected_label <- path[3]
-          selected_node(list(type = "effort", label = selected_label, path = path))
+          selected_label <- path_components[3]
+          selected_node(list(type = "effort", label = selected_label, path = path_components))
           # Disable Add Child for efforts
           shinyjs::disable(ns("add_child"))
         }

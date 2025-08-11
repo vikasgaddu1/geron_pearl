@@ -6,6 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > - **Backend**: [backend/CLAUDE.md](backend/CLAUDE.md) + [backend/README.md](backend/README.md)  
 > - **Frontend**: [admin-frontend/CLAUDE.md](admin-frontend/CLAUDE.md) + [admin-frontend/README.md](admin-frontend/README.md)
 
+## Recent Changes (December 2024)
+
+### Frontend - Study Tree Selection Fix
+- **Issue**: Study tree had selection ambiguity when study and database release had same name (e.g., "test")
+- **Root Cause**: Previous implementation used formatted selection methods that couldn't distinguish node depth
+- **Solution**: Implemented proper path-based selection using shinyTree's `stselected` attribute
+- **Implementation**: Added `find_selected_paths()` helper function that recursively traverses tree structure
+- **Impact**: Now correctly identifies node type (Study/DB Release/Effort) based on path depth, even with duplicate names
+
 ## Project Overview
 
 PEARL is a **full-stack research data management system** with real-time WebSocket updates:
