@@ -8,6 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Recent Changes (December 2024)
 
+### Frontend - Module Consolidation
+- **Change**: Removed individual Studies, Database Releases, and Reporting Efforts modules
+- **Reason**: All functionality is now handled by the Study Tree module with hierarchical view
+- **Impact**: Cleaner codebase, unified interface for managing all three entity types
+- **Files Removed**: `studies_*.R`, `database_releases_*.R`, `reporting_efforts_*.R`
+
 ### Frontend - Study Tree Selection Fix
 - **Issue**: Study tree had selection ambiguity when study and database release had same name (e.g., "test")
 - **Root Cause**: Previous implementation used formatted selection methods that couldn't distinguish node depth

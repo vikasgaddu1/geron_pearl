@@ -162,10 +162,9 @@ All functionality follows a strict UI/Server module pattern:
 - **API Client** (`api_client.R`): Centralized HTTP client functions
 
 ### Entity Management Modules
-- **Studies** (`studies_*.R`): Core research study management
-- **Database Releases** (`database_releases_*.R`): Version control for data releases
-- **Reporting Efforts** (`reporting_efforts_*.R`): Reporting workflow management
+- **Study Tree** (`study_tree_*.R`): Consolidated management for Studies, Database Releases, and Reporting Efforts in a hierarchical tree view
 - **TNFP** (`tnfp_*.R`): Text/Note/Footnote/Population elements (unified interface)
+- **Packages** (`packages_*.R`): Package registry management
 
 ### Real-time WebSocket Architecture
 - **Dual Client Design**: JavaScript (primary) + R (secondary) WebSocket clients

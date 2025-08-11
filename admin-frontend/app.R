@@ -27,14 +27,10 @@ WEBSOCKET_URL <- paste0(gsub("^http", "ws", API_BASE_URL), API_WEBSOCKET_PATH)
 # Source modules (order matters - api_client needs STUDIES_ENDPOINT)
 source("modules/websocket_client.R")
 source("modules/api_client.R")
-source("modules/studies_ui.R")
-source("modules/studies_server.R")
-source("modules/database_releases_ui.R")
-source("modules/database_releases_server.R")
-source("modules/reporting_efforts_ui.R")
-source("modules/reporting_efforts_server.R")
-  source("modules/study_tree_ui.R")
-  source("modules/study_tree_server.R")
+# Studies, Database Releases, and Reporting Efforts functionality 
+# is now consolidated in study_tree modules
+source("modules/study_tree_ui.R")
+source("modules/study_tree_server.R")
 source("modules/tnfp_ui.R")
 source("modules/tnfp_server.R")
 source("modules/packages_ui.R")
@@ -139,9 +135,6 @@ ui <- page_navbar(
   # Primary navigation (grouped)
   nav_menu(
     "Data Management",
-    nav_panel("Studies", value = "data_tab", studies_ui("studies")),
-    nav_panel("Database Releases", value = "releases_tab", database_releases_ui("database_releases")),
-    nav_panel("Reporting Efforts", value = "efforts_tab", reporting_efforts_ui("reporting_efforts")),
     nav_panel("Study Management", value = "study_tree_tab", study_tree_ui("study_tree")),
     nav_panel("TFL Properties", value = "tnfp_tab", tnfp_ui("tnfp"))
   ),
@@ -210,19 +203,10 @@ server <- function(input, output, session) {
     })
   }, ignoreInit = TRUE)
   
-  # Studies module
-  studies_server("studies")
-  
   # Packages module
   packages_server("packages")
   
-  # Database Releases module
-  database_releases_server("database_releases")
-  
-  # Reporting Efforts module
-  reporting_efforts_server("reporting_efforts")
-  
-  # Study Tree module
+  # Study Tree module (handles Studies, Database Releases, and Reporting Efforts)
   study_tree_server("study_tree")
   
   # TNFP module
