@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_take_screenshot",
+      "Bash(git add:*)",
+      "mcp__playwright__browser_type",
+      "Bash(curl:*)",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_snapshot"
+    ],
+    "deny": []
+  }
+}

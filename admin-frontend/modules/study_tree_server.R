@@ -253,7 +253,7 @@ study_tree_server <- function(id) {
             div(
               class = "alert alert-warning",
               tags$p(tags$strong("Cannot create study:")),
-              tags$p(paste("A study with similar label already exists:", tags$strong(existing_label))),
+              tags$p("A study with similar label already exists: ", tags$strong(existing_label)),
               tags$hr(),
               tags$small("Each study must have a unique label (comparison ignores spaces and case).")
             ),
@@ -380,7 +380,7 @@ study_tree_server <- function(id) {
               div(
                 class = "alert alert-warning",
                 tags$p(tags$strong("Cannot create database release:")),
-                tags$p(paste("A database release with similar label already exists:", tags$strong(existing_label))),
+                tags$p("A database release with similar label already exists: ", tags$strong(existing_label)),
                 tags$hr(),
                 tags$small("Each database release must have a unique label within its study (comparison ignores spaces and case).")
               ),
@@ -467,7 +467,7 @@ study_tree_server <- function(id) {
               div(
                 class = "alert alert-warning",
                 tags$p(tags$strong("Cannot create reporting effort:")),
-                tags$p(paste("A reporting effort with similar label already exists:", tags$strong(existing_label))),
+                tags$p("A reporting effort with similar label already exists: ", tags$strong(existing_label)),
                 tags$hr(),
                 tags$small("Each reporting effort must have a unique label within its database release (comparison ignores spaces and case).")
               ),
@@ -573,7 +573,7 @@ study_tree_server <- function(id) {
                 div(
                   class = "alert alert-warning",
                   tags$p(tags$strong("Cannot update study:")),
-                  tags$p(paste("A study with similar label already exists:", tags$strong(existing_label))),
+                  tags$p("A study with similar label already exists: ", tags$strong(existing_label)),
                   tags$hr(),
                   tags$small("Each study must have a unique label (comparison ignores spaces and case).")
                 ),
@@ -655,7 +655,7 @@ study_tree_server <- function(id) {
                 div(
                   class = "alert alert-warning",
                   tags$p(tags$strong("Cannot update database release:")),
-                  tags$p(paste("A database release with similar label already exists:", tags$strong(existing_label))),
+                  tags$p("A database release with similar label already exists: ", tags$strong(existing_label)),
                   tags$hr(),
                   tags$small("Each database release must have a unique label within its study (comparison ignores spaces and case).")
                 ),
@@ -738,7 +738,7 @@ study_tree_server <- function(id) {
                 div(
                   class = "alert alert-warning",
                   tags$p(tags$strong("Cannot update reporting effort:")),
-                  tags$p(paste("A reporting effort with similar label already exists:", tags$strong(existing_label))),
+                  tags$p("A reporting effort with similar label already exists: ", tags$strong(existing_label)),
                   tags$hr(),
                   tags$small("Each reporting effort must have a unique label within its database release (comparison ignores spaces and case).")
                 ),
