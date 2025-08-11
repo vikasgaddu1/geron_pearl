@@ -538,14 +538,16 @@ study_tree_server <- function(id) {
         }, once = TRUE, ignoreInit = TRUE)
         return()
       }
-
+      
       # If the label matches a reporting effort, do nothing and warn
       effort_hit <- NULL
-      for (e in efforts) { if (e$database_release_label == selected_label) { effort_hit <- e; break } }
+      for (e in efforts) { if (e$database_release_label == node$label) { effort_hit <- e; break } }
       if (!is.null(effort_hit)) {
         showNotification("Add Child is disabled for Reporting Efforts", type = "warning")
         return()
       }
+      
+    }
 
       showNotification("Please select a study or a database release", type = "warning")
     })
@@ -743,7 +745,6 @@ study_tree_server <- function(id) {
               showNotification("Database release updated", type = "message"); removeModal(); output$study_tree <- shinyTree::renderTree({ build_tree_data() }); last_update(Sys.time())
             }
           }, once = TRUE, ignoreInit = TRUE)
-                return()
               }
             }
           }
@@ -855,13 +856,11 @@ study_tree_server <- function(id) {
               showNotification("Reporting effort updated", type = "message"); removeModal(); output$study_tree <- shinyTree::renderTree({ build_tree_data() }); last_update(Sys.time())
             }
           }, once = TRUE, ignoreInit = TRUE)
-                return()
               }
             }
           }
         }
       }
-    }
     })
 
     # Delete selected item with child checks akin to data management modules
