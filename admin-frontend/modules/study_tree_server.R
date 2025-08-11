@@ -60,6 +60,44 @@ study_tree_server <- function(id) {
 
     # Helper null-coalescing for lists
     `%||%` <- function(x, y) if (is.null(x)) y else x
+    
+    # Helper function to parse error messages and check for duplicates
+    parse_error_for_duplicate <- function(error_string) {
+      # Debug: print the error string
+      cat("DEBUG: Error string received:", error_string, "\n")
+      
+      # Check if it's a duplicate error (HTTP 400 with specific message)
+      if (grepl("already exists", error_string, ignore.case = TRUE) || 
+          grepl("duplicate", error_string, ignore.case = TRUE) ||
+          grepl("HTTP 400", error_string, ignore.case = TRUE)) {
+        return(TRUE)
+      }
+      return(FALSE)
+    }
+    
+    # Helper to extract clean error message
+    extract_error_message <- function(error_string) {
+      # Debug: print for troubleshooting
+      cat("DEBUG: Extracting message from:", error_string, "\n")
+      
+      # Try to extract the actual error message from HTTP errors
+      if (grepl("HTTP \\d+", error_string)) {
+        # Extract JSON part after the HTTP status
+        json_part <- sub(".*HTTP \\d+ - ", "", error_string)
+        cat("DEBUG: JSON part:", json_part, "\n")
+        
+        tryCatch({
+          error_data <- jsonlite::fromJSON(json_part)
+          if (!is.null(error_data$detail)) {
+            cat("DEBUG: Extracted detail:", error_data$detail, "\n")
+            return(error_data$detail)
+          }
+        }, error = function(e) {
+          cat("DEBUG: JSON parsing error:", e$message, "\n")
+        })
+      }
+      return(error_string)
+    }
 
     # Render tree (collapsed by default)
     output$study_tree <- shinyTree::renderTree({
@@ -215,7 +253,29 @@ study_tree_server <- function(id) {
           if (!nzchar(label)) return()
           res <- create_database_release(list(study_id = study_hit$id, database_release_label = label))
           if (!is.null(res$error)) {
-            showNotification(paste("Error creating release:", res$error), type = "error")
+            # Check if it's a duplicate error
+            if (parse_error_for_duplicate(res$error)) {
+              clean_msg <- extract_error_message(res$error)
+              showModal(modalDialog(
+                title = tagList(bs_icon("exclamation-triangle"), "Database Release Already Exists"),
+                div(
+                  class = "alert alert-warning",
+                  tags$p(tags$strong("Cannot create database release:")),
+                  tags$p(clean_msg),
+                  tags$hr(),
+                  tags$small("Each database release must have a unique label within its study.")
+                ),
+                footer = input_task_button(
+                  ns("close_duplicate_release_error"), 
+                  tagList(bs_icon("x"), "Close"), 
+                  class = "btn btn-secondary"
+                ),
+                easyClose = TRUE
+              ))
+              observeEvent(input$close_duplicate_release_error, { removeModal() }, once = TRUE)
+            } else {
+              showNotification(paste("Error creating release:", res$error), type = "error")
+            }
           } else {
             showNotification("Database release created", type = "message")
             removeModal()
@@ -249,7 +309,29 @@ study_tree_server <- function(id) {
             database_release_label = label
           ))
           if (!is.null(res$error)) {
-            showNotification(paste("Error creating reporting effort:", res$error), type = "error")
+            # Check if it's a duplicate error
+            if (parse_error_for_duplicate(res$error)) {
+              clean_msg <- extract_error_message(res$error)
+              showModal(modalDialog(
+                title = tagList(bs_icon("exclamation-triangle"), "Reporting Effort Already Exists"),
+                div(
+                  class = "alert alert-warning",
+                  tags$p(tags$strong("Cannot create reporting effort:")),
+                  tags$p(clean_msg),
+                  tags$hr(),
+                  tags$small("Each reporting effort must have a unique label within its database release.")
+                ),
+                footer = input_task_button(
+                  ns("close_duplicate_effort_error"), 
+                  tagList(bs_icon("x"), "Close"), 
+                  class = "btn btn-secondary"
+                ),
+                easyClose = TRUE
+              ))
+              observeEvent(input$close_duplicate_effort_error, { removeModal() }, once = TRUE)
+            } else {
+              showNotification(paste("Error creating reporting effort:", res$error), type = "error")
+            }
           } else {
             showNotification("Reporting effort created", type = "message")
             removeModal()
@@ -320,7 +402,29 @@ study_tree_server <- function(id) {
             if (!nzchar(lbl)) return()
             res <- update_database_release(r$id, list(study_id = r$study_id, database_release_label = lbl))
             if (!is.null(res$error)) {
-              showNotification(paste("Error updating release:", res$error), type = "error")
+              # Check if it's a duplicate error
+              if (parse_error_for_duplicate(res$error)) {
+                clean_msg <- extract_error_message(res$error)
+                showModal(modalDialog(
+                  title = tagList(bs_icon("exclamation-triangle"), "Database Release Already Exists"),
+                  div(
+                    class = "alert alert-warning",
+                    tags$p(tags$strong("Cannot update database release:")),
+                    tags$p(clean_msg),
+                    tags$hr(),
+                    tags$small("Each database release must have a unique label within its study.")
+                  ),
+                  footer = input_task_button(
+                    ns("close_duplicate_release_edit_error"), 
+                    tagList(bs_icon("x"), "Close"), 
+                    class = "btn btn-secondary"
+                  ),
+                  easyClose = TRUE
+                ))
+                observeEvent(input$close_duplicate_release_edit_error, { removeModal() }, once = TRUE)
+              } else {
+                showNotification(paste("Error updating release:", res$error), type = "error")
+              }
             } else {
               showNotification("Database release updated", type = "message"); removeModal(); output$study_tree <- shinyTree::renderTree({ build_tree_data() }); last_update(Sys.time())
             }
@@ -346,7 +450,29 @@ study_tree_server <- function(id) {
             if (!nzchar(lbl)) return()
             res <- update_reporting_effort(e$id, list(study_id = e$study_id, database_release_id = e$database_release_id, database_release_label = lbl))
             if (!is.null(res$error)) {
-              showNotification(paste("Error updating reporting effort:", res$error), type = "error")
+              # Check if it's a duplicate error
+              if (parse_error_for_duplicate(res$error)) {
+                clean_msg <- extract_error_message(res$error)
+                showModal(modalDialog(
+                  title = tagList(bs_icon("exclamation-triangle"), "Reporting Effort Already Exists"),
+                  div(
+                    class = "alert alert-warning",
+                    tags$p(tags$strong("Cannot update reporting effort:")),
+                    tags$p(clean_msg),
+                    tags$hr(),
+                    tags$small("Each reporting effort must have a unique label within its database release.")
+                  ),
+                  footer = input_task_button(
+                    ns("close_duplicate_effort_edit_error"), 
+                    tagList(bs_icon("x"), "Close"), 
+                    class = "btn btn-secondary"
+                  ),
+                  easyClose = TRUE
+                ))
+                observeEvent(input$close_duplicate_effort_edit_error, { removeModal() }, once = TRUE)
+              } else {
+                showNotification(paste("Error updating reporting effort:", res$error), type = "error")
+              }
             } else {
               showNotification("Reporting effort updated", type = "message"); removeModal(); output$study_tree <- shinyTree::renderTree({ build_tree_data() }); last_update(Sys.time())
             }

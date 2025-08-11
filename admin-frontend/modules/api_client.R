@@ -134,6 +134,7 @@ create_database_release <- function(release_data) {
     response <- httr2::request(get_database_releases_endpoint()) |>
       httr2::req_method("POST") |>
       httr2::req_body_json(release_data) |>
+      httr2::req_error(is_error = ~ FALSE) |>  # Don't throw on HTTP errors
       httr2::req_perform()
     if (httr2::resp_status(response) == 201) {
       httr2::resp_body_json(response)
@@ -151,6 +152,7 @@ update_database_release <- function(id, release_data) {
     response <- httr2::request(paste0(get_database_releases_endpoint(), "/", id)) |>
       httr2::req_method("PUT") |>
       httr2::req_body_json(release_data) |>
+      httr2::req_error(is_error = ~ FALSE) |>  # Don't throw on HTTP errors
       httr2::req_perform()
     if (httr2::resp_status(response) == 200) {
       httr2::resp_body_json(response)
@@ -222,6 +224,7 @@ create_reporting_effort <- function(effort_data) {
     response <- httr2::request(get_reporting_efforts_endpoint()) |>
       httr2::req_method("POST") |>
       httr2::req_body_json(effort_data) |>
+      httr2::req_error(is_error = ~ FALSE) |>  # Don't throw on HTTP errors
       httr2::req_perform()
     if (httr2::resp_status(response) == 201) {
       httr2::resp_body_json(response)
@@ -239,6 +242,7 @@ update_reporting_effort <- function(id, effort_data) {
     response <- httr2::request(paste0(get_reporting_efforts_endpoint(), "/", id)) |>
       httr2::req_method("PUT") |>
       httr2::req_body_json(effort_data) |>
+      httr2::req_error(is_error = ~ FALSE) |>  # Don't throw on HTTP errors
       httr2::req_perform()
     if (httr2::resp_status(response) == 200) {
       httr2::resp_body_json(response)
