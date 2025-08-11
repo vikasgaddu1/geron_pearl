@@ -61,6 +61,50 @@ study_tree_server <- function(id) {
     # Helper null-coalescing for lists
     `%||%` <- function(x, y) if (is.null(x)) y else x
     
+    # Helper function to normalize labels for duplicate checking
+    # Removes spaces and converts to uppercase for comparison
+    normalize_label <- function(label) {
+      gsub("\\s+", "", toupper(trimws(label)))
+    }
+    
+    # Helper function to check if a label already exists (case and space insensitive)
+    check_duplicate_release <- function(study_id, new_label, exclude_id = NULL) {
+      releases <- get_database_releases()
+      if (!is.null(releases$error)) return(FALSE)
+      
+      normalized_new <- normalize_label(new_label)
+      study_releases <- Filter(function(r) r$study_id == study_id, releases)
+      
+      for (release in study_releases) {
+        # Skip if this is the release being edited
+        if (!is.null(exclude_id) && release$id == exclude_id) next
+        
+        if (normalize_label(release$database_release_label) == normalized_new) {
+          return(release$database_release_label)  # Return the existing label
+        }
+      }
+      return(FALSE)
+    }
+    
+    # Helper function to check if a reporting effort label already exists
+    check_duplicate_effort <- function(release_id, new_label, exclude_id = NULL) {
+      efforts <- get_reporting_efforts()
+      if (!is.null(efforts$error)) return(FALSE)
+      
+      normalized_new <- normalize_label(new_label)
+      release_efforts <- Filter(function(e) e$database_release_id == release_id, efforts)
+      
+      for (effort in release_efforts) {
+        # Skip if this is the effort being edited
+        if (!is.null(exclude_id) && effort$id == exclude_id) next
+        
+        if (normalize_label(effort$database_release_label) == normalized_new) {
+          return(effort$database_release_label)  # Return the existing label
+        }
+      }
+      return(FALSE)
+    }
+    
     # Helper function to parse error messages and check for duplicates
     parse_error_for_duplicate <- function(error_string) {
       # Debug: print the error string
@@ -251,6 +295,35 @@ study_tree_server <- function(id) {
         observeEvent(input$save_add_release, {
           label <- trimws(input$new_release_label %||% "")
           if (!nzchar(label)) return()
+          
+          # Check for duplicate before sending to backend
+          existing_label <- check_duplicate_release(study_hit$id, label)
+          if (existing_label != FALSE) {
+            # Show duplicate error modal
+            removeModal()
+            Sys.sleep(0.1)  # Small delay to ensure modal is removed
+            showModal(modalDialog(
+              title = tagList(bs_icon("exclamation-triangle"), "Database Release Already Exists"),
+              div(
+                class = "alert alert-warning",
+                tags$p(tags$strong("Cannot create database release:")),
+                tags$p(paste("A database release with similar label already exists:", tags$strong(existing_label))),
+                tags$hr(),
+                tags$small("Each database release must have a unique label within its study (comparison ignores spaces and case).")
+              ),
+              footer = input_task_button(
+                ns("close_duplicate_release_error"), 
+                tagList(bs_icon("x"), "Close"), 
+                class = "btn btn-secondary"
+              ),
+              easyClose = TRUE
+            ))
+            observeEvent(input$close_duplicate_release_error, { 
+              removeModal() 
+            }, once = TRUE, ignoreInit = TRUE)
+            return()
+          }
+          
           res <- create_database_release(list(study_id = study_hit$id, database_release_label = label))
           if (!is.null(res$error)) {
             # Check if it's a duplicate error
@@ -309,6 +382,35 @@ study_tree_server <- function(id) {
         observeEvent(input$save_add_effort, {
           label <- trimws(input$new_effort_label %||% "")
           if (!nzchar(label)) return()
+          
+          # Check for duplicate before sending to backend
+          existing_label <- check_duplicate_effort(release_hit$id, label)
+          if (existing_label != FALSE) {
+            # Show duplicate error modal
+            removeModal()
+            Sys.sleep(0.1)  # Small delay to ensure modal is removed
+            showModal(modalDialog(
+              title = tagList(bs_icon("exclamation-triangle"), "Reporting Effort Already Exists"),
+              div(
+                class = "alert alert-warning",
+                tags$p(tags$strong("Cannot create reporting effort:")),
+                tags$p(paste("A reporting effort with similar label already exists:", tags$strong(existing_label))),
+                tags$hr(),
+                tags$small("Each reporting effort must have a unique label within its database release (comparison ignores spaces and case).")
+              ),
+              footer = input_task_button(
+                ns("close_duplicate_effort_error"), 
+                tagList(bs_icon("x"), "Close"), 
+                class = "btn btn-secondary"
+              ),
+              easyClose = TRUE
+            ))
+            observeEvent(input$close_duplicate_effort_error, { 
+              removeModal() 
+            }, once = TRUE, ignoreInit = TRUE)
+            return()
+          }
+          
           res <- create_reporting_effort(list(
             study_id = release_hit$study_id,
             database_release_id = release_hit$id,
@@ -412,6 +514,35 @@ study_tree_server <- function(id) {
           observeEvent(input$save_edit_release, {
             lbl <- trimws(input$edit_release_label %||% "")
             if (!nzchar(lbl)) return()
+            
+            # Check for duplicate before sending to backend (exclude current release)
+            existing_label <- check_duplicate_release(r$study_id, lbl, r$id)
+            if (existing_label != FALSE) {
+              # Show duplicate error modal
+              removeModal()
+              Sys.sleep(0.1)  # Small delay to ensure modal is removed
+              showModal(modalDialog(
+                title = tagList(bs_icon("exclamation-triangle"), "Database Release Already Exists"),
+                div(
+                  class = "alert alert-warning",
+                  tags$p(tags$strong("Cannot update database release:")),
+                  tags$p(paste("A database release with similar label already exists:", tags$strong(existing_label))),
+                  tags$hr(),
+                  tags$small("Each database release must have a unique label within its study (comparison ignores spaces and case).")
+                ),
+                footer = input_task_button(
+                  ns("close_duplicate_release_edit_error"), 
+                  tagList(bs_icon("x"), "Close"), 
+                  class = "btn btn-secondary"
+                ),
+                easyClose = TRUE
+              ))
+              observeEvent(input$close_duplicate_release_edit_error, { 
+                removeModal() 
+              }, once = TRUE, ignoreInit = TRUE)
+              return()
+            }
+            
             res <- update_database_release(r$id, list(study_id = r$study_id, database_release_label = lbl))
             if (!is.null(res$error)) {
               # Check if it's a duplicate error
@@ -466,6 +597,35 @@ study_tree_server <- function(id) {
           observeEvent(input$save_edit_effort, {
             lbl <- trimws(input$edit_effort_label %||% "")
             if (!nzchar(lbl)) return()
+            
+            # Check for duplicate before sending to backend (exclude current effort)
+            existing_label <- check_duplicate_effort(e$database_release_id, lbl, e$id)
+            if (existing_label != FALSE) {
+              # Show duplicate error modal
+              removeModal()
+              Sys.sleep(0.1)  # Small delay to ensure modal is removed
+              showModal(modalDialog(
+                title = tagList(bs_icon("exclamation-triangle"), "Reporting Effort Already Exists"),
+                div(
+                  class = "alert alert-warning",
+                  tags$p(tags$strong("Cannot update reporting effort:")),
+                  tags$p(paste("A reporting effort with similar label already exists:", tags$strong(existing_label))),
+                  tags$hr(),
+                  tags$small("Each reporting effort must have a unique label within its database release (comparison ignores spaces and case).")
+                ),
+                footer = input_task_button(
+                  ns("close_duplicate_effort_edit_error"), 
+                  tagList(bs_icon("x"), "Close"), 
+                  class = "btn btn-secondary"
+                ),
+                easyClose = TRUE
+              ))
+              observeEvent(input$close_duplicate_effort_edit_error, { 
+                removeModal() 
+              }, once = TRUE, ignoreInit = TRUE)
+              return()
+            }
+            
             res <- update_reporting_effort(e$id, list(study_id = e$study_id, database_release_id = e$database_release_id, database_release_label = lbl))
             if (!is.null(res$error)) {
               # Check if it's a duplicate error
