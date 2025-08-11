@@ -138,7 +138,8 @@ ui <- page_navbar(
   nav_menu(
     "Data Management",
     nav_panel("Study Management", value = "study_tree_tab", study_tree_ui("study_tree")),
-    nav_panel("TFL Properties", value = "tnfp_tab", tnfp_ui("tnfp"))
+    nav_panel("TFL Properties", value = "tnfp_tab", tnfp_ui("tnfp")),
+    nav_panel("User Management", value = "users_tab", users_ui("users"))
   ),
 
   nav_menu(
@@ -146,11 +147,6 @@ ui <- page_navbar(
     nav_panel("Package Registry", value = "packages_tab", packages_ui("packages")),
     nav_panel("Package Installer", disabled = TRUE),
     nav_panel("Package Config", disabled = TRUE)
-  ),
-  
-  nav_menu(
-    "Administration",
-    nav_panel("User Management", value = "users_tab", users_ui("users"))
   ),
 
   # (Removed Health Check nav; show compact health badge instead)
