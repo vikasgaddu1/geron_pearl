@@ -168,50 +168,34 @@ study_tree_server <- function(id) {
 
     # Track selection; enable/disable buttons accordingly
     observeEvent(input$study_tree, {
-      sel <- shinyTree::get_selected(input$study_tree, format = "names")
+      sel <- shinyTree::get_selected(input$study_tree, format = "slices")
       
       # Default: nothing selected
-      selected_node(list(type = NULL, label = NULL))
+      selected_node(list(type = NULL, label = NULL, path = NULL))
       
       # Enable Add Child by default; disable only when an effort is selected
       shinyjs::enable(ns("add_child"))
       
       if (length(sel) > 0) {
-        selected_label <- sel[[1]]
+        # Get the path to the selected node
+        # sel is a list with the path as nested names
+        path <- names(sel[[1]])
         
-        # Determine type by matching label against studies/releases/efforts
-        studies <- get_studies()
-        if (is.null(studies$error)) {
-          if (any(vapply(studies, function(s) s$study_label == selected_label, logical(1)))) {
-            selected_node(list(type = "study", label = selected_label))
-          }
-        }
-        
-        if (is.null(selected_node()$type)) {
-          releases <- get_database_releases()
-          if (is.null(releases$error)) {
-            if (any(vapply(releases, function(r) r$database_release_label == selected_label, logical(1)))) {
-              selected_node(list(type = "release", label = selected_label))
-            }
-          }
-        }
-        
-        if (is.null(selected_node()$type)) {
-          efforts <- get_reporting_efforts()
-          if (is.null(efforts$error)) {
-            if (any(vapply(efforts, function(e) e$database_release_label == selected_label, logical(1)))) {
-              selected_node(list(type = "effort", label = selected_label))
-            }
-          }
-        }
-        
-        # Check if we should disable Add Child for efforts
-        efforts <- get_reporting_efforts()
-        if (is.null(efforts$error)) {
-          effort_labels <- vapply(efforts, function(e) e$database_release_label, character(1))
-          if (selected_label %in% effort_labels) {
-            shinyjs::disable(ns("add_child"))
-          }
+        # Determine the type based on the depth of the path
+        if (length(path) == 1) {
+          # Top level = study
+          selected_label <- path[1]
+          selected_node(list(type = "study", label = selected_label, path = path))
+        } else if (length(path) == 2) {
+          # Second level = database release
+          selected_label <- path[2]
+          selected_node(list(type = "release", label = selected_label, path = path))
+        } else if (length(path) == 3) {
+          # Third level = reporting effort
+          selected_label <- path[3]
+          selected_node(list(type = "effort", label = selected_label, path = path))
+          # Disable Add Child for efforts
+          shinyjs::disable(ns("add_child"))
         }
       }
     }, ignoreNULL = FALSE, ignoreInit = FALSE)
@@ -333,28 +317,31 @@ study_tree_server <- function(id) {
 
     # Add Child
     observeEvent(input$add_child, {
-      # Determine selection and type
-      sel <- shinyTree::get_selected(input$study_tree, format = "names")
-      if (length(sel) == 0) {
+      # Use the selected_node reactive that was set by the selection observer
+      node <- selected_node()
+      
+      if (is.null(node$type)) {
         showNotification("Select a study or database release to add a child", type = "warning")
         return()
       }
-
-      # We will resolve by rebuilding and walking to find stinfo using label matching
-      # Use internal input$study_tree structure to get attributes
-      # As a practical approach, offer a small chooser modal for ambiguous cases
-
-      # Build reference maps for quick lookup
+      
+      # Get data for context
       releases <- get_database_releases()
       efforts <- get_reporting_efforts()
       studies <- get_studies()
-
-      selected_label <- sel[[1]]
-
-      # Try to match label to study first
-      study_hit <- NULL
-      for (s in studies) { if (s$study_label == selected_label) { study_hit <- s; break } }
-      if (!is.null(study_hit)) {
+      
+      # Handle based on selected type
+      if (node$type == "study") {
+        # Find the study by label
+        study_hit <- NULL
+        for (s in studies) { 
+          if (s$study_label == node$label) { 
+            study_hit <- s
+            break 
+          } 
+        }
+        
+        if (!is.null(study_hit)) {
         # Add Database Release to this study
         showModal(modalDialog(
           title = tagList(bs_icon("plus"), "Add Database Release"),
@@ -437,11 +424,34 @@ study_tree_server <- function(id) {
         }, once = TRUE, ignoreInit = TRUE)
         return()
       }
-
-      # Try to match label to release
-      release_hit <- NULL
-      for (r in releases) { if (r$database_release_label == selected_label) { release_hit <- r; break } }
-      if (!is.null(release_hit)) {
+      } else if (node$type == "release") {
+        # Find the release - use both the release label AND the parent study from path
+        release_hit <- NULL
+        if (length(node$path) >= 2) {
+          study_label <- node$path[1]
+          release_label <- node$path[2]
+          
+          # Find the study first
+          study_id <- NULL
+          for (s in studies) {
+            if (s$study_label == study_label) {
+              study_id <- s$id
+              break
+            }
+          }
+          
+          # Then find the release that belongs to this study
+          if (!is.null(study_id)) {
+            for (r in releases) {
+              if (r$database_release_label == release_label && r$study_id == study_id) {
+                release_hit <- r
+                break
+              }
+            }
+          }
+        }
+        
+        if (!is.null(release_hit)) {
         # Add Reporting Effort under this release
         showModal(modalDialog(
           title = tagList(bs_icon("plus"), "Add Reporting Effort"),
@@ -542,13 +552,24 @@ study_tree_server <- function(id) {
 
     # Edit selected item
     observeEvent(input$edit_selected, {
-      sel <- shinyTree::get_selected(input$study_tree, format = "names")
-      if (length(sel) == 0) { showNotification("Select an item to edit", type = "warning"); return() }
-      selected_label <- sel[[1]]
-
-      # Try study
-      studies <- get_studies(); if (is.null(studies$error)) {
-        for (s in studies) if (s$study_label == selected_label) {
+      # Use the selected_node reactive that was set by the selection observer
+      node <- selected_node()
+      
+      if (is.null(node$type)) {
+        showNotification("Select an item to edit", type = "warning")
+        return()
+      }
+      
+      # Get data
+      studies <- get_studies()
+      releases <- get_database_releases()
+      efforts <- get_reporting_efforts()
+      
+      # Handle based on type
+      if (node$type == "study") {
+        # Find the study
+        for (s in studies) {
+          if (s$study_label == node$label) {
           showModal(modalDialog(
             title = tagList(bs_icon("pencil"), "Edit Study"),
             textInput(ns("edit_study_label"), NULL, value = s$study_label),
@@ -624,13 +645,28 @@ study_tree_server <- function(id) {
               showNotification("Study updated", type = "message"); removeModal(); output$study_tree <- shinyTree::renderTree({ build_tree_data() }); last_update(Sys.time())
             }
           }, once = TRUE, ignoreInit = TRUE)
-          return()
+            return()
+          }
         }
-      }
-
-      # Try release
-      releases <- get_database_releases(); if (is.null(releases$error)) {
-        for (r in releases) if (r$database_release_label == selected_label) {
+      } else if (node$type == "release") {
+        # Find the release using path information
+        if (length(node$path) >= 2) {
+          study_label <- node$path[1]
+          release_label <- node$path[2]
+          
+          # Find the study first
+          study_id <- NULL
+          for (s in studies) {
+            if (s$study_label == study_label) {
+              study_id <- s$id
+              break
+            }
+          }
+          
+          # Then find the release that belongs to this study
+          if (!is.null(study_id)) {
+            for (r in releases) {
+              if (r$database_release_label == release_label && r$study_id == study_id) {
           showModal(modalDialog(
             title = tagList(bs_icon("pencil"), "Edit Database Release"),
             textInput(ns("edit_release_label"), NULL, value = r$database_release_label),
@@ -707,13 +743,42 @@ study_tree_server <- function(id) {
               showNotification("Database release updated", type = "message"); removeModal(); output$study_tree <- shinyTree::renderTree({ build_tree_data() }); last_update(Sys.time())
             }
           }, once = TRUE, ignoreInit = TRUE)
-          return()
+                return()
+              }
+            }
+          }
         }
-      }
-
-      # Try effort
-      efforts <- get_reporting_efforts(); if (is.null(efforts$error)) {
-        for (e in efforts) if (e$database_release_label == selected_label) {
+      } else if (node$type == "effort") {
+        # Find the effort using path information
+        if (length(node$path) >= 3) {
+          study_label <- node$path[1]
+          release_label <- node$path[2]
+          effort_label <- node$path[3]
+          
+          # Find the study first
+          study_id <- NULL
+          for (s in studies) {
+            if (s$study_label == study_label) {
+              study_id <- s$id
+              break
+            }
+          }
+          
+          # Then find the release
+          release_id <- NULL
+          if (!is.null(study_id)) {
+            for (r in releases) {
+              if (r$database_release_label == release_label && r$study_id == study_id) {
+                release_id <- r$id
+                break
+              }
+            }
+          }
+          
+          # Finally find the effort
+          if (!is.null(release_id)) {
+            for (e in efforts) {
+              if (e$database_release_label == effort_label && e$database_release_id == release_id) {
           showModal(modalDialog(
             title = tagList(bs_icon("pencil"), "Edit Reporting Effort"),
             textInput(ns("edit_effort_label"), NULL, value = e$database_release_label),
@@ -790,22 +855,35 @@ study_tree_server <- function(id) {
               showNotification("Reporting effort updated", type = "message"); removeModal(); output$study_tree <- shinyTree::renderTree({ build_tree_data() }); last_update(Sys.time())
             }
           }, once = TRUE, ignoreInit = TRUE)
-          return()
+                return()
+              }
+            }
+          }
         }
       }
-
-      showNotification("Unable to resolve selection for editing", type = "warning")
+    }
     })
 
     # Delete selected item with child checks akin to data management modules
     observeEvent(input$delete_selected, {
-      sel <- shinyTree::get_selected(input$study_tree, format = "names")
-      if (length(sel) == 0) { showNotification("Select an item to delete", type = "warning"); return() }
-      selected_label <- sel[[1]]
-
-      # Try study delete with release children check
-      studies <- get_studies();
-      for (s in studies) if (s$study_label == selected_label) {
+      # Use the selected_node reactive that was set by the selection observer
+      node <- selected_node()
+      
+      if (is.null(node$type)) {
+        showNotification("Select an item to delete", type = "warning")
+        return()
+      }
+      
+      # Get data
+      studies <- get_studies()
+      releases <- get_database_releases()
+      efforts <- get_reporting_efforts()
+      
+      # Handle based on type
+      if (node$type == "study") {
+        # Find the study
+        for (s in studies) {
+          if (s$study_label == node$label) {
         releases <- get_database_releases();
         rels <- Filter(function(r) r$study_id == s$id, if (!is.null(releases$error)) list() else releases)
         if (length(rels) > 0) {
@@ -832,12 +910,28 @@ study_tree_server <- function(id) {
             }
           }, once = TRUE)
         }
-        return()
-      }
-
-      # Try release delete with effort children check
-      releases <- get_database_releases();
-      for (r in if (!is.null(releases$error)) list() else releases) if (r$database_release_label == selected_label) {
+            return()
+          }
+        }
+      } else if (node$type == "release") {
+        # Find the release using path information
+        if (length(node$path) >= 2) {
+          study_label <- node$path[1]
+          release_label <- node$path[2]
+          
+          # Find the study first
+          study_id <- NULL
+          for (s in studies) {
+            if (s$study_label == study_label) {
+              study_id <- s$id
+              break
+            }
+          }
+          
+          # Then find the release that belongs to this study
+          if (!is.null(study_id)) {
+            for (r in releases) {
+              if (r$database_release_label == release_label && r$study_id == study_id) {
         efforts <- get_reporting_efforts();
         effs <- Filter(function(e) e$database_release_id == r$id, if (!is.null(efforts$error)) list() else efforts)
         if (length(effs) > 0) {
@@ -864,12 +958,42 @@ study_tree_server <- function(id) {
             }
           }, once = TRUE)
         }
-        return()
-      }
-
-      # Try effort delete (no child check needed)
-      efforts <- get_reporting_efforts();
-      for (e in if (!is.null(efforts$error)) list() else efforts) if (e$database_release_label == selected_label) {
+                return()
+              }
+            }
+          }
+        }
+      } else if (node$type == "effort") {
+        # Find the effort using path information
+        if (length(node$path) >= 3) {
+          study_label <- node$path[1]
+          release_label <- node$path[2]
+          effort_label <- node$path[3]
+          
+          # Find the study first
+          study_id <- NULL
+          for (s in studies) {
+            if (s$study_label == study_label) {
+              study_id <- s$id
+              break
+            }
+          }
+          
+          # Then find the release
+          release_id <- NULL
+          if (!is.null(study_id)) {
+            for (r in releases) {
+              if (r$database_release_label == release_label && r$study_id == study_id) {
+                release_id <- r$id
+                break
+              }
+            }
+          }
+          
+          # Finally find the effort
+          if (!is.null(release_id)) {
+            for (e in efforts) {
+              if (e$database_release_label == effort_label && e$database_release_id == release_id) {
         showModal(modalDialog(
           title = tagList(bs_icon("exclamation-triangle"), "Confirm Deletion"),
           p("Delete reporting effort:", tags$strong(e$database_release_label), "?"),
@@ -885,10 +1009,13 @@ study_tree_server <- function(id) {
             showNotification("Reporting effort deleted", type = "message"); removeModal(); output$study_tree <- shinyTree::renderTree({ build_tree_data() }); last_update(Sys.time())
           }
         }, once = TRUE)
-        return()
+                return()
+              }
+            }
+          }
+        }
       }
-
-      showNotification("Unable to resolve selection for deletion", type = "warning")
+    }
     })
 
     # Status outputs
