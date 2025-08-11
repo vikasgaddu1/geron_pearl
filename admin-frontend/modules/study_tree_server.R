@@ -957,7 +957,6 @@ study_tree_server <- function(id) {
             }
           }, once = TRUE)
         }
-                return()
               }
             }
           }
@@ -1008,14 +1007,13 @@ study_tree_server <- function(id) {
             showNotification("Reporting effort deleted", type = "message"); removeModal(); output$study_tree <- shinyTree::renderTree({ build_tree_data() }); last_update(Sys.time())
           }
         }, once = TRUE)
-                return()
               }
             }
           }
         }
       }
-    }
     })
+
 
     # Status outputs
     output$status_message <- renderText({
