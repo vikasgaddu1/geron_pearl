@@ -4,6 +4,42 @@ study_tree_server <- function(id) {
 
     last_update <- reactiveVal(Sys.time())
     selected_node <- reactiveVal(list(type = NULL, label = NULL))
+    
+    # Set up validation for Add Study form
+    iv_study_new <- InputValidator$new()
+    iv_study_new$add_rule("new_study_label", sv_required())
+    iv_study_new$add_rule("new_study_label", function(value) {
+      if (nchar(trimws(value)) < 1) {
+        "Study label is required"
+      }
+    })
+    
+    # Set up validation for Add Database Release form
+    iv_release_new <- InputValidator$new()
+    iv_release_new$add_rule("new_release_label", sv_required())
+    iv_release_new$add_rule("new_release_label", function(value) {
+      if (nchar(trimws(value)) < 1) {
+        "Database release label is required"
+      }
+    })
+    
+    # Set up validation for Add Reporting Effort form
+    iv_effort_new <- InputValidator$new()
+    iv_effort_new$add_rule("new_effort_label", sv_required())
+    iv_effort_new$add_rule("new_effort_label", function(value) {
+      if (nchar(trimws(value)) < 1) {
+        "Reporting effort label is required"
+      }
+    })
+    
+    # Set up validation for Edit forms
+    iv_edit <- InputValidator$new()
+    iv_edit$add_rule("edit_label", sv_required())
+    iv_edit$add_rule("edit_label", function(value) {
+      if (nchar(trimws(value)) < 1) {
+        "Label is required"
+      }
+    })
 
     # Load hierarchical data from APIs and build tree structure
     build_tree_data <- function() {
@@ -12,6 +48,9 @@ study_tree_server <- function(id) {
 
       releases <- get_database_releases(); if (!is.null(releases$error)) releases <- list()
       efforts  <- get_reporting_efforts();  if (!is.null(efforts$error))  efforts  <- list()
+
+      # Sort studies alphabetically by label
+      studies <- studies[order(vapply(studies, function(x) x$study_label, character(1)), na.last = TRUE)]
 
       # Index collections by parent IDs
       releases_by_study <- split(releases, vapply(releases, function(x) x$study_id, numeric(1)))
@@ -24,17 +63,31 @@ study_tree_server <- function(id) {
 
         # Build releases under this study
         releases_list <- releases_by_study[[as.character(study_id)]] %||% list()
+        
+        # Sort releases alphabetically by label
+        if (length(releases_list) > 0) {
+          releases_list <- releases_list[order(vapply(releases_list, function(x) x$database_release_label, character(1)), na.last = TRUE)]
+        }
+        
         release_nodes <- lapply(releases_list, function(rel) {
           rel_id <- rel$id
           rel_label <- rel$database_release_label
 
           # Build efforts under this release
           efforts_list <- efforts_by_release[[as.character(rel_id)]] %||% list()
+          
+          # Sort efforts alphabetically by label
+          if (length(efforts_list) > 0) {
+            efforts_list <- efforts_list[order(vapply(efforts_list, function(x) x$database_release_label, character(1)), na.last = TRUE)]
+          }
+          
           effort_nodes <- lapply(efforts_list, function(eff) {
             structure(list(), stinfo = list(type = "effort", id = eff$id, study_id = eff$study_id, release_id = eff$database_release_id))
           })
           if (length(effort_nodes) > 0) {
             names(effort_nodes) <- vapply(efforts_list, function(eff) eff$database_release_label, character(1))
+            # Sort effort nodes alphabetically
+            effort_nodes <- effort_nodes[order(names(effort_nodes), na.last = TRUE)]
           }
 
           # Build release node with metadata
@@ -45,6 +98,8 @@ study_tree_server <- function(id) {
         # Flatten release_nodes (list of single-named lists) into a single named list
         if (length(release_nodes) > 0) {
           study_children <- do.call(c, release_nodes)
+          # Sort study children (releases) alphabetically
+          study_children <- study_children[order(names(study_children), na.last = TRUE)]
         } else {
           study_children <- list()
         }
@@ -55,6 +110,9 @@ study_tree_server <- function(id) {
         tree[[study_label]] <- study_node
       }
 
+      # Sort the top-level tree (studies) alphabetically
+      tree <- tree[order(names(tree), na.last = TRUE)]
+      
       tree
     }
 
@@ -233,6 +291,7 @@ study_tree_server <- function(id) {
 
     # Add Study (reuse studies module behavior)
     observeEvent(input$add_study, {
+      iv_study_new$enable()  # Enable validation
       showModal(modalDialog(
         title = tagList(bs_icon("plus-lg"), "Add Study"),
         size = "m",
@@ -246,9 +305,17 @@ study_tree_server <- function(id) {
       ))
     })
 
-    observeEvent(input$cancel_add_study, { removeModal() })
+    observeEvent(input$cancel_add_study, { 
+      iv_study_new$disable()  # Disable validation on cancel
+      removeModal() 
+    })
 
     observeEvent(input$save_add_study, {
+      # Validate first
+      if (!iv_study_new$is_valid()) {
+        return()  # Don't proceed if validation fails
+      }
+      
       label <- trimws(input$new_study_label %||% "")
       if (nzchar(label)) {
         # Check for duplicate before sending to backend
@@ -308,10 +375,12 @@ study_tree_server <- function(id) {
           } else {
             showNotification(paste("Error creating study:", res$error), type = "error")
             removeModal()
+            iv_study_new$disable()
           }
         } else {
           showNotification("Study created", type = "message")
           removeModal()
+          iv_study_new$disable()  # Disable validation after successful creation
           output$study_tree <- shinyTree::renderTree({ build_tree_data() })
           last_update(Sys.time())
         }
@@ -368,6 +437,7 @@ study_tree_server <- function(id) {
         
         if (!is.null(study_hit)) {
         # Add Database Release to this study
+        iv_release_new$enable()  # Enable validation
         showModal(modalDialog(
           title = tagList(bs_icon("plus"), "Add Database Release"),
           textInput(ns("new_release_label"), NULL, placeholder = "Enter database release label"),
@@ -376,8 +446,16 @@ study_tree_server <- function(id) {
             input_task_button(ns("save_add_release"), tagList(bs_icon("check"), "Create"), class = "btn btn-success")
           )
         ))
-        observeEvent(input$cancel_add_release, { removeModal() }, once = TRUE, ignoreInit = TRUE)
+        observeEvent(input$cancel_add_release, { 
+          iv_release_new$disable()  # Disable validation on cancel
+          removeModal() 
+        }, once = TRUE, ignoreInit = TRUE)
         observeEvent(input$save_add_release, {
+          # Validate first
+          if (!iv_release_new$is_valid()) {
+            return()  # Don't proceed if validation fails
+          }
+          
           label <- trimws(input$new_release_label %||% "")
           if (!nzchar(label)) return()
           
@@ -439,10 +517,12 @@ study_tree_server <- function(id) {
             } else {
               showNotification(paste("Error creating release:", res$error), type = "error")
               removeModal()  # Also remove modal on other errors
+              iv_release_new$disable()
             }
           } else {
             showNotification("Database release created", type = "message")
             removeModal()
+            iv_release_new$disable()  # Disable validation after successful creation
             output$study_tree <- shinyTree::renderTree({ build_tree_data() })
             last_update(Sys.time())
           }
@@ -478,6 +558,7 @@ study_tree_server <- function(id) {
         
         if (!is.null(release_hit)) {
         # Add Reporting Effort under this release
+        iv_effort_new$enable()  # Enable validation
         showModal(modalDialog(
           title = tagList(bs_icon("plus"), "Add Reporting Effort"),
           textInput(ns("new_effort_label"), NULL, placeholder = "Enter reporting effort label"),
@@ -486,8 +567,16 @@ study_tree_server <- function(id) {
             input_task_button(ns("save_add_effort"), tagList(bs_icon("check"), "Create"), class = "btn btn-success")
           )
         ))
-        observeEvent(input$cancel_add_effort, { removeModal() }, once = TRUE, ignoreInit = TRUE)
+        observeEvent(input$cancel_add_effort, { 
+          iv_effort_new$disable()  # Disable validation on cancel
+          removeModal() 
+        }, once = TRUE, ignoreInit = TRUE)
         observeEvent(input$save_add_effort, {
+          # Validate first
+          if (!iv_effort_new$is_valid()) {
+            return()  # Don't proceed if validation fails
+          }
+          
           label <- trimws(input$new_effort_label %||% "")
           if (!nzchar(label)) return()
           
@@ -553,10 +642,12 @@ study_tree_server <- function(id) {
             } else {
               showNotification(paste("Error creating reporting effort:", res$error), type = "error")
               removeModal()  # Also remove modal on other errors
+              iv_effort_new$disable()
             }
           } else {
             showNotification("Reporting effort created", type = "message")
             removeModal()
+            iv_effort_new$disable()  # Disable validation after successful creation
             output$study_tree <- shinyTree::renderTree({ build_tree_data() })
             last_update(Sys.time())
           }
@@ -597,17 +688,27 @@ study_tree_server <- function(id) {
         # Find the study
         for (s in studies) {
           if (s$study_label == node$label) {
+          # Change input ID to edit_label for validation
+          iv_edit$enable()  # Enable validation
           showModal(modalDialog(
             title = tagList(bs_icon("pencil"), "Edit Study"),
-            textInput(ns("edit_study_label"), NULL, value = s$study_label),
+            textInput(ns("edit_label"), NULL, value = s$study_label),
             footer = div(class = "d-flex justify-content-end gap-2",
               input_task_button(ns("cancel_edit_study"), tagList(bs_icon("x"), "Cancel"), class = "btn btn-secondary"),
               input_task_button(ns("save_edit_study"), tagList(bs_icon("check"), "Save"), class = "btn btn-warning")
             )
           ))
-          observeEvent(input$cancel_edit_study, { removeModal() }, once = TRUE)
+          observeEvent(input$cancel_edit_study, { 
+            iv_edit$disable()  # Disable validation on cancel
+            removeModal() 
+          }, once = TRUE)
           observeEvent(input$save_edit_study, {
-            lbl <- trimws(input$edit_study_label %||% "")
+            # Validate first
+            if (!iv_edit$is_valid()) {
+              return()  # Don't proceed if validation fails
+            }
+            
+            lbl <- trimws(input$edit_label %||% "")
             if (!nzchar(lbl)) return()
             
             # Check for duplicate before sending to backend (exclude current study)
@@ -667,9 +768,14 @@ study_tree_server <- function(id) {
               } else {
                 showNotification(paste("Error updating study:", res$error), type = "error")
                 removeModal()
+                iv_edit$disable()
               }
             } else {
-              showNotification("Study updated", type = "message"); removeModal(); output$study_tree <- shinyTree::renderTree({ build_tree_data() }); last_update(Sys.time())
+              showNotification("Study updated", type = "message")
+              removeModal()
+              iv_edit$disable()  # Disable validation after successful update
+              output$study_tree <- shinyTree::renderTree({ build_tree_data() })
+              last_update(Sys.time())
             }
           }, once = TRUE, ignoreInit = TRUE)
             return()
@@ -694,17 +800,27 @@ study_tree_server <- function(id) {
           if (!is.null(study_id)) {
             for (r in releases) {
               if (r$database_release_label == release_label && r$study_id == study_id) {
+          # Change input ID to edit_label for validation
+          iv_edit$enable()  # Enable validation
           showModal(modalDialog(
             title = tagList(bs_icon("pencil"), "Edit Database Release"),
-            textInput(ns("edit_release_label"), NULL, value = r$database_release_label),
+            textInput(ns("edit_label"), NULL, value = r$database_release_label),
             footer = div(class = "d-flex justify-content-end gap-2",
               input_task_button(ns("cancel_edit_release"), tagList(bs_icon("x"), "Cancel"), class = "btn btn-secondary"),
               input_task_button(ns("save_edit_release"), tagList(bs_icon("check"), "Save"), class = "btn btn-warning")
             )
           ))
-          observeEvent(input$cancel_edit_release, { removeModal() }, once = TRUE)
+          observeEvent(input$cancel_edit_release, { 
+            iv_edit$disable()  # Disable validation on cancel
+            removeModal() 
+          }, once = TRUE)
           observeEvent(input$save_edit_release, {
-            lbl <- trimws(input$edit_release_label %||% "")
+            # Validate first
+            if (!iv_edit$is_valid()) {
+              return()  # Don't proceed if validation fails
+            }
+            
+            lbl <- trimws(input$edit_label %||% "")
             if (!nzchar(lbl)) return()
             
             # Check for duplicate before sending to backend (exclude current release)
@@ -765,9 +881,14 @@ study_tree_server <- function(id) {
               } else {
                 showNotification(paste("Error updating release:", res$error), type = "error")
                 removeModal()  # Also remove modal on other errors
+                iv_edit$disable()
               }
             } else {
-              showNotification("Database release updated", type = "message"); removeModal(); output$study_tree <- shinyTree::renderTree({ build_tree_data() }); last_update(Sys.time())
+              showNotification("Database release updated", type = "message")
+              removeModal()
+              iv_edit$disable()  # Disable validation after successful update
+              output$study_tree <- shinyTree::renderTree({ build_tree_data() })
+              last_update(Sys.time())
             }
           }, once = TRUE, ignoreInit = TRUE)
               }
@@ -805,17 +926,27 @@ study_tree_server <- function(id) {
           if (!is.null(release_id)) {
             for (e in efforts) {
               if (e$database_release_label == effort_label && e$database_release_id == release_id) {
+          # Change input ID to edit_label for validation
+          iv_edit$enable()  # Enable validation
           showModal(modalDialog(
             title = tagList(bs_icon("pencil"), "Edit Reporting Effort"),
-            textInput(ns("edit_effort_label"), NULL, value = e$database_release_label),
+            textInput(ns("edit_label"), NULL, value = e$database_release_label),
             footer = div(class = "d-flex justify-content-end gap-2",
               input_task_button(ns("cancel_edit_effort"), tagList(bs_icon("x"), "Cancel"), class = "btn btn-secondary"),
               input_task_button(ns("save_edit_effort"), tagList(bs_icon("check"), "Save"), class = "btn btn-warning")
             )
           ))
-          observeEvent(input$cancel_edit_effort, { removeModal() }, once = TRUE)
+          observeEvent(input$cancel_edit_effort, { 
+            iv_edit$disable()  # Disable validation on cancel
+            removeModal() 
+          }, once = TRUE)
           observeEvent(input$save_edit_effort, {
-            lbl <- trimws(input$edit_effort_label %||% "")
+            # Validate first
+            if (!iv_edit$is_valid()) {
+              return()  # Don't proceed if validation fails
+            }
+            
+            lbl <- trimws(input$edit_label %||% "")
             if (!nzchar(lbl)) return()
             
             # Check for duplicate before sending to backend (exclude current effort)
@@ -876,9 +1007,14 @@ study_tree_server <- function(id) {
               } else {
                 showNotification(paste("Error updating reporting effort:", res$error), type = "error")
                 removeModal()  # Also remove modal on other errors
+                iv_edit$disable()
               }
             } else {
-              showNotification("Reporting effort updated", type = "message"); removeModal(); output$study_tree <- shinyTree::renderTree({ build_tree_data() }); last_update(Sys.time())
+              showNotification("Reporting effort updated", type = "message")
+              removeModal()
+              iv_edit$disable()  # Disable validation after successful update
+              output$study_tree <- shinyTree::renderTree({ build_tree_data() })
+              last_update(Sys.time())
             }
           }, once = TRUE, ignoreInit = TRUE)
               }
