@@ -247,7 +247,7 @@ study_tree_server <- function(id) {
             input_task_button(ns("save_add_release"), tagList(bs_icon("check"), "Create"), class = "btn btn-success")
           )
         ))
-        observeEvent(input$cancel_add_release, { removeModal() }, once = TRUE)
+        observeEvent(input$cancel_add_release, { removeModal() }, once = TRUE, ignoreInit = TRUE)
         observeEvent(input$save_add_release, {
           label <- trimws(input$new_release_label %||% "")
           if (!nzchar(label)) return()
@@ -256,6 +256,9 @@ study_tree_server <- function(id) {
             # Check if it's a duplicate error
             if (parse_error_for_duplicate(res$error)) {
               clean_msg <- extract_error_message(res$error)
+              # First remove the current modal, then show error modal
+              removeModal()
+              Sys.sleep(0.1)  # Small delay to ensure modal is removed
               showModal(modalDialog(
                 title = tagList(bs_icon("exclamation-triangle"), "Database Release Already Exists"),
                 div(
@@ -272,9 +275,12 @@ study_tree_server <- function(id) {
                 ),
                 easyClose = TRUE
               ))
-              observeEvent(input$close_duplicate_release_error, { removeModal() }, once = TRUE)
+              observeEvent(input$close_duplicate_release_error, { 
+                removeModal() 
+              }, once = TRUE, ignoreInit = TRUE)
             } else {
               showNotification(paste("Error creating release:", res$error), type = "error")
+              removeModal()  # Also remove modal on other errors
             }
           } else {
             showNotification("Database release created", type = "message")
@@ -282,7 +288,7 @@ study_tree_server <- function(id) {
             output$study_tree <- shinyTree::renderTree({ build_tree_data() })
             last_update(Sys.time())
           }
-        }, once = TRUE)
+        }, once = TRUE, ignoreInit = TRUE)
         return()
       }
 
@@ -299,7 +305,7 @@ study_tree_server <- function(id) {
             input_task_button(ns("save_add_effort"), tagList(bs_icon("check"), "Create"), class = "btn btn-success")
           )
         ))
-        observeEvent(input$cancel_add_effort, { removeModal() }, once = TRUE)
+        observeEvent(input$cancel_add_effort, { removeModal() }, once = TRUE, ignoreInit = TRUE)
         observeEvent(input$save_add_effort, {
           label <- trimws(input$new_effort_label %||% "")
           if (!nzchar(label)) return()
@@ -312,6 +318,9 @@ study_tree_server <- function(id) {
             # Check if it's a duplicate error
             if (parse_error_for_duplicate(res$error)) {
               clean_msg <- extract_error_message(res$error)
+              # First remove the current modal, then show error modal
+              removeModal()
+              Sys.sleep(0.1)  # Small delay to ensure modal is removed
               showModal(modalDialog(
                 title = tagList(bs_icon("exclamation-triangle"), "Reporting Effort Already Exists"),
                 div(
@@ -328,9 +337,12 @@ study_tree_server <- function(id) {
                 ),
                 easyClose = TRUE
               ))
-              observeEvent(input$close_duplicate_effort_error, { removeModal() }, once = TRUE)
+              observeEvent(input$close_duplicate_effort_error, { 
+                removeModal() 
+              }, once = TRUE, ignoreInit = TRUE)
             } else {
               showNotification(paste("Error creating reporting effort:", res$error), type = "error")
+              removeModal()  # Also remove modal on other errors
             }
           } else {
             showNotification("Reporting effort created", type = "message")
@@ -338,7 +350,7 @@ study_tree_server <- function(id) {
             output$study_tree <- shinyTree::renderTree({ build_tree_data() })
             last_update(Sys.time())
           }
-        }, once = TRUE)
+        }, once = TRUE, ignoreInit = TRUE)
         return()
       }
 
@@ -405,6 +417,9 @@ study_tree_server <- function(id) {
               # Check if it's a duplicate error
               if (parse_error_for_duplicate(res$error)) {
                 clean_msg <- extract_error_message(res$error)
+                # First remove the current modal, then show error modal
+                removeModal()
+                Sys.sleep(0.1)  # Small delay to ensure modal is removed
                 showModal(modalDialog(
                   title = tagList(bs_icon("exclamation-triangle"), "Database Release Already Exists"),
                   div(
@@ -421,14 +436,17 @@ study_tree_server <- function(id) {
                   ),
                   easyClose = TRUE
                 ))
-                observeEvent(input$close_duplicate_release_edit_error, { removeModal() }, once = TRUE)
+                observeEvent(input$close_duplicate_release_edit_error, { 
+                  removeModal() 
+                }, once = TRUE, ignoreInit = TRUE)
               } else {
                 showNotification(paste("Error updating release:", res$error), type = "error")
+                removeModal()  # Also remove modal on other errors
               }
             } else {
               showNotification("Database release updated", type = "message"); removeModal(); output$study_tree <- shinyTree::renderTree({ build_tree_data() }); last_update(Sys.time())
             }
-          }, once = TRUE)
+          }, once = TRUE, ignoreInit = TRUE)
           return()
         }
       }
@@ -453,6 +471,9 @@ study_tree_server <- function(id) {
               # Check if it's a duplicate error
               if (parse_error_for_duplicate(res$error)) {
                 clean_msg <- extract_error_message(res$error)
+                # First remove the current modal, then show error modal
+                removeModal()
+                Sys.sleep(0.1)  # Small delay to ensure modal is removed
                 showModal(modalDialog(
                   title = tagList(bs_icon("exclamation-triangle"), "Reporting Effort Already Exists"),
                   div(
@@ -469,14 +490,17 @@ study_tree_server <- function(id) {
                   ),
                   easyClose = TRUE
                 ))
-                observeEvent(input$close_duplicate_effort_edit_error, { removeModal() }, once = TRUE)
+                observeEvent(input$close_duplicate_effort_edit_error, { 
+                  removeModal() 
+                }, once = TRUE, ignoreInit = TRUE)
               } else {
                 showNotification(paste("Error updating reporting effort:", res$error), type = "error")
+                removeModal()  # Also remove modal on other errors
               }
             } else {
               showNotification("Reporting effort updated", type = "message"); removeModal(); output$study_tree <- shinyTree::renderTree({ build_tree_data() }); last_update(Sys.time())
             }
-          }, once = TRUE)
+          }, once = TRUE, ignoreInit = TRUE)
           return()
         }
       }
