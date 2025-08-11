@@ -57,14 +57,23 @@ class DatabaseReleaseCRUD:
     async def get_by_study_and_label(
         self, db: AsyncSession, *, study_id: int, database_release_label: str
     ) -> Optional[DatabaseRelease]:
-        """Get a database release by study ID and label."""
+        """Get a database release by study ID and label (case and space insensitive)."""
+        # Normalize the input label: remove spaces and convert to uppercase
+        normalized_input = database_release_label.replace(" ", "").upper()
+        
+        # Get all releases for this study and check normalized labels
         result = await db.execute(
-            select(DatabaseRelease).where(
-                DatabaseRelease.study_id == study_id,
-                DatabaseRelease.database_release_label == database_release_label
-            )
+            select(DatabaseRelease).where(DatabaseRelease.study_id == study_id)
         )
-        return result.scalar_one_or_none()
+        releases = result.scalars().all()
+        
+        for release in releases:
+            # Normalize each stored label and compare
+            normalized_stored = release.database_release_label.replace(" ", "").upper()
+            if normalized_stored == normalized_input:
+                return release
+        
+        return None
     
     async def update(
         self, db: AsyncSession, *, db_obj: DatabaseRelease, obj_in: DatabaseReleaseUpdate

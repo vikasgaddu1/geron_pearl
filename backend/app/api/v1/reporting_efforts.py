@@ -46,6 +46,18 @@ async def create_reporting_effort(
                 detail=f"Database release {reporting_effort_in.database_release_id} does not belong to study {reporting_effort_in.study_id}"
             )
 
+        # Check if reporting effort with same label already exists for this database release
+        existing_effort = await reporting_effort.get_by_release_and_label(
+            db, 
+            database_release_id=reporting_effort_in.database_release_id,
+            database_release_label=reporting_effort_in.database_release_label
+        )
+        if existing_effort:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Reporting effort with this label already exists for this database release"
+            )
+
         created_reporting_effort = await reporting_effort.create(db, obj_in=reporting_effort_in)
         print(f"✅ Reporting effort created successfully: {created_reporting_effort.database_release_label} (ID: {created_reporting_effort.id})")
         
@@ -143,6 +155,19 @@ async def update_reporting_effort(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reporting effort not found"
             )
+        
+        # Check if new label conflicts with existing reporting effort for same database release
+        if reporting_effort_in.database_release_label:
+            existing_effort = await reporting_effort.get_by_release_and_label(
+                db, 
+                database_release_id=db_reporting_effort.database_release_id,
+                database_release_label=reporting_effort_in.database_release_label
+            )
+            if existing_effort and existing_effort.id != reporting_effort_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Reporting effort with this label already exists for this database release"
+                )
         
         updated_reporting_effort = await reporting_effort.update(
             db, db_obj=db_reporting_effort, obj_in=reporting_effort_in

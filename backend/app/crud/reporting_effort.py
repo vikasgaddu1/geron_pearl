@@ -86,6 +86,27 @@ class ReportingEffortCRUD:
         )
         return list(result.scalars().all())
     
+    async def get_by_release_and_label(
+        self, db: AsyncSession, *, database_release_id: int, database_release_label: str
+    ) -> Optional[ReportingEffort]:
+        """Get a reporting effort by database release ID and label (case and space insensitive)."""
+        # Normalize the input label: remove spaces and convert to uppercase
+        normalized_input = database_release_label.replace(" ", "").upper()
+        
+        # Get all efforts for this release and check normalized labels
+        result = await db.execute(
+            select(ReportingEffort).where(ReportingEffort.database_release_id == database_release_id)
+        )
+        efforts = result.scalars().all()
+        
+        for effort in efforts:
+            # Normalize each stored label and compare
+            normalized_stored = effort.database_release_label.replace(" ", "").upper()
+            if normalized_stored == normalized_input:
+                return effort
+        
+        return None
+    
     async def update(
         self, db: AsyncSession, *, db_obj: ReportingEffort, obj_in: ReportingEffortUpdate
     ) -> ReportingEffort:
