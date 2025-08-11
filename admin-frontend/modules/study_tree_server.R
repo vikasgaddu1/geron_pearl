@@ -67,6 +67,24 @@ study_tree_server <- function(id) {
       gsub("\\s+", "", toupper(trimws(label)))
     }
     
+    # Helper function to check if a study label already exists (case and space insensitive)
+    check_duplicate_study <- function(new_label, exclude_id = NULL) {
+      studies <- get_studies()
+      if (!is.null(studies$error)) return(FALSE)
+      
+      normalized_new <- normalize_label(new_label)
+      
+      for (study in studies) {
+        # Skip if this is the study being edited
+        if (!is.null(exclude_id) && study$id == exclude_id) next
+        
+        if (normalize_label(study$study_label) == normalized_new) {
+          return(study$study_label)  # Return the existing label
+        }
+      }
+      return(FALSE)
+    }
+    
     # Helper function to check if a label already exists (case and space insensitive)
     check_duplicate_release <- function(study_id, new_label, exclude_id = NULL) {
       releases <- get_database_releases()
@@ -224,9 +242,64 @@ study_tree_server <- function(id) {
     observeEvent(input$save_add_study, {
       label <- trimws(input$new_study_label %||% "")
       if (nzchar(label)) {
+        # Check for duplicate before sending to backend
+        existing_label <- check_duplicate_study(label)
+        if (existing_label != FALSE) {
+          # Show duplicate error modal
+          removeModal()
+          Sys.sleep(0.1)  # Small delay to ensure modal is removed
+          showModal(modalDialog(
+            title = tagList(bs_icon("exclamation-triangle"), "Study Already Exists"),
+            div(
+              class = "alert alert-warning",
+              tags$p(tags$strong("Cannot create study:")),
+              tags$p(paste("A study with similar label already exists:", tags$strong(existing_label))),
+              tags$hr(),
+              tags$small("Each study must have a unique label (comparison ignores spaces and case).")
+            ),
+            footer = input_task_button(
+              ns("close_duplicate_study_error"), 
+              tagList(bs_icon("x"), "Close"), 
+              class = "btn btn-secondary"
+            ),
+            easyClose = TRUE
+          ))
+          observeEvent(input$close_duplicate_study_error, { 
+            removeModal() 
+          }, once = TRUE, ignoreInit = TRUE)
+          return()
+        }
+        
         res <- create_study(list(study_label = label))
         if (!is.null(res$error)) {
-          showNotification(paste("Error creating study:", res$error), type = "error")
+          # Check if it's a duplicate error from backend
+          if (parse_error_for_duplicate(res$error)) {
+            clean_msg <- extract_error_message(res$error)
+            removeModal()
+            Sys.sleep(0.1)
+            showModal(modalDialog(
+              title = tagList(bs_icon("exclamation-triangle"), "Study Already Exists"),
+              div(
+                class = "alert alert-warning",
+                tags$p(tags$strong("Cannot create study:")),
+                tags$p(clean_msg),
+                tags$hr(),
+                tags$small("Each study must have a unique label (comparison ignores spaces and case).")
+              ),
+              footer = input_task_button(
+                ns("close_duplicate_study_error"), 
+                tagList(bs_icon("x"), "Close"), 
+                class = "btn btn-secondary"
+              ),
+              easyClose = TRUE
+            ))
+            observeEvent(input$close_duplicate_study_error, { 
+              removeModal() 
+            }, once = TRUE, ignoreInit = TRUE)
+          } else {
+            showNotification(paste("Error creating study:", res$error), type = "error")
+            removeModal()
+          }
         } else {
           showNotification("Study created", type = "message")
           removeModal()
@@ -488,13 +561,69 @@ study_tree_server <- function(id) {
           observeEvent(input$save_edit_study, {
             lbl <- trimws(input$edit_study_label %||% "")
             if (!nzchar(lbl)) return()
+            
+            # Check for duplicate before sending to backend (exclude current study)
+            existing_label <- check_duplicate_study(lbl, s$id)
+            if (existing_label != FALSE) {
+              # Show duplicate error modal
+              removeModal()
+              Sys.sleep(0.1)  # Small delay to ensure modal is removed
+              showModal(modalDialog(
+                title = tagList(bs_icon("exclamation-triangle"), "Study Already Exists"),
+                div(
+                  class = "alert alert-warning",
+                  tags$p(tags$strong("Cannot update study:")),
+                  tags$p(paste("A study with similar label already exists:", tags$strong(existing_label))),
+                  tags$hr(),
+                  tags$small("Each study must have a unique label (comparison ignores spaces and case).")
+                ),
+                footer = input_task_button(
+                  ns("close_duplicate_study_edit_error"), 
+                  tagList(bs_icon("x"), "Close"), 
+                  class = "btn btn-secondary"
+                ),
+                easyClose = TRUE
+              ))
+              observeEvent(input$close_duplicate_study_edit_error, { 
+                removeModal() 
+              }, once = TRUE, ignoreInit = TRUE)
+              return()
+            }
+            
             res <- update_study(s$id, list(study_label = lbl))
             if (!is.null(res$error)) {
-              showNotification(paste("Error updating study:", res$error), type = "error")
+              # Check if it's a duplicate error from backend
+              if (parse_error_for_duplicate(res$error)) {
+                clean_msg <- extract_error_message(res$error)
+                removeModal()
+                Sys.sleep(0.1)
+                showModal(modalDialog(
+                  title = tagList(bs_icon("exclamation-triangle"), "Study Already Exists"),
+                  div(
+                    class = "alert alert-warning",
+                    tags$p(tags$strong("Cannot update study:")),
+                    tags$p(clean_msg),
+                    tags$hr(),
+                    tags$small("Each study must have a unique label (comparison ignores spaces and case).")
+                  ),
+                  footer = input_task_button(
+                    ns("close_duplicate_study_edit_error"), 
+                    tagList(bs_icon("x"), "Close"), 
+                    class = "btn btn-secondary"
+                  ),
+                  easyClose = TRUE
+                ))
+                observeEvent(input$close_duplicate_study_edit_error, { 
+                  removeModal() 
+                }, once = TRUE, ignoreInit = TRUE)
+              } else {
+                showNotification(paste("Error updating study:", res$error), type = "error")
+                removeModal()
+              }
             } else {
               showNotification("Study updated", type = "message"); removeModal(); output$study_tree <- shinyTree::renderTree({ build_tree_data() }); last_update(Sys.time())
             }
-          }, once = TRUE)
+          }, once = TRUE, ignoreInit = TRUE)
           return()
         }
       }

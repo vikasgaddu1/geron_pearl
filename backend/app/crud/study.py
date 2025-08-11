@@ -55,9 +55,21 @@ class StudyCRUD:
         return db_obj
     
     async def get_by_label(self, db: AsyncSession, *, study_label: str) -> Optional[Study]:
-        """Get a study by label."""
-        result = await db.execute(select(Study).where(Study.study_label == study_label))
-        return result.scalar_one_or_none()
+        """Get a study by label (case and space insensitive)."""
+        # Normalize the input label: remove spaces and convert to uppercase
+        normalized_input = study_label.replace(" ", "").upper()
+        
+        # Get all studies and check normalized labels
+        result = await db.execute(select(Study))
+        studies = result.scalars().all()
+        
+        for study_obj in studies:
+            # Normalize each stored label and compare
+            normalized_stored = study_obj.study_label.replace(" ", "").upper()
+            if normalized_stored == normalized_input:
+                return study_obj
+        
+        return None
 
 
 # Create a global instance
