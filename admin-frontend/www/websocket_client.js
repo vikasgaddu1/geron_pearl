@@ -122,6 +122,9 @@ class PearlWebSocketClient {
             } else if (data.type.startsWith('package_item_')) {
                 data.module = 'packages';
                 console.log('📦 PACKAGE ITEM EVENT RECEIVED:', data.type, data.data?.item_code || 'unknown');
+            } else if (data.type.startsWith('user_')) {
+                data.module = 'users';
+                console.log('👤 USER EVENT RECEIVED:', data.type, data.data?.username || 'unknown');
             }
         }
         

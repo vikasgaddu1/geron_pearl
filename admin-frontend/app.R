@@ -35,6 +35,9 @@ source("modules/tnfp_ui.R")
 source("modules/tnfp_server.R")
 source("modules/packages_ui.R")
 source("modules/packages_server.R")
+source("modules/users_api.R")
+source("modules/users_ui.R")
+source("modules/users_server.R")
 
 # Theme with automatic dark mode support
 pearl_theme <-  bs_theme(
@@ -145,6 +148,11 @@ ui <- page_navbar(
     nav_panel("Package Installer", disabled = TRUE),
     nav_panel("Package Config", disabled = TRUE)
   ),
+  
+  nav_menu(
+    "Administration",
+    nav_panel("User Management", value = "users_tab", users_ui("users"))
+  ),
 
   # (Removed Health Check nav; show compact health badge instead)
   # Right-aligned controls inside navbar
@@ -211,6 +219,9 @@ server <- function(input, output, session) {
   
   # TNFP module
   tnfp_server("tnfp")
+  
+  # Users module
+  users_server("users")
   
   # Package Management placeholder handlers
   observeEvent(input$refresh_packages_btn, {

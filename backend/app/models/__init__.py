@@ -10,6 +10,7 @@ from app.models.package_tlf_details import PackageTlfDetails
 from app.models.package_dataset_details import PackageDatasetDetails
 from app.models.package_item_footnote import PackageItemFootnote
 from app.models.package_item_acronym import PackageItemAcronym
+from app.models.user import User, UserRole
 
 __all__ = [
     "Study", 
@@ -23,5 +24,7 @@ __all__ = [
     "PackageTlfDetails",
     "PackageDatasetDetails",
     "PackageItemFootnote",
-    "PackageItemAcronym"
+    "PackageItemAcronym",
+    "User",
+    "UserRole"
 ]

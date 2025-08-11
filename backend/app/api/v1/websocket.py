@@ -363,3 +363,28 @@ async def broadcast_package_item_deleted(package_item_data):
     message = broadcast_message("package_item_deleted", sqlalchemy_to_dict(package_item_data))
     await manager.broadcast(message)
     logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+
+
+# User WebSocket broadcasting functions
+async def broadcast_user_created(user_data):
+    """Broadcast that a new user was created."""
+    logger.info(f"🚀 Broadcasting user_created: {user_data.username}")
+    message = broadcast_message("user_created", sqlalchemy_to_dict(user_data))
+    await manager.broadcast(message)
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_user_updated(user_data):
+    """Broadcast that a user was updated."""
+    logger.info(f"📝 Broadcasting user_updated: {user_data.username}")
+    message = broadcast_message("user_updated", sqlalchemy_to_dict(user_data))
+    await manager.broadcast(message)
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_user_deleted(user_data):
+    """Broadcast that a user was deleted."""
+    logger.info(f"🗑️ Broadcasting user_deleted: {user_data.username} - ID {user_data.id}")
+    message = broadcast_message("user_deleted", sqlalchemy_to_dict(user_data))
+    await manager.broadcast(message)
+    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")

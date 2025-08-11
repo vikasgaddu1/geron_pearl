@@ -12,6 +12,7 @@ from app.schemas.package_item import (
     PackageDatasetDetailsCreate, PackageDatasetDetailsInDB,
     PackageItemFootnoteCreate, PackageItemAcronymCreate
 )
+from app.schemas.user import User, UserCreate, UserInDB, UserUpdate
 
 __all__ = [
     # Study schemas
@@ -29,5 +30,7 @@ __all__ = [
     "PackageItemCreateWithDetails", "ItemTypeEnum",
     "PackageTlfDetailsCreate", "PackageTlfDetailsInDB",
     "PackageDatasetDetailsCreate", "PackageDatasetDetailsInDB",
-    "PackageItemFootnoteCreate", "PackageItemAcronymCreate"
+    "PackageItemFootnoteCreate", "PackageItemAcronymCreate",
+    # User schemas
+    "User", "UserCreate", "UserInDB", "UserUpdate"
 ]
