@@ -19,7 +19,9 @@
       "Bash(\"C:\\Program Files\\R\\R-4.2.2\\bin\\Rscript.exe\" create_tlf_template.R)",
       "Bash(\"C:\\Program Files\\R\\R-4.2.2\\bin\\Rscript.exe\" create_dataset_template.R)",
       "mcp__playwright__browser_evaluate",
-      "mcp__playwright__browser_take_screenshot"
+      "mcp__playwright__browser_take_screenshot",
+      "Bash(./test_packages_crud.sh:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }
