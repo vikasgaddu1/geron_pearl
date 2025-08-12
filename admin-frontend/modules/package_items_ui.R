@@ -32,17 +32,36 @@ package_items_ui <- function(id) {
               tags$small("Manage TLF and Dataset items in packages", class = "text-muted")
             ),
             div(
-              class = "d-flex gap-2",
-              # Package selector
+              class = "d-flex gap-2 align-items-center",
+              # Package selector with prominent label
               div(
-                style = "width: 300px; margin-right: 10px;",
-                selectizeInput(
-                  ns("selected_package"),
-                  label = NULL,
-                  choices = NULL,
-                  options = list(
-                    placeholder = "Select a package...",
-                    maxItems = 1
+                id = ns("package_selector_wrapper"),
+                class = "d-flex align-items-center gap-2 package-selector-wrapper",
+                tags$label(
+                  class = "mb-0 fw-bold",
+                  style = "white-space: nowrap;",
+                  icon("box-open", class = "text-warning"),
+                  " Current Package:"
+                ),
+                div(
+                  style = "width: 250px;",
+                  title = "All items will be added to this package",
+                  selectizeInput(
+                    ns("selected_package"),
+                    label = NULL,
+                    choices = NULL,
+                    options = list(
+                      placeholder = "⚠ Select a package first...",
+                      maxItems = 1,
+                      render = I("{
+                        option: function(item, escape) {
+                          return '<div><i class=\"fa fa-box\"></i> ' + escape(item.text) + '</div>';
+                        },
+                        item: function(item, escape) {
+                          return '<div><strong><i class=\"fa fa-box\"></i> ' + escape(item.text) + '</strong></div>';
+                        }
+                      }")
+                    )
                   )
                 )
               ),
@@ -55,8 +74,7 @@ package_items_ui <- function(id) {
               ),
               actionButton(
                 ns("toggle_add_item"),
-                "Add Item",
-                icon = icon("plus"),
+                tagList(icon("plus"), " Add Item to Package"),
                 class = "btn btn-success btn-sm",
                 title = "Add a new item to the selected package"
               )
@@ -67,6 +85,9 @@ package_items_ui <- function(id) {
           card_body(
             class = "p-0",
             style = "height: 100%;",
+            
+            # Package selection reminder
+            uiOutput(ns("package_reminder")),
             
             layout_sidebar(
               fillable = TRUE,
@@ -134,6 +155,7 @@ package_items_ui <- function(id) {
                     icon = bs_icon("table"),
                     div(
                       class = "mt-3",
+                      uiOutput(ns("tlf_header")),
                       DT::dataTableOutput(ns("tlf_table"))
                     )
                   ),
@@ -143,6 +165,7 @@ package_items_ui <- function(id) {
                     icon = bs_icon("database"),
                     div(
                       class = "mt-3",
+                      uiOutput(ns("dataset_header")),
                       DT::dataTableOutput(ns("dataset_table"))
                     )
                   )

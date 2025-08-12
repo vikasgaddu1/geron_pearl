@@ -291,6 +291,29 @@ package_items_server <- function(id) {
       load_text_elements()
     })
     
+    # Package reminder when no package is selected
+    output$package_reminder <- renderUI({
+      if (is.null(input$selected_package) || input$selected_package == "") {
+        div(
+          class = "alert alert-warning d-flex align-items-center mx-3 mt-3",
+          style = "border-left: 5px solid #ffc107;",
+          icon("exclamation-triangle", class = "me-2"),
+          tags$strong("Please select a package from the dropdown above to view and manage its items.")
+        )
+      } else {
+        NULL
+      }
+    })
+    
+    # Disable/enable Add Item button based on package selection
+    observe({
+      if (is.null(input$selected_package) || input$selected_package == "") {
+        shinyjs::disable("toggle_add_item")
+      } else {
+        shinyjs::enable("toggle_add_item")
+      }
+    })
+    
     # Reload items when package changes
     observeEvent(input$selected_package, {
       load_package_items()
@@ -302,6 +325,17 @@ package_items_server <- function(id) {
       
       # Reset file input
       shinyjs::reset("bulk_upload_file")
+      
+      # Update package selector visual state
+      if (!is.null(input$selected_package) && input$selected_package != "") {
+        shinyjs::runjs(sprintf("
+          $('#%s').removeClass('package-selector-wrapper').addClass('package-selector-wrapper has-selection');
+        ", ns("package_selector_wrapper")))
+      } else {
+        shinyjs::runjs(sprintf("
+          $('#%s').removeClass('has-selection');
+        ", ns("package_selector_wrapper")))
+      }
     })
     
     # Track current tab and clear upload results when switching
@@ -317,6 +351,66 @@ package_items_server <- function(id) {
       shinyjs::reset("bulk_upload_file")
       
       cat("Tab switched to:", input$item_tabs, "- Clearing upload results\n")
+    })
+    
+    # Render TLF header with package name
+    output$tlf_header <- renderUI({
+      pkg_id <- input$selected_package
+      if (!is.null(pkg_id) && pkg_id != "") {
+        pkgs <- packages_list()
+        pkg_name <- NULL
+        for (pkg in pkgs) {
+          if (pkg$id == as.integer(pkg_id)) {
+            pkg_name <- pkg$package_name
+            break
+          }
+        }
+        if (!is.null(pkg_name)) {
+          div(
+            class = "alert alert-info py-2 mb-3 d-flex align-items-center",
+            style = "background: linear-gradient(90deg, #cfe2ff 0%, #e7f1ff 100%); border-left: 4px solid #0d6efd;",
+            icon("box", class = "me-2"),
+            tags$span(
+              "Viewing TLF items for package: ",
+              tags$strong(pkg_name, class = "text-primary")
+            )
+          )
+        } else {
+          NULL
+        }
+      } else {
+        NULL
+      }
+    })
+    
+    # Render Dataset header with package name
+    output$dataset_header <- renderUI({
+      pkg_id <- input$selected_package
+      if (!is.null(pkg_id) && pkg_id != "") {
+        pkgs <- packages_list()
+        pkg_name <- NULL
+        for (pkg in pkgs) {
+          if (pkg$id == as.integer(pkg_id)) {
+            pkg_name <- pkg$package_name
+            break
+          }
+        }
+        if (!is.null(pkg_name)) {
+          div(
+            class = "alert alert-info py-2 mb-3 d-flex align-items-center",
+            style = "background: linear-gradient(90deg, #cfe2ff 0%, #e7f1ff 100%); border-left: 4px solid #0d6efd;",
+            icon("database", class = "me-2"),
+            tags$span(
+              "Viewing Dataset items for package: ",
+              tags$strong(pkg_name, class = "text-primary")
+            )
+          )
+        } else {
+          NULL
+        }
+      } else {
+        NULL
+      }
     })
     
     # Render TLF table
