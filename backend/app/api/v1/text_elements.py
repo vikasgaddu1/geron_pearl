@@ -35,22 +35,22 @@ async def create_text_element(
             )
         
         created_text_element = await text_element.create(db, obj_in=text_element_in)
-        print(f"✅ TextElement created successfully: {created_text_element.type.value} - {created_text_element.label[:50]}... (ID: {created_text_element.id})")
+        print(f"TextElement created successfully: {created_text_element.type.value} - {created_text_element.label[:50]}... (ID: {created_text_element.id})")
         
         # Broadcast WebSocket event for real-time updates
         try:
-            print(f"🚀 About to broadcast text_element_created...")
+            print(f"About to broadcast text_element_created...")
             await broadcast_text_element_created(created_text_element)
-            print(f"✅ Broadcast completed successfully")
+            print(f"Broadcast completed successfully")
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
-            print(f"❌ WebSocket broadcast error: {ws_error}")
+            print(f"WebSocket broadcast error: {ws_error}")
         
         return created_text_element
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
-        print(f"❌ Error creating text element: {e}")
+        print(f"Error creating text element: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create text element"
@@ -73,10 +73,10 @@ async def read_text_elements(
         else:
             text_elements = await text_element.get_multi(db, skip=skip, limit=limit)
         
-        print(f"📋 Retrieved {len(text_elements)} text elements")
+        print(f"Retrieved {len(text_elements)} text elements")
         return text_elements
     except Exception as e:
-        print(f"❌ Error retrieving text elements: {e}")
+        print(f"Error retrieving text elements: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve text elements"
@@ -96,10 +96,10 @@ async def search_text_elements(
     """
     try:
         text_elements = await text_element.search_by_label(db, search_term=q, skip=skip, limit=limit)
-        print(f"🔍 Found {len(text_elements)} text elements matching '{q}'")
+        print(f"Found {len(text_elements)} text elements matching '{q}'")
         return text_elements
     except Exception as e:
-        print(f"❌ Error searching text elements: {e}")
+        print(f"Error searching text elements: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to search text elements"
@@ -123,12 +123,12 @@ async def read_text_element(
                 detail="Text element not found"
             )
         
-        print(f"📄 Retrieved text element: {db_text_element.type.value} - {db_text_element.label[:50]}...")
+        print(f"Retrieved text element: {db_text_element.type.value} - {db_text_element.label[:50]}...")
         return db_text_element
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Error retrieving text element {text_element_id}: {e}")
+        print(f"Error retrieving text element {text_element_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve text element"
@@ -169,22 +169,22 @@ async def update_text_element(
                 )
         
         updated_text_element = await text_element.update(db, db_obj=db_text_element, obj_in=text_element_in)
-        print(f"✏️ TextElement updated successfully: ID {updated_text_element.id}")
+        print(f"TextElement updated successfully: ID {updated_text_element.id}")
         
         # Broadcast WebSocket event for real-time updates
         try:
-            print(f"🚀 About to broadcast text_element_updated...")
+            print(f"About to broadcast text_element_updated...")
             await broadcast_text_element_updated(updated_text_element)
-            print(f"✅ Broadcast completed successfully")
+            print(f"Broadcast completed successfully")
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
-            print(f"❌ WebSocket broadcast error: {ws_error}")
+            print(f"WebSocket broadcast error: {ws_error}")
         
         return updated_text_element
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Error updating text element {text_element_id}: {e}")
+        print(f"Error updating text element {text_element_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update text element"
@@ -209,22 +209,22 @@ async def delete_text_element(
             )
         
         deleted_text_element = await text_element.delete(db, id=text_element_id)
-        print(f"🗑️ TextElement deleted successfully: ID {text_element_id}")
+        print(f"TextElement deleted successfully: ID {text_element_id}")
         
         # Broadcast WebSocket event for real-time updates
         try:
-            print(f"🚀 About to broadcast text_element_deleted...")
+            print(f"About to broadcast text_element_deleted...")
             await broadcast_text_element_deleted(deleted_text_element)
-            print(f"✅ Broadcast completed successfully")
+            print(f"Broadcast completed successfully")
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
-            print(f"❌ WebSocket broadcast error: {ws_error}")
+            print(f"WebSocket broadcast error: {ws_error}")
         
         return deleted_text_element
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Error deleting text element {text_element_id}: {e}")
+        print(f"Error deleting text element {text_element_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete text element"

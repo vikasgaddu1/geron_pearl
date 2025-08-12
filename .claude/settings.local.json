@@ -6,7 +6,13 @@
       "mcp__playwright__browser_console_messages",
       "mcp__playwright__browser_click",
       "mcp__playwright__browser_type",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "Bash(powershell:*)",
+      "Bash(Rscript:*)",
+      "Bash(rm:*)",
+      "Bash(\"C:\\Program Files\\R\\R-4.2.2\\bin\\Rscript.exe\" create_users_template.R)",
+      "Bash(del \"C:\\python\\PEARL\\admin-frontend\\create_users_template.R\")",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

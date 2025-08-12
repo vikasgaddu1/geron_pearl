@@ -21,7 +21,6 @@ class PackageItem(Base, TimestampMixin):
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     package_id: Mapped[int] = mapped_column(Integer, ForeignKey("packages.id"), nullable=False, index=True)
-    study_id: Mapped[int] = mapped_column(Integer, ForeignKey("studies.id"), nullable=False, index=True)
     item_type: Mapped[ItemType] = mapped_column(
         Enum(ItemType),
         nullable=False,
@@ -41,7 +40,6 @@ class PackageItem(Base, TimestampMixin):
     
     # Relationships
     package = relationship("Package", back_populates="package_items")
-    study = relationship("Study", back_populates="package_items")
     tlf_details = relationship("PackageTlfDetails", back_populates="package_item", uselist=False)
     dataset_details = relationship("PackageDatasetDetails", back_populates="package_item", uselist=False)
     footnotes = relationship("PackageItemFootnote", back_populates="package_item")

@@ -1,0 +1,29 @@
+[
+    {
+        "item_subtype": "Table",
+        "item_code": "t14.2.1",
+        "title": "Summary of Adverse Events",
+        "footnotes": ["Includes all treatment-emergent events", "Safety population"],
+        "population_flag": "Safety Population",
+        "acronyms": ["AE = Adverse Event", "SAE = Serious Adverse Event"],
+        "ich_category": "E3"
+    },
+    {
+        "item_subtype": "Listing",
+        "item_code": "l16.1.1",
+        "title": "Patient Listings",
+        "footnotes": ["Sorted by patient ID"],
+        "population_flag": "All Enrolled",
+        "acronyms": [],
+        "ich_category": "E2B"
+    },
+    {
+        "item_subtype": "Figure",
+        "item_code": "f9.1.1",
+        "title": "Kaplan-Meier Survival Curve",
+        "footnotes": [],
+        "population_flag": "ITT Population",
+        "acronyms": ["CI = Confidence Interval"],
+        "ich_category": null
+    }
+]

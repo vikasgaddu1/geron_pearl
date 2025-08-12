@@ -56,7 +56,7 @@ tnfp_ui <- function(id) {
                 # Text Element Form
                 div(
                   id = ns("text_element_form"),
-                  tags$h6("Text Element Details", class = "text-muted mb-3"),
+                  tags$h6("Add Individual Items", class = "text-center fw-bold mb-3"),
                   
                   # Text Element Type
                   selectInput(
@@ -66,7 +66,8 @@ tnfp_ui <- function(id) {
                       "Title" = "title",
                       "Footnote" = "footnote",
                       "Population Set" = "population_set",
-                      "Acronym Set" = "acronyms_set"
+                      "Acronym Set" = "acronyms_set",
+                      "ICH Category" = "ich_category"
                     ),
                     selected = "title"
                   ),
@@ -106,6 +107,66 @@ tnfp_ui <- function(id) {
                       style = "height: auto; padding: 0.375rem 0.75rem;",
                       title = "Cancel and close the form"
                     )
+                  ),
+                  
+                  # Bulk Upload Section
+                  tags$hr(class = "my-4"),
+                  tags$h6("Bulk Upload", class = "text-center fw-bold mb-3"),
+                  
+                  # Download template link
+                  div(
+                    class = "mb-3",
+                    tags$a(
+                      href = "tfl_properties_template.xlsx",
+                      download = "tfl_properties_template.xlsx",
+                      class = "btn btn-outline-info btn-sm w-100",
+                      tagList(
+                        bs_icon("download"),
+                        " Download Excel Template"
+                      )
+                    ),
+                    tags$small(
+                      class = "text-muted d-block mt-2 text-center",
+                      "Template includes data validation and sample data"
+                    )
+                  ),
+                  
+                  # File upload instructions
+                  div(
+                    class = "alert alert-info small",
+                    tags$strong("File Requirements:"),
+                    tags$ul(
+                      class = "mb-0 mt-2",
+                      tags$li("Use the template above for best results"),
+                      tags$li("Must contain 'Type' and 'Content' columns"),
+                      tags$li("Type column has dropdown validation in template"),
+                      tags$li("Valid types: title, footnote, population_set, acronyms_set, ich_category"),
+                      tags$li("Duplicates automatically skipped (ignoring spaces/case)")
+                    )
+                  ),
+                  
+                  # File input
+                  fileInput(
+                    ns("bulk_upload_file"),
+                    label = NULL,
+                    accept = c(".xlsx", ".xls"),
+                    buttonLabel = "Choose Excel File",
+                    placeholder = "No file selected"
+                  ),
+                  
+                  # Upload button
+                  actionButton(
+                    ns("process_bulk_upload"),
+                    tagList(bs_icon("upload"), "Process Upload"),
+                    class = "btn btn-primary w-100",
+                    style = "height: auto; padding: 0.375rem 0.75rem;",
+                    title = "Process the bulk upload file"
+                  ),
+                  
+                  # Upload results placeholder
+                  div(
+                    id = ns("upload_results"),
+                    class = "mt-3"
                   )
                 )
               ),

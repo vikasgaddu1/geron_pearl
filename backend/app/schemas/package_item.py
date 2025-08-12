@@ -17,7 +17,6 @@ class PackageItemBase(BaseModel):
     """Base PackageItem schema with common fields."""
     
     package_id: int = Field(..., gt=0, description="Package ID")
-    study_id: int = Field(..., gt=0, description="Study ID")
     item_type: ItemTypeEnum = Field(..., description="Item type: TLF or Dataset")
     item_subtype: str = Field(..., min_length=1, max_length=50, description="Subtype: Table/Listing/Figure or SDTM/ADaM")
     item_code: str = Field(..., min_length=1, max_length=255, description="TLF ID or dataset name")
@@ -58,6 +57,7 @@ class PackageTlfDetailsBase(BaseModel):
     
     title_id: Optional[int] = Field(None, description="Reference to title text element")
     population_flag_id: Optional[int] = Field(None, description="Reference to population flag text element")
+    ich_category_id: Optional[int] = Field(None, description="Reference to ICH category text element")
 
 
 class PackageTlfDetailsCreate(PackageTlfDetailsBase):
@@ -143,7 +143,6 @@ class PackageItem(PackageItemInDB):
     dataset_details: Optional[PackageDatasetDetailsInDB] = None
     footnotes: List[PackageItemFootnoteBase] = Field(default_factory=list)
     acronyms: List[PackageItemAcronymBase] = Field(default_factory=list)
-    study_label: Optional[str] = Field(None, description="Study label from related study")
     
     model_config = ConfigDict(from_attributes=True)
 

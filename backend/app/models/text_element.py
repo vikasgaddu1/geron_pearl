@@ -14,6 +14,7 @@ class TextElementType(enum.Enum):
     footnote = "footnote"
     population_set = "population_set"
     acronyms_set = "acronyms_set"
+    ich_category = "ich_category"
 
 
 class TextElement(Base, TimestampMixin):

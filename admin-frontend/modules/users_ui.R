@@ -58,7 +58,7 @@ users_ui <- function(id) {
                 # User Form
                 div(
                   id = ns("user_form"),
-                  tags$h6("User Details", class = "text-muted mb-3"),
+                  tags$h6("Add Individual User", class = "text-center fw-bold mb-3"),
                   
                   # Username
                   textInput(
@@ -104,6 +104,66 @@ users_ui <- function(id) {
                       style = "height: auto; padding: 0.375rem 0.75rem;",
                       title = "Cancel and close"
                     )
+                  ),
+                  
+                  # Bulk Upload Section
+                  tags$hr(class = "my-4"),
+                  tags$h6("Bulk Upload", class = "text-center fw-bold mb-3"),
+                  
+                  # Download template link
+                  div(
+                    class = "mb-3",
+                    tags$a(
+                      href = "users_template.xlsx",
+                      download = "users_template.xlsx",
+                      class = "btn btn-outline-info btn-sm w-100",
+                      tagList(
+                        icon("download"),
+                        " Download Excel Template"
+                      )
+                    ),
+                    tags$small(
+                      class = "text-muted d-block mt-2 text-center",
+                      "Template includes role validation and sample data"
+                    )
+                  ),
+                  
+                  # File upload instructions
+                  div(
+                    class = "alert alert-info small",
+                    tags$strong("File Requirements:"),
+                    tags$ul(
+                      class = "mb-0 mt-2",
+                      tags$li("Use the template above for best results"),
+                      tags$li("Must contain 'Username' and 'Role' columns"),
+                      tags$li("Role column has dropdown validation in template"),
+                      tags$li("Valid roles: Admin, Editor, Viewer"),
+                      tags$li("Duplicate usernames automatically skipped")
+                    )
+                  ),
+                  
+                  # File input
+                  fileInput(
+                    ns("bulk_upload_file"),
+                    label = NULL,
+                    accept = c(".xlsx", ".xls"),
+                    buttonLabel = "Choose Excel File",
+                    placeholder = "No file selected"
+                  ),
+                  
+                  # Upload button
+                  actionButton(
+                    ns("process_bulk_upload"),
+                    tagList(icon("upload"), "Process Upload"),
+                    class = "btn btn-primary w-100",
+                    style = "height: auto; padding: 0.375rem 0.75rem;",
+                    title = "Process the bulk upload file"
+                  ),
+                  
+                  # Upload results placeholder
+                  div(
+                    id = ns("upload_results"),
+                    class = "mt-3"
                   )
                 )
               ),

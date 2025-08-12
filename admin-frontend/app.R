@@ -33,8 +33,10 @@ source("modules/study_tree_ui.R")
 source("modules/study_tree_server.R")
 source("modules/tnfp_ui.R")
 source("modules/tnfp_server.R")
-source("modules/packages_ui.R")
-source("modules/packages_server.R")
+source("modules/packages_simple_ui.R")
+source("modules/packages_simple_server.R")
+source("modules/package_items_ui.R")
+source("modules/package_items_server.R")
 source("modules/users_ui.R")
 source("modules/users_server.R")
 
@@ -144,7 +146,8 @@ ui <- page_navbar(
 
   nav_menu(
     "Packages",
-    nav_panel("Package Registry", value = "packages_tab", packages_ui("packages")),
+    nav_panel("Packages", value = "packages_simple_tab", packages_simple_ui("packages_simple")),
+    nav_panel("Package Items", value = "package_items_tab", package_items_ui("package_items")),
     nav_panel("Package Installer", disabled = TRUE),
     nav_panel("Package Config", disabled = TRUE)
   ),
@@ -207,7 +210,8 @@ server <- function(input, output, session) {
   }, ignoreInit = TRUE)
   
   # Packages module
-  packages_server("packages")
+  packages_simple_server("packages_simple")
+  package_items_server("package_items")
   
   # Study Tree module (handles Studies, Database Releases, and Reporting Efforts)
   study_tree_server("study_tree")

@@ -1,0 +1,20 @@
+[
+    {
+        "item_subtype": "Table",
+        "item_code": "t20.1.1",
+        "title": "Efficacy Summary",
+        "footnotes": ["Based on ITT analysis"],
+        "population_flag": "ITT Population",
+        "acronyms": [],
+        "ich_category": "E3"
+    },
+    {
+        "item_subtype": "Figure",
+        "item_code": "f20.2.1",
+        "title": "Forest Plot",
+        "footnotes": [],
+        "population_flag": null,
+        "acronyms": ["HR = Hazard Ratio"],
+        "ich_category": null
+    }
+]

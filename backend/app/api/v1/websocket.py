@@ -213,26 +213,26 @@ async def websocket_studies_endpoint(websocket: WebSocket):
 
 async def broadcast_study_created(study_data):
     """Broadcast that a new study was created."""
-    logger.info(f"🚀 Broadcasting study_created: {study_data.study_label}")
+    logger.info(f"Broadcasting study_created: {study_data.study_label}")
     message = broadcast_message("study_created", sqlalchemy_to_dict(study_data))
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_study_updated(study_data):
     """Broadcast that a study was updated."""
-    logger.info(f"📝 Broadcasting study_updated: {study_data.study_label}")
+    logger.info(f"Broadcasting study_updated: {study_data.study_label}")
     message = broadcast_message("study_updated", sqlalchemy_to_dict(study_data))
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_study_deleted(study_id: int):
     """Broadcast that a study was deleted."""
-    logger.info(f"🗑️ Broadcasting study_deleted: ID {study_id}")
+    logger.info(f"Broadcasting study_deleted: ID {study_id}")
     message = broadcast_message("study_deleted", {"id": study_id})
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_studies_refresh():
@@ -243,148 +243,148 @@ async def broadcast_studies_refresh():
 
 async def broadcast_database_release_created(database_release_data):
     """Broadcast that a new database release was created."""
-    logger.info(f"🚀 Broadcasting database_release_created: {database_release_data.database_release_label}")
+    logger.info(f"Broadcasting database_release_created: {database_release_data.database_release_label}")
     message = broadcast_message("database_release_created", sqlalchemy_to_dict(database_release_data))
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_database_release_updated(database_release_data):
     """Broadcast that a database release was updated."""
-    logger.info(f"📝 Broadcasting database_release_updated: {database_release_data.database_release_label}")
+    logger.info(f"Broadcasting database_release_updated: {database_release_data.database_release_label}")
     message = broadcast_message("database_release_updated", sqlalchemy_to_dict(database_release_data))
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_database_release_deleted(database_release_id: int):
     """Broadcast that a database release was deleted."""
-    logger.info(f"🗑️ Broadcasting database_release_deleted: ID {database_release_id}")
+    logger.info(f"Broadcasting database_release_deleted: ID {database_release_id}")
     message = broadcast_message("database_release_deleted", {"id": database_release_id})
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_reporting_effort_created(reporting_effort_data):
     """Broadcast that a new reporting effort was created."""
-    logger.info(f"🚀 Broadcasting reporting_effort_created: {reporting_effort_data.database_release_label}")
+    logger.info(f"Broadcasting reporting_effort_created: {reporting_effort_data.database_release_label}")
     message = broadcast_message("reporting_effort_created", sqlalchemy_to_dict(reporting_effort_data))
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_reporting_effort_updated(reporting_effort_data):
     """Broadcast that a reporting effort was updated."""
-    logger.info(f"📝 Broadcasting reporting_effort_updated: {reporting_effort_data.database_release_label}")
-    logger.info(f"🔍 Active connections before broadcast: {len(manager.active_connections)}")
+    logger.info(f"Broadcasting reporting_effort_updated: {reporting_effort_data.database_release_label}")
+    logger.info(f"Active connections before broadcast: {len(manager.active_connections)}")
     message = broadcast_message("reporting_effort_updated", sqlalchemy_to_dict(reporting_effort_data))
     await manager.broadcast(message)
-    logger.info(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.info(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_reporting_effort_deleted(reporting_effort_id: int):
     """Broadcast that a reporting effort was deleted."""
-    logger.info(f"🗑️ Broadcasting reporting_effort_deleted: ID {reporting_effort_id}")
+    logger.info(f"Broadcasting reporting_effort_deleted: ID {reporting_effort_id}")
     message = broadcast_message("reporting_effort_deleted", {"id": reporting_effort_id})
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 # TextElement WebSocket broadcasting functions
 async def broadcast_text_element_created(text_element_data):
     """Broadcast that a new text element was created."""
-    logger.info(f"🚀 Broadcasting text_element_created: {text_element_data.type.value} - {text_element_data.label[:50]}...")
+    logger.info(f"Broadcasting text_element_created: {text_element_data.type.value} - {text_element_data.label[:50]}...")
     message = broadcast_message("text_element_created", sqlalchemy_to_dict(text_element_data))
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_text_element_updated(text_element_data):
     """Broadcast that a text element was updated."""
-    logger.info(f"📝 Broadcasting text_element_updated: {text_element_data.type.value} - {text_element_data.label[:50]}...")
+    logger.info(f"Broadcasting text_element_updated: {text_element_data.type.value} - {text_element_data.label[:50]}...")
     message = broadcast_message("text_element_updated", sqlalchemy_to_dict(text_element_data))
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_text_element_deleted(text_element_data):
     """Broadcast that a text element was deleted."""
-    logger.info(f"🗑️ Broadcasting text_element_deleted: {text_element_data.type.value} - ID {text_element_data.id}")
+    logger.info(f"Broadcasting text_element_deleted: {text_element_data.type.value} - ID {text_element_data.id}")
     message = broadcast_message("text_element_deleted", sqlalchemy_to_dict(text_element_data))
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 # Package WebSocket broadcasting functions
 async def broadcast_package_created(package_data):
     """Broadcast that a new package was created."""
-    logger.info(f"🚀 Broadcasting package_created: {package_data.package_name}")
+    logger.info(f"Broadcasting package_created: {package_data.package_name}")
     message = broadcast_message("package_created", sqlalchemy_to_dict(package_data))
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_package_updated(package_data):
     """Broadcast that a package was updated."""
-    logger.info(f"📝 Broadcasting package_updated: {package_data.package_name}")
+    logger.info(f"Broadcasting package_updated: {package_data.package_name}")
     message = broadcast_message("package_updated", sqlalchemy_to_dict(package_data))
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_package_deleted(package_data):
     """Broadcast that a package was deleted."""
-    logger.info(f"🗑️ Broadcasting package_deleted: {package_data.package_name} - ID {package_data.id}")
+    logger.info(f"Broadcasting package_deleted: {package_data.package_name} - ID {package_data.id}")
     message = broadcast_message("package_deleted", sqlalchemy_to_dict(package_data))
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 # PackageItem WebSocket broadcasting functions
 async def broadcast_package_item_created(package_item_data):
     """Broadcast that a new package item was created."""
-    logger.info(f"🚀 Broadcasting package_item_created: {package_item_data.item_code}")
+    logger.info(f"Broadcasting package_item_created: {package_item_data.item_code}")
     message = broadcast_message("package_item_created", sqlalchemy_to_dict(package_item_data))
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_package_item_updated(package_item_data):
     """Broadcast that a package item was updated."""
-    logger.info(f"📝 Broadcasting package_item_updated: {package_item_data.item_code}")
+    logger.info(f"Broadcasting package_item_updated: {package_item_data.item_code}")
     message = broadcast_message("package_item_updated", sqlalchemy_to_dict(package_item_data))
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_package_item_deleted(package_item_data):
     """Broadcast that a package item was deleted."""
-    logger.info(f"🗑️ Broadcasting package_item_deleted: {package_item_data.item_code} - ID {package_item_data.id}")
+    logger.info(f"Broadcasting package_item_deleted: {package_item_data.item_code} - ID {package_item_data.id}")
     message = broadcast_message("package_item_deleted", sqlalchemy_to_dict(package_item_data))
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 # User WebSocket broadcasting functions
 async def broadcast_user_created(user_data):
     """Broadcast that a new user was created."""
-    logger.info(f"🚀 Broadcasting user_created: {user_data.username}")
+    logger.info(f"Broadcasting user_created: {user_data.username}")
     message = broadcast_message("user_created", sqlalchemy_to_dict(user_data))
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_user_updated(user_data):
     """Broadcast that a user was updated."""
-    logger.info(f"📝 Broadcasting user_updated: {user_data.username}")
+    logger.info(f"Broadcasting user_updated: {user_data.username}")
     message = broadcast_message("user_updated", sqlalchemy_to_dict(user_data))
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
 async def broadcast_user_deleted(user_data):
     """Broadcast that a user was deleted."""
-    logger.info(f"🗑️ Broadcasting user_deleted: {user_data.username} - ID {user_data.id}")
+    logger.info(f"Broadcasting user_deleted: {user_data.username} - ID {user_data.id}")
     message = broadcast_message("user_deleted", sqlalchemy_to_dict(user_data))
     await manager.broadcast(message)
-    logger.debug(f"✅ Broadcast completed to {len(manager.active_connections)} connections")
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")

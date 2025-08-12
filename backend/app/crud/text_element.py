@@ -47,6 +47,17 @@ class TextElementCRUD:
         )
         return list(result.scalars().all())
     
+    async def get_by_type_and_label(
+        self, db: AsyncSession, *, type: TextElementType, label: str
+    ) -> Optional[TextElement]:
+        """Get a text element by type and exact label."""
+        result = await db.execute(
+            select(TextElement)
+            .where(TextElement.type == type)
+            .where(TextElement.label == label)
+        )
+        return result.scalar_one_or_none()
+    
     async def update(
         self, db: AsyncSession, *, db_obj: TextElement, obj_in: TextElementUpdate
     ) -> TextElement:

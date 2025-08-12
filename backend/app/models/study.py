@@ -18,7 +18,6 @@ class Study(Base, TimestampMixin):
     # Relationships
     database_releases = relationship("DatabaseRelease", back_populates="study")
     reporting_efforts = relationship("ReportingEffort", back_populates="study")
-    package_items = relationship("PackageItem", back_populates="study")
     
     def __repr__(self) -> str:
         return f"<Study(id={self.id}, study_label='{self.study_label}')>"

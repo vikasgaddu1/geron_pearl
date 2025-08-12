@@ -22,9 +22,19 @@ class PackageItemCRUD:
     
     async def create(self, db: AsyncSession, *, obj_in: PackageItemCreate) -> PackageItem:
         """Create a new package item."""
+        # Check for duplicate
+        existing = await self.get_by_unique_key(
+            db,
+            package_id=obj_in.package_id,
+            item_type=obj_in.item_type.value if hasattr(obj_in.item_type, 'value') else obj_in.item_type,
+            item_subtype=obj_in.item_subtype,
+            item_code=obj_in.item_code
+        )
+        if existing:
+            raise ValueError(f"A {obj_in.item_type} with code {obj_in.item_code} already exists in this package")
+        
         db_obj = PackageItem(
             package_id=obj_in.package_id,
-            study_id=obj_in.study_id,
             item_type=obj_in.item_type,
             item_subtype=obj_in.item_subtype,
             item_code=obj_in.item_code
@@ -38,10 +48,20 @@ class PackageItemCRUD:
         self, db: AsyncSession, *, obj_in: PackageItemCreateWithDetails
     ) -> PackageItem:
         """Create a package item with all details and associations."""
+        # Check for duplicate
+        existing = await self.get_by_unique_key(
+            db,
+            package_id=obj_in.package_id,
+            item_type=obj_in.item_type.value if hasattr(obj_in.item_type, 'value') else obj_in.item_type,
+            item_subtype=obj_in.item_subtype,
+            item_code=obj_in.item_code
+        )
+        if existing:
+            raise ValueError(f"A {obj_in.item_type} with code {obj_in.item_code} already exists in this package")
+        
         # Create the main package item
         db_obj = PackageItem(
             package_id=obj_in.package_id,
-            study_id=obj_in.study_id,
             item_type=obj_in.item_type,
             item_subtype=obj_in.item_subtype,
             item_code=obj_in.item_code
@@ -54,7 +74,8 @@ class PackageItemCRUD:
             tlf_details = PackageTlfDetails(
                 package_item_id=db_obj.id,
                 title_id=obj_in.tlf_details.title_id,
-                population_flag_id=obj_in.tlf_details.population_flag_id
+                population_flag_id=obj_in.tlf_details.population_flag_id,
+                ich_category_id=getattr(obj_in.tlf_details, 'ich_category_id', None)
             )
             db.add(tlf_details)
         
@@ -110,14 +131,10 @@ class PackageItemCRUD:
                 selectinload(PackageItem.dataset_details),
                 selectinload(PackageItem.footnotes),
                 selectinload(PackageItem.acronyms),
-                selectinload(PackageItem.study)
             )
             .where(PackageItem.id == id)
         )
-        item = result.scalar_one_or_none()
-        if item and item.study:
-            item.study_label = item.study.study_label
-        return item
+        return result.scalar_one_or_none()
     
     async def get_multi(
         self, db: AsyncSession, *, skip: int = 0, limit: int = 100
@@ -147,30 +164,8 @@ class PackageItemCRUD:
                 selectinload(PackageItem.dataset_details),
                 selectinload(PackageItem.footnotes),
                 selectinload(PackageItem.acronyms),
-                selectinload(PackageItem.study)
             )
             .where(PackageItem.package_id == package_id)
-        )
-        items = list(result.scalars().all())
-        # Add study_label to each item for convenience
-        for item in items:
-            if item.study:
-                item.study_label = item.study.study_label
-        return items
-    
-    async def get_by_study_id(
-        self, db: AsyncSession, *, study_id: int
-    ) -> List[PackageItem]:
-        """Get all package items for a specific study (no pagination)."""
-        result = await db.execute(
-            select(PackageItem)
-            .options(
-                selectinload(PackageItem.tlf_details),
-                selectinload(PackageItem.dataset_details),
-                selectinload(PackageItem.footnotes),
-                selectinload(PackageItem.acronyms)
-            )
-            .where(PackageItem.study_id == study_id)
         )
         return list(result.scalars().all())
     

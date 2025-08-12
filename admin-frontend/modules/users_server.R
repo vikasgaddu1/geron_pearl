@@ -417,5 +417,285 @@ users_server <- function(id) {
       showNotification("Refreshing users data...", type = "message", duration = 2)
       load_users_data()
     })
+    
+    # Bulk Upload Handler
+    observeEvent(input$process_bulk_upload, {
+      # Check if a file has been selected
+      if (is.null(input$bulk_upload_file)) {
+        showNotification(
+          "Please select an Excel file to upload",
+          type = "warning",
+          duration = 3  # Duration in seconds
+        )
+        return()
+      }
+      
+      # Clear previous results
+      output$upload_results <- renderUI({
+        div(class = "text-muted small", "Processing...")
+      })
+      
+      # Check if readxl is available
+      if (!requireNamespace("readxl", quietly = TRUE)) {
+        showNotification(
+          "Excel support not installed. Please install the 'readxl' package.",
+          type = "error",
+          duration = 5  # Duration in seconds
+        )
+        output$upload_results <- renderUI({
+          div(class = "alert alert-danger small", "Excel support not available")
+        })
+        return()
+      }
+      
+      # Validate file extension
+      file_ext <- tolower(tools::file_ext(input$bulk_upload_file$name))
+      if (!file_ext %in% c("xlsx", "xls")) {
+        showNotification(
+          "Please upload an Excel file (.xlsx or .xls)",
+          type = "error",
+          duration = 4  # Duration in seconds
+        )
+        output$upload_results <- renderUI({
+          div(class = "alert alert-danger small", "Invalid file type. Please use .xlsx or .xls files.")
+        })
+        return()
+      }
+      
+      # Read the uploaded file
+      file_path <- input$bulk_upload_file$datapath
+      
+      # Check if file exists and is readable
+      if (!file.exists(file_path)) {
+        showNotification(
+          "Unable to read the uploaded file. Please try again.",
+          type = "error",
+          duration = 4  # Duration in seconds
+        )
+        output$upload_results <- renderUI({
+          div(class = "alert alert-danger small", "File upload failed. Please try again.")
+        })
+        return()
+      }
+      
+      tryCatch({
+        # Read Excel file
+        df <- readxl::read_excel(file_path)
+        
+        # Check for required columns (case-insensitive)
+        col_names_lower <- tolower(names(df))
+        username_col <- which(col_names_lower == "username")[1]
+        role_col <- which(col_names_lower == "role")[1]
+        
+        if (is.na(username_col) || is.na(role_col)) {
+          showNotification(
+            "Excel file must contain 'Username' and 'Role' columns",
+            type = "error",
+            duration = 5  # Duration in seconds
+          )
+          output$upload_results <- renderUI({
+            div(class = "alert alert-danger small", 
+                "Missing required columns. File must have 'Username' and 'Role' columns.")
+          })
+          return()
+        }
+        
+        # Extract username and role columns
+        usernames <- as.character(df[[username_col]])
+        roles <- as.character(df[[role_col]])
+        
+        # Validate and process each row
+        role_mapping <- list(
+          "Admin" = "ADMIN",
+          "ADMIN" = "ADMIN",
+          "Editor" = "EDITOR",
+          "EDITOR" = "EDITOR",
+          "Viewer" = "VIEWER",
+          "VIEWER" = "VIEWER"
+        )
+        
+        results <- list(
+          success = 0,
+          duplicates = 0,
+          invalid_role = 0,
+          empty_content = 0,
+          errors = 0,
+          details = list()
+        )
+        
+        # Get existing usernames to check for duplicates
+        existing_users <- users_data()
+        existing_usernames <- character()
+        if (nrow(existing_users) > 0) {
+          existing_usernames <- tolower(existing_users$Username)
+        }
+        
+        for (i in seq_along(usernames)) {
+          # Skip empty rows
+          if (is.na(usernames[i]) || is.na(roles[i]) || 
+              trimws(usernames[i]) == "" || trimws(roles[i]) == "") {
+            results$empty_content <- results$empty_content + 1
+            next
+          }
+          
+          username_val <- trimws(usernames[i])
+          role_val <- trimws(roles[i])
+          
+          # Check for duplicate username
+          if (tolower(username_val) %in% existing_usernames) {
+            results$duplicates <- results$duplicates + 1
+            results$details <- append(results$details,
+              list(paste("Row", i, ": Username already exists - '", username_val, "'")))
+            next
+          }
+          
+          # Map role to internal value
+          internal_role <- role_mapping[[role_val]]
+          if (is.null(internal_role)) {
+            results$invalid_role <- results$invalid_role + 1
+            results$details <- append(results$details, 
+              list(paste("Row", i, ": Invalid role '", role_val, "' (use Admin, Editor, or Viewer)")))
+            next
+          }
+          
+          # Create the user
+          result <- create_user(username_val, internal_role)
+          
+          if (!is.null(result$error)) {
+            results$errors <- results$errors + 1
+            # Check if it's a duplicate error from the backend
+            if (grepl("already exists", result$error, ignore.case = TRUE)) {
+              results$duplicates <- results$duplicates + 1
+              results$errors <- results$errors - 1  # Adjust count
+            }
+          } else {
+            results$success <- results$success + 1
+            # Add to existing usernames to prevent duplicates within the same upload
+            existing_usernames <- c(existing_usernames, tolower(username_val))
+          }
+        }
+        
+        # Display results with appropriate styling based on outcome
+        if (results$success == 0 && results$duplicates > 0) {
+          # All users were duplicates
+          output$upload_results <- renderUI({
+            div(
+              class = "alert alert-info small",
+              tags$strong("No New Users Added"),
+              tags$p(
+                class = "mb-2 mt-2",
+                paste("All", results$duplicates, "user(s) in the file already exist in the database.")
+              ),
+              tags$small(
+                class = "text-muted",
+                "The system skipped duplicates to maintain unique usernames."
+              ),
+              if (length(results$details) > 0 && length(results$details) <= 5) {
+                tags$details(
+                  tags$summary("Skipped users"),
+                  tags$ul(
+                    class = "small",
+                    lapply(results$details[1:min(5, length(results$details))], tags$li)
+                  )
+                )
+              }
+            )
+          })
+          
+          showNotification(
+            "No new users imported - all users already exist in the database",
+            type = "warning",
+            duration = 4  # Duration in seconds
+          )
+        } else if (results$success == 0) {
+          # No users were imported for other reasons
+          output$upload_results <- renderUI({
+            div(
+              class = "alert alert-warning small",
+              tags$strong("No Users Imported"),
+              tags$ul(
+                class = "mb-0 mt-2",
+                if (results$duplicates > 0) tags$li(paste("Already in database:", results$duplicates)),
+                if (results$invalid_role > 0) tags$li(paste("Invalid roles:", results$invalid_role)),
+                if (results$empty_content > 0) tags$li(paste("Empty rows:", results$empty_content)),
+                if (results$errors > 0) tags$li(paste("Errors:", results$errors))
+              ),
+              if (length(results$details) > 0 && length(results$details) <= 5) {
+                tags$details(
+                  tags$summary("Details"),
+                  tags$ul(
+                    class = "small",
+                    lapply(results$details[1:min(5, length(results$details))], tags$li)
+                  )
+                )
+              }
+            )
+          })
+          
+          showNotification(
+            "No users were imported. Check the details for more information.",
+            type = "warning",
+            duration = 4  # Duration in seconds
+          )
+        } else {
+          # Some users were successfully imported
+          output$upload_results <- renderUI({
+            div(
+              class = "alert alert-success small",
+              tags$strong("Upload Complete"),
+              tags$ul(
+                class = "mb-0 mt-2",
+                tags$li(paste("Successfully created:", results$success, "users")),
+                if (results$duplicates > 0) tags$li(paste("Already in database (skipped):", results$duplicates)),
+                if (results$invalid_role > 0) tags$li(paste("Invalid roles:", results$invalid_role)),
+                if (results$empty_content > 0) tags$li(paste("Empty rows:", results$empty_content)),
+                if (results$errors > 0) tags$li(paste("Errors:", results$errors))
+              ),
+              if (length(results$details) > 0 && length(results$details) <= 5) {
+                tags$details(
+                  tags$summary("Details"),
+                  tags$ul(
+                    class = "small",
+                    lapply(results$details[1:min(5, length(results$details))], tags$li)
+                  )
+                )
+              }
+            )
+          })
+          
+          # Refresh the table and show success notification
+          load_users_data()
+          showNotification(
+            paste("Successfully imported", results$success, "users"),
+            type = "message",
+            duration = 4  # Duration in seconds
+          )
+        }
+        
+        # Clean up the temp file
+        if (file.exists(file_path)) {
+          unlink(file_path)
+        }
+        
+        # Reset file input
+        shinyjs::reset("bulk_upload_file")
+        
+      }, error = function(e) {
+        showNotification(
+          paste("Error reading Excel file:", e$message),
+          type = "error",
+          duration = 5  # Duration in seconds
+        )
+        output$upload_results <- renderUI({
+          div(class = "alert alert-danger small", 
+              paste("Error:", e$message))
+        })
+        
+        # Clean up the temp file
+        if (file.exists(file_path)) {
+          unlink(file_path)
+        }
+      })
+    })
   })
 }

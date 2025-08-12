@@ -31,11 +31,18 @@ class PackageTlfDetails(Base):
         nullable=True,
         doc="Reference to population flag text element"
     )
+    ich_category_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("text_elements.id"),
+        nullable=True,
+        doc="Reference to ICH category text element"
+    )
     
     # Relationships
     package_item = relationship("PackageItem", back_populates="tlf_details")
     title = relationship("TextElement", foreign_keys=[title_id])
     population_flag = relationship("TextElement", foreign_keys=[population_flag_id])
+    ich_category = relationship("TextElement", foreign_keys=[ich_category_id])
     
     def __repr__(self) -> str:
         return f"<PackageTlfDetails(id={self.id}, package_item_id={self.package_item_id})>"

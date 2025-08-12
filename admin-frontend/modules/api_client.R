@@ -411,11 +411,11 @@ get_package <- function(id) {
 }
 
 # Create new package
-create_package <- function(package_data) {
+create_package <- function(package_name) {
   tryCatch({
-    response <- httr2::request(paste0(get_packages_endpoint(), "/")) |>
+    response <- httr2::request(get_packages_endpoint()) |>
       httr2::req_method("POST") |>
-      httr2::req_body_json(package_data) |>
+      httr2::req_body_json(list(package_name = package_name)) |>
       httr2::req_perform()
     if (httr2::resp_status(response) == 201) {
       httr2::resp_body_json(response)
@@ -428,11 +428,11 @@ create_package <- function(package_data) {
 }
 
 # Update existing package
-update_package <- function(id, package_data) {
+update_package <- function(id, package_name) {
   tryCatch({
     response <- httr2::request(paste0(get_packages_endpoint(), "/", id)) |>
       httr2::req_method("PUT") |>
-      httr2::req_body_json(package_data) |>
+      httr2::req_body_json(list(package_name = package_name)) |>
       httr2::req_perform()
     if (httr2::resp_status(response) == 200) {
       httr2::resp_body_json(response)
@@ -475,12 +475,38 @@ get_package_items <- function(package_id) {
   })
 }
 
-# Create package item
-create_package_item <- function(package_id, item_data) {
+# Create package item - supports both TLF and Dataset types
+create_package_item <- function(package_id, item_type, item_subtype, item_code, 
+                               tlf_details = NULL, dataset_details = NULL, 
+                               footnotes = list(), acronyms = list()) {
   tryCatch({
+    # Build request body
+    body <- list(
+      package_id = as.integer(package_id),
+      item_type = item_type,
+      item_subtype = item_subtype,
+      item_code = item_code
+    )
+    
+    # Add type-specific details
+    if (!is.null(tlf_details)) {
+      body$tlf_details <- tlf_details
+    }
+    if (!is.null(dataset_details)) {
+      body$dataset_details <- dataset_details
+    }
+    
+    # Add footnotes and acronyms if provided
+    if (length(footnotes) > 0) {
+      body$footnotes <- footnotes
+    }
+    if (length(acronyms) > 0) {
+      body$acronyms <- acronyms
+    }
+    
     response <- httr2::request(paste0(get_packages_endpoint(), "/", package_id, "/items")) |>
       httr2::req_method("POST") |>
-      httr2::req_body_json(item_data) |>
+      httr2::req_body_json(body) |>
       httr2::req_perform()
     if (httr2::resp_status(response) == 201) {
       httr2::resp_body_json(response)

@@ -86,6 +86,7 @@ tnfp_server <- function(id) {
         df <- data.frame(
           ID = sapply(elements_list, function(x) x$id),
           Type = sapply(elements_list, function(x) tools::toTitleCase(gsub("_", " ", x$type))),
+          TypeSort = sapply(elements_list, function(x) x$type),  # Original type for sorting
           Content = sapply(elements_list, function(x) {
             label <- x$label
             if (nchar(label) > 100) paste0(substr(label, 1, 97), "...") else label
@@ -94,6 +95,15 @@ tnfp_server <- function(id) {
           stringsAsFactors = FALSE,
           check.names = FALSE
         )
+        
+        # Sort by Type first, then by Content alphabetically
+        type_order <- c("title", "footnote", "population_set", "acronyms_set", "ich_category")
+        df$TypeSort <- factor(df$TypeSort, levels = type_order)
+        df <- df[order(df$TypeSort, df$Content), ]
+        
+        # Remove the TypeSort column after sorting
+        df$TypeSort <- NULL
+        
         return(df)
       } else {
         return(data.frame(
@@ -290,7 +300,7 @@ tnfp_server <- function(id) {
               )
             ),
             type = "error",
-            duration = 8000
+            duration = 8  # Duration in seconds
           )
         } else {
           showNotification(formatted_error, type = "error")
@@ -353,7 +363,7 @@ tnfp_server <- function(id) {
               )
             ),
             type = "error",
-            duration = 8000
+            duration = 8  # Duration in seconds
           )
         } else {
           showNotification(formatted_error, type = "error")
@@ -497,6 +507,278 @@ tnfp_server <- function(id) {
           }, once = TRUE)
         })
       }
+    })
+    
+    # Bulk Upload Handler
+    observeEvent(input$process_bulk_upload, {
+      # Check if a file has been selected
+      if (is.null(input$bulk_upload_file)) {
+        showNotification(
+          "Please select an Excel file to upload",
+          type = "warning",
+          duration = 3  # Duration in seconds, not milliseconds
+        )
+        return()
+      }
+      
+      # Clear previous results
+      output$upload_results <- renderUI({
+        div(class = "text-muted small", "Processing...")
+      })
+      
+      # Check if readxl is available
+      if (!requireNamespace("readxl", quietly = TRUE)) {
+        showNotification(
+          "Excel support not installed. Please install the 'readxl' package.",
+          type = "error",
+          duration = 5  # Duration in seconds
+        )
+        output$upload_results <- renderUI({
+          div(class = "alert alert-danger small", "Excel support not available")
+        })
+        return()
+      }
+      
+      # Validate file extension
+      file_ext <- tolower(tools::file_ext(input$bulk_upload_file$name))
+      if (!file_ext %in% c("xlsx", "xls")) {
+        showNotification(
+          "Please upload an Excel file (.xlsx or .xls)",
+          type = "error",
+          duration = 4  # Duration in seconds
+        )
+        output$upload_results <- renderUI({
+          div(class = "alert alert-danger small", "Invalid file type. Please use .xlsx or .xls files.")
+        })
+        return()
+      }
+      
+      # Read the uploaded file
+      file_path <- input$bulk_upload_file$datapath
+      
+      # Check if file exists and is readable
+      if (!file.exists(file_path)) {
+        showNotification(
+          "Unable to read the uploaded file. Please try again.",
+          type = "error",
+          duration = 4  # Duration in seconds
+        )
+        output$upload_results <- renderUI({
+          div(class = "alert alert-danger small", "File upload failed. Please try again.")
+        })
+        return()
+      }
+      
+      tryCatch({
+        # Read Excel file
+        df <- readxl::read_excel(file_path)
+        
+        # Check for required columns (case-insensitive)
+        col_names_lower <- tolower(names(df))
+        type_col <- which(col_names_lower == "type")[1]
+        content_col <- which(col_names_lower == "content")[1]
+        
+        if (is.na(type_col) || is.na(content_col)) {
+          showNotification(
+            "Excel file must contain 'Type' and 'Content' columns",
+            type = "error",
+            duration = 5  # Duration in seconds
+          )
+          output$upload_results <- renderUI({
+            div(class = "alert alert-danger small", 
+                "Missing required columns. File must have 'Type' and 'Content' columns.")
+          })
+          return()
+        }
+        
+        # Extract type and content columns
+        types <- as.character(df[[type_col]])
+        contents <- as.character(df[[content_col]])
+        
+        # Validate and process each row
+        valid_types <- c("title", "footnote", "population_set", "acronyms_set", "ich_category")
+        results <- list(
+          success = 0,
+          duplicates = 0,
+          invalid_type = 0,
+          empty_content = 0,
+          errors = 0,
+          details = list()
+        )
+        
+        for (i in seq_along(types)) {
+          # Skip empty rows
+          if (is.na(types[i]) || is.na(contents[i]) || 
+              trimws(types[i]) == "" || trimws(contents[i]) == "") {
+            results$empty_content <- results$empty_content + 1
+            next
+          }
+          
+          # Normalize type value
+          type_val <- tolower(trimws(types[i]))
+          content_val <- trimws(contents[i])
+          
+          # Check if type is valid
+          if (!type_val %in% valid_types) {
+            results$invalid_type <- results$invalid_type + 1
+            results$details <- append(results$details, 
+              list(paste("Row", i, ": Invalid type '", types[i], "'")))
+            next
+          }
+          
+          # Check for duplicates (using our normalize function)
+          duplicate_check <- check_duplicate_content(content_val, type_val)
+          if (is.list(duplicate_check) && duplicate_check$exists) {
+            results$duplicates <- results$duplicates + 1
+            results$details <- append(results$details,
+              list(paste("Row", i, ": Already exists - '", 
+                        substr(content_val, 1, 50), 
+                        if(nchar(content_val) > 50) "..." else "",
+                        "'")))
+            next
+          }
+          
+          # Create the text element
+          element_data <- list(
+            type = type_val,
+            label = content_val
+          )
+          
+          result <- create_text_element(element_data)
+          
+          if (!is.null(result$error)) {
+            results$errors <- results$errors + 1
+            # Check if it's a duplicate error from the backend
+            if (grepl("Duplicate", result$error)) {
+              results$duplicates <- results$duplicates + 1
+              results$success <- results$success - 1 # Adjust if we miscounted
+            }
+          } else {
+            results$success <- results$success + 1
+          }
+        }
+        
+        # Display results with appropriate styling based on outcome
+        if (results$success == 0 && results$duplicates > 0) {
+          # All items were duplicates
+          output$upload_results <- renderUI({
+            div(
+              class = "alert alert-info small",
+              tags$strong("No New Items Added"),
+              tags$p(
+                class = "mb-2 mt-2",
+                paste("All", results$duplicates, "item(s) in the file already exist in the database.")
+              ),
+              tags$small(
+                class = "text-muted",
+                "The system skipped duplicates to maintain data integrity."
+              ),
+              if (length(results$details) > 0 && length(results$details) <= 5) {
+                tags$details(
+                  tags$summary("Skipped items"),
+                  tags$ul(
+                    class = "small",
+                    lapply(results$details[1:min(5, length(results$details))], tags$li)
+                  )
+                )
+              }
+            )
+          })
+          
+          showNotification(
+            "No new items imported - all items already exist in the database",
+            type = "warning",
+            duration = 4  # Duration in seconds
+          )
+        } else if (results$success == 0) {
+          # No items were imported for other reasons
+          output$upload_results <- renderUI({
+            div(
+              class = "alert alert-warning small",
+              tags$strong("No Items Imported"),
+              tags$ul(
+                class = "mb-0 mt-2",
+                if (results$duplicates > 0) tags$li(paste("Already in database:", results$duplicates)),
+                if (results$invalid_type > 0) tags$li(paste("Invalid types:", results$invalid_type)),
+                if (results$empty_content > 0) tags$li(paste("Empty rows:", results$empty_content)),
+                if (results$errors > 0) tags$li(paste("Errors:", results$errors))
+              ),
+              if (length(results$details) > 0 && length(results$details) <= 5) {
+                tags$details(
+                  tags$summary("Details"),
+                  tags$ul(
+                    class = "small",
+                    lapply(results$details[1:min(5, length(results$details))], tags$li)
+                  )
+                )
+              }
+            )
+          })
+          
+          showNotification(
+            "No items were imported. Check the details for more information.",
+            type = "warning",
+            duration = 4  # Duration in seconds
+          )
+        } else {
+          # Some items were successfully imported
+          output$upload_results <- renderUI({
+            div(
+              class = "alert alert-success small",
+              tags$strong("Upload Complete"),
+              tags$ul(
+                class = "mb-0 mt-2",
+                tags$li(paste("Successfully created:", results$success, "items")),
+                if (results$duplicates > 0) tags$li(paste("Already in database (skipped):", results$duplicates)),
+                if (results$invalid_type > 0) tags$li(paste("Invalid types:", results$invalid_type)),
+                if (results$empty_content > 0) tags$li(paste("Empty rows:", results$empty_content)),
+                if (results$errors > 0) tags$li(paste("Errors:", results$errors))
+              ),
+              if (length(results$details) > 0 && length(results$details) <= 5) {
+                tags$details(
+                  tags$summary("Details"),
+                  tags$ul(
+                    class = "small",
+                    lapply(results$details[1:min(5, length(results$details))], tags$li)
+                  )
+                )
+              }
+            )
+          })
+          
+          # Refresh the table and show success notification
+          load_text_elements_data()
+          showNotification(
+            paste("Successfully imported", results$success, "text elements"),
+            type = "message",
+            duration = 4  # Duration in seconds
+          )
+        }
+        
+        # Clean up the temp file
+        if (file.exists(file_path)) {
+          unlink(file_path)
+        }
+        
+        # Reset file input
+        shinyjs::reset("bulk_upload_file")
+        
+      }, error = function(e) {
+        showNotification(
+          paste("Error reading Excel file:", e$message),
+          type = "error",
+          duration = 5  # Duration in seconds
+        )
+        output$upload_results <- renderUI({
+          div(class = "alert alert-danger small", 
+              paste("Error:", e$message))
+        })
+        
+        # Clean up the temp file
+        if (file.exists(file_path)) {
+          unlink(file_path)
+        }
+      })
     })
   })
 }

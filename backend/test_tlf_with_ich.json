@@ -1,0 +1,16 @@
+{
+    "package_id": 1,
+    "item_type": "TLF",
+    "item_subtype": "Table",
+    "item_code": "t14.1.1",
+    "tlf_details": {
+      "title_id": 4,
+      "population_flag_id": 8,
+      "ich_category_id": 5
+    },
+    "footnotes": [
+      {"footnote_id": 6, "sequence_number": 1},
+      {"footnote_id": 7, "sequence_number": 2}
+    ],
+    "acronyms": []
+}
