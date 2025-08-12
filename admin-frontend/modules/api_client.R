@@ -518,6 +518,49 @@ create_package_item <- function(package_id, item_type, item_subtype, item_code,
   })
 }
 
+# Update package item - supports both TLF and Dataset types
+update_package_item <- function(item_id, item_type, item_subtype, item_code, 
+                                tlf_details = NULL, dataset_details = NULL,
+                                footnotes = NULL, acronyms = NULL) {
+  tryCatch({
+    # Build the request body
+    body_data <- list(
+      item_type = item_type,
+      item_subtype = item_subtype,
+      item_code = item_code
+    )
+    
+    # Add type-specific details
+    if (item_type == "TLF" && !is.null(tlf_details)) {
+      body_data$tlf_details <- tlf_details
+      
+      if (!is.null(footnotes)) {
+        body_data$footnotes <- footnotes
+      }
+      if (!is.null(acronyms)) {
+        body_data$acronyms <- acronyms
+      }
+    } else if (item_type == "Dataset" && !is.null(dataset_details)) {
+      body_data$dataset_details <- dataset_details
+    }
+    
+    response <- httr2::request(paste0(get_packages_endpoint(), "/items/", item_id)) |>
+      httr2::req_method("PUT") |>
+      httr2::req_body_json(body_data) |>
+      httr2::req_perform()
+      
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      # Include response body for error details
+      response_body <- tryCatch(httr2::resp_body_string(response), error = function(e) "")
+      list(error = paste("HTTP", httr2::resp_status(response), "-", response_body))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
 # Delete package item
 delete_package_item <- function(item_id) {
   tryCatch({

@@ -1,0 +1,31 @@
+=== BULK UPLOAD LOG === 2025-08-12 03:10:09 ===
+File: package_tlf_template.xlsx
+Package: 1
+Item Type: TLF
+Total Rows: 6
+
+=== PROCESSING DETAILS ===
+Row 1 : Processing TLF - Table t11
+  REJECTED - Duplicate: A Table with Title Key 't11' and Title 'Summary of Demographics' already exists in this package
+Row 2 : Processing TLF - Table t14.1.1
+  Title: Summary of Adverse Events -> ID: 9
+  Population: Safety Population -> ID: 10
+  ICH Category: E3 -> ID: 11
+  FAILED - API Error: HTTP 400 Bad Request.
+Row 3 : Processing TLF - Table t14.2.1
+  Title: Summary of Efficacy -> ID: 41
+  Population: Safety Population -> ID: 10
+  ICH Category: E3 -> ID: 11
+  FAILED - API Error: HTTP 400 Bad Request.
+Row 4 : Processing TLF - Listing l16.1.1
+  REJECTED - Duplicate: A Listing with Title Key 'l16.1.1' and Title 'Patient Listings' already exists in this package
+Row 5 : Processing TLF - Figure f9.1.1
+  REJECTED - Duplicate: A Figure with Title Key 'f9.1.1' and Title 'Kaplan-Meier Survival' already exists in this package
+Row 6 : Processing TLF - Table t20.1.1
+  REJECTED - Duplicate: A Table with Title Key 't20.1.1' and Title 'Efficacy Summary' already exists in this package
+
+=== SUMMARY ===
+Total Processed: 6
+Successfully Created: 0
+Errors/Rejected: 6
+Skipped (Empty): 0

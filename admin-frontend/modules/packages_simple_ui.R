@@ -3,6 +3,13 @@
 packages_simple_ui <- function(id) {
   ns <- NS(id)
   
+  # Helper function for hidden elements (if not already loaded)
+  if (!exists("hidden")) {
+    hidden <- function(...) {
+      shinyjs::hidden(...)
+    }
+  }
+  
   # Fluid page as container
   page_fluid(
     # Center content using d-flex
@@ -15,7 +22,7 @@ packages_simple_ui <- function(id) {
         card(
           class = "border border-2",
           full_screen = FALSE,
-          height = "700px",
+          height = NULL,
           
           # Header
           card_header(
@@ -26,17 +33,19 @@ packages_simple_ui <- function(id) {
             ),
             div(
               class = "d-flex gap-2",
-              input_task_button(
-                ns("refresh"),
-                tagList(bs_icon("arrow-clockwise"), "Refresh"),
+              actionButton(
+                ns("refresh_btn"),
+                "Refresh",
+                icon = icon("sync"),
                 class = "btn btn-primary btn-sm",
-                title = "Refresh the packages list"
+                title = "Refresh the packages data"
               ),
-              input_task_button(
-                ns("toggle_add_form"),
-                tagList(bs_icon("plus-lg"), "Add Package"),
+              actionButton(
+                ns("toggle_add_package"),
+                "Add Package",
+                icon = icon("plus"),
                 class = "btn btn-success btn-sm",
-                title = "Create a new package"
+                title = "Add a new package"
               )
             )
           ),
@@ -47,80 +56,128 @@ packages_simple_ui <- function(id) {
             style = "height: 100%;",
             
             layout_sidebar(
+              fillable = TRUE,
               sidebar = sidebar(
-                id = ns("add_package_sidebar"),
-                title = div(
-                  class = "d-flex align-items-center",
-                  style = "margin-left: 8px; margin-top: 30px;",
-                  bs_icon("plus-lg"),
-                  span("Add New Package", style = "margin-left: 15px;")
-                ),
+                id = ns("packages_sidebar"),
                 width = 450,
-                open = FALSE,
                 position = "right",
                 padding = c(3, 3, 3, 4),
-                gap = 2,
+                open = "closed",
                 
-                # Add Package Form
-                card(
-                  class = "border border-2",
-                  card_body(
-                    div(
-                      class = "mb-3",
-                      tags$label("Package Name", `for` = ns("new_package_name"), class = "form-label fw-bold"),
-                      textInput(
-                        ns("new_package_name"),
-                        label = NULL,
-                        value = "",
-                        placeholder = "Enter unique package name"
-                      ),
-                      tags$small(
-                        class = "form-text text-muted",
-                        "Package names must be unique and at least 3 characters."
+                # Package Form
+                div(
+                  id = ns("package_form"),
+                  tags$h6("Add Individual Package", class = "text-center fw-bold mb-3"),
+                  
+                  # Package Name
+                  textInput(
+                    ns("new_package_name"),
+                    "Package Name",
+                    placeholder = "Enter unique package name..."
+                  ),
+                  
+                  # Hidden ID field for editing
+                  hidden(
+                    numericInput(ns("edit_package_id"), "ID", value = NA)
+                  ),
+                  
+                  # Action buttons
+                  layout_columns(
+                    col_widths = c(6, 6),
+                    gap = 2,
+                    actionButton(
+                      ns("save_package"),
+                      "Create",
+                      icon = icon("check"),
+                      class = "btn btn-success w-100",
+                      style = "height: auto; padding: 0.375rem 0.75rem;",
+                      title = "Create the package"
+                    ),
+                    actionButton(
+                      ns("cancel_package"),
+                      "Cancel",
+                      icon = icon("times"),
+                      class = "btn btn-secondary w-100",
+                      style = "height: auto; padding: 0.375rem 0.75rem;",
+                      title = "Cancel and close"
+                    )
+                  ),
+                  
+                  # Bulk Upload Section
+                  tags$hr(class = "my-4"),
+                  tags$h6("Bulk Upload", class = "text-center fw-bold mb-3"),
+                  
+                  # Download template link
+                  div(
+                    class = "mb-3",
+                    tags$a(
+                      href = "packages_template.xlsx",
+                      download = "packages_template.xlsx",
+                      class = "btn btn-outline-info btn-sm w-100",
+                      tagList(
+                        icon("download"),
+                        " Download Excel Template"
                       )
                     ),
-                    
-                    # Action buttons
-                    layout_columns(
-                      col_widths = c(6, 6),
-                      gap = 2,
-                      input_task_button(
-                        ns("save_new_package"),
-                        tagList(bs_icon("check"), "Create"),
-                        class = "btn btn-success w-100",
-                        style = "height: auto; padding: 0.375rem 0.75rem;",
-                        title = "Create the new package"
-                      ),
-                      input_task_button(
-                        ns("cancel_new_package"),
-                        tagList(bs_icon("x"), "Cancel"),
-                        class = "btn btn-secondary w-100",
-                        style = "height: auto; padding: 0.375rem 0.75rem;",
-                        title = "Cancel and close the form"
-                      )
+                    tags$small(
+                      class = "text-muted d-block mt-2 text-center",
+                      "Template includes sample package names"
                     )
+                  ),
+                  
+                  # File upload instructions
+                  div(
+                    class = "alert alert-info small",
+                    tags$strong("File Requirements:"),
+                    tags$ul(
+                      class = "mb-0 mt-2",
+                      tags$li("Use the template above for best results"),
+                      tags$li("Must contain 'Package Name' column"),
+                      tags$li("Duplicate package names automatically skipped"),
+                      tags$li("Package names must be at least 3 characters")
+                    )
+                  ),
+                  
+                  # File input
+                  fileInput(
+                    ns("bulk_upload_file"),
+                    label = NULL,
+                    accept = c(".xlsx", ".xls"),
+                    buttonLabel = "Choose Excel File",
+                    placeholder = "No file selected"
+                  ),
+                  
+                  # Upload button
+                  actionButton(
+                    ns("process_bulk_upload"),
+                    tagList(icon("upload"), "Process Upload"),
+                    class = "btn btn-primary w-100",
+                    style = "height: auto; padding: 0.375rem 0.75rem;",
+                    title = "Process the bulk upload file"
+                  ),
+                  
+                  # Upload results placeholder
+                  div(
+                    id = ns("upload_results"),
+                    class = "mt-3"
                   )
                 )
               ),
               
-              # Main content with packages table
+              # Main content area
               div(
-                class = "p-3",
-                style = "height: 500px; overflow-y: auto;",
-                DT::dataTableOutput(ns("packages_table"))
+                style = "padding: 10px 0;",
+                uiOutput(ns("packages_error_msg")),
+                
+                # DataTable container with fixed height
+                div(
+                  style = "height: 550px; overflow-y: auto;",
+                  DTOutput(ns("packages_table"))
+                )
               )
             )
           ),
           
-          # Footer
-          card_footer(
-            class = "d-flex flex-wrap justify-content-between align-items-center small text-muted gap-2",
-            div(
-              class = "d-flex align-items-center gap-3",
-              textOutput(ns("status_message"))
-            ),
-            textOutput(ns("last_updated_display"))
-          )
         )
       )
     )

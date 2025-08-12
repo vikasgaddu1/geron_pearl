@@ -12,7 +12,14 @@
       "Bash(rm:*)",
       "Bash(\"C:\\Program Files\\R\\R-4.2.2\\bin\\Rscript.exe\" create_users_template.R)",
       "Bash(del \"C:\\python\\PEARL\\admin-frontend\\create_users_template.R\")",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(\"C:\\Program Files\\R\\R-4.2.2\\bin\\Rscript.exe\" create_packages_template.R)",
+      "Bash(taskkill:*)",
+      "Bash(\"C:\\Program Files\\R\\R-4.2.2\\bin\\Rscript.exe\" create_package_items_template.R)",
+      "Bash(\"C:\\Program Files\\R\\R-4.2.2\\bin\\Rscript.exe\" create_tlf_template.R)",
+      "Bash(\"C:\\Program Files\\R\\R-4.2.2\\bin\\Rscript.exe\" create_dataset_template.R)",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_take_screenshot"
     ],
     "deny": []
   }

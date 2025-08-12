@@ -3,6 +3,13 @@
 package_items_ui <- function(id) {
   ns <- NS(id)
   
+  # Helper function for hidden elements (if not already loaded)
+  if (!exists("hidden")) {
+    hidden <- function(...) {
+      shinyjs::hidden(...)
+    }
+  }
+  
   # Fluid page as container
   page_fluid(
     # Center content using d-flex
@@ -15,7 +22,7 @@ package_items_ui <- function(id) {
         card(
           class = "border border-2",
           full_screen = FALSE,
-          height = "700px",
+          height = NULL,
           
           # Header
           card_header(
@@ -39,23 +46,19 @@ package_items_ui <- function(id) {
                   )
                 )
               ),
-              input_task_button(
-                ns("refresh"),
-                tagList(bs_icon("arrow-clockwise"), "Refresh"),
+              actionButton(
+                ns("refresh_btn"),
+                "Refresh",
+                icon = icon("sync"),
                 class = "btn btn-primary btn-sm",
-                title = "Refresh the items list"
+                title = "Refresh the items data"
               ),
-              input_task_button(
-                ns("toggle_add_form"),
-                tagList(bs_icon("plus-lg"), "Add Item"),
+              actionButton(
+                ns("toggle_add_item"),
+                "Add Item",
+                icon = icon("plus"),
                 class = "btn btn-success btn-sm",
                 title = "Add a new item to the selected package"
-              ),
-              input_task_button(
-                ns("bulk_upload"),
-                tagList(bs_icon("cloud-upload"), "Bulk Upload"),
-                class = "btn btn-info btn-sm",
-                title = "Bulk upload items from Excel"
               )
             )
           ),
@@ -66,28 +69,63 @@ package_items_ui <- function(id) {
             style = "height: 100%;",
             
             layout_sidebar(
+              fillable = TRUE,
               sidebar = sidebar(
-                id = ns("add_item_sidebar"),
-                title = div(
-                  class = "d-flex align-items-center",
-                  style = "margin-left: 8px; margin-top: 30px;",
-                  bs_icon("plus-lg"),
-                  span("Add New Item", style = "margin-left: 15px;")
-                ),
+                id = ns("items_sidebar"),
                 width = 450,
-                open = FALSE,
                 position = "right",
                 padding = c(3, 3, 3, 4),
-                gap = 2,
+                open = "closed",
                 
-                # Dynamic form content based on item type
-                uiOutput(ns("add_item_form"))
+                # Item Form
+                div(
+                  id = ns("item_form"),
+                  tags$h6("Add Individual Item", class = "text-center fw-bold mb-3"),
+                  
+                  # Dynamic form content based on item type
+                  uiOutput(ns("add_item_form")),
+                  
+                  # Hidden ID field for editing
+                  hidden(
+                    numericInput(ns("edit_item_id"), "ID", value = NA)
+                  ),
+                  
+                  # Bulk Upload Section
+                  tags$hr(class = "my-4"),
+                  tags$h6("Bulk Upload", class = "text-center fw-bold mb-3"),
+                  
+                  # Dynamic template download
+                  uiOutput(ns("template_download")),
+                  
+                  # Dynamic file upload instructions
+                  uiOutput(ns("upload_instructions")),
+                  
+                  # File input
+                  fileInput(
+                    ns("bulk_upload_file"),
+                    label = NULL,
+                    accept = c(".xlsx", ".xls"),
+                    buttonLabel = "Choose Excel File",
+                    placeholder = "No file selected"
+                  ),
+                  
+                  # Upload button
+                  actionButton(
+                    ns("process_bulk_upload"),
+                    tagList(icon("upload"), "Process Upload"),
+                    class = "btn btn-primary w-100",
+                    style = "height: auto; padding: 0.375rem 0.75rem;",
+                    title = "Process the bulk upload file"
+                  ),
+                  
+                  # Upload results placeholder
+                  uiOutput(ns("upload_results"))
+                )
               ),
               
-              # Main content with tabs for TLF and Dataset
+              # Main content area
               div(
-                class = "p-3",
-                style = "height: 500px; overflow-y: auto;",
+                style = "padding: 10px 0;",
                 navset_pill(
                   id = ns("item_tabs"),
                   nav_panel(
@@ -113,15 +151,6 @@ package_items_ui <- function(id) {
             )
           ),
           
-          # Footer
-          card_footer(
-            class = "d-flex flex-wrap justify-content-between align-items-center small text-muted gap-2",
-            div(
-              class = "d-flex align-items-center gap-3",
-              textOutput(ns("status_message"))
-            ),
-            textOutput(ns("last_updated_display"))
-          )
         )
       )
     )
