@@ -126,17 +126,55 @@ package_items_server <- function(id) {
     # Load packages for dropdown
     load_packages <- function() {
       result <- get_packages()
+      
+      # Debug logging
+      cat("API Response type:", class(result), "\n")
+      cat("API Response length:", length(result), "\n")
+      
       if (!"error" %in% names(result)) {
         packages_list(result)
         
-        # Update package selector
-        choices <- setNames(
-          sapply(result, function(x) x$id),
-          sapply(result, function(x) x$package_name)
-        )
-        updateSelectizeInput(session, "selected_package", 
-                            choices = choices,
-                            server = FALSE)
+        # Create choices for selectizeInput
+        if (length(result) > 0) {
+          # Debug first package
+          cat("First package:\n")
+          print(str(result[[1]]))
+          
+          # Create a named vector for choices
+          choices <- character(0)
+          choice_names <- character(0)
+          
+          for (i in seq_along(result)) {
+            pkg <- result[[i]]
+            # Get ID
+            pkg_id <- if (!is.null(pkg$id)) as.character(pkg$id) else as.character(i)
+            # Get name with fallback
+            pkg_name <- if (!is.null(pkg$package_name)) {
+              as.character(pkg$package_name)
+            } else {
+              paste0("Package #", pkg_id)
+            }
+            
+            choices <- c(choices, pkg_id)
+            choice_names <- c(choice_names, pkg_name)
+          }
+          
+          names(choices) <- choice_names
+          
+          cat("Final choices:\n")
+          print(choices)
+          
+          updateSelectizeInput(session, "selected_package", 
+                              choices = choices,
+                              server = FALSE)
+        } else {
+          # No packages available
+          updateSelectizeInput(session, "selected_package", 
+                              choices = character(0),
+                              server = FALSE)
+        }
+      } else {
+        cat("Error loading packages:", result$error, "\n")
       }
     }
     

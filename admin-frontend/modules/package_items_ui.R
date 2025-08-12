@@ -52,15 +52,7 @@ package_items_ui <- function(id) {
                     choices = NULL,
                     options = list(
                       placeholder = "⚠ Select a package first...",
-                      maxItems = 1,
-                      render = I("{
-                        option: function(item, escape) {
-                          return '<div><i class=\"fa fa-box\"></i> ' + escape(item.text) + '</div>';
-                        },
-                        item: function(item, escape) {
-                          return '<div><strong><i class=\"fa fa-box\"></i> ' + escape(item.text) + '</strong></div>';
-                        }
-                      }")
+                      maxItems = 1
                     )
                   )
                 )
