@@ -294,11 +294,29 @@ package_items_server <- function(id) {
     # Reload items when package changes
     observeEvent(input$selected_package, {
       load_package_items()
+      
+      # Clear upload results when changing package
+      output$upload_results <- renderUI({
+        NULL
+      })
+      
+      # Reset file input
+      shinyjs::reset("bulk_upload_file")
     })
     
-    # Track current tab
+    # Track current tab and clear upload results when switching
     observeEvent(input$item_tabs, {
       current_tab(input$item_tabs)
+      
+      # Clear upload results when switching tabs
+      output$upload_results <- renderUI({
+        NULL
+      })
+      
+      # Reset the file input when switching tabs
+      shinyjs::reset("bulk_upload_file")
+      
+      cat("Tab switched to:", input$item_tabs, "- Clearing upload results\n")
     })
     
     # Render TLF table
@@ -823,6 +841,14 @@ package_items_server <- function(id) {
         editing_item_id(NULL)
         updateNumericInput(session, "edit_item_id", value = NA)
         
+        # Clear any previous upload results
+        output$upload_results <- renderUI({
+          NULL
+        })
+        
+        # Reset file input
+        shinyjs::reset("bulk_upload_file")
+        
         # Toggle sidebar (without namespace)
         sidebar_toggle(id = "items_sidebar")
       }
@@ -1346,6 +1372,11 @@ package_items_server <- function(id) {
           sidebar_toggle(id = "items_sidebar", open = FALSE)
           load_package_items()
           
+          # Clear upload results after successful creation
+          output$upload_results <- renderUI({
+            NULL
+          })
+          
           # Clear form
           updateSelectizeInput(session, "new_tlf_title", selected = "")
           updateSelectizeInput(session, "new_tlf_population", selected = "")
@@ -1398,6 +1429,11 @@ package_items_server <- function(id) {
           )
           sidebar_toggle(id = "items_sidebar", open = FALSE)
           load_package_items()
+          
+          # Clear upload results after successful creation
+          output$upload_results <- renderUI({
+            NULL
+          })
           
           # Clear form
           updateTextInput(session, "new_dataset_code", value = "")
@@ -1547,10 +1583,20 @@ package_items_server <- function(id) {
     # Cancel buttons
     observeEvent(input$cancel_new_tlf, {
       sidebar_toggle(id = "items_sidebar", open = FALSE)
+      
+      # Clear upload results when closing sidebar
+      output$upload_results <- renderUI({
+        NULL
+      })
     })
     
     observeEvent(input$cancel_new_dataset, {
       sidebar_toggle(id = "items_sidebar", open = FALSE)
+      
+      # Clear upload results when closing sidebar
+      output$upload_results <- renderUI({
+        NULL
+      })
     })
     
     # Refresh button
