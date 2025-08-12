@@ -80,6 +80,10 @@ Rscript setup_environment.R               # First-time setup
 renv::restore()                           # Restore packages
 renv::install("package")                  # Add new package
 renv::snapshot()                          # Save package state
+
+# Playwright Testing
+npm test                                  # Run Playwright tests
+npm run install:browsers                  # Install test browsers
 ```
 
 ## Quick Start
@@ -177,7 +181,7 @@ PEARL/
 - **Module Pattern**: UI/Server separation for all components
 - **Environment Variables**: All API endpoints use Sys.getenv()
 - **WebSocket Events**: Observes `{module}-websocket_event` inputs
-- **Form Validation**: Use shinyvalidate for all user inputs
+- **Form Validation**: Use shinyvalidate with deferred validation (only on Save/Submit)
 
 ### Testing Strategy
 - **Backend**: Use `./test_crud_simple.sh` for functional testing
@@ -217,3 +221,44 @@ PEARL/
 2. **Frontend**: Ensure app runs without errors
 3. **Tests**: Run relevant test scripts
 4. **Documentation**: Update CLAUDE.md if patterns change
+
+## Important Development Guidelines
+
+### Backend Guidelines
+- **Never bypass CRUD layer** - All database operations must go through CRUD classes
+- **Implement deletion protection** - Check for dependent entities before deletion
+- **Use UV for all Python operations** - Faster and more reliable than pip
+- **Run model validator** after any model/schema changes
+- **Test individually** - Use `./test_crud_simple.sh` for functional testing
+
+### Frontend Guidelines  
+- **Use environment variables** for all API endpoints
+- **Follow module pattern** - UI/Server separation for all components
+- **Implement deferred validation** - Only validate on Save/Submit actions
+- **Test WebSocket sync** - Open multiple browser sessions
+- **Use renv** for package management - Ensures reproducibility
+
+### Testing Guidelines
+- **Backend**: Focus on functional endpoint testing with curl/HTTP
+- **Frontend**: Test real-time synchronization across sessions
+- **Individual tests only** - Batch tests will fail due to async session conflicts
+- **Use test scripts** - `test_crud_simple.sh`, `test_packages_crud.sh`, etc.
+
+## MCP Tools Integration
+
+### Playwright MCP for UI Testing
+Claude Code has integrated Playwright MCP for automated browser testing:
+- Navigate and interact with the R Shiny application
+- Test shinyTree expand/collapse and selection
+- Verify WebSocket real-time synchronization
+- Take screenshots for documentation
+
+### Context7 MCP for Documentation
+- Access up-to-date library documentation
+- Research best practices for R Shiny and FastAPI
+- Find code examples and implementation patterns
+
+### IDE MCP Integration
+- Get language diagnostics from VS Code
+- Execute Python code in Jupyter kernels
+- Test notebook files and data analysis workflows
