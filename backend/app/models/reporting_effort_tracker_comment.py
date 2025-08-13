@@ -1,11 +1,19 @@
 """SQLAlchemy model for ReportingEffortTrackerComment."""
 
+from enum import Enum
 from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, Text, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING, Optional, List
 from datetime import datetime
 
 from app.db.base import Base
+
+
+class CommentType(str, Enum):
+    """Comment type enum."""
+    PROGRAMMER_COMMENT = "programmer_comment"
+    BIOSTAT_COMMENT = "biostat_comment"
+    SYSTEM_NOTE = "system_note"
 
 if TYPE_CHECKING:
     from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker

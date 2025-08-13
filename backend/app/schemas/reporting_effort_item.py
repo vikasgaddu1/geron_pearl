@@ -48,6 +48,11 @@ class ReportingEffortItemInDB(ReportingEffortItemBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ReportingEffortItem(ReportingEffortItemInDB):
+    """Schema for ReportingEffortItem response."""
+    pass
+
+
 class ReportingEffortItemWithDetails(ReportingEffortItemInDB):
     """Schema for ReportingEffortItem with all related details."""
     

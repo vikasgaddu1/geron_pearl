@@ -32,6 +32,11 @@ class AuditLogInDB(AuditLogBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AuditLog(AuditLogInDB):
+    """Schema for AuditLog response."""
+    pass
+
+
 class AuditLogWithDetails(AuditLogInDB):
     """Schema for AuditLog with user details."""
     

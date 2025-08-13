@@ -45,6 +45,11 @@ class ReportingEffortItemTrackerInDB(ReportingEffortItemTrackerBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ReportingEffortItemTracker(ReportingEffortItemTrackerInDB):
+    """Schema for ReportingEffortItemTracker response."""
+    pass
+
+
 class ReportingEffortItemTrackerWithDetails(ReportingEffortItemTrackerInDB):
     """Schema for ReportingEffortItemTracker with user details."""
     

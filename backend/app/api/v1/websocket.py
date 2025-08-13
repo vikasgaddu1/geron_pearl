@@ -388,3 +388,72 @@ async def broadcast_user_deleted(user_data):
     message = broadcast_message("user_deleted", sqlalchemy_to_dict(user_data))
     await manager.broadcast(message)
     logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
+# Reporting Effort Tracker WebSocket broadcasting functions
+async def broadcast_reporting_effort_item_created(item_data):
+    """Broadcast that a new reporting effort item was created."""
+    logger.info(f"Broadcasting reporting_effort_item_created: {item_data.item_code}")
+    message = broadcast_message("reporting_effort_item_created", sqlalchemy_to_dict(item_data))
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_reporting_effort_item_updated(item_data):
+    """Broadcast that a reporting effort item was updated."""
+    logger.info(f"Broadcasting reporting_effort_item_updated: {item_data.item_code}")
+    message = broadcast_message("reporting_effort_item_updated", sqlalchemy_to_dict(item_data))
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_reporting_effort_item_deleted(item_data):
+    """Broadcast that a reporting effort item was deleted."""
+    logger.info(f"Broadcasting reporting_effort_item_deleted: {item_data.item_code} - ID {item_data.id}")
+    message = broadcast_message("reporting_effort_item_deleted", sqlalchemy_to_dict(item_data))
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_reporting_effort_tracker_updated(tracker_data):
+    """Broadcast that a reporting effort tracker was updated."""
+    logger.info(f"Broadcasting reporting_effort_tracker_updated: ID {tracker_data.id}")
+    message = broadcast_message("reporting_effort_tracker_updated", sqlalchemy_to_dict(tracker_data))
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_tracker_assignment_updated(tracker_data, assignment_type, programmer_id):
+    """Broadcast that a tracker assignment was updated."""
+    logger.info(f"Broadcasting tracker_assignment_updated: {assignment_type} programmer {programmer_id} to tracker {tracker_data.id}")
+    message = broadcast_message("tracker_assignment_updated", {
+        "tracker": sqlalchemy_to_dict(tracker_data),
+        "assignment_type": assignment_type,
+        "programmer_id": programmer_id
+    })
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_tracker_comment_created(comment_data):
+    """Broadcast that a new tracker comment was created."""
+    logger.info(f"Broadcasting tracker_comment_created: ID {comment_data.id}")
+    message = broadcast_message("tracker_comment_created", sqlalchemy_to_dict(comment_data))
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_tracker_comment_updated(comment_data):
+    """Broadcast that a tracker comment was updated."""
+    logger.info(f"Broadcasting tracker_comment_updated: ID {comment_data.id}")
+    message = broadcast_message("tracker_comment_updated", sqlalchemy_to_dict(comment_data))
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_tracker_comment_deleted(comment_data):
+    """Broadcast that a tracker comment was deleted."""
+    logger.info(f"Broadcasting tracker_comment_deleted: ID {comment_data.id}")
+    message = broadcast_message("tracker_comment_deleted", sqlalchemy_to_dict(comment_data))
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")

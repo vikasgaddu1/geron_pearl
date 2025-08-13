@@ -2,7 +2,10 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import studies, database_releases, reporting_efforts, websocket, text_elements, packages, users
+from app.api.v1 import (
+    studies, database_releases, reporting_efforts, websocket, text_elements, packages, users,
+    reporting_effort_items, reporting_effort_tracker, reporting_effort_comments
+)
 
 api_router = APIRouter()
 
@@ -14,3 +17,8 @@ api_router.include_router(text_elements.router, prefix="/text-elements", tags=["
 api_router.include_router(packages.router, prefix="/packages", tags=["packages"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(websocket.router, prefix="/ws", tags=["websocket"])
+
+# Reporting Effort Tracker System endpoints
+api_router.include_router(reporting_effort_items.router, prefix="/reporting-effort-items", tags=["reporting-effort-items"])
+api_router.include_router(reporting_effort_tracker.router, prefix="/reporting-effort-tracker", tags=["reporting-effort-tracker"])
+api_router.include_router(reporting_effort_comments.router, prefix="/reporting-effort-comments", tags=["reporting-effort-comments"])

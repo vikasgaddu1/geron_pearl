@@ -43,6 +43,11 @@ class ReportingEffortTrackerCommentInDB(ReportingEffortTrackerCommentBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ReportingEffortTrackerComment(ReportingEffortTrackerCommentInDB):
+    """Schema for ReportingEffortTrackerComment response."""
+    pass
+
+
 class ReportingEffortTrackerCommentWithDetails(ReportingEffortTrackerCommentInDB):
     """Schema for ReportingEffortTrackerComment with user and thread details."""
     

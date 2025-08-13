@@ -1,5 +1,6 @@
 """SQLAlchemy model for ReportingEffortItemTracker."""
 
+from enum import Enum
 from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, Date, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING, Optional, List
@@ -7,6 +8,22 @@ from datetime import date
 
 from app.db.base import Base
 from app.db.mixins import TimestampMixin
+
+
+class ProductionStatus(str, Enum):
+    """Production status enum."""
+    NOT_STARTED = "not_started"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    ON_HOLD = "on_hold"
+
+
+class QCStatus(str, Enum):
+    """QC status enum."""
+    NOT_STARTED = "not_started"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
 
 if TYPE_CHECKING:
     from app.models.reporting_effort_item import ReportingEffortItem
