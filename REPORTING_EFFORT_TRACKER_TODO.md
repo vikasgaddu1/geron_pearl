@@ -2,13 +2,13 @@
 
 ## Phase 1: Database Foundation
 ### 1.1 Core Tables
-- [ ] Create migration for reporting_effort_items and related tables
-- [ ] Create migration for tracker tables
-- [ ] Create migration for comment tables
-- [ ] Create migration for audit_log table
-- [ ] Update users table with department field
-- [ ] Test migration locally
-- [ ] Document rollback procedure
+- [x] Create migration for reporting_effort_items and related tables
+- [x] Create migration for tracker tables
+- [x] Create migration for comment tables
+- [x] Create migration for audit_log table
+- [x] Update users table with department field
+- [x] Test migration locally
+- [x] Document rollback procedure
 
 **Checkpoint**: Database schema complete
 **Git Commit**: "feat: database schema for reporting effort tracker"

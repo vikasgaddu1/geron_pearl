@@ -2,47 +2,34 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **📖 For detailed component documentation, see:**  
-> - **Backend**: [backend/CLAUDE.md](backend/CLAUDE.md) + [backend/README.md](backend/README.md)  
-> - **Frontend**: [admin-frontend/CLAUDE.md](admin-frontend/CLAUDE.md) + [admin-frontend/README.md](admin-frontend/README.md)
-
-## Recent Changes (December 2024)
-
-### Frontend - Module Consolidation
-- **Change**: Removed individual Studies, Database Releases, and Reporting Efforts modules
-- **Reason**: All functionality is now handled by the Study Tree module with hierarchical view
-- **Impact**: Cleaner codebase, unified interface for managing all three entity types
-- **Files Removed**: `studies_*.R`, `database_releases_*.R`, `reporting_efforts_*.R`
-
-### Frontend - Study Tree Selection Fix
-- **Issue**: Study tree had selection ambiguity when study and database release had same name (e.g., "test")
-- **Root Cause**: Previous implementation used formatted selection methods that couldn't distinguish node depth
-- **Solution**: Implemented proper path-based selection using shinyTree's `stselected` attribute
-- **Implementation**: Added `find_selected_paths()` helper function that recursively traverses tree structure
-- **Impact**: Now correctly identifies node type (Study/DB Release/Effort) based on path depth, even with duplicate names
-
-### Frontend - Form Validation UX Improvements (January 2025)
-- **Issue**: Form validation triggered immediately when modals opened, showing errors before users could type
-- **Root Cause**: `InputValidator$enable()` was called when modals opened instead of on save
-- **Solution**: Implemented deferred validation pattern - only enable validation when Save/Create buttons clicked
-- **Impact**: Better user experience with validation only when attempting to save
-- **Modules Fixed**: Study Tree (Add Study, Add Child), TNFP (Edit modal)
-
 ## Project Overview
 
 PEARL is a **full-stack research data management system** with real-time WebSocket updates:
+- **Backend**: FastAPI + async PostgreSQL + WebSocket broadcasting
+- **Frontend**: Modern R Shiny + bslib + dual WebSocket clients
+- **Real-time**: Live data synchronization across multiple users and browsers
 
-### System Components
-- **Backend**: FastAPI + async PostgreSQL + WebSocket broadcasting ([backend/](backend/))
-- **Frontend**: Modern R Shiny + bslib + dual WebSocket clients ([admin-frontend/](admin-frontend/))  
-- **Real-time**: WebSocket synchronization across multiple users and browsers
+## Quick Start
 
-### Key Features
-- **Modern Stack**: FastAPI 0.111+ + R Shiny with bslib + PostgreSQL + UV + renv
-- **Real-time Updates**: Live data synchronization via WebSocket broadcasting
-- **Production-like**: Real PostgreSQL database with specific testing constraints
+```bash
+# 1. Backend (Terminal 1)
+cd backend
+uv pip install -r requirements.txt
+uv run python -m app.db.init_db
+uv run python run.py
 
-## Quick Commands
+# 2. Frontend (Terminal 2)  
+cd admin-frontend
+Rscript setup_environment.R
+Rscript run_app.R
+
+# 3. Access Applications
+# Backend API: http://localhost:8000
+# Frontend UI: http://localhost:3838
+# API Docs: http://localhost:8000/docs
+```
+
+## Essential Commands
 
 ### Backend Commands
 ```bash
@@ -86,36 +73,7 @@ npm test                                  # Run Playwright tests
 npm run install:browsers                  # Install test browsers
 ```
 
-## Quick Start
-
-### Full System Startup
-```bash
-# 1. Backend (Terminal 1)
-cd backend
-uv pip install -r requirements.txt
-uv run python -m app.db.init_db
-uv run python run.py
-
-# 2. Frontend (Terminal 2)  
-cd admin-frontend
-Rscript setup_environment.R
-Rscript run_app.R
-
-# 3. Access Applications
-# Backend API: http://localhost:8000
-# Frontend UI: http://localhost:3838
-# API Docs: http://localhost:8000/docs
-```
-
-### WebSocket Testing
-```bash
-# Test real-time updates (from backend directory)
-cd backend && uv run python tests/integration/test_websocket_broadcast.py
-```
-
 ### Stopping Running Processes (Windows)
-
-When you need to stop the backend or frontend services on Windows:
 
 ```bash
 # Find processes using specific ports
@@ -130,8 +88,6 @@ powershell -Command "Get-Process python -ErrorAction SilentlyContinue | Stop-Pro
 powershell -Command "Get-Process Rscript -ErrorAction SilentlyContinue | Stop-Process -Force"
 ```
 
-**Note**: Windows command syntax in Git Bash can be tricky. Use PowerShell commands wrapped in `powershell -Command` for reliable process termination.
-
 ## Critical System Constraints
 
 ### SQLAlchemy Async Session Conflicts
@@ -145,7 +101,7 @@ powershell -Command "Get-Process Rscript -ErrorAction SilentlyContinue | Stop-Pr
 **📡 CRITICAL**: WebSocket integration requires specific data conversion patterns.
 - SQLAlchemy models → Pydantic conversion required in broadcast functions
 - Dual WebSocket clients (JavaScript primary, R secondary)
-- Shiny module namespacing: `studies-websocket_*` event format
+- Shiny module namespacing: `{module}-websocket_event` format
 - Manual session management in WebSocket endpoints
 
 ## High-Level Architecture
@@ -162,12 +118,6 @@ PEARL/
 │   └── [README.md, CLAUDE.md] # Component documentation
 └── test_websocket*.py         # Real-time testing scripts
 ```
-
-### Critical Integration Points
-- **API Gateway**: `backend/app/api/v1/studies.py` (CRUD + WebSocket broadcasting)
-- **WebSocket Hub**: `backend/app/api/v1/websocket.py` (connection management)
-- **Frontend Integration**: `admin-frontend/modules/studies_server.R` (WebSocket event handling)
-- **Real-time Client**: `admin-frontend/www/websocket_client.js` (browser WebSocket)
 
 ## Key Development Patterns
 
@@ -244,10 +194,21 @@ PEARL/
 - **Individual tests only** - Batch tests will fail due to async session conflicts
 - **Use test scripts** - `test_crud_simple.sh`, `test_packages_crud.sh`, etc.
 
+## Recent Changes
+
+### December 2024 - Frontend Module Consolidation
+- Removed individual Studies, Database Releases, and Reporting Efforts modules
+- All functionality now handled by Study Tree module with hierarchical view
+- Fixed Study Tree selection ambiguity with path-based selection
+
+### January 2025 - Form Validation UX Improvements
+- Form validation now only triggers when Save/Create buttons clicked
+- Implemented deferred validation pattern across all modules
+- Fixed TNFP Edit modal Save button issue
+
 ## MCP Tools Integration
 
 ### Playwright MCP for UI Testing
-Claude Code has integrated Playwright MCP for automated browser testing:
 - Navigate and interact with the R Shiny application
 - Test shinyTree expand/collapse and selection
 - Verify WebSocket real-time synchronization
@@ -262,3 +223,23 @@ Claude Code has integrated Playwright MCP for automated browser testing:
 - Get language diagnostics from VS Code
 - Execute Python code in Jupyter kernels
 - Test notebook files and data analysis workflows
+
+## Available Claude Code Agents
+
+### rshiny-modern-builder
+Use for creating modern, API-driven R Shiny applications with modular architecture, bslib UI, httr2 API calls, and real-time WebSocket integration.
+
+### fastapi-crud-builder
+Use for building or enhancing FastAPI applications with async PostgreSQL CRUD operations, particularly for data science environments with R Shiny integration.
+
+### fastapi-model-validator
+Use for validating Pydantic and SQLAlchemy model alignment in FastAPI applications, especially after making changes to data models, schemas, or database structures.
+
+### fastapi-simple-tester
+Use for creating simple, reliable endpoint testing for FastAPI applications using curl commands that avoid complex test frameworks and database session conflicts.
+
+## For More Details
+
+- **Backend**: See [backend/CLAUDE.md](backend/CLAUDE.md) and [backend/README.md](backend/README.md)
+- **Frontend**: See [admin-frontend/CLAUDE.md](admin-frontend/CLAUDE.md) and [admin-frontend/README.md](admin-frontend/README.md)
+- **Testing**: See [backend/tests/README.md](backend/tests/README.md)
