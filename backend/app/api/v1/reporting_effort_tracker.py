@@ -1,7 +1,8 @@
 """Reporting Effort Item Tracker API endpoints."""
 
+import json
 from typing import List, Dict, Any, Optional
-from datetime import date
+from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
@@ -767,4 +768,234 @@ async def get_programmer_workload(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get programmer workload: {str(e)}"
+        )
+
+# Export/Import endpoints
+@router.get("/export/{reporting_effort_id}")
+async def export_trackers(
+    *,
+    db: AsyncSession = Depends(get_db),
+    reporting_effort_id: int,
+    format: str = Query("json", enum=["json", "excel"])
+) -> Any:
+    """
+    Export all trackers for a reporting effort.
+    
+    Formats:
+    - json: JSON format for backup/import
+    - excel: Excel format for manual editing
+    """
+    try:
+        # Get all items for the reporting effort
+        items = await reporting_effort_item.get_by_reporting_effort(
+            db, reporting_effort_id=reporting_effort_id
+        )
+        
+        if not items:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No items found for this reporting effort"
+            )
+        
+        # Get trackers for all items
+        export_data = []
+        for item in items:
+            tracker = await reporting_effort_item_tracker.get_by_item_id(
+                db, item_id=item.id
+            )
+            
+            if tracker:
+                # Get user details
+                prod_user = None
+                qc_user = None
+                if tracker.production_programmer_id:
+                    prod_user = await user.get(db, id=tracker.production_programmer_id)
+                if tracker.qc_programmer_id:
+                    qc_user = await user.get(db, id=tracker.qc_programmer_id)
+                
+                export_data.append({
+                    "item_id": item.id,
+                    "item_type": item.item_type,
+                    "item_subtype": item.item_subtype,
+                    "item_code": item.item_code,
+                    "tracker_id": tracker.id,
+                    "production_programmer_username": prod_user.username if prod_user else None,
+                    "production_status": tracker.production_status,
+                    "qc_programmer_username": qc_user.username if qc_user else None,
+                    "qc_status": tracker.qc_status,
+                    "priority": tracker.priority,
+                    "due_date": tracker.due_date.isoformat() if tracker.due_date else None,
+                    "qc_completion_date": tracker.qc_completion_date.isoformat() if tracker.qc_completion_date else None,
+                    "in_production_flag": tracker.in_production_flag
+                })
+        
+        if format == "excel":
+            # For Excel export, would need to implement Excel generation
+            # For now, return JSON with a note
+            return {
+                "format": "excel_not_implemented",
+                "note": "Excel export will be implemented in frontend",
+                "data": export_data
+            }
+        
+        return {
+            "reporting_effort_id": reporting_effort_id,
+            "export_date": datetime.utcnow().isoformat(),
+            "total_items": len(export_data),
+            "trackers": export_data
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to export trackers: {str(e)}"
+        )
+
+class TrackerImportData(BaseModel):
+    """Schema for importing tracker data."""
+    item_code: str
+    production_programmer_username: Optional[str] = None
+    production_status: Optional[str] = None
+    qc_programmer_username: Optional[str] = None
+    qc_status: Optional[str] = None
+    priority: Optional[str] = None
+    due_date: Optional[date] = None
+    qc_completion_date: Optional[date] = None
+
+@router.post("/import/{reporting_effort_id}")
+async def import_trackers(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    reporting_effort_id: int,
+    trackers: List[TrackerImportData],
+    update_existing: bool = Query(True, description="Update existing trackers or skip them")
+) -> Dict[str, Any]:
+    """
+    Import/update trackers for a reporting effort.
+    
+    The import matches items by item_code and updates the tracker information.
+    Usernames are resolved to user IDs.
+    """
+    try:
+        # Get all items for the reporting effort
+        items = await reporting_effort_item.get_by_reporting_effort(
+            db, reporting_effort_id=reporting_effort_id
+        )
+        
+        if not items:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No items found for this reporting effort"
+            )
+        
+        # Create item lookup by code
+        item_by_code = {item.item_code: item for item in items}
+        
+        # Process imports
+        updated = 0
+        skipped = 0
+        errors = []
+        
+        for import_data in trackers:
+            # Find item by code
+            if import_data.item_code not in item_by_code:
+                errors.append(f"Item not found: {import_data.item_code}")
+                continue
+            
+            item = item_by_code[import_data.item_code]
+            
+            # Get tracker for item
+            tracker = await reporting_effort_item_tracker.get_by_item_id(
+                db, item_id=item.id
+            )
+            
+            if not tracker:
+                errors.append(f"No tracker for item: {import_data.item_code}")
+                continue
+            
+            if not update_existing:
+                skipped += 1
+                continue
+            
+            # Prepare update data
+            update_data = {}
+            
+            # Resolve usernames to IDs
+            if import_data.production_programmer_username:
+                prod_user = await user.get_by_username(
+                    db, username=import_data.production_programmer_username
+                )
+                if prod_user:
+                    update_data["production_programmer_id"] = prod_user.id
+                else:
+                    errors.append(f"User not found: {import_data.production_programmer_username}")
+            
+            if import_data.qc_programmer_username:
+                qc_user = await user.get_by_username(
+                    db, username=import_data.qc_programmer_username
+                )
+                if qc_user:
+                    update_data["qc_programmer_id"] = qc_user.id
+                else:
+                    errors.append(f"User not found: {import_data.qc_programmer_username}")
+            
+            # Add other fields
+            if import_data.production_status:
+                update_data["production_status"] = import_data.production_status
+            if import_data.qc_status:
+                update_data["qc_status"] = import_data.qc_status
+            if import_data.priority:
+                update_data["priority"] = import_data.priority
+            if import_data.due_date:
+                update_data["due_date"] = import_data.due_date
+            if import_data.qc_completion_date:
+                update_data["qc_completion_date"] = import_data.qc_completion_date
+            
+            # Update tracker
+            if update_data:
+                await reporting_effort_item_tracker.update(
+                    db, db_obj=tracker, obj_in=update_data
+                )
+                updated += 1
+                
+                # Broadcast update
+                await broadcast_tracker_updated(tracker)
+        
+        # Log import to audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="reporting_effort_item_tracker",
+                record_id=reporting_effort_id,
+                action="BULK_IMPORT",
+                user_id=request.headers.get("X-User-Id"),
+                changes_json=json.dumps({
+                    "total_records": len(trackers),
+                    "updated": updated,
+                    "skipped": skipped,
+                    "errors": len(errors)
+                }),
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            print(f"Audit logging error: {audit_error}")
+        
+        return {
+            "message": "Import completed",
+            "total_records": len(trackers),
+            "updated": updated,
+            "skipped": skipped,
+            "errors": errors
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to import trackers: {str(e)}"
         )
