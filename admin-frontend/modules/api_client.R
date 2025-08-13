@@ -879,6 +879,197 @@ copy_items_from_reporting_effort <- function(reporting_effort_id, source_reporti
   })
 }
 
+# ===== REPORTING EFFORT TRACKER FUNCTIONS =====
+
+# Get the reporting effort tracker endpoint dynamically
+get_reporting_effort_tracker_endpoint <- function() {
+  api_base <- Sys.getenv("PEARL_API_URL", "http://localhost:8000")
+  return(paste0(api_base, "/api/v1/reporting-effort-tracker"))
+}
+
+# Get all tracker entries
+get_reporting_effort_tracker <- function() {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_tracker_endpoint(), "/")) |> 
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Get single tracker entry by ID
+get_reporting_effort_tracker_by_id <- function(tracker_id) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_tracker_endpoint(), "/", tracker_id)) |> 
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Update tracker entry
+update_reporting_effort_tracker <- function(tracker_id, tracker_data) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_tracker_endpoint(), "/", tracker_id)) |>
+      httr2::req_method("PUT") |>
+      httr2::req_body_json(tracker_data) |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Assign programmer to tracker entry
+assign_programmer_to_tracker <- function(tracker_id, assignment_data) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_tracker_endpoint(), "/", tracker_id, "/assign-programmer")) |>
+      httr2::req_method("POST") |>
+      httr2::req_body_json(assignment_data) |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Unassign programmer from tracker entry
+unassign_programmer_from_tracker <- function(tracker_id, assignment_data) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_tracker_endpoint(), "/", tracker_id, "/unassign-programmer")) |>
+      httr2::req_method("DELETE") |>
+      httr2::req_body_json(assignment_data) |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Bulk assign programmers
+bulk_assign_programmers <- function(assignment_data) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_tracker_endpoint(), "/bulk-assign")) |>
+      httr2::req_method("POST") |>
+      httr2::req_body_json(assignment_data) |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Bulk status update
+bulk_status_update <- function(status_data) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_tracker_endpoint(), "/bulk-status-update")) |>
+      httr2::req_method("POST") |>
+      httr2::req_body_json(status_data) |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Get workload summary
+get_workload_summary <- function() {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_tracker_endpoint(), "/workload-summary")) |> 
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Get workload for specific programmer
+get_programmer_workload <- function(programmer_id) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_tracker_endpoint(), "/workload/", programmer_id)) |> 
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Export tracker data
+export_tracker_data <- function(reporting_effort_id) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_tracker_endpoint(), "/export/", reporting_effort_id)) |> 
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Import tracker data
+import_tracker_data <- function(reporting_effort_id, file_path) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_tracker_endpoint(), "/import/", reporting_effort_id)) |>
+      httr2::req_method("POST") |>
+      httr2::req_body_multipart(file = curl::form_file(file_path)) |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
 # Health check function
 health_check <- function() {
   api_base <- Sys.getenv("PEARL_API_URL", "http://localhost:8000")

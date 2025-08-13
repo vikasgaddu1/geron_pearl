@@ -39,6 +39,8 @@ source("modules/package_items_ui.R")
 source("modules/package_items_server.R")
 source("modules/reporting_effort_items_ui.R")
 source("modules/reporting_effort_items_server.R")
+source("modules/reporting_effort_tracker_ui.R")
+source("modules/reporting_effort_tracker_server.R")
 source("modules/users_ui.R")
 source("modules/users_server.R")
 
@@ -157,7 +159,7 @@ ui <- page_navbar(
   nav_menu(
     "Reporting Management",
     nav_panel("Reporting Effort Items", value = "reporting_effort_items_tab", reporting_effort_items_ui("reporting_effort_items")),
-    nav_panel("Tracker Overview", disabled = TRUE),
+    nav_panel("Tracker Management", value = "reporting_effort_tracker_tab", reporting_effort_tracker_ui("reporting_effort_tracker")),
     nav_panel("Progress Reports", disabled = TRUE)
   ),
 
@@ -233,6 +235,9 @@ server <- function(input, output, session) {
   
   # Reporting Effort Items module
   reporting_effort_items_server("reporting_effort_items")
+  
+  # Reporting Effort Tracker module
+  reporting_effort_tracker_server("reporting_effort_tracker")
   
   # Package Management placeholder handlers
   observeEvent(input$refresh_packages_btn, {

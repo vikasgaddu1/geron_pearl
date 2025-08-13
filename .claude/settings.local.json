@@ -23,7 +23,10 @@
       "Bash(./test_packages_crud.sh:*)",
       "Bash(grep:*)",
       "Bash(git checkout:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(./test_reporting_effort_tracker_crud.sh:*)",
+      "Bash(chmod:*)",
+      "Bash(mv:*)"
     ],
     "deny": []
   }
