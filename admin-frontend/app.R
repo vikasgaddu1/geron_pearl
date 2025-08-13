@@ -37,6 +37,8 @@ source("modules/packages_simple_ui.R")
 source("modules/packages_simple_server.R")
 source("modules/package_items_ui.R")
 source("modules/package_items_server.R")
+source("modules/reporting_effort_items_ui.R")
+source("modules/reporting_effort_items_server.R")
 source("modules/users_ui.R")
 source("modules/users_server.R")
 
@@ -152,6 +154,13 @@ ui <- page_navbar(
     nav_panel("Package Config", disabled = TRUE)
   ),
 
+  nav_menu(
+    "Reporting Management",
+    nav_panel("Reporting Effort Items", value = "reporting_effort_items_tab", reporting_effort_items_ui("reporting_effort_items")),
+    nav_panel("Tracker Overview", disabled = TRUE),
+    nav_panel("Progress Reports", disabled = TRUE)
+  ),
+
   # (Removed Health Check nav; show compact health badge instead)
   # Right-aligned controls inside navbar
   nav_spacer(),
@@ -221,6 +230,9 @@ server <- function(input, output, session) {
   
   # Users module
   users_server("users")
+  
+  # Reporting Effort Items module
+  reporting_effort_items_server("reporting_effort_items")
   
   # Package Management placeholder handlers
   observeEvent(input$refresh_packages_btn, {
