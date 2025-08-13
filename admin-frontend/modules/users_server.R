@@ -34,6 +34,19 @@ users_server <- function(id) {
               role
             )
           }),
+          Department = sapply(users_list, function(x) {
+            dept <- x$department
+            if (is.null(dept) || dept == "") {
+              "Unassigned"
+            } else {
+              switch(dept,
+                "programming" = "Programming",
+                "biostatistics" = "Biostatistics", 
+                "management" = "Management",
+                dept
+              )
+            }
+          }),
           Actions = sapply(users_list, function(x) x$id),
           stringsAsFactors = FALSE,
           check.names = FALSE
@@ -44,6 +57,7 @@ users_server <- function(id) {
           ID = numeric(0),
           Username = character(0),
           Role = character(0),
+          Department = character(0),
           Actions = character(0),
           stringsAsFactors = FALSE,
           check.names = FALSE
@@ -90,6 +104,7 @@ users_server <- function(id) {
         empty_df <- data.frame(
           Username = character(0),
           Role = character(0),
+          Department = character(0),
           Actions = character(0),
           stringsAsFactors = FALSE, check.names = FALSE
         )
@@ -101,7 +116,7 @@ users_server <- function(id) {
             pageLength = 25,
             language = list(emptyTable = "No users found"),
             columnDefs = list(
-              list(targets = 2, searchable = FALSE, orderable = FALSE, width = '100px')
+              list(targets = 3, searchable = FALSE, orderable = FALSE, width = '100px')
             )
           ),
           escape = FALSE,
@@ -119,7 +134,7 @@ users_server <- function(id) {
         })
         
         # Remove ID column for display
-        display_df <- current_users[, c("Username", "Role", "Actions")]
+        display_df <- current_users[, c("Username", "Role", "Department", "Actions")]
         
         datatable(
           display_df,
@@ -134,7 +149,7 @@ users_server <- function(id) {
             ),
             pageLength = 25,
             columnDefs = list(
-              list(targets = 2, searchable = FALSE, orderable = FALSE, width = '100px')
+              list(targets = 3, searchable = FALSE, orderable = FALSE, width = '100px')
             ),
             language = list(
               search = "",
@@ -159,7 +174,7 @@ users_server <- function(id) {
           rownames = FALSE
         ) %>%
           DT::formatStyle(
-            columns = 1:3,
+            columns = 1:4,
             fontSize = '14px'
           )
       }
@@ -214,6 +229,20 @@ users_server <- function(id) {
                              width = "100%")
                 ),
                 
+                div(
+                  class = "mb-3",
+                  tags$label("Department", class = "form-label fw-bold"),
+                  selectInput(ns("edit_modal_department"), NULL,
+                             choices = list(
+                               "Unassigned" = "",
+                               "Programming" = "programming",
+                               "Biostatistics" = "biostatistics",
+                               "Management" = "management"
+                             ),
+                             selected = if(is.null(result$department) || result$department == "") "" else result$department,
+                             width = "100%")
+                ),
+                
                 footer = div(
                   class = "d-flex justify-content-end gap-2",
                   actionButton(ns("cancel_edit_modal"), "Cancel", 
@@ -245,7 +274,9 @@ users_server <- function(id) {
                   tags$dt("Username:"),
                   tags$dd(tags$strong(user_row$Username[1])),
                   tags$dt("Role:"),
-                  tags$dd(user_row$Role[1])
+                  tags$dd(user_row$Role[1]),
+                  tags$dt("Department:"),
+                  tags$dd(user_row$Department[1])
                 )
               ),
               footer = tagList(
@@ -290,6 +321,7 @@ users_server <- function(id) {
       editing_user_id(NULL)
       updateTextInput(session, "new_username", value = "")
       updateSelectInput(session, "new_role", selected = "VIEWER")
+      updateSelectInput(session, "new_department", selected = "")
       updateNumericInput(session, "edit_user_id", value = NA)
       updateActionButton(session, "save_user", 
                        label = "Create",
@@ -323,9 +355,10 @@ users_server <- function(id) {
       if (!is.null(user_id)) {
         username <- trimws(input$edit_modal_username)
         role <- input$edit_modal_role
+        department <- input$edit_modal_department
         
         cat("Updating user ID:", user_id, "\n")
-        result <- update_user(user_id, username, role)
+        result <- update_user(user_id, username, role, department)
         
         if (is.null(result$error)) {
           showNotification("User updated successfully", type = "message")
@@ -366,10 +399,11 @@ users_server <- function(id) {
         
         username <- trimws(input$new_username)
         role <- input$new_role
+        department <- input$new_department
         
         # Create new user
-        cat("Creating new user:", username, "with role:", role, "\n")
-        result <- create_user(username, role)
+        cat("Creating new user:", username, "with role:", role, "department:", department, "\n")
+        result <- create_user(username, role, department)
           
         if (is.null(result$error)) {
           showNotification("User created successfully", type = "message")
@@ -380,6 +414,7 @@ users_server <- function(id) {
           # Reset form
           updateTextInput(session, "new_username", value = "")
           updateSelectInput(session, "new_role", selected = "VIEWER")
+          updateSelectInput(session, "new_department", selected = "")
         } else {
           formatted_error <- format_error_message(result$error)
           if (grepl("already exists", formatted_error)) {
@@ -408,6 +443,7 @@ users_server <- function(id) {
       # Reset form
       updateTextInput(session, "new_username", value = "")
       updateSelectInput(session, "new_role", selected = "VIEWER")
+      updateSelectInput(session, "new_department", selected = "")
       updateNumericInput(session, "edit_user_id", value = NA)
     })
     
@@ -486,6 +522,7 @@ users_server <- function(id) {
         col_names_lower <- tolower(names(df))
         username_col <- which(col_names_lower == "username")[1]
         role_col <- which(col_names_lower == "role")[1]
+        department_col <- which(col_names_lower == "department")[1]
         
         if (is.na(username_col) || is.na(role_col)) {
           showNotification(
@@ -504,6 +541,12 @@ users_server <- function(id) {
         usernames <- as.character(df[[username_col]])
         roles <- as.character(df[[role_col]])
         
+        # Extract department column if it exists
+        departments <- NULL
+        if (!is.na(department_col)) {
+          departments <- as.character(df[[department_col]])
+        }
+        
         # Validate and process each row
         role_mapping <- list(
           "Admin" = "ADMIN",
@@ -514,10 +557,21 @@ users_server <- function(id) {
           "VIEWER" = "VIEWER"
         )
         
+        department_mapping <- list(
+          "Programming" = "programming",
+          "programming" = "programming",
+          "Biostatistics" = "biostatistics", 
+          "biostatistics" = "biostatistics",
+          "Management" = "management",
+          "management" = "management",
+          "" = ""
+        )
+        
         results <- list(
           success = 0,
           duplicates = 0,
           invalid_role = 0,
+          invalid_department = 0,
           empty_content = 0,
           errors = 0,
           details = list()
@@ -541,6 +595,13 @@ users_server <- function(id) {
           username_val <- trimws(usernames[i])
           role_val <- trimws(roles[i])
           
+          # Get department value if available
+          department_val <- ""
+          if (!is.null(departments)) {
+            department_val <- trimws(departments[i])
+            if (is.na(department_val)) department_val <- ""
+          }
+          
           # Check for duplicate username
           if (tolower(username_val) %in% existing_usernames) {
             results$duplicates <- results$duplicates + 1
@@ -558,8 +619,20 @@ users_server <- function(id) {
             next
           }
           
+          # Map department to internal value (if provided)
+          internal_department <- ""
+          if (department_val != "") {
+            internal_department <- department_mapping[[department_val]]
+            if (is.null(internal_department)) {
+              results$invalid_department <- results$invalid_department + 1
+              results$details <- append(results$details, 
+                list(paste("Row", i, ": Invalid department '", department_val, "' (use programming, biostatistics, management, or blank)")))
+              next
+            }
+          }
+          
           # Create the user
-          result <- create_user(username_val, internal_role)
+          result <- create_user(username_val, internal_role, internal_department)
           
           if (!is.null(result$error)) {
             results$errors <- results$errors + 1
@@ -617,6 +690,7 @@ users_server <- function(id) {
                 class = "mb-0 mt-2",
                 if (results$duplicates > 0) tags$li(paste("Already in database:", results$duplicates)),
                 if (results$invalid_role > 0) tags$li(paste("Invalid roles:", results$invalid_role)),
+                if (results$invalid_department > 0) tags$li(paste("Invalid departments:", results$invalid_department)),
                 if (results$empty_content > 0) tags$li(paste("Empty rows:", results$empty_content)),
                 if (results$errors > 0) tags$li(paste("Errors:", results$errors))
               ),
@@ -648,6 +722,7 @@ users_server <- function(id) {
                 tags$li(paste("Successfully created:", results$success, "users")),
                 if (results$duplicates > 0) tags$li(paste("Already in database (skipped):", results$duplicates)),
                 if (results$invalid_role > 0) tags$li(paste("Invalid roles:", results$invalid_role)),
+                if (results$invalid_department > 0) tags$li(paste("Invalid departments:", results$invalid_department)),
                 if (results$empty_content > 0) tags$li(paste("Empty rows:", results$empty_content)),
                 if (results$errors > 0) tags$li(paste("Errors:", results$errors))
               ),

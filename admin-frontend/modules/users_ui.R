@@ -79,6 +79,19 @@ users_ui <- function(id) {
                     selected = "VIEWER"
                   ),
                   
+                  # Department
+                  selectInput(
+                    ns("new_department"),
+                    "Department",
+                    choices = list(
+                      "Unassigned" = "",
+                      "Programming" = "programming",
+                      "Biostatistics" = "biostatistics",
+                      "Management" = "management"
+                    ),
+                    selected = ""
+                  ),
+                  
                   # Hidden ID field for editing
                   hidden(
                     numericInput(ns("edit_user_id"), "ID", value = NA)
@@ -136,8 +149,10 @@ users_ui <- function(id) {
                       class = "mb-0 mt-2",
                       tags$li("Use the template above for best results"),
                       tags$li("Must contain 'Username' and 'Role' columns"),
+                      tags$li("'Department' column is optional"),
                       tags$li("Role column has dropdown validation in template"),
                       tags$li("Valid roles: Admin, Editor, Viewer"),
+                      tags$li("Valid departments: programming, biostatistics, management (or blank)"),
                       tags$li("Duplicate usernames automatically skipped")
                     )
                   ),

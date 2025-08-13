@@ -623,11 +623,16 @@ get_user_by_id <- function(user_id) {
 }
 
 # Create a new user
-create_user <- function(username, role) {
+create_user <- function(username, role, department = NULL) {
   payload <- list(
     username = username,
     role = role
   )
+  
+  # Add department if provided
+  if (!is.null(department) && department != "") {
+    payload$department <- department
+  }
   
   tryCatch({
     response <- httr::POST(
@@ -650,11 +655,16 @@ create_user <- function(username, role) {
 }
 
 # Update an existing user
-update_user <- function(user_id, username, role) {
+update_user <- function(user_id, username, role, department = NULL) {
   payload <- list(
     username = username,
     role = role
   )
+  
+  # Add department if provided
+  if (!is.null(department)) {
+    payload$department <- if (department == "") "" else department
+  }
   
   tryCatch({
     response <- httr::PUT(
