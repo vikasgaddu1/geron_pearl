@@ -1,11 +1,14 @@
 """Reporting Effort Items API endpoints."""
 
+import logging
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
 from app.crud import reporting_effort_item, reporting_effort, audit_log
+
+logger = logging.getLogger(__name__)
 from app.crud.package_item import package_item
 from app.db.session import get_db
 from app.schemas.reporting_effort_item import (
@@ -29,7 +32,7 @@ async def broadcast_reporting_effort_item_created(item_data):
         }
         await manager.broadcast(str(message_data).replace("'", '"'))
     except Exception as e:
-        print(f"WebSocket broadcast error: {e}")
+        logger.error(f"WebSocket broadcast error: {e}")
 
 async def broadcast_reporting_effort_item_updated(item_data):
     """Broadcast that a reporting effort item was updated."""
@@ -40,7 +43,7 @@ async def broadcast_reporting_effort_item_updated(item_data):
         }
         await manager.broadcast(str(message_data).replace("'", '"'))
     except Exception as e:
-        print(f"WebSocket broadcast error: {e}")
+        logger.error(f"WebSocket broadcast error: {e}")
 
 async def broadcast_reporting_effort_item_deleted(item_data):
     """Broadcast that a reporting effort item was deleted."""
@@ -51,7 +54,7 @@ async def broadcast_reporting_effort_item_deleted(item_data):
         }
         await manager.broadcast(str(message_data).replace("'", '"'))
     except Exception as e:
-        print(f"WebSocket broadcast error: {e}")
+        logger.error(f"WebSocket broadcast error: {e}")
 
 router = APIRouter()
 
@@ -122,7 +125,7 @@ async def create_reporting_effort_item(
             auto_create_tracker=True
         )
         
-        print(f"Reporting effort item created successfully: {created_item.item_code} (ID: {created_item.id})")
+        logger.info(f"Reporting effort item created successfully: {created_item.item_code} (ID: {created_item.id})")
         
         # Log audit trail
         try:
@@ -137,7 +140,7 @@ async def create_reporting_effort_item(
                 user_agent=request.headers.get("user-agent")
             )
         except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+            logger.error(f"Audit logging error: {audit_error}")
         
         # Broadcast WebSocket event
         try:
@@ -250,7 +253,7 @@ async def update_reporting_effort_item(
         original_data = sqlalchemy_to_dict(db_item)
         
         updated_item = await reporting_effort_item.update(db, db_obj=db_item, obj_in=item_in)
-        print(f"Reporting effort item updated successfully: {updated_item.item_code} (ID: {updated_item.id})")
+        logger.info(f"Reporting effort item updated successfully: {updated_item.item_code} (ID: {updated_item.id})")
         
         # Log audit trail
         try:
@@ -269,7 +272,7 @@ async def update_reporting_effort_item(
                 user_agent=request.headers.get("user-agent")
             )
         except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+            logger.error(f"Audit logging error: {audit_error}")
         
         # Broadcast WebSocket event
         try:
@@ -318,7 +321,7 @@ async def delete_reporting_effort_item(
         item_data = sqlalchemy_to_dict(db_item)
         
         deleted_item = await reporting_effort_item.delete(db, id=item_id)
-        print(f"Reporting effort item deleted successfully: {deleted_item.item_code} (ID: {deleted_item.id})")
+        logger.info(f"Reporting effort item deleted successfully: {deleted_item.item_code} (ID: {deleted_item.id})")
         
         # Log audit trail
         try:
@@ -333,7 +336,7 @@ async def delete_reporting_effort_item(
                 user_agent=request.headers.get("user-agent")
             )
         except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+            logger.error(f"Audit logging error: {audit_error}")
         
         # Broadcast WebSocket event
         try:
@@ -455,7 +458,7 @@ async def bulk_create_tlf_items(
                     user_agent=request.headers.get("user-agent")
                 )
             except Exception as audit_error:
-                print(f"Audit logging error: {audit_error}")
+                logger.error(f"Audit logging error: {audit_error}")
         
         return BulkUploadResponse(
             success=len(errors) == 0,
@@ -575,7 +578,7 @@ async def bulk_create_dataset_items(
                     user_agent=request.headers.get("user-agent")
                 )
             except Exception as audit_error:
-                print(f"Audit logging error: {audit_error}")
+                logger.error(f"Audit logging error: {audit_error}")
         
         return BulkUploadResponse(
             success=len(errors) == 0,
@@ -651,7 +654,7 @@ async def copy_items_from_package(
                 user_agent=request.headers.get("user-agent")
             )
         except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+            logger.error(f"Audit logging error: {audit_error}")
         
         # Broadcast WebSocket events for each created item
         for item in created_items:
@@ -727,7 +730,7 @@ async def copy_items_from_reporting_effort(
                 user_agent=request.headers.get("user-agent")
             )
         except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+            logger.error(f"Audit logging error: {audit_error}")
         
         # Broadcast WebSocket events for each created item
         for item in created_items:

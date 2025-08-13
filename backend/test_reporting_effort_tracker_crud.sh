@@ -68,7 +68,7 @@ PROD_USER_RESPONSE=$(curl -s -X POST "$BASE_URL/users/" \
         "username": "prod_programmer",
         "email": "prod@test.com",
         "full_name": "Production Programmer",
-        "role": "editor",
+        "role": "EDITOR",
         "department": "Programming"
     }')
 PROD_USER_ID=$(echo $PROD_USER_RESPONSE | grep -o '"id":[0-9]*' | head -1 | grep -o '[0-9]*')
@@ -81,7 +81,7 @@ QC_USER_RESPONSE=$(curl -s -X POST "$BASE_URL/users/" \
         "username": "qc_programmer",
         "email": "qc@test.com",
         "full_name": "QC Programmer",
-        "role": "editor",
+        "role": "EDITOR",
         "department": "Programming"
     }')
 QC_USER_ID=$(echo $QC_USER_RESPONSE | grep -o '"id":[0-9]*' | head -1 | grep -o '[0-9]*')
@@ -94,7 +94,7 @@ BIOSTAT_USER_RESPONSE=$(curl -s -X POST "$BASE_URL/users/" \
         "username": "biostat_user",
         "email": "biostat@test.com",
         "full_name": "Biostatistician",
-        "role": "viewer",
+        "role": "VIEWER",
         "department": "Biostatistics"
     }')
 BIOSTAT_USER_ID=$(echo $BIOSTAT_USER_RESPONSE | grep -o '"id":[0-9]*' | head -1 | grep -o '[0-9]*')

@@ -1,6 +1,7 @@
 """Reporting Effort Item Tracker API endpoints."""
 
 import json
+import logging
 from typing import List, Dict, Any, Optional
 from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
@@ -8,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
 from app.crud import reporting_effort_item_tracker, reporting_effort_item, user, audit_log
+
+logger = logging.getLogger(__name__)
 from app.db.session import get_db
 from app.schemas.reporting_effort_item_tracker import (
     ReportingEffortItemTracker,

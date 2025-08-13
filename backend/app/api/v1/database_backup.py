@@ -34,9 +34,9 @@ def check_admin_access(request: Request):
 
 def get_db_connection_string():
     """Get database connection string for pg_dump."""
-    # Parse the DATABASE_URL from settings
+    # Parse the database_url from settings
     # Format: postgresql+asyncpg://user:password@host:port/database
-    db_url = str(settings.DATABASE_URL)
+    db_url = str(settings.database_url)
     
     # Replace asyncpg with postgresql for pg_dump
     if "asyncpg" in db_url:
