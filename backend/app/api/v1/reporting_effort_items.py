@@ -26,33 +26,27 @@ from app.api.v1.websocket import manager
 async def broadcast_reporting_effort_item_created(item_data):
     """Broadcast that a new reporting effort item was created."""
     try:
-        message_data = {
-            "type": "reporting_effort_item_created",
-            "data": sqlalchemy_to_dict(item_data)
-        }
-        await manager.broadcast(str(message_data).replace("'", '"'))
+        from app.utils import broadcast_message
+        message = broadcast_message("reporting_effort_item_created", sqlalchemy_to_dict(item_data))
+        await manager.broadcast(message)
     except Exception as e:
         logger.error(f"WebSocket broadcast error: {e}")
 
 async def broadcast_reporting_effort_item_updated(item_data):
     """Broadcast that a reporting effort item was updated."""
     try:
-        message_data = {
-            "type": "reporting_effort_item_updated", 
-            "data": sqlalchemy_to_dict(item_data)
-        }
-        await manager.broadcast(str(message_data).replace("'", '"'))
+        from app.utils import broadcast_message
+        message = broadcast_message("reporting_effort_item_updated", sqlalchemy_to_dict(item_data))
+        await manager.broadcast(message)
     except Exception as e:
         logger.error(f"WebSocket broadcast error: {e}")
 
 async def broadcast_reporting_effort_item_deleted(item_data):
     """Broadcast that a reporting effort item was deleted."""
     try:
-        message_data = {
-            "type": "reporting_effort_item_deleted",
-            "data": sqlalchemy_to_dict(item_data)
-        }
-        await manager.broadcast(str(message_data).replace("'", '"'))
+        from app.utils import broadcast_message
+        message = broadcast_message("reporting_effort_item_deleted", sqlalchemy_to_dict(item_data))
+        await manager.broadcast(message)
     except Exception as e:
         logger.error(f"WebSocket broadcast error: {e}")
 
@@ -67,14 +61,12 @@ class BulkTLFItem(BaseModel):
     footnotes: List[str] = Field(default_factory=list, description="List of footnote texts")
     population_flag: Optional[str] = Field(None, description="Population flag text")
     acronyms: List[str] = Field(default_factory=list, description="List of acronym texts")
-    sorting_order: Optional[int] = Field(None, description="Display order")
 
 class BulkDatasetItem(BaseModel):
     """Schema for bulk dataset upload."""
     item_subtype: str = Field(..., description="SDTM/ADaM")
     item_code: str = Field(..., description="Dataset name, e.g., DM")
     label: Optional[str] = Field(None, description="Dataset label")
-    sorting_order: Optional[int] = Field(None, description="Display order")
     acronyms: Optional[str] = Field(None, description="Acronyms JSON string")
 
 class BulkUploadResponse(BaseModel):
@@ -95,17 +87,18 @@ class CopyFromReportingEffortRequest(BaseModel):
     item_ids: Optional[List[int]] = Field(None, description="Specific item IDs to copy (None = copy all)")
 
 # CRUD Endpoints
-@router.post("/", response_model=ReportingEffortItemWithDetails, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_reporting_effort_item(
     *,
     db: AsyncSession = Depends(get_db),
     request: Request,
     item_in: ReportingEffortItemCreate,
-) -> ReportingEffortItemWithDetails:
+) -> dict:
     """
     Create a new reporting effort item.
     Automatically creates a tracker entry.
     """
+    print(f"DEBUG API: Received request to create item: {item_in}")
     try:
         # Verify reporting effort exists
         db_effort = await reporting_effort.get(db, id=item_in.reporting_effort_id)
@@ -119,11 +112,14 @@ async def create_reporting_effort_item(
         # This will be handled by the unique constraint in the model
         # But we can provide better error messages here
         
+        # Use simple create instead of create_with_details for debugging
         created_item = await reporting_effort_item.create_with_details(
             db,
             obj_in=item_in,
             auto_create_tracker=True
         )
+        # Get simple object without relationships
+        simple_item = await reporting_effort_item.get(db, id=created_item.id)
         
         logger.info(f"Reporting effort item created successfully: {created_item.item_code} (ID: {created_item.id})")
         
@@ -142,13 +138,27 @@ async def create_reporting_effort_item(
         except Exception as audit_error:
             logger.error(f"Audit logging error: {audit_error}")
         
-        # Broadcast WebSocket event
+        # Broadcast WebSocket event (temporarily disabled for debugging)
         try:
-            await broadcast_reporting_effort_item_created(created_item)
+            # await broadcast_reporting_effort_item_created(created_item)
+            print("WebSocket broadcast temporarily disabled for debugging")
         except Exception as ws_error:
             print(f"WebSocket broadcast error: {ws_error}")
         
-        return created_item
+        # Return a simple dict response to avoid serialization issues
+        return {
+            "id": created_item.id,
+            "reporting_effort_id": created_item.reporting_effort_id,
+            "source_type": created_item.source_type.value if created_item.source_type else None,
+            "source_id": created_item.source_id,
+            "source_item_id": created_item.source_item_id,
+            "item_type": created_item.item_type.value,
+            "item_subtype": created_item.item_subtype,
+            "item_code": created_item.item_code,
+            "is_active": created_item.is_active,
+            "created_at": created_item.created_at.isoformat(),
+            "updated_at": created_item.updated_at.isoformat() if created_item.updated_at else None
+        }
         
     except Exception as e:
         if isinstance(e, HTTPException):
@@ -176,12 +186,12 @@ async def read_reporting_effort_items(
             detail="Failed to retrieve reporting effort items"
         )
 
-@router.get("/{item_id}", response_model=ReportingEffortItemWithDetails)
+@router.get("/{item_id}", response_model=dict)
 async def read_reporting_effort_item(
     *,
     db: AsyncSession = Depends(get_db),
     item_id: int,
-) -> ReportingEffortItemWithDetails:
+) -> dict:
     """
     Get a specific reporting effort item by ID with all details.
     """
@@ -192,7 +202,20 @@ async def read_reporting_effort_item(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reporting effort item not found"
             )
-        return db_item
+        # Return dict to avoid serialization issues
+        return {
+            "id": db_item.id,
+            "reporting_effort_id": db_item.reporting_effort_id,
+            "source_type": db_item.source_type.value if db_item.source_type else None,
+            "source_id": db_item.source_id,
+            "source_item_id": db_item.source_item_id,
+            "item_type": db_item.item_type.value,
+            "item_subtype": db_item.item_subtype,
+            "item_code": db_item.item_code,
+            "is_active": db_item.is_active,
+            "created_at": db_item.created_at.isoformat(),
+            "updated_at": db_item.updated_at.isoformat() if db_item.updated_at else None
+        }
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
@@ -406,7 +429,6 @@ async def bulk_create_tlf_items(
                     item_type=ItemType.TLF,
                     item_subtype=item.item_subtype,
                     item_code=item.item_code,
-                    sorting_order=item.sorting_order,
                     is_active=True
                 )
                 
@@ -526,7 +548,6 @@ async def bulk_create_dataset_items(
                     item_type=ItemType.Dataset,
                     item_subtype=item.item_subtype,
                     item_code=item.item_code,
-                    sorting_order=item.sorting_order,
                     is_active=True
                 )
                 
@@ -535,7 +556,6 @@ async def bulk_create_dataset_items(
                 if item.label or item.acronyms:
                     dataset_details = {
                         "label": item.label,
-                        "sorting_order": item.sorting_order,
                         "acronyms": item.acronyms
                     }
                 

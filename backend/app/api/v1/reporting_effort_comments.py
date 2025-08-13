@@ -57,7 +57,20 @@ router = APIRouter()
 # Helper Functions
 def get_current_user_id(request: Request) -> Optional[int]:
     """Extract user ID from request state (would be set by auth middleware)."""
-    return getattr(request.state, 'user_id', None)
+    # First try request state (production)
+    user_id = getattr(request.state, 'user_id', None)
+    if user_id:
+        return user_id
+    
+    # Fallback to header for testing
+    header_user_id = request.headers.get('X-User-Id')
+    if header_user_id:
+        try:
+            return int(header_user_id)
+        except ValueError:
+            pass
+    
+    return None
 
 def get_current_user_role(request: Request) -> Optional[UserRole]:
     """Extract user role from request state (would be set by auth middleware)."""
@@ -66,8 +79,10 @@ def get_current_user_role(request: Request) -> Optional[UserRole]:
 # Request/Response Schemas
 class CommentCreateRequest(BaseModel):
     """Schema for creating a comment with automatic type detection."""
-    reporting_effort_item_id: int = Field(..., description="ID of the reporting effort item")
+    reporting_effort_item_id: Optional[int] = Field(None, description="ID of the reporting effort item")
+    tracker_id: Optional[int] = Field(None, description="ID of the tracker (will be converted to item ID)")
     comment_text: str = Field(..., min_length=1, description="Comment content")
+    comment_type: Optional[str] = Field(None, description="Explicit comment type (overrides auto-detection)")
     comment_category: str = Field("general", description="Category: general, production, qc, issue, resolution")
     parent_comment_id: Optional[int] = Field(None, description="ID of parent comment for threading")
 
@@ -77,13 +92,13 @@ class CommentModerationRequest(BaseModel):
     reason: Optional[str] = Field(None, description="Reason for moderation action")
 
 # CRUD Endpoints
-@router.post("/", response_model=ReportingEffortTrackerComment, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_comment(
     *,
     db: AsyncSession = Depends(get_db),
     request: Request,
     comment_request: CommentCreateRequest,
-) -> ReportingEffortTrackerComment:
+) -> dict:
     """
     Create a new comment with automatic role-based type assignment.
     """
@@ -98,8 +113,27 @@ async def create_comment(
                 detail="Authentication required"
             )
         
+        # Determine item ID (either directly provided or via tracker)
+        item_id = comment_request.reporting_effort_item_id
+        if not item_id and comment_request.tracker_id:
+            # Convert tracker_id to reporting_effort_item_id
+            from app.crud.reporting_effort_item_tracker import reporting_effort_item_tracker
+            tracker = await reporting_effort_item_tracker.get(db, id=comment_request.tracker_id)
+            if not tracker:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Tracker not found"
+                )
+            item_id = tracker.reporting_effort_item_id
+        
+        if not item_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either reporting_effort_item_id or tracker_id must be provided"
+            )
+        
         # Verify item exists
-        db_item = await reporting_effort_item.get(db, id=comment_request.reporting_effort_item_id)
+        db_item = await reporting_effort_item.get(db, id=item_id)
         if not db_item:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -114,11 +148,20 @@ async def create_comment(
                 detail="User not found"
             )
         
-        # Determine comment type based on user role
+        # Determine comment type (explicit override or based on user role)
         comment_type = CommentType.BIOSTAT_COMMENT  # Default
-        if current_user_role in [UserRole.ADMIN, UserRole.EDITOR]:
+        
+        if comment_request.comment_type:
+            # Use explicit comment type if provided
+            try:
+                comment_type = CommentType(comment_request.comment_type)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid comment type: {comment_request.comment_type}"
+                )
+        elif current_user_role in [UserRole.ADMIN, UserRole.EDITOR]:
             # These roles can create programmer comments
-            # In a real app, you might infer from context or let user choose
             comment_type = CommentType.PROGRAMMER_COMMENT
         
         # Verify parent comment exists if specified
@@ -133,12 +176,14 @@ async def create_comment(
                 )
         
         # Create the comment
+        print(f"DEBUG: Creating comment with type {comment_type} ({type(comment_type)})")
         comment_create = ReportingEffortTrackerCommentCreate(
-            reporting_effort_item_id=comment_request.reporting_effort_item_id,
+            reporting_effort_item_id=item_id,
             comment_text=comment_request.comment_text,
             comment_type=comment_type,
             parent_comment_id=comment_request.parent_comment_id
         )
+        print(f"DEBUG: Comment create object: {comment_create}")
         
         created_comment = await reporting_effort_tracker_comment.create(
             db,
@@ -146,6 +191,7 @@ async def create_comment(
             user_id=current_user_id,
             user_role=current_user_role or UserRole.VIEWER
         )
+        print(f"DEBUG: Created comment: {created_comment}")
         
         print(f"Comment created successfully: ID {created_comment.id} by user {current_user_id}")
         
@@ -174,7 +220,17 @@ async def create_comment(
         except Exception as ws_error:
             print(f"WebSocket broadcast error: {ws_error}")
         
-        return created_comment
+        # Return dict to avoid serialization issues
+        return {
+            "id": created_comment.id,
+            "reporting_effort_item_id": created_comment.reporting_effort_item_id,
+            "user_id": created_comment.user_id,
+            "comment_text": created_comment.comment_text,
+            "comment_type": created_comment.comment_type.value,
+            "parent_comment_id": created_comment.parent_comment_id,
+            "created_at": created_comment.created_at.isoformat(),
+            "updated_at": created_comment.updated_at.isoformat() if created_comment.updated_at else None
+        }
         
     except Exception as e:
         if isinstance(e, HTTPException):

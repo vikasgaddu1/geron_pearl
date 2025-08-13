@@ -196,12 +196,12 @@ async def read_tracker(
             detail="Failed to retrieve tracker"
         )
 
-@router.get("/by-item/{item_id}", response_model=ReportingEffortItemTracker)
+@router.get("/by-item/{item_id}", response_model=dict)
 async def read_tracker_by_item(
     *,
     db: AsyncSession = Depends(get_db),
     item_id: int,
-) -> ReportingEffortItemTracker:
+) -> dict:
     """
     Get tracker for a specific reporting effort item.
     """
@@ -214,7 +214,22 @@ async def read_tracker_by_item(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Tracker not found for this item"
             )
-        return db_tracker
+        # Return dict to avoid serialization issues
+        return {
+            "id": db_tracker.id,
+            "reporting_effort_item_id": db_tracker.reporting_effort_item_id,
+            "production_programmer_id": db_tracker.production_programmer_id,
+            "qc_programmer_id": db_tracker.qc_programmer_id,
+            "production_status": db_tracker.production_status,
+            "qc_status": db_tracker.qc_status,
+            "due_date": db_tracker.due_date.isoformat() if db_tracker.due_date else None,
+            "qc_completion_date": db_tracker.qc_completion_date.isoformat() if db_tracker.qc_completion_date else None,
+            "priority": db_tracker.priority,
+            "qc_level": db_tracker.qc_level,
+            "in_production_flag": db_tracker.in_production_flag,
+            "created_at": db_tracker.created_at.isoformat(),
+            "updated_at": db_tracker.updated_at.isoformat() if db_tracker.updated_at else None
+        }
     except Exception as e:
         if isinstance(e, HTTPException):
             raise

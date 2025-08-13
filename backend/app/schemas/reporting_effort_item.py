@@ -18,8 +18,6 @@ class ReportingEffortItemBase(BaseModel):
     item_type: ItemType = Field(..., description="Type of item: TLF or Dataset")
     item_subtype: str = Field(..., description="Subtype: Table/Listing/Figure for TLF, SDTM/ADaM for Dataset")
     item_code: str = Field(..., min_length=1, max_length=255, description="TLF ID or dataset name")
-    study_id: Optional[int] = Field(None, description="Associated study ID")
-    sorting_order: Optional[int] = Field(None, description="Display order for the item")
     is_active: bool = Field(True, description="Whether the item is active")
 
 
@@ -33,8 +31,6 @@ class ReportingEffortItemUpdate(BaseModel):
     
     item_subtype: Optional[str] = None
     item_code: Optional[str] = Field(None, min_length=1, max_length=255)
-    study_id: Optional[int] = None
-    sorting_order: Optional[int] = None
     is_active: Optional[bool] = None
 
 

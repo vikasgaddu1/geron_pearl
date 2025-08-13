@@ -48,8 +48,15 @@ class ReportingEffortItem(Base, TimestampMixin):
     )
     
     # Source tracking
+    # Important: database enum 'sourcetype' stores labels using Enum member NAMES (uppercase)
+    # Map SQLAlchemy to use existing DB enum by name to avoid value mismatches
     source_type: Mapped[Optional[SourceType]] = mapped_column(
-        Enum(SourceType),
+        Enum(
+            SourceType,
+            name='sourcetype',
+            create_type=False,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls]
+        ),
         nullable=True,
         doc="Where this item came from"
     )

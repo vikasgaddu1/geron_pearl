@@ -47,8 +47,20 @@ class ReportingEffortItemCRUD:
         Returns:
             Created item with all relationships
         """
-        # Create main item
-        db_obj = ReportingEffortItem(**obj_in.model_dump())
+        # Create main item (use mode='json' to properly serialize enums)
+        item_data = obj_in.model_dump(mode='json')
+        # Normalize enum to lowercase values to match DB enum labels
+        source_type_value = item_data.get("source_type")
+        if source_type_value is not None:
+            if isinstance(source_type_value, str):
+                item_data["source_type"] = source_type_value.lower()
+            else:
+                try:
+                    item_data["source_type"] = source_type_value.value
+                except AttributeError:
+                    item_data["source_type"] = str(source_type_value).lower()
+        print(f"DEBUG: Creating ReportingEffortItem with data: {item_data}")
+        db_obj = ReportingEffortItem(**item_data)
         db.add(db_obj)
         await db.flush()  # Get the ID
         
@@ -162,7 +174,7 @@ class ReportingEffortItemCRUD:
                 selectinload(ReportingEffortItem.tracker)
             )
             .where(ReportingEffortItem.reporting_effort_id == reporting_effort_id)
-            .order_by(ReportingEffortItem.sorting_order, ReportingEffortItem.item_code)
+            .order_by(ReportingEffortItem.item_code)
         )
         return list(result.scalars().all())
     
@@ -241,8 +253,6 @@ class ReportingEffortItemCRUD:
                 item_type=pkg_item.item_type,
                 item_subtype=pkg_item.item_subtype,
                 item_code=pkg_item.item_code,
-                study_id=pkg_item.study_id,
-                sorting_order=pkg_item.sorting_order,
                 is_active=True
             )
             
@@ -321,8 +331,6 @@ class ReportingEffortItemCRUD:
                 item_type=src_item.item_type,
                 item_subtype=src_item.item_subtype,
                 item_code=src_item.item_code,
-                study_id=src_item.study_id,
-                sorting_order=src_item.sorting_order,
                 is_active=src_item.is_active
             )
             

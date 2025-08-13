@@ -26,8 +26,14 @@
       "Bash(git commit:*)",
       "Bash(./test_reporting_effort_tracker_crud.sh:*)",
       "Bash(chmod:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(find:*)",
+      "Bash(true)",
+      "Bash(RESPONSE='{\"\"id\"\":35,\"\"reporting_effort_id\"\":2,\"\"source_type\"\":\"\"custom\"\",\"\"source_id\"\":null,\"\"source_item_id\"\":null,\"\"item_type\"\":\"\"TLF\"\",\"\"item_subtype\"\":\"\"Table\"\",\"\"item_code\"\":\"\"T_DICT_RESPONSE_1755121577\"\",\"\"is_active\"\":true,\"\"created_at\"\":\"\"2025-08-13T21:46:17.512100\"\",\"\"updated_at\"\":\"\"2025-08-13T21:46:17.512100\"\"}')",
+      "Bash(./test_bulk_operations.sh:*)",
+      "Bash(bash:*)"
     ],
-    "deny": []
+    "deny": [],
+    "defaultMode": "acceptEdits"
   }
 }

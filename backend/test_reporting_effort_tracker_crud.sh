@@ -111,7 +111,6 @@ TLF_ITEM_RESPONSE=$(curl -s -X POST "$BASE_URL/reporting-effort-items/" \
         "item_type": "TLF",
         "item_subtype": "Table",
         "item_code": "T_14_1_1",
-        "study_id": '$STUDY_ID',
         "source_type": "custom"
     }')
 TLF_ITEM_ID=$(echo $TLF_ITEM_RESPONSE | grep -o '"id":[0-9]*' | head -1 | grep -o '[0-9]*')
@@ -125,7 +124,6 @@ DATASET_ITEM_RESPONSE=$(curl -s -X POST "$BASE_URL/reporting-effort-items/" \
         "item_type": "Dataset",
         "item_subtype": "ADaM",
         "item_code": "ADSL",
-        "study_id": '$STUDY_ID',
         "source_type": "custom"
     }')
 DATASET_ITEM_ID=$(echo $DATASET_ITEM_RESPONSE | grep -o '"id":[0-9]*' | head -1 | grep -o '[0-9]*')
@@ -231,7 +229,6 @@ for i in {2..5}; do
             "item_type": "TLF",
             "item_subtype": "Figure",
             "item_code": "F_14_1_'$i'",
-            "study_id": '$STUDY_ID',
             "source_type": "custom"
         }' > /dev/null
 done
