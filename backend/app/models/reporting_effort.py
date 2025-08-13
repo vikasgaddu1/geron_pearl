@@ -2,7 +2,7 @@
 
 from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 from app.db.base import Base
 from app.db.mixins import TimestampMixin
@@ -10,6 +10,7 @@ from app.db.mixins import TimestampMixin
 if TYPE_CHECKING:
     from app.models.study import Study
     from app.models.database_release import DatabaseRelease
+    from app.models.reporting_effort_item import ReportingEffortItem
 
 
 class ReportingEffort(Base, TimestampMixin):
@@ -30,6 +31,11 @@ class ReportingEffort(Base, TimestampMixin):
     # Relationships
     study: Mapped["Study"] = relationship("Study", back_populates="reporting_efforts")
     database_release: Mapped["DatabaseRelease"] = relationship("DatabaseRelease", back_populates="reporting_efforts")
+    items: Mapped[List["ReportingEffortItem"]] = relationship(
+        "ReportingEffortItem",
+        back_populates="reporting_effort",
+        cascade="all, delete-orphan"
+    )
     
     # Unique constraint to prevent duplicate reporting efforts for same database release with same label
     __table_args__ = (

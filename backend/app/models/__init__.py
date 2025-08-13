@@ -10,7 +10,15 @@ from app.models.package_tlf_details import PackageTlfDetails
 from app.models.package_dataset_details import PackageDatasetDetails
 from app.models.package_item_footnote import PackageItemFootnote
 from app.models.package_item_acronym import PackageItemAcronym
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, UserDepartment
+from app.models.reporting_effort_item import ReportingEffortItem, SourceType
+from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker, ProductionStatus, QCStatus
+from app.models.reporting_effort_tracker_comment import ReportingEffortTrackerComment, CommentType
+from app.models.reporting_effort_tlf_details import ReportingEffortTlfDetails
+from app.models.reporting_effort_dataset_details import ReportingEffortDatasetDetails
+from app.models.reporting_effort_item_footnote import ReportingEffortItemFootnote
+from app.models.reporting_effort_item_acronym import ReportingEffortItemAcronym
+from app.models.audit_log import AuditLog
 
 __all__ = [
     "Study", 
@@ -26,5 +34,18 @@ __all__ = [
     "PackageItemFootnote",
     "PackageItemAcronym",
     "User",
-    "UserRole"
+    "UserRole",
+    "UserDepartment",
+    "ReportingEffortItem",
+    "SourceType",
+    "ReportingEffortItemTracker",
+    "ProductionStatus",
+    "QCStatus",
+    "ReportingEffortTrackerComment",
+    "CommentType",
+    "ReportingEffortTlfDetails",
+    "ReportingEffortDatasetDetails",
+    "ReportingEffortItemFootnote",
+    "ReportingEffortItemAcronym",
+    "AuditLog"
 ]
