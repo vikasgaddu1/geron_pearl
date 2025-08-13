@@ -13,6 +13,23 @@ from app.schemas.package_item import (
     PackageItemFootnoteCreate, PackageItemAcronymCreate
 )
 from app.schemas.user import User, UserCreate, UserInDB, UserUpdate
+from app.schemas.reporting_effort_item import (
+    ReportingEffortItem, ReportingEffortItemCreate, ReportingEffortItemInDB, 
+    ReportingEffortItemUpdate, ReportingEffortItemWithDetails
+)
+from app.schemas.reporting_effort_item_tracker import (
+    ReportingEffortItemTracker, ReportingEffortItemTrackerCreate,
+    ReportingEffortItemTrackerInDB, ReportingEffortItemTrackerUpdate,
+    ReportingEffortItemTrackerWithDetails
+)
+from app.schemas.reporting_effort_tracker_comment import (
+    ReportingEffortTrackerComment, ReportingEffortTrackerCommentCreate,
+    ReportingEffortTrackerCommentInDB, ReportingEffortTrackerCommentUpdate,
+    ReportingEffortTrackerCommentWithDetails
+)
+from app.schemas.audit_log import (
+    AuditLog, AuditLogCreate, AuditLogInDB, AuditLogWithDetails
+)
 
 __all__ = [
     # Study schemas
@@ -32,5 +49,18 @@ __all__ = [
     "PackageDatasetDetailsCreate", "PackageDatasetDetailsInDB",
     "PackageItemFootnoteCreate", "PackageItemAcronymCreate",
     # User schemas
-    "User", "UserCreate", "UserInDB", "UserUpdate"
+    "User", "UserCreate", "UserInDB", "UserUpdate",
+    # ReportingEffortItem schemas
+    "ReportingEffortItem", "ReportingEffortItemCreate", "ReportingEffortItemInDB",
+    "ReportingEffortItemUpdate", "ReportingEffortItemWithDetails",
+    # ReportingEffortItemTracker schemas
+    "ReportingEffortItemTracker", "ReportingEffortItemTrackerCreate",
+    "ReportingEffortItemTrackerInDB", "ReportingEffortItemTrackerUpdate",
+    "ReportingEffortItemTrackerWithDetails",
+    # ReportingEffortTrackerComment schemas
+    "ReportingEffortTrackerComment", "ReportingEffortTrackerCommentCreate",
+    "ReportingEffortTrackerCommentInDB", "ReportingEffortTrackerCommentUpdate",
+    "ReportingEffortTrackerCommentWithDetails",
+    # AuditLog schemas
+    "AuditLog", "AuditLogCreate", "AuditLogInDB", "AuditLogWithDetails"
 ]
