@@ -1455,5 +1455,80 @@ reporting_effort_items_server <- function(id) {
       }
     })
     
+    # Track current tab for bulk template/instructions
+    current_tab <- reactiveVal("tlf")
+    observeEvent(input$item_tabs, {
+      current_tab(input$item_tabs)
+      # Clear previous upload results when switching tabs
+      output$upload_results <- renderUI({ NULL })
+      shinyjs::reset("bulk_upload_file")
+    })
+    
+    # Render dynamic template download based on current tab
+    output$template_download <- renderUI({
+      tab <- current_tab()
+      if (tab == "tlf") {
+        div(
+          class = "mb-3",
+          div(
+            class = "d-grid gap-2",
+            tags$a(
+              href = "package_tlf_template.xlsx",
+              download = "package_tlf_template.xlsx",
+              class = "btn btn-outline-info btn-sm",
+              tagList(icon("download"), " Download TLF Template")
+            )
+          ),
+          tags$small(class = "text-muted d-block mt-2 text-center", "Template for TLF items upload")
+        )
+      } else {
+        div(
+          class = "mb-3",
+          div(
+            class = "d-grid gap-2",
+            tags$a(
+              href = "package_dataset_template.xlsx",
+              download = "package_dataset_template.xlsx",
+              class = "btn btn-outline-info btn-sm",
+              tagList(icon("download"), " Download Dataset Template")
+            )
+          ),
+          tags$small(class = "text-muted d-block mt-2 text-center", "Template for Dataset items upload")
+        )
+      }
+    })
+
+    # Render dynamic upload instructions based on current tab
+    output$upload_instructions <- renderUI({
+      tab <- current_tab()
+      if (tab == "tlf") {
+        div(
+          class = "alert alert-info small",
+          tags$strong("TLF File Requirements:"),
+          tags$ul(
+            class = "mb-0 mt-2",
+            tags$li("Required columns: 'Title Key'"),
+            tags$li("Optional columns: 'TLF Type', 'Title', 'Population', 'ICH Category', 'Run Order'"),
+            tags$li("TLF Type: Table, Listing, or Figure (defaults to Table)"),
+            tags$li("Text elements (Title, Population, ICH Category) will be created if new"),
+            tags$li("Primary key: Type + Title Key + Title must be unique (ignoring case/spaces)")
+          )
+        )
+      } else {
+        div(
+          class = "alert alert-info small",
+          tags$strong("Dataset File Requirements:"),
+          tags$ul(
+            class = "mb-0 mt-2",
+            tags$li("Required columns: 'Dataset Name', 'Run Order'"),
+            tags$li("Optional columns: 'Dataset Type', 'Dataset Label'"),
+            tags$li("Dataset Type: SDTM or ADaM (defaults to SDTM)"),
+            tags$li("Run Order must be a positive number"),
+            tags$li("Label provides description for the dataset")
+          )
+        )
+      }
+    })
+    
   })
 }
