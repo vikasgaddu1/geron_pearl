@@ -506,9 +506,25 @@ reporting_effort_items_server <- function(id) {
         } else if (action == "delete") {
           cat("Delete item clicked, ID:", item_id, "\n")
           
-          # Find the item data
-          current_items <- items_data()
-          item_row <- current_items[current_items$ID == item_id, ]
+          # Find the item data in the new list structure
+          data_list <- items_data()
+          item_row <- NULL
+          
+          # Check TLF items first
+          if (is.list(data_list) && !is.null(data_list$tlf_items) && nrow(data_list$tlf_items) > 0) {
+            tlf_match <- data_list$tlf_items[data_list$tlf_items$ID == item_id, ]
+            if (nrow(tlf_match) > 0) {
+              item_row <- tlf_match
+            }
+          }
+          
+          # If not found in TLF, check Dataset items
+          if (is.null(item_row) && is.list(data_list) && !is.null(data_list$dataset_items) && nrow(data_list$dataset_items) > 0) {
+            dataset_match <- data_list$dataset_items[data_list$dataset_items$ID == item_id, ]
+            if (nrow(dataset_match) > 0) {
+              item_row <- dataset_match
+            }
+          }
           
           if (nrow(item_row) > 0) {
             showModal(modalDialog(
