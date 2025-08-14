@@ -171,16 +171,7 @@ reporting_effort_items_server <- function(id) {
               ""
             }
           }),
-          Status = sapply(items, function(x) {
-            if (!is.null(x$tlf_details)) {
-              status_parts <- c()
-              if (isTRUE(x$tlf_details$mock_available)) status_parts <- c(status_parts, "Mock")
-              if (isTRUE(x$tlf_details$asr_ready)) status_parts <- c(status_parts, "ASR")
-              if (length(status_parts) > 0) paste(status_parts, collapse = ", ") else "Draft"
-            } else {
-              "Draft"
-            }
-          }),
+
           Actions = sapply(items, function(x) x$id),
           stringsAsFactors = FALSE,
           check.names = FALSE
@@ -194,7 +185,6 @@ reporting_effort_items_server <- function(id) {
           Title = character(0),
           Population = character(0),
           `ICH Category` = character(0),
-          Status = character(0),
           Actions = character(0),
           stringsAsFactors = FALSE,
           check.names = FALSE
@@ -223,13 +213,7 @@ reporting_effort_items_server <- function(id) {
               ""
             }
           }),
-          Status = sapply(items, function(x) {
-            if (!is.null(x$dataset_details)) {
-              if (isTRUE(x$dataset_details$locked)) "Locked" else "Unlocked"
-            } else {
-              "Unlocked"
-            }
-          }),
+
           Actions = sapply(items, function(x) x$id),
           stringsAsFactors = FALSE,
           check.names = FALSE
@@ -246,7 +230,6 @@ reporting_effort_items_server <- function(id) {
           `Dataset Name` = character(0),
           Label = character(0),
           `Run Order` = character(0),
-          Status = character(0),
           Actions = character(0),
           stringsAsFactors = FALSE,
           check.names = FALSE
@@ -324,7 +307,7 @@ reporting_effort_items_server <- function(id) {
         })
         
         # Remove ID column for display (matching Package Items format)
-        display_df <- tlf_data[, c("Type", "Title Key", "Title", "Population", "ICH Category", "Status", "Actions")]
+        display_df <- tlf_data[, c("Type", "Title Key", "Title", "Population", "ICH Category", "Actions")]
         cat("DEBUG: TLF display data frame created, rows:", nrow(display_df), "columns:", names(display_df), "\n")
         if (nrow(display_df) > 0) {
           cat("DEBUG: First TLF display row:", paste(display_df[1,], collapse = " | "), "\n")
@@ -368,7 +351,7 @@ reporting_effort_items_server <- function(id) {
           rownames = FALSE
         ) %>%
           DT::formatStyle(
-            columns = 1:7,
+            columns = 1:6,
             fontSize = '14px'
           )
       }
@@ -394,7 +377,6 @@ reporting_effort_items_server <- function(id) {
           `Dataset Name` = character(0),
           Label = character(0),
           `Run Order` = character(0),
-          Status = character(0),
           Actions = character(0),
           stringsAsFactors = FALSE, check.names = FALSE
         )
@@ -406,7 +388,7 @@ reporting_effort_items_server <- function(id) {
             pageLength = 25,
             language = list(emptyTable = "No Dataset items found for this reporting effort"),
             columnDefs = list(
-              list(targets = 5, searchable = FALSE, orderable = FALSE, width = '100px')
+              list(targets = 4, searchable = FALSE, orderable = FALSE, width = '100px')
             )
           ),
           escape = FALSE,
@@ -426,7 +408,7 @@ reporting_effort_items_server <- function(id) {
         })
         
         # Remove ID column for display (matching Package Items format)
-        display_df <- dataset_data[, c("Type", "Dataset Name", "Label", "Run Order", "Status", "Actions")]
+        display_df <- dataset_data[, c("Type", "Dataset Name", "Label", "Run Order", "Actions")]
         cat("DEBUG: Dataset display data frame created, rows:", nrow(display_df), "columns:", names(display_df), "\n")
         if (nrow(display_df) > 0) {
           cat("DEBUG: First Dataset display row:", paste(display_df[1,], collapse = " | "), "\n")
@@ -462,7 +444,7 @@ reporting_effort_items_server <- function(id) {
           rownames = FALSE
         ) %>%
           DT::formatStyle(
-            columns = 1:6,
+            columns = 1:5,
             fontSize = '14px'
           )
       }
