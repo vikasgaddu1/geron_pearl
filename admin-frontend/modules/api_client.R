@@ -1265,3 +1265,21 @@ health_check <- function() {
   })
 }
 
+# Create reporting effort item with details
+create_reporting_effort_item_with_details <- function(reporting_effort_id, item_data) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_items_endpoint(), "/", reporting_effort_id, "/items")) |>
+      httr2::req_method("POST") |>
+      httr2::req_body_json(item_data) |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) %in% c(200, 201)) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+

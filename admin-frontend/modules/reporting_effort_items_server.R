@@ -708,64 +708,139 @@ reporting_effort_items_server <- function(id) {
       iv_item$disable()
     })
     
+    # Render add item form based on current tab
+    output$add_item_form <- renderUI({
+      library(shinyWidgets)
+      # Determine active tab from UI navset via input$item_tabs in session (default tlf)
+      tab <- input$item_tabs %||% "tlf"
+      # Prepare select choices for TLF/Dataset specifics
+      if (tab == "tlf") {
+        card(
+          class = "border border-2",
+          card_body(
+            div(
+              class = "mb-2",
+              tags$label("TLF Type", class = "form-label fw-bold"),
+              pickerInput(
+                ns("tlf_subtype"), label = NULL,
+                choices = c("Table", "Listing", "Figure"),
+                options = list(style = "btn-outline-primary")
+              )
+            ),
+            div(
+              class = "mb-2",
+              tags$label("Title Key", class = "form-label fw-bold"),
+              textInput(ns("item_code"), label = NULL, placeholder = "e.g., t14.1.1")
+            ),
+            div(
+              class = "mb-2",
+              tags$label("Title (Text Element ID)", class = "form-label"),
+              numericInput(ns("tlf_title"), label = NULL, value = NA, min = 1)
+            ),
+            div(
+              class = "mb-2",
+              tags$label("Population Flag (Text Element ID)", class = "form-label"),
+              numericInput(ns("tlf_population"), label = NULL, value = NA, min = 1)
+            ),
+            div(
+              class = "mb-2",
+              tags$label("ICH Category (Text Element ID)", class = "form-label"),
+              numericInput(ns("tlf_ich"), label = NULL, value = NA, min = 1)
+            ),
+            layout_columns(
+              col_widths = c(6, 6),
+              gap = 2,
+              actionButton(ns("save_item"), "Create", icon = icon("check"), class = "btn btn-success w-100"),
+              actionButton(ns("cancel_item"), "Cancel", icon = icon("times"), class = "btn btn-secondary w-100")
+            )
+          )
+        )
+      } else {
+        card(
+          class = "border border-2",
+          card_body(
+            div(
+              class = "mb-2",
+              tags$label("Dataset Type", class = "form-label fw-bold"),
+              pickerInput(
+                ns("dataset_subtype"), label = NULL,
+                choices = c("SDTM", "ADaM"),
+                options = list(style = "btn-outline-primary")
+              )
+            ),
+            div(
+              class = "mb-2",
+              tags$label("Dataset Name", class = "form-label fw-bold"),
+              textInput(ns("item_code"), label = NULL, placeholder = "e.g., DM, AE, ADSL")
+            ),
+            div(
+              class = "mb-2",
+              tags$label("Label (optional)", class = "form-label"),
+              textInput(ns("dataset_label"), label = NULL, placeholder = "e.g., Demographics")
+            ),
+            div(
+              class = "mb-2",
+              tags$label("Run Order", class = "form-label"),
+              numericInput(ns("dataset_order"), label = NULL, value = 1, min = 1)
+            ),
+            layout_columns(
+              col_widths = c(6, 6),
+              gap = 2,
+              actionButton(ns("save_item"), "Create", icon = icon("check"), class = "btn btn-success w-100"),
+              actionButton(ns("cancel_item"), "Cancel", icon = icon("times"), class = "btn btn-secondary w-100")
+            )
+          )
+        )
+      }
+    })
+
     # Save item (create or update)
     observeEvent(input$save_item, {
-      # Enable validation and check
       iv_item$enable()
       if (iv_item$is_valid()) {
         cat("Save item clicked\n")
-        
         effort_id <- current_reporting_effort_id()
         if (is.null(effort_id) || effort_id == "") {
           showNotification("Please select a reporting effort first", type = "error")
           return()
         }
-        
         item_code <- trimws(input$item_code)
-        item_type <- input$item_type
-        
-        # Build item data
-        item_data <- list(
-          reporting_effort_id = as.integer(effort_id),
-          item_type = item_type,
-          item_code = item_code
-        )
-        
-        if (item_type == "TLF") {
-          item_data$item_subtype <- input$tlf_subtype
-          item_data$tlf_details <- list(
-            title = trimws(input$tlf_title),
-            description = if (nchar(trimws(input$tlf_description)) > 0) trimws(input$tlf_description) else NULL,
-            population = if (nchar(trimws(input$tlf_population)) > 0) trimws(input$tlf_population) else NULL,
-            mock_available = input$tlf_mock_available,
-            asr_ready = input$tlf_asr_ready
+        # Determine current tab by which inputs exist
+        is_tlf <- !is.null(input$tlf_subtype)
+        if (is_tlf) {
+          item_data <- list(
+            item_type = "TLF",
+            item_subtype = input$tlf_subtype,
+            item_code = item_code,
+            is_active = TRUE,
+            tlf_details = list(
+              title_id = if (!is.na(input$tlf_title)) as.integer(input$tlf_title) else NULL,
+              population_flag_id = if (!is.na(input$tlf_population)) as.integer(input$tlf_population) else NULL,
+              ich_category_id = if (!is.na(input$tlf_ich)) as.integer(input$tlf_ich) else NULL
+            ),
+            footnotes = list(),
+            acronyms = list()
           )
-        } else if (item_type == "Dataset") {
-          item_data$item_subtype <- input$dataset_subtype
-          item_data$dataset_details <- list(
-            dataset_name = trimws(input$dataset_name),
-            description = if (nchar(trimws(input$dataset_description)) > 0) trimws(input$dataset_description) else NULL,
-            location = if (nchar(trimws(input$dataset_location)) > 0) trimws(input$dataset_location) else NULL,
-            locked = input$dataset_locked
-          )
-        }
-        
-        if (is_editing()) {
-          # Update existing item
-          item_id <- editing_item_id()
-          cat("Updating item ID:", item_id, "\n")
-          result <- update_reporting_effort_item(item_id, item_data)
         } else {
-          # Create new item
-          cat("Creating new item:", item_code, "\n")
-          result <- create_reporting_effort_item(item_data)
+          item_data <- list(
+            item_type = "Dataset",
+            item_subtype = input$dataset_subtype,
+            item_code = item_code,
+            is_active = TRUE,
+            dataset_details = list(
+              label = if (!is.null(input$dataset_label) && input$dataset_label != "") input$dataset_label else NULL,
+              sorting_order = if (!is.null(input$dataset_order)) as.integer(input$dataset_order) else NULL
+            ),
+            footnotes = list(),
+            acronyms = list()
+          )
         }
-          
+        # Create via API
+        result <- create_reporting_effort_item_with_details(as.integer(effort_id), item_data)
         if (!is.null(result$error)) {
           showNotification(paste("Error saving item:", result$error), type = "error")
         } else {
-          action_text <- if (is_editing()) "updated" else "created"
-          showNotification(paste("Item", action_text, "successfully"), type = "message")
+          showNotification("Item created successfully", type = "message")
           load_items_data()
           sidebar_toggle(id = "items_sidebar")
           iv_item$disable()
