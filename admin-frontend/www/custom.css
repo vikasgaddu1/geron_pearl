@@ -80,6 +80,10 @@
   animation: none;
 }
 
+/* Inline tracker action buttons */
+.pearl-tracker-action.btn { padding: 0.25rem 0.4rem; }
+.pearl-tracker-action i { pointer-events: none; }
+
 /* Reporting effort selector emphasis styles (match package styling) */
 .effort-selector-wrapper {
   background-color: #fff3cd !important;

@@ -828,7 +828,7 @@ reporting_effort_items_server <- function(id) {
         )
       }
     })
-
+    
     # Save item (create or update)
     observeEvent(input$save_item, {
       iv_item$enable()
@@ -859,7 +859,7 @@ reporting_effort_items_server <- function(id) {
           title_id <- process_text_element(input$tlf_title, "title")
           pop_id <- process_text_element(input$tlf_population, "population_set")
           ich_id <- process_text_element(input$tlf_ich, "ich_category")
-          item_data <- list(
+        item_data <- list(
             item_type = "TLF",
             item_subtype = input$tlf_subtype,
             item_code = item_code,

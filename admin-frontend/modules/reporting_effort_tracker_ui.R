@@ -286,11 +286,39 @@ reporting_effort_tracker_ui <- function(id) {
               div(
                 style = "padding: 10px 0;",
                 uiOutput(ns("tracker_error_msg")),
-                
-                # DataTable container with fixed height
+
+                # Reporting Effort selector (same style as items module)
                 div(
-                  style = "height: 600px; overflow-y: auto;",
-                  DTOutput(ns("tracker_table"))
+                  id = ns("effort_selector_wrapper"),
+                  class = "effort-selector-wrapper mb-3",
+                  div(
+                    class = "d-flex align-items-center flex-wrap gap-2",
+                    tags$label("Select Reporting Effort", `for` = ns("selected_reporting_effort"), class = "me-2 mb-0 fw-semibold"),
+                    selectInput(ns("selected_reporting_effort"), NULL, choices = list("Select a Reporting Effort" = ""), width = "520px")
+                  )
+                ),
+
+                # Three trackers: TLF, SDTM, ADaM
+                navset_card_pill(
+                  id = ns("tracker_tabs"),
+                  nav_panel(
+                    "TLF Tracker",
+                    value = "tlf",
+                    div(class = "mb-2", uiOutput(ns("effort_label_tlf"))),
+                    div(style = "height: 560px; overflow-y: auto;", DTOutput(ns("tracker_table_tlf")))
+                  ),
+                  nav_panel(
+                    "SDTM Tracker",
+                    value = "sdtm",
+                    div(class = "mb-2", uiOutput(ns("effort_label_sdtm"))),
+                    div(style = "height: 560px; overflow-y: auto;", DTOutput(ns("tracker_table_sdtm")))
+                  ),
+                  nav_panel(
+                    "ADaM Tracker",
+                    value = "adam",
+                    div(class = "mb-2", uiOutput(ns("effort_label_adam"))),
+                    div(style = "height: 560px; overflow-y: auto;", DTOutput(ns("tracker_table_adam")))
+                  )
                 )
               )
             )
@@ -299,7 +327,7 @@ reporting_effort_tracker_ui <- function(id) {
       )
     ),
     
-    # JavaScript for dropdown clicks
+    # JavaScript for dropdown clicks and row actions
     tags$script(HTML(sprintf("
       document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('%s').addEventListener('click', function(e) {
@@ -322,13 +350,25 @@ reporting_effort_tracker_ui <- function(id) {
           e.preventDefault();
           Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
         });
+
+        // Delegate clicks for inline row actions in all tracker tables
+        document.addEventListener('click', function(e) {
+          var target = e.target;
+          if (target && target.classList.contains('pearl-tracker-action')) {
+            e.preventDefault();
+            var id = target.getAttribute('data-id');
+            var action = target.getAttribute('data-action');
+            Shiny.setInputValue('%s', { id: id, action: action, nonce: Math.random() }, {priority: 'event'});
+          }
+        });
       });
     ", 
     ns("bulk_assign_btn"), ns("bulk_assign_clicked"),
     ns("bulk_status_btn"), ns("bulk_status_clicked"),
     ns("workload_summary_btn"), ns("workload_summary_clicked"),
     ns("export_tracker_btn"), ns("export_tracker_clicked"),
-    ns("import_tracker_btn"), ns("import_tracker_clicked")
+    ns("import_tracker_btn"), ns("import_tracker_clicked"),
+    ns("row_action")
     )))
   )
 }
