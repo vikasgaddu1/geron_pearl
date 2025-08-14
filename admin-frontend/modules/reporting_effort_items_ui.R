@@ -26,14 +26,34 @@ reporting_effort_items_ui <- function(id) {
           
           # Header
           card_header(
-            class = "d-flex justify-content-between align-items-center",
+            class = "d-flex flex-column gap-2",
+            # Row 1: title + actions (keeps buttons from getting cramped)
             div(
-              tags$h4(bs_icon("list-task"), " Reporting Effort Items", class = "mb-0 text-primary"),
-              tags$small("Manage TLF and Dataset items in reporting efforts", class = "text-muted")
+              class = "d-flex justify-content-between align-items-center",
+              div(
+                tags$h4(bs_icon("list-task"), " Reporting Effort Items", class = "mb-0 text-primary"),
+                tags$small("Manage TLF and Dataset items in reporting efforts", class = "text-muted")
+              ),
+              div(
+                class = "d-flex gap-2 align-items-center",
+                actionButton(
+                  ns("refresh_btn"),
+                  "Refresh",
+                  icon = icon("sync"),
+                  class = "btn btn-primary btn-sm",
+                  title = "Refresh the items data"
+                ),
+                actionButton(
+                  ns("toggle_add_item"),
+                  tagList(icon("plus"), " Add Item"),
+                  class = "btn btn-success btn-sm",
+                  title = "Add a new item to the selected reporting effort"
+                )
+              )
             ),
+            # Row 2: Current Reporting Effort selector on its own line
             div(
-              class = "d-flex gap-2 align-items-center",
-              # Reporting Effort selector with prominent label
+              class = "d-flex align-items-center gap-2",
               div(
                 id = ns("effort_selector_wrapper"),
                 class = "d-flex align-items-center gap-2 effort-selector-wrapper",
@@ -44,7 +64,7 @@ reporting_effort_items_ui <- function(id) {
                   " Current Reporting Effort:"
                 ),
                 div(
-                  style = "width: 420px;",
+                  style = "width: 520px;",
                   title = "All items will be added to this reporting effort",
                   selectizeInput(
                     ns("selected_reporting_effort"),
@@ -56,19 +76,6 @@ reporting_effort_items_ui <- function(id) {
                     )
                   )
                 )
-              ),
-              actionButton(
-                ns("refresh_btn"),
-                "Refresh",
-                icon = icon("sync"),
-                class = "btn btn-primary btn-sm",
-                title = "Refresh the items data"
-              ),
-              actionButton(
-                ns("toggle_add_item"),
-                tagList(icon("plus"), " Add Item"),
-                class = "btn btn-success btn-sm",
-                title = "Add a new item to the selected reporting effort"
               )
             )
           ),

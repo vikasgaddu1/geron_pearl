@@ -251,10 +251,20 @@ reporting_effort_items_server <- function(id) {
       }
     }
     
+    # Ensure text elements list available (reuse from package module pattern)
+    text_elements_list <- reactiveVal(list())
+    load_text_elements <- function() {
+      result <- get_text_elements()
+      if (!"error" %in% names(result)) {
+        text_elements_list(result)
+      }
+    }
+    
     # Load data on initialization
     observe({
       load_reporting_efforts()
       load_packages()
+      load_text_elements()
     })
     
     # Watch for reporting effort selection changes
@@ -713,7 +723,20 @@ reporting_effort_items_server <- function(id) {
       library(shinyWidgets)
       # Determine active tab from UI navset via input$item_tabs in session (default tlf)
       tab <- input$item_tabs %||% "tlf"
-      # Prepare select choices for TLF/Dataset specifics
+      # Prepare text element choices by type
+      elements <- text_elements_list()
+      title_choices <- c()
+      population_choices <- c()
+      ich_choices <- c()
+      for (elem in elements) {
+        if (elem$type == "title") {
+          title_choices[elem$label] <- elem$id
+        } else if (elem$type == "population_set") {
+          population_choices[elem$label] <- elem$id
+        } else if (elem$type == "ich_category") {
+          ich_choices[elem$label] <- elem[id]
+        }
+      }
       if (tab == "tlf") {
         card(
           class = "border border-2",
@@ -734,18 +757,30 @@ reporting_effort_items_server <- function(id) {
             ),
             div(
               class = "mb-2",
-              tags$label("Title (Text Element ID)", class = "form-label"),
-              numericInput(ns("tlf_title"), label = NULL, value = NA, min = 1)
+              tags$label("Title", class = "form-label fw-bold"),
+              selectizeInput(
+                ns("tlf_title"), label = NULL,
+                choices = title_choices,
+                options = list(create = TRUE, placeholder = "Select or create new title...", maxItems = 1)
+              )
             ),
             div(
               class = "mb-2",
-              tags$label("Population Flag (Text Element ID)", class = "form-label"),
-              numericInput(ns("tlf_population"), label = NULL, value = NA, min = 1)
+              tags$label("Population Flag", class = "form-label"),
+              selectizeInput(
+                ns("tlf_population"), label = NULL,
+                choices = population_choices,
+                options = list(create = TRUE, placeholder = "Select or create new population...", maxItems = 1)
+              )
             ),
             div(
               class = "mb-2",
-              tags$label("ICH Category (Text Element ID)", class = "form-label"),
-              numericInput(ns("tlf_ich"), label = NULL, value = NA, min = 1)
+              tags$label("ICH Category", class = "form-label"),
+              selectizeInput(
+                ns("tlf_ich"), label = NULL,
+                choices = ich_choices,
+                options = list(create = TRUE, placeholder = "Select or create new ICH category...", maxItems = 1)
+              )
             ),
             layout_columns(
               col_widths = c(6, 6),
@@ -808,15 +843,31 @@ reporting_effort_items_server <- function(id) {
         # Determine current tab by which inputs exist
         is_tlf <- !is.null(input$tlf_subtype)
         if (is_tlf) {
+          # Process text elements (create when user typed new)
+          process_text_element <- function(value, type) {
+            if (is.null(value) || is.na(value) || value == "") return(NULL)
+            # If numeric ID chosen
+            if (grepl("^[0-9]+$", value)) return(as.integer(value))
+            # Otherwise create via API
+            res <- create_text_element(list(type = type, label = value))
+            if (!"error" %in% names(res)) {
+              load_text_elements()
+              return(res$id)
+            }
+            return(NULL)
+          }
+          title_id <- process_text_element(input$tlf_title, "title")
+          pop_id <- process_text_element(input$tlf_population, "population_set")
+          ich_id <- process_text_element(input$tlf_ich, "ich_category")
           item_data <- list(
             item_type = "TLF",
             item_subtype = input$tlf_subtype,
             item_code = item_code,
             is_active = TRUE,
             tlf_details = list(
-              title_id = if (!is.na(input$tlf_title)) as.integer(input$tlf_title) else NULL,
-              population_flag_id = if (!is.na(input$tlf_population)) as.integer(input$tlf_population) else NULL,
-              ich_category_id = if (!is.na(input$tlf_ich)) as.integer(input$tlf_ich) else NULL
+              title_id = title_id,
+              population_flag_id = pop_id,
+              ich_category_id = ich_id
             ),
             footnotes = list(),
             acronyms = list()
