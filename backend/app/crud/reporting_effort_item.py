@@ -596,6 +596,7 @@ class ReportingEffortItemCRUD:
                 skipped_items.append({
                     'item_code': src_item.item_code,
                     'item_type': src_item.item_type.value,
+                    'item_subtype': src_item.item_subtype or '',
                     'reason': 'Duplicate item already exists'
                 })
                 logger.info(f"Skipped duplicate {src_item.item_type.value} item: {src_item.item_code}")
@@ -606,6 +607,7 @@ class ReportingEffortItemCRUD:
             'created_items': created_items,
             'skipped_items': skipped_items,
             'summary': {
+                'total_attempted': len(source_items),
                 'created_count': len(created_items),
                 'skipped_count': len(skipped_items),
                 'success': True
