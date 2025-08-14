@@ -290,6 +290,94 @@ packages_simple_server <- function(id) {
       load_packages_data()
     })
     
+    # Export to Excel button
+    observeEvent(input$export_excel, {
+      # Check if openxlsx is available
+      if (!requireNamespace("openxlsx", quietly = TRUE)) {
+        showNotification("Please install the 'openxlsx' package to export to Excel", type = "error")
+        return()
+      }
+      
+      # Get all packages data
+      packages <- packages_data()
+      
+      if (nrow(packages) == 0) {
+        showNotification("No packages to export", type = "warning")
+        return()
+      }
+      
+      # Create workbook
+      wb <- openxlsx::createWorkbook()
+      
+      # Add Packages sheet
+      openxlsx::addWorksheet(wb, "Packages")
+      
+      # Prepare packages data for export
+      export_packages <- data.frame(
+        ID = packages$ID,
+        `Package Name` = packages$`Package Name`,
+        check.names = FALSE
+      )
+      
+      openxlsx::writeData(wb, "Packages", export_packages)
+      
+      # Add metadata sheet
+      openxlsx::addWorksheet(wb, "Export Info")
+      metadata <- data.frame(
+        Property = c("Export Date", "Total Packages", "Exported By"),
+        Value = c(
+          format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+          nrow(packages),
+          "PEARL System"
+        )
+      )
+      openxlsx::writeData(wb, "Export Info", metadata)
+      
+      # Style the workbook
+      headerStyle <- openxlsx::createStyle(
+        fontSize = 12,
+        fontColour = "#FFFFFF",
+        fgFill = "#4472C4",
+        halign = "center",
+        valign = "center",
+        textDecoration = "bold"
+      )
+      
+      # Apply styles to all sheets
+      for (sheet in c("Packages", "Export Info")) {
+        openxlsx::addStyle(wb, sheet, headerStyle, rows = 1, cols = 1:10, gridExpand = TRUE)
+      }
+      
+      # Save the file
+      filename <- paste0("PEARL_Packages_Export_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".xlsx")
+      filepath <- file.path(tempdir(), filename)
+      openxlsx::saveWorkbook(wb, filepath, overwrite = TRUE)
+      
+      # Download the file
+      showModal(modalDialog(
+        title = "Export Complete",
+        paste("Excel file has been generated:", filename),
+        br(),
+        downloadButton(ns("download_excel"), "Download Excel File"),
+        footer = modalButton("Close")
+      ))
+      
+      # Store filepath for download handler
+      session$userData$export_filepath <- filepath
+    })
+    
+    # Download handler for Excel export
+    output$download_excel <- downloadHandler(
+      filename = function() {
+        paste0("PEARL_Packages_Export_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".xlsx")
+      },
+      content = function(file) {
+        if (!is.null(session$userData$export_filepath)) {
+          file.copy(session$userData$export_filepath, file)
+        }
+      }
+    )
+    
     # Save edit modal
     observeEvent(input$save_edit_modal, {
       package_id <- editing_package_id()

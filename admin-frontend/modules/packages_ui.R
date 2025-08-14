@@ -30,9 +30,10 @@ packages_ui <- function(id) {
                 class = "btn btn-primary btn-sm",
                 title = "Refresh the packages list"
               ),
-              input_task_button(
+              actionButton(
                 ns("export_excel"),
-                tagList(bs_icon("file-earmark-excel"), "Export to Excel"),
+                label = "Export to Excel",
+                icon = icon("file-excel"),
                 class = "btn btn-info btn-sm",
                 title = "Export all packages to Excel"
               ),

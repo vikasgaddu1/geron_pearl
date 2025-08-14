@@ -41,6 +41,13 @@ packages_simple_ui <- function(id) {
                 title = "Refresh the packages data"
               ),
               actionButton(
+                ns("export_excel"),
+                "Export to Excel",
+                icon = icon("file-excel"),
+                class = "btn btn-info btn-sm",
+                title = "Export all packages to Excel"
+              ),
+              actionButton(
                 ns("toggle_add_package"),
                 "Add Package",
                 icon = icon("plus"),
