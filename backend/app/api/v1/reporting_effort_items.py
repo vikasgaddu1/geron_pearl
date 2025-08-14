@@ -1023,18 +1023,22 @@ async def copy_items_from_package(
                 detail=f"Failed to copy items from package: {error_msg}"
             )
 
-@router.post("/{reporting_effort_id}/copy-from-reporting-effort", response_model=List[ReportingEffortItemWithDetails])
+@router.post("/{reporting_effort_id}/copy-from-reporting-effort", response_model=CopyOperationResponse)
 async def copy_items_from_reporting_effort(
     *,
     db: AsyncSession = Depends(get_db),
     request: Request,
     reporting_effort_id: int,
     copy_request: CopyFromReportingEffortRequest,
-) -> List[ReportingEffortItemWithDetails]:
+) -> CopyOperationResponse:
     """
-    Copy items from another reporting effort.
+    Copy items from another reporting effort with graceful duplicate handling.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
+        logger.info(f"Starting copy operation: source_reporting_effort_id={copy_request.source_reporting_effort_id}, target_reporting_effort_id={reporting_effort_id}")
         # Verify target reporting effort exists
         db_effort = await reporting_effort.get(db, id=reporting_effort_id)
         if not db_effort:
@@ -1051,14 +1055,21 @@ async def copy_items_from_reporting_effort(
                 detail="Source reporting effort not found"
             )
         
-        created_items = await reporting_effort_item.copy_from_reporting_effort(
+        logger.info(f"Calling copy_from_reporting_effort with validated inputs")
+        copy_result = await reporting_effort_item.copy_from_reporting_effort(
             db,
             target_reporting_effort_id=reporting_effort_id,
             source_reporting_effort_id=copy_request.source_reporting_effort_id,
             item_ids=copy_request.item_ids
         )
+        logger.info(f"Copy operation completed successfully: {copy_result['summary']}")
         
-        print(f"Copied {len(created_items)} items from reporting effort {copy_request.source_reporting_effort_id} to reporting effort {reporting_effort_id}")
+        print(f"Copy operation results: {copy_result['summary']['created_count']} created, {copy_result['summary']['skipped_count']} skipped")
+        
+        # Process results for audit logging and WebSocket broadcast
+        created_items = copy_result['created_items']
+        skipped_items = copy_result['skipped_items']
+        summary = copy_result['summary']
         
         # Log audit trail
         try:
@@ -1072,8 +1083,10 @@ async def copy_items_from_reporting_effort(
                     "copy_operation": {
                         "source_reporting_effort_id": copy_request.source_reporting_effort_id,
                         "source_item_ids": copy_request.item_ids,
-                        "copied_count": len(created_items),
-                        "created_item_ids": [item.id for item in created_items]
+                        "created_count": summary['created_count'],
+                        "skipped_count": summary['skipped_count'],
+                        "created_item_ids": [item.id for item in created_items],
+                        "skipped_items": skipped_items
                     }
                 },
                 ip_address=request.client.host if request.client else None,
@@ -1089,12 +1102,32 @@ async def copy_items_from_reporting_effort(
             except Exception:
                 pass
         
-        return created_items
+        return CopyOperationResponse(
+            created_items=created_items,
+            skipped_items=skipped_items,
+            summary=summary
+        )
         
+    except ValueError as e:
+        error_msg = str(e)
+        logger.error(f"Validation error during copy from reporting effort: {error_msg}")
+        if "already exists" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Duplicate item conflict: {error_msg}"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Validation error: {error_msg}"
+            )
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
+        
+        error_msg = str(e)
+        logger.error(f"Unexpected error during copy from reporting effort: {error_msg}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to copy items from reporting effort: {str(e)}"
+            detail=f"Failed to copy items from reporting effort: {error_msg}"
         )

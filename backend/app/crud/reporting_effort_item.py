@@ -484,9 +484,9 @@ class ReportingEffortItemCRUD:
         target_reporting_effort_id: int,
         source_reporting_effort_id: int,
         item_ids: Optional[List[int]] = None
-    ) -> List[ReportingEffortItem]:
+    ) -> Dict[str, Any]:
         """
-        Copy items from another reporting effort.
+        Copy items from another reporting effort with graceful duplicate handling.
         
         Args:
             db: Database session
@@ -495,8 +495,10 @@ class ReportingEffortItemCRUD:
             item_ids: Optional list of specific item IDs to copy (None = copy all)
         
         Returns:
-            List of created reporting effort items
+            Dictionary with created_items, skipped_items, and summary
         """
+        import logging
+        logger = logging.getLogger(__name__)
         # Get source items
         source_items = await self.get_by_reporting_effort(
             db, 
@@ -508,6 +510,10 @@ class ReportingEffortItemCRUD:
             source_items = [item for item in source_items if item.id in item_ids]
         
         created_items = []
+        skipped_items = []
+        
+        logger.info(f"Starting copy from reporting effort {source_reporting_effort_id} to {target_reporting_effort_id}, processing {len(source_items)} items")
+        
         for src_item in source_items:
             # Create new item - not used anymore, can be removed
             # item_data = ReportingEffortItemCreate(...)
@@ -573,15 +579,38 @@ class ReportingEffortItemCRUD:
                 acronyms=acronyms
             )
             
-            # Create item with details
+            # Create item with details, skipping duplicates
+            logger.info(f"Attempting to create {src_item.item_type.value} item with code: {src_item.item_code}")
             created_item = await self.create_with_details(
                 db,
                 obj_in=item_data_with_details,
-                auto_create_tracker=True
+                auto_create_tracker=True,
+                skip_duplicates=True
             )
-            created_items.append(created_item)
+            
+            if created_item:
+                created_items.append(created_item)
+                logger.info(f"Successfully created {src_item.item_type.value} item: {src_item.item_code}")
+            else:
+                # Item was skipped due to duplicate
+                skipped_items.append({
+                    'item_code': src_item.item_code,
+                    'item_type': src_item.item_type.value,
+                    'reason': 'Duplicate item already exists'
+                })
+                logger.info(f"Skipped duplicate {src_item.item_type.value} item: {src_item.item_code}")
         
-        return created_items
+        logger.info(f"Copy completed: {len(created_items)} created, {len(skipped_items)} skipped")
+        
+        return {
+            'created_items': created_items,
+            'skipped_items': skipped_items,
+            'summary': {
+                'created_count': len(created_items),
+                'skipped_count': len(skipped_items),
+                'success': True
+            }
+        }
     
     async def check_deletion_protection(
         self,
