@@ -88,54 +88,100 @@ reporting_effort_items_server <- function(id) {
     # Load items data for selected reporting effort
     load_items_data <- function() {
       effort_id <- current_reporting_effort_id()
+      cat("DEBUG: load_items_data called with effort_id:", effort_id, "\n")
+      
       if (is.null(effort_id) || effort_id == "") {
+        cat("DEBUG: No effort_id, setting empty data frame\n")
         items_data(data.frame())
         return()
       }
       
+      cat("DEBUG: Calling API for effort_id:", effort_id, "\n")
       result <- get_reporting_effort_items_by_effort(effort_id)
+      
       if ("error" %in% names(result)) {
+        cat("DEBUG: API returned error:", result$error, "\n")
         showNotification(paste("Error loading items:", result$error), type = "error")
         items_data(data.frame())
       } else {
-        df <- convert_items_to_df(result)
-        items_data(df)
+        cat("DEBUG: API call successful, result length:", length(result), "\n")
+        if (length(result) > 0) {
+          cat("DEBUG: First item keys:", names(result[[1]]), "\n")
+          cat("DEBUG: First item type:", result[[1]]$item_type, "code:", result[[1]]$item_code, "\n")
+        }
+        
+        # Split items by type
+        tlf_items <- list()
+        dataset_items <- list()
+        
+        for (item in result) {
+          if (item$item_type == "TLF") {
+            tlf_items <- append(tlf_items, list(item))
+          } else if (item$item_type == "Dataset") {
+            dataset_items <- append(dataset_items, list(item))
+          }
+        }
+        
+        cat("DEBUG: Split items - TLF:", length(tlf_items), "Dataset:", length(dataset_items), "\n")
+        
+        # Convert to data frames separately
+        tlf_df <- convert_tlf_to_df(tlf_items)
+        dataset_df <- convert_dataset_to_df(dataset_items)
+        
+        cat("DEBUG: TLF data frame - rows:", nrow(tlf_df), "cols:", ncol(tlf_df), "\n")
+        cat("DEBUG: Dataset data frame - rows:", nrow(dataset_df), "cols:", ncol(dataset_df), "\n")
+        
+        # Store both data frames (for backward compatibility, combine them)
+        combined_df <- list()
+        combined_df$tlf_items <- tlf_df
+        combined_df$dataset_items <- dataset_df
+        
+        items_data(combined_df)
         last_update(Sys.time())
+        cat("DEBUG: Data updated successfully\n")
       }
     }
     
-    # Convert API data to data frame
-    convert_items_to_df <- function(items_list) {
-      if (length(items_list) > 0) {
+    # Convert TLF items to data frame (matching Package Items format)
+    convert_tlf_to_df <- function(items) {
+      if (length(items) > 0) {
         df <- data.frame(
-          ID = sapply(items_list, function(x) x$id),
-          Type = sapply(items_list, function(x) x$item_type),
-          Subtype = sapply(items_list, function(x) x$item_subtype),
-          Code = sapply(items_list, function(x) x$item_code),
-          Title = sapply(items_list, function(x) {
-            if (x$item_type == "TLF" && !is.null(x$tlf_details)) {
-              # For TLF items, show title_id for now (TODO: resolve to actual title text)
-              paste0("Title ID: ", x$tlf_details$title_id %||% "N/A")
-            } else if (x$item_type == "Dataset" && !is.null(x$dataset_details)) {
-              # For Dataset items, use the label field 
-              x$dataset_details$label %||% ""
+          ID = sapply(items, function(x) x$id),
+          Type = sapply(items, function(x) x$item_subtype %||% ""),
+          `Title Key` = sapply(items, function(x) x$item_code %||% ""),
+          Title = sapply(items, function(x) {
+            if (!is.null(x$tlf_details) && !is.null(x$tlf_details$title_id)) {
+              # For now show Title ID (TODO: resolve to actual title text from text elements)
+              paste0("Title ID: ", x$tlf_details$title_id)
             } else {
               ""
             }
           }),
-          Status = sapply(items_list, function(x) {
-            if (x$item_type == "TLF" && !is.null(x$tlf_details)) {
+          Population = sapply(items, function(x) {
+            if (!is.null(x$tlf_details) && !is.null(x$tlf_details$population_flag_id)) {
+              paste0("Pop ID: ", x$tlf_details$population_flag_id)
+            } else {
+              ""
+            }
+          }),
+          `ICH Category` = sapply(items, function(x) {
+            if (!is.null(x$tlf_details) && !is.null(x$tlf_details$ich_category_id)) {
+              paste0("ICH ID: ", x$tlf_details$ich_category_id)
+            } else {
+              ""
+            }
+          }),
+          Status = sapply(items, function(x) {
+            if (!is.null(x$tlf_details)) {
               status_parts <- c()
               if (isTRUE(x$tlf_details$mock_available)) status_parts <- c(status_parts, "Mock")
               if (isTRUE(x$tlf_details$asr_ready)) status_parts <- c(status_parts, "ASR")
               if (length(status_parts) > 0) paste(status_parts, collapse = ", ") else "Draft"
-            } else if (x$item_type == "Dataset" && !is.null(x$dataset_details)) {
-              if (isTRUE(x$dataset_details$locked)) "Locked" else "Unlocked"
             } else {
-              "Unknown"
+              "Draft"
             }
           }),
-          Actions = sapply(items_list, function(x) x$id),
+          Actions = sapply(items, function(x) x$id),
           stringsAsFactors = FALSE,
           check.names = FALSE
         )
@@ -144,9 +190,62 @@ reporting_effort_items_server <- function(id) {
         return(data.frame(
           ID = character(0),
           Type = character(0),
-          Subtype = character(0),
-          Code = character(0),
+          `Title Key` = character(0),
           Title = character(0),
+          Population = character(0),
+          `ICH Category` = character(0),
+          Status = character(0),
+          Actions = character(0),
+          stringsAsFactors = FALSE,
+          check.names = FALSE
+        ))
+      }
+    }
+    
+    # Convert Dataset items to data frame (matching Package Items format)
+    convert_dataset_to_df <- function(items) {
+      if (length(items) > 0) {
+        df <- data.frame(
+          ID = sapply(items, function(x) x$id),
+          Type = sapply(items, function(x) x$item_subtype %||% ""),
+          `Dataset Name` = sapply(items, function(x) x$item_code %||% ""),
+          Label = sapply(items, function(x) {
+            if (!is.null(x$dataset_details) && !is.null(x$dataset_details$label)) {
+              x$dataset_details$label
+            } else {
+              ""
+            }
+          }),
+          `Run Order` = sapply(items, function(x) {
+            if (!is.null(x$dataset_details) && !is.null(x$dataset_details$sorting_order)) {
+              x$dataset_details$sorting_order
+            } else {
+              ""
+            }
+          }),
+          Status = sapply(items, function(x) {
+            if (!is.null(x$dataset_details)) {
+              if (isTRUE(x$dataset_details$locked)) "Locked" else "Unlocked"
+            } else {
+              "Unlocked"
+            }
+          }),
+          Actions = sapply(items, function(x) x$id),
+          stringsAsFactors = FALSE,
+          check.names = FALSE
+        )
+        
+        # Sort by Run Order
+        df <- df[order(as.numeric(df$`Run Order`)), ]
+        
+        return(df)
+      } else {
+        return(data.frame(
+          ID = character(0),
+          Type = character(0),
+          `Dataset Name` = character(0),
+          Label = character(0),
+          `Run Order` = character(0),
           Status = character(0),
           Actions = character(0),
           stringsAsFactors = FALSE,
@@ -173,17 +272,27 @@ reporting_effort_items_server <- function(id) {
       }
     })
     
-    # Render items table
-    output$items_table <- DT::renderDataTable({
-      data <- items_data()
+    # Render TLF items table
+    output$tlf_table <- DT::renderDataTable({
+      data_list <- items_data()
+      cat("DEBUG: Rendering TLF table\n")
       
-      if (nrow(data) == 0) {
+      # Get TLF data from the list structure
+      tlf_data <- if (is.list(data_list) && !is.null(data_list$tlf_items)) {
+        data_list$tlf_items
+      } else {
+        data.frame()
+      }
+      cat("DEBUG: TLF data rows:", nrow(tlf_data), "\n")
+      
+      if (nrow(tlf_data) == 0) {
+        cat("DEBUG: No TLF data - rendering empty TLF table\n")
         empty_df <- data.frame(
           Type = character(0),
-          Subtype = character(0),
-          Code = character(0),
+          `Title Key` = character(0),
           Title = character(0),
-          Status = character(0),
+          Population = character(0),
+          `ICH Category` = character(0),
           Actions = character(0),
           stringsAsFactors = FALSE, check.names = FALSE
         )
@@ -193,7 +302,7 @@ reporting_effort_items_server <- function(id) {
           options = list(
             dom = 'rtip',
             pageLength = 25,
-            language = list(emptyTable = "No items found for this reporting effort"),
+            language = list(emptyTable = "No TLF items found for this reporting effort"),
             columnDefs = list(
               list(targets = 5, searchable = FALSE, orderable = FALSE, width = '100px')
             )
@@ -203,8 +312,10 @@ reporting_effort_items_server <- function(id) {
           rownames = FALSE
         )
       } else {
-        # Add action buttons
-        data$Actions <- sapply(data$ID, function(item_id) {
+        cat("DEBUG: Rendering TLF table with data, rows:", nrow(tlf_data), "columns:", names(tlf_data), "\n")
+        
+        # Add action buttons  
+        tlf_data$Actions <- sapply(tlf_data$ID, function(item_id) {
           sprintf(
             '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="%s" title="Edit item"><i class="fa fa-pencil"></i></button>
              <button class="btn btn-danger btn-sm" data-action="delete" data-id="%s" title="Delete item"><i class="fa fa-trash"></i></button>',
@@ -212,8 +323,12 @@ reporting_effort_items_server <- function(id) {
           )
         })
         
-        # Remove ID column for display
-        display_df <- data[, c("Type", "Subtype", "Code", "Title", "Status", "Actions")]
+        # Remove ID column for display (matching Package Items format)
+        display_df <- tlf_data[, c("Type", "Title Key", "Title", "Population", "ICH Category", "Status", "Actions")]
+        cat("DEBUG: TLF display data frame created, rows:", nrow(display_df), "columns:", names(display_df), "\n")
+        if (nrow(display_df) > 0) {
+          cat("DEBUG: First TLF display row:", paste(display_df[1,], collapse = " | "), "\n")
+        }
         
         datatable(
           display_df,
@@ -246,7 +361,101 @@ reporting_effort_items_server <- function(id) {
                   Shiny.setInputValue('%s', {action: 'delete', id: id}, {priority: 'event'});
                 });
               }",
-              ns("items_table"), ns("item_action_click"), ns("item_action_click")))
+              ns("tlf_table"), ns("item_action_click"), ns("item_action_click")))
+          ),
+          escape = FALSE,
+          selection = 'none',
+          rownames = FALSE
+        ) %>%
+          DT::formatStyle(
+            columns = 1:7,
+            fontSize = '14px'
+          )
+      }
+    })
+    
+    # Render Dataset items table
+    output$dataset_table <- DT::renderDataTable({
+      data_list <- items_data()
+      cat("DEBUG: Rendering Dataset table\n")
+      
+      # Get Dataset data from the list structure
+      dataset_data <- if (is.list(data_list) && !is.null(data_list$dataset_items)) {
+        data_list$dataset_items
+      } else {
+        data.frame()
+      }
+      cat("DEBUG: Dataset data rows:", nrow(dataset_data), "\n")
+      
+      if (nrow(dataset_data) == 0) {
+        cat("DEBUG: No Dataset data - rendering empty Dataset table\n")
+        empty_df <- data.frame(
+          Type = character(0),
+          `Dataset Name` = character(0),
+          Label = character(0),
+          `Run Order` = character(0),
+          Status = character(0),
+          Actions = character(0),
+          stringsAsFactors = FALSE, check.names = FALSE
+        )
+        
+        datatable(
+          empty_df,
+          options = list(
+            dom = 'rtip',
+            pageLength = 25,
+            language = list(emptyTable = "No Dataset items found for this reporting effort"),
+            columnDefs = list(
+              list(targets = 5, searchable = FALSE, orderable = FALSE, width = '100px')
+            )
+          ),
+          escape = FALSE,
+          selection = 'none',
+          rownames = FALSE
+        )
+      } else {
+        cat("DEBUG: Rendering Dataset table with data, rows:", nrow(dataset_data), "columns:", names(dataset_data), "\n")
+        
+        # Add action buttons  
+        dataset_data$Actions <- sapply(dataset_data$ID, function(item_id) {
+          sprintf(
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="%s" title="Edit item"><i class="fa fa-pencil"></i></button>
+             <button class="btn btn-danger btn-sm" data-action="delete" data-id="%s" title="Delete item"><i class="fa fa-trash"></i></button>',
+            item_id, item_id
+          )
+        })
+        
+        # Remove ID column for display (matching Package Items format)
+        display_df <- dataset_data[, c("Type", "Dataset Name", "Label", "Run Order", "Status", "Actions")]
+        cat("DEBUG: Dataset display data frame created, rows:", nrow(display_df), "columns:", names(display_df), "\n")
+        if (nrow(display_df) > 0) {
+          cat("DEBUG: First Dataset display row:", paste(display_df[1,], collapse = " | "), "\n")
+        }
+        
+        datatable(
+          display_df,
+          filter = 'top',
+          options = list(
+            dom = 'frtip',
+            search = list(
+              regex = TRUE,
+              caseInsensitive = TRUE,
+              search = "",
+              searchPlaceholder = "Search (regex supported):"
+            ),
+            drawCallback = JS(sprintf(
+              "function(){
+                var tbl = $('#%s');
+                tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
+                  var id = $(this).attr('data-id');
+                  Shiny.setInputValue('%s', {action: 'edit', id: id}, {priority: 'event'});
+                });
+                tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(){
+                  var id = $(this).attr('data-id');
+                  Shiny.setInputValue('%s', {action: 'delete', id: id}, {priority: 'event'});
+                });
+              }",
+              ns("dataset_table"), ns("item_action_click"), ns("item_action_click")))
           ),
           escape = FALSE,
           selection = 'none',
