@@ -201,3 +201,27 @@ class CopyFromReportingEffortRequest(BaseModel):
     """Request schema for copying items from another reporting effort."""
     source_reporting_effort_id: int = Field(..., gt=0, description="ID of the source reporting effort")
     item_ids: Optional[List[int]] = Field(None, description="Specific item IDs to copy (None = copy all)")
+
+
+# Copy operation response schemas
+class SkippedItem(BaseModel):
+    """Schema for items that were skipped during copy."""
+    item_type: str = Field(..., description="Type of item (TLF or Dataset)")
+    item_subtype: str = Field(..., description="Subtype of item")
+    item_code: str = Field(..., description="Code of the item")
+    reason: str = Field(..., description="Reason why item was skipped")
+
+
+class CopyOperationSummary(BaseModel):
+    """Summary of copy operation results."""
+    total_attempted: int = Field(..., description="Total number of items attempted to copy")
+    created_count: int = Field(..., description="Number of items successfully created")
+    skipped_count: int = Field(..., description="Number of items skipped")
+    success: bool = Field(..., description="Whether the operation completed successfully")
+
+
+class CopyOperationResponse(BaseModel):
+    """Response schema for copy operations."""
+    created_items: List[ReportingEffortItemWithDetails] = Field(default_factory=list, description="Items that were successfully created")
+    skipped_items: List[SkippedItem] = Field(default_factory=list, description="Items that were skipped")
+    summary: CopyOperationSummary = Field(..., description="Summary of the operation")

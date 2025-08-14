@@ -56,8 +56,9 @@ class ReportingEffortItemCRUD:
         db: AsyncSession,
         *,
         obj_in: ReportingEffortItemCreateWithDetails,
-        auto_create_tracker: bool = True
-    ) -> ReportingEffortItem:
+        auto_create_tracker: bool = True,
+        skip_duplicates: bool = False
+    ) -> Optional[ReportingEffortItem]:
         """
         Create a reporting effort item with all related details.
         
@@ -65,9 +66,10 @@ class ReportingEffortItemCRUD:
             db: Database session
             obj_in: Item creation data with details
             auto_create_tracker: Whether to auto-create tracker entry
+            skip_duplicates: If True, return None for duplicates instead of raising error
         
         Returns:
-            Created item with all relationships
+            Created item with all relationships, or None if duplicate and skip_duplicates=True
         """
         # Check for duplicate
         existing = await self.get_by_unique_key(
@@ -78,7 +80,11 @@ class ReportingEffortItemCRUD:
             item_code=obj_in.item_code
         )
         if existing:
-            raise ValueError(f"A {obj_in.item_type} with code {obj_in.item_code} already exists in this reporting effort")
+            if skip_duplicates:
+                logger.info(f"Skipping duplicate item: {obj_in.item_type} with code {obj_in.item_code}")
+                return None
+            else:
+                raise ValueError(f"A {obj_in.item_type} with code {obj_in.item_code} already exists in this reporting effort")
         # Create the main reporting effort item
         # With unified str,Enum, we can pass directly
         import logging
@@ -334,7 +340,7 @@ class ReportingEffortItemCRUD:
         reporting_effort_id: int,
         package_id: int,
         item_ids: Optional[List[int]] = None
-    ) -> List[ReportingEffortItem]:
+    ) -> Dict[str, Any]:
         """
         Copy items from a package to a reporting effort.
         
@@ -345,7 +351,7 @@ class ReportingEffortItemCRUD:
             item_ids: Optional list of specific item IDs to copy (None = copy all)
         
         Returns:
-            List of created reporting effort items
+            Dictionary with 'created_items', 'skipped_items', and 'summary' keys
         """
         from app.crud.package_item import package_item
         
@@ -357,6 +363,8 @@ class ReportingEffortItemCRUD:
             package_items = [item for item in package_items if item.id in item_ids]
         
         created_items = []
+        skipped_items = []
+        
         for pkg_item in package_items:
             # Create reporting effort item - not used anymore, can be removed
             # item_data = ReportingEffortItemCreate(...)
@@ -432,19 +440,40 @@ class ReportingEffortItemCRUD:
             logger.info(f"Schema validation passed - item_type: '{item_data_with_details.item_type}' (type: {type(item_data_with_details.item_type)})")
             
             try:
-                # Create item with details
+                # Create item with details, skipping duplicates
                 created_item = await self.create_with_details(
                     db,
                     obj_in=item_data_with_details,
-                    auto_create_tracker=True
+                    auto_create_tracker=True,
+                    skip_duplicates=True
                 )
-                logger.info(f"Successfully created item with ID: {created_item.id}")
-                created_items.append(created_item)
+                
+                if created_item is not None:
+                    logger.info(f"Successfully created item with ID: {created_item.id}")
+                    created_items.append(created_item)
+                else:
+                    logger.info(f"Skipped duplicate item: {pkg_item.item_type.value} with code {pkg_item.item_code}")
+                    skipped_items.append({
+                        'item_type': pkg_item.item_type.value,
+                        'item_subtype': pkg_item.item_subtype,
+                        'item_code': pkg_item.item_code,
+                        'reason': 'already_exists'
+                    })
+                    
             except Exception as create_error:
                 logger.error(f"Error in create_with_details for item {pkg_item.item_code}: {str(create_error)}", exc_info=True)
                 raise
         
-        return created_items
+        return {
+            'created_items': created_items,
+            'skipped_items': skipped_items,
+            'summary': {
+                'total_attempted': len(package_items),
+                'created_count': len(created_items),
+                'skipped_count': len(skipped_items),
+                'success': True
+            }
+        }
     
     async def copy_from_reporting_effort(
         self,

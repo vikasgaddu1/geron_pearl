@@ -18,7 +18,8 @@ from app.schemas.reporting_effort_item import (
     ReportingEffortTlfDetailsCreate,
     ReportingEffortDatasetDetailsCreate,
     CopyFromPackageRequest,
-    CopyFromReportingEffortRequest
+    CopyFromReportingEffortRequest,
+    CopyOperationResponse
 )
 from app.schemas.text_element import TextElementCreate
 from app.models.enums import ItemType, SourceType
@@ -912,14 +913,14 @@ async def bulk_create_dataset_items(
         )
 
 # Copy Operations
-@router.post("/{reporting_effort_id}/copy-from-package", response_model=List[ReportingEffortItemWithDetails])
+@router.post("/{reporting_effort_id}/copy-from-package", response_model=CopyOperationResponse)
 async def copy_items_from_package(
     *,
     db: AsyncSession = Depends(get_db),
     request: Request,
     reporting_effort_id: int,
     copy_request: CopyFromPackageRequest,
-) -> List[ReportingEffortItemWithDetails]:
+) -> CopyOperationResponse:
     """
     Copy items from a package to a reporting effort.
     """
@@ -947,15 +948,15 @@ async def copy_items_from_package(
             )
         
         logger.info(f"Calling copy_from_package with validated inputs")
-        created_items = await reporting_effort_item.copy_from_package(
+        copy_result = await reporting_effort_item.copy_from_package(
             db,
             reporting_effort_id=reporting_effort_id,
             package_id=copy_request.package_id,
             item_ids=copy_request.item_ids
         )
-        logger.info(f"Copy operation completed successfully, created {len(created_items)} items")
+        logger.info(f"Copy operation completed successfully: {copy_result['summary']}")
         
-        print(f"Copied {len(created_items)} items from package {copy_request.package_id} to reporting effort {reporting_effort_id}")
+        print(f"Copy operation results: {copy_result['summary']['created_count']} created, {copy_result['summary']['skipped_count']} skipped")
         
         # Log audit trail
         try:
@@ -969,8 +970,9 @@ async def copy_items_from_package(
                     "copy_operation": {
                         "source_package_id": copy_request.package_id,
                         "source_item_ids": copy_request.item_ids,
-                        "copied_count": len(created_items),
-                        "created_item_ids": [item.id for item in created_items]
+                        "summary": copy_result['summary'],
+                        "created_item_ids": [item.id for item in copy_result['created_items']],
+                        "skipped_items": copy_result['skipped_items']
                     }
                 },
                 ip_address=request.client.host if request.client else None,
@@ -980,13 +982,14 @@ async def copy_items_from_package(
             logger.error(f"Audit logging error: {audit_error}")
         
         # Broadcast WebSocket events for each created item
-        for item in created_items:
+        for item in copy_result['created_items']:
             try:
                 await broadcast_reporting_effort_item_created(item)
             except Exception:
                 pass
         
-        return created_items
+        # Return the complete copy operation response
+        return CopyOperationResponse(**copy_result)
         
     except ValueError as e:
         # Handle validation errors (e.g., enum validation, duplicates)
