@@ -3,10 +3,10 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, UniqueConstraint, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING, Optional, List
-import enum
 
 from app.db.base import Base
 from app.db.mixins import TimestampMixin
+from app.models.enums import ItemType, SourceType
 
 if TYPE_CHECKING:
     from app.models.reporting_effort import ReportingEffort
@@ -15,20 +15,6 @@ if TYPE_CHECKING:
     from app.models.reporting_effort_dataset_details import ReportingEffortDatasetDetails
     from app.models.reporting_effort_item_footnote import ReportingEffortItemFootnote
     from app.models.reporting_effort_item_acronym import ReportingEffortItemAcronym
-
-
-class ItemType(enum.Enum):
-    """Enum for reporting effort item types."""
-    TLF = "TLF"
-    Dataset = "Dataset"
-
-
-class SourceType(enum.Enum):
-    """Enum for item source types."""
-    PACKAGE = "package"
-    REPORTING_EFFORT = "reporting_effort"
-    CUSTOM = "custom"
-    BULK_UPLOAD = "bulk_upload"
 
 
 class ReportingEffortItem(Base, TimestampMixin):
@@ -48,14 +34,14 @@ class ReportingEffortItem(Base, TimestampMixin):
     )
     
     # Source tracking
-    # Important: database enum 'sourcetype' stores labels using Enum member NAMES (uppercase)
-    # Map SQLAlchemy to use existing DB enum by name to avoid value mismatches
+    # Database enum 'sourcetype' stores enum VALUES (lowercase): 'package', 'reporting_effort', 'custom', 'bulk_upload'
+    # SQLAlchemy enum is configured to use enum values, not names
     source_type: Mapped[Optional[SourceType]] = mapped_column(
         Enum(
             SourceType,
             name='sourcetype',
             create_type=False,
-            values_callable=lambda enum_cls: [member.value for member in enum_cls]
+            native_enum=False
         ),
         nullable=True,
         doc="Where this item came from"
@@ -73,7 +59,12 @@ class ReportingEffortItem(Base, TimestampMixin):
     
     # Item details
     item_type: Mapped[ItemType] = mapped_column(
-        Enum(ItemType, name='itemtype', create_type=False),
+        Enum(
+            ItemType,
+            name='itemtype',
+            create_type=False,
+            native_enum=False
+        ),
         nullable=False,
         index=True,
         doc="Type of item (TLF or Dataset)"

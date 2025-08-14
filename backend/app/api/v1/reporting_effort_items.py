@@ -6,21 +6,29 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
-from app.crud import reporting_effort_item, reporting_effort, audit_log
-
-logger = logging.getLogger(__name__)
+from app.crud import reporting_effort_item, reporting_effort, audit_log, text_element
 from app.crud.package_item import package_item
 from app.db.session import get_db
 from app.schemas.reporting_effort_item import (
     ReportingEffortItem, 
     ReportingEffortItemCreate, 
     ReportingEffortItemUpdate,
-    ReportingEffortItemWithDetails
+    ReportingEffortItemWithDetails,
+    ReportingEffortItemCreateWithDetails,
+    ReportingEffortTlfDetailsCreate,
+    ReportingEffortDatasetDetailsCreate,
+    CopyFromPackageRequest,
+    CopyFromReportingEffortRequest
 )
-from app.models.reporting_effort_item import ItemType, SourceType
+from app.schemas.text_element import TextElementCreate
+from app.models.enums import ItemType, SourceType
+from app.models.reporting_effort_item import ReportingEffortItem as ReportingEffortItemModel
+from app.models.text_element import TextElementType
 from app.models.user import UserRole
 from app.utils import sqlalchemy_to_dict
 from app.api.v1.websocket import manager
+
+logger = logging.getLogger(__name__)
 
 # WebSocket broadcasting functions
 async def broadcast_reporting_effort_item_created(item_data):
@@ -61,12 +69,14 @@ class BulkTLFItem(BaseModel):
     footnotes: List[str] = Field(default_factory=list, description="List of footnote texts")
     population_flag: Optional[str] = Field(None, description="Population flag text")
     acronyms: List[str] = Field(default_factory=list, description="List of acronym texts")
+    ich_category: Optional[str] = Field(None, description="ICH category text")
 
 class BulkDatasetItem(BaseModel):
     """Schema for bulk dataset upload."""
     item_subtype: str = Field(..., description="SDTM/ADaM")
     item_code: str = Field(..., description="Dataset name, e.g., DM")
     label: Optional[str] = Field(None, description="Dataset label")
+    sorting_order: Optional[int] = Field(None, description="Display order")
     acronyms: Optional[str] = Field(None, description="Acronyms JSON string")
 
 class BulkUploadResponse(BaseModel):
@@ -74,26 +84,16 @@ class BulkUploadResponse(BaseModel):
     success: bool
     created_count: int
     errors: List[str] = Field(default_factory=list)
-    items: List[ReportingEffortItem] = Field(default_factory=list)
-
-class CopyFromPackageRequest(BaseModel):
-    """Request schema for copying items from a package."""
-    package_id: int = Field(..., description="ID of the source package")
-    item_ids: Optional[List[int]] = Field(None, description="Specific item IDs to copy (None = copy all)")
-
-class CopyFromReportingEffortRequest(BaseModel):
-    """Request schema for copying items from another reporting effort."""
-    source_reporting_effort_id: int = Field(..., description="ID of the source reporting effort")
-    item_ids: Optional[List[int]] = Field(None, description="Specific item IDs to copy (None = copy all)")
+    items: List[dict] = Field(default_factory=list)
 
 # CRUD Endpoints
-@router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=ReportingEffortItem, status_code=status.HTTP_201_CREATED)
 async def create_reporting_effort_item(
     *,
     db: AsyncSession = Depends(get_db),
     request: Request,
     item_in: ReportingEffortItemCreate,
-) -> dict:
+) -> ReportingEffortItem:
     """
     Create a new reporting effort item.
     Automatically creates a tracker entry.
@@ -111,14 +111,24 @@ async def create_reporting_effort_item(
         # This will be handled by the unique constraint in the model
         # But we can provide better error messages here
         
-        # Use simple create instead of create_with_details for debugging
-        created_item = await reporting_effort_item.create_with_details(
+        # Check for duplicate item (moved to CRUD layer but also check here for better error message)
+        existing_item = await reporting_effort_item.get_by_unique_key(
             db,
-            obj_in=item_in,
-            auto_create_tracker=True
+            reporting_effort_id=item_in.reporting_effort_id,
+            item_type=item_in.item_type.value if hasattr(item_in.item_type, 'value') else item_in.item_type,
+            item_subtype=item_in.item_subtype,
+            item_code=item_in.item_code
         )
-        # Get simple object without relationships
-        simple_item = await reporting_effort_item.get(db, id=created_item.id)
+        if existing_item:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"A {item_in.item_type} with code '{item_in.item_code}' already exists in this reporting effort"
+            )
+        
+        created_item = await reporting_effort_item.create(
+            db,
+            obj_in=item_in
+        )
         
         logger.info(f"Reporting effort item created successfully: {created_item.item_code} (ID: {created_item.id})")
         
@@ -137,53 +147,173 @@ async def create_reporting_effort_item(
         except Exception as audit_error:
             logger.error(f"Audit logging error: {audit_error}")
         
-        # Broadcast WebSocket event (temporarily disabled for debugging)
+        # Broadcast WebSocket event
         try:
-            # await broadcast_reporting_effort_item_created(created_item)
-            print("WebSocket broadcast temporarily disabled for debugging")
+            await broadcast_reporting_effort_item_created(created_item)
         except Exception as ws_error:
-            print(f"WebSocket broadcast error: {ws_error}")
+            logger.error(f"WebSocket broadcast error: {ws_error}")
         
-        # Return a simple dict response to avoid serialization issues
-        return {
-            "id": created_item.id,
-            "reporting_effort_id": created_item.reporting_effort_id,
-            "source_type": created_item.source_type.value if created_item.source_type else None,
-            "source_id": created_item.source_id,
-            "source_item_id": created_item.source_item_id,
-            "item_type": created_item.item_type.value,
-            "item_subtype": created_item.item_subtype,
-            "item_code": created_item.item_code,
-            "is_active": created_item.is_active,
-            "created_at": created_item.created_at.isoformat(),
-            "updated_at": created_item.updated_at.isoformat() if created_item.updated_at else None
-        }
+        return created_item
         
+    except ValueError as e:
+        # Handle duplicate error from CRUD
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create reporting effort item: {str(e)}"
+            detail="Failed to create reporting effort item"
         )
 
-@router.get("/", response_model=List[ReportingEffortItem])
+
+@router.post("/{reporting_effort_id}/items", response_model=ReportingEffortItem, status_code=status.HTTP_201_CREATED)
+async def create_reporting_effort_item_with_details(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    reporting_effort_id: int,
+    item_in: ReportingEffortItemCreateWithDetails,
+) -> ReportingEffortItem:
+    """
+    Create a new reporting effort item with all details.
+    """
+    try:
+        # Verify reporting effort exists
+        db_effort = await reporting_effort.get(db, id=reporting_effort_id)
+        if not db_effort:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Reporting effort not found"
+            )
+        
+        # Check for duplicate item (moved to CRUD layer but also check here for better error message)
+        existing_item = await reporting_effort_item.get_by_unique_key(
+            db,
+            reporting_effort_id=reporting_effort_id,
+            item_type=item_in.item_type.value,
+            item_subtype=item_in.item_subtype,
+            item_code=item_in.item_code
+        )
+        if existing_item:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"A {item_in.item_type.value} with code '{item_in.item_code}' already exists in this reporting effort"
+            )
+        
+        # Ensure reporting_effort_id matches
+        item_in.reporting_effort_id = reporting_effort_id
+        
+        created_item = await reporting_effort_item.create_with_details(
+            db,
+            obj_in=item_in,
+            auto_create_tracker=True
+        )
+        logger.info(f"Reporting effort item created successfully: {created_item.item_code} (ID: {created_item.id})")
+        
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="reporting_effort_items",
+                record_id=created_item.id,
+                action="CREATE",
+                user_id=getattr(request.state, 'user_id', None),
+                changes={"created": sqlalchemy_to_dict(created_item)},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            logger.error(f"Audit logging error: {audit_error}")
+        
+        # Broadcast WebSocket event
+        try:
+            await broadcast_reporting_effort_item_created(created_item)
+        except Exception as ws_error:
+            logger.error(f"WebSocket broadcast error: {ws_error}")
+        
+        return created_item
+        
+    except ValueError as e:
+        # Handle duplicate error from CRUD
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create reporting effort item"
+        )
+
+
+@router.get("/", response_model=dict)
 async def read_reporting_effort_items(
     *,
     db: AsyncSession = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
-) -> List[ReportingEffortItem]:
+) -> dict:
     """
     Retrieve reporting effort items with pagination.
     """
     try:
-        return await reporting_effort_item.get_multi(db, skip=skip, limit=limit)
-    except Exception:
+        items = await reporting_effort_item.get_multi(db, skip=skip, limit=limit)
+        logger.info(f"Retrieved {len(items)} reporting effort items")
+        
+        # Convert to dict to avoid validation issues
+        result = []
+        for i, item in enumerate(items):
+            try:
+                # Convert enum to its value
+                item_type_value = item.item_type.value if hasattr(item.item_type, 'value') else str(item.item_type)
+                source_type_value = item.source_type.value if item.source_type and hasattr(item.source_type, 'value') else None
+                
+                item_dict = {
+                    "id": item.id,
+                    "reporting_effort_id": item.reporting_effort_id,
+                    "source_type": source_type_value,
+                    "source_id": item.source_id,
+                    "source_item_id": item.source_item_id,
+                    "item_type": item_type_value,
+                    "item_subtype": item.item_subtype,
+                    "item_code": item.item_code,
+                    "is_active": item.is_active,
+                    "created_at": item.created_at.isoformat() if item.created_at else None,
+                    "updated_at": item.updated_at.isoformat() if item.updated_at else None
+                }
+                result.append(item_dict)
+                logger.info(f"Successfully processed item {i+1}: {item.item_code}")
+            except Exception as item_error:
+                logger.error(f"Error processing item {i+1}: {str(item_error)}")
+                logger.error(f"Item data: id={item.id}, item_type={item.item_type}, item_code={item.item_code}")
+        
+        return {"items": result, "count": len(result)}
+    except Exception as e:
+        logger.error(f"Error in read_reporting_effort_items: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve reporting effort items"
+            detail=f"Failed to retrieve reporting effort items: {str(e)}"
         )
+
+@router.get("/count")
+async def get_items_count(
+    *,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get count of reporting effort items."""
+    try:
+        from sqlalchemy import select, func
+        result = await db.execute(select(func.count(ReportingEffortItemModel.id)))
+        count = result.scalar()
+        return {"count": count}
+    except Exception as e:
+        return {"error": str(e)}
 
 @router.get("/{item_id}", response_model=dict)
 async def read_reporting_effort_item(
@@ -205,14 +335,14 @@ async def read_reporting_effort_item(
         return {
             "id": db_item.id,
             "reporting_effort_id": db_item.reporting_effort_id,
-            "source_type": db_item.source_type.value if db_item.source_type else None,
+            "source_type": db_item.source_type.value if db_item.source_type and hasattr(db_item.source_type, 'value') else None,
             "source_id": db_item.source_id,
             "source_item_id": db_item.source_item_id,
-            "item_type": db_item.item_type.value,
+            "item_type": db_item.item_type.value if hasattr(db_item.item_type, 'value') else str(db_item.item_type),
             "item_subtype": db_item.item_subtype,
             "item_code": db_item.item_code,
             "is_active": db_item.is_active,
-            "created_at": db_item.created_at.isoformat(),
+            "created_at": db_item.created_at.isoformat() if db_item.created_at else None,
             "updated_at": db_item.updated_at.isoformat() if db_item.updated_at else None
         }
     except Exception as e:
@@ -223,12 +353,12 @@ async def read_reporting_effort_item(
             detail="Failed to retrieve reporting effort item"
         )
 
-@router.get("/by-effort/{reporting_effort_id}", response_model=List[ReportingEffortItemWithDetails])
+@router.get("/by-effort/{reporting_effort_id}")
 async def read_items_by_reporting_effort(
     *,
     db: AsyncSession = Depends(get_db),
     reporting_effort_id: int,
-) -> List[ReportingEffortItemWithDetails]:
+) -> List[dict]:
     """
     Get all items for a specific reporting effort.
     """
@@ -241,12 +371,101 @@ async def read_items_by_reporting_effort(
                 detail="Reporting effort not found"
             )
         
-        return await reporting_effort_item.get_by_reporting_effort(
+        items = await reporting_effort_item.get_by_reporting_effort(
             db, reporting_effort_id=reporting_effort_id
         )
+        
+        # Convert to dicts to avoid serialization issues
+        result = []
+        for item in items:
+            item_dict = {
+                "id": item.id,
+                "reporting_effort_id": item.reporting_effort_id,
+                "source_type": item.source_type.value if item.source_type and hasattr(item.source_type, 'value') else None,
+                "source_id": item.source_id,
+                "source_item_id": item.source_item_id,
+                "item_type": item.item_type.value if hasattr(item.item_type, 'value') else str(item.item_type),
+                "item_subtype": item.item_subtype,
+                "item_code": item.item_code,
+                "is_active": item.is_active,
+                "created_at": item.created_at.isoformat() if item.created_at else None,
+                "updated_at": item.updated_at.isoformat() if item.updated_at else None,
+                "tlf_details": None,
+                "dataset_details": None,
+                "footnotes": [],
+                "acronyms": [],
+                "tracker": None
+            }
+            
+            # Add TLF details if present
+            if hasattr(item, 'tlf_details') and item.tlf_details:
+                item_dict["tlf_details"] = {
+                    "id": item.tlf_details.id,
+                    "reporting_effort_item_id": item.tlf_details.reporting_effort_item_id,
+                    "title_id": item.tlf_details.title_id,
+                    "population_flag_id": item.tlf_details.population_flag_id,
+                    "ich_category_id": item.tlf_details.ich_category_id
+                }
+            
+            # Add dataset details if present
+            if hasattr(item, 'dataset_details') and item.dataset_details:
+                item_dict["dataset_details"] = {
+                    "id": item.dataset_details.id,
+                    "reporting_effort_item_id": item.dataset_details.reporting_effort_item_id,
+                    "label": item.dataset_details.label,
+                    "sorting_order": item.dataset_details.sorting_order,
+                    "acronyms": item.dataset_details.acronyms
+                }
+            
+            # Add footnotes if present
+            if hasattr(item, 'footnotes') and item.footnotes:
+                item_dict["footnotes"] = [
+                    {
+                        "footnote_id": f.footnote_id,
+                        "sequence_number": f.sequence_number
+                    }
+                    for f in item.footnotes
+                ]
+            
+            # Add acronyms if present
+            if hasattr(item, 'acronyms') and item.acronyms:
+                item_dict["acronyms"] = [
+                    {"acronym_id": a.acronym_id}
+                    for a in item.acronyms
+                ]
+            
+            # Add tracker if present (safely)
+            if hasattr(item, 'tracker') and item.tracker:
+                try:
+                    tracker = item.tracker
+                    item_dict["tracker"] = {
+                        "id": tracker.id,
+                        "reporting_effort_item_id": tracker.reporting_effort_item_id,
+                        "production_programmer_id": tracker.production_programmer_id,
+                        "qc_programmer_id": tracker.qc_programmer_id,
+                        "production_status": tracker.production_status.value if tracker.production_status and hasattr(tracker.production_status, 'value') else None,
+                        "qc_status": tracker.qc_status.value if tracker.qc_status and hasattr(tracker.qc_status, 'value') else None,
+                        "due_date": tracker.due_date.isoformat() if tracker.due_date else None,
+                        "qc_completion_date": tracker.qc_completion_date.isoformat() if tracker.qc_completion_date else None,
+                        "priority": tracker.priority.value if tracker.priority and hasattr(tracker.priority, 'value') else None,
+                        "qc_level": tracker.qc_level.value if tracker.qc_level and hasattr(tracker.qc_level, 'value') else None,
+                        "in_production_flag": tracker.in_production_flag,
+                        "created_at": tracker.created_at.isoformat() if tracker.created_at else None,
+                        "updated_at": tracker.updated_at.isoformat() if tracker.updated_at else None
+                    }
+                except Exception:
+                    # Skip tracker if there's any issue accessing its attributes
+                    pass
+            
+            result.append(item_dict)
+            
+        logger.info(f"Retrieved {len(result)} items for reporting effort {reporting_effort_id}")
+        return result
+            
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
+        logger.error(f"Error retrieving items for reporting effort {reporting_effort_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve reporting effort items"
@@ -421,34 +640,102 @@ async def bulk_create_tlf_items(
         # Process each item
         for item in items_in:
             try:
-                # Create reporting effort item
-                item_create = ReportingEffortItemCreate(
+                # Get or create text elements
+                title_id = None
+                if item.title:
+                    title_elem = await text_element.get_by_type_and_label(
+                        db, type=TextElementType.title, label=item.title
+                    )
+                    if not title_elem:
+                        title_elem = await text_element.create(
+                            db, obj_in=TextElementCreate(type=TextElementType.title, label=item.title)
+                        )
+                    title_id = title_elem.id
+                
+                population_flag_id = None
+                if item.population_flag:
+                    pop_elem = await text_element.get_by_type_and_label(
+                        db, type=TextElementType.population_set, label=item.population_flag
+                    )
+                    if not pop_elem:
+                        pop_elem = await text_element.create(
+                            db, obj_in=TextElementCreate(type=TextElementType.population_set, label=item.population_flag)
+                        )
+                    population_flag_id = pop_elem.id
+                
+                ich_category_id = None
+                if item.ich_category:
+                    ich_elem = await text_element.get_by_type_and_label(
+                        db, type=TextElementType.ich_category, label=item.ich_category
+                    )
+                    if not ich_elem:
+                        ich_elem = await text_element.create(
+                            db, obj_in=TextElementCreate(type=TextElementType.ich_category, label=item.ich_category)
+                        )
+                    ich_category_id = ich_elem.id
+                
+                # Process footnotes
+                footnote_ids = []
+                for footnote_text in item.footnotes:
+                    fn_elem = await text_element.get_by_type_and_label(
+                        db, type=TextElementType.footnote, label=footnote_text
+                    )
+                    if not fn_elem:
+                        fn_elem = await text_element.create(
+                            db, obj_in=TextElementCreate(type=TextElementType.footnote, label=footnote_text)
+                        )
+                    footnote_ids.append(fn_elem.id)
+                
+                # Process acronyms
+                acronym_ids = []
+                for acronym_text in item.acronyms:
+                    ac_elem = await text_element.get_by_type_and_label(
+                        db, type=TextElementType.acronyms_set, label=acronym_text
+                    )
+                    if not ac_elem:
+                        ac_elem = await text_element.create(
+                            db, obj_in=TextElementCreate(type=TextElementType.acronyms_set, label=acronym_text)
+                        )
+                    acronym_ids.append(ac_elem.id)
+                
+                # Create reporting effort item with details
+                item_create = ReportingEffortItemCreateWithDetails(
                     reporting_effort_id=reporting_effort_id,
-                    source_type=SourceType.BULK_UPLOAD,
-                    item_type=ItemType.TLF,
+                    source_type=SourceType.BULK_UPLOAD.value,
+                    item_type=ItemType.TLF.value,
                     item_subtype=item.item_subtype,
                     item_code=item.item_code,
-                    is_active=True
+                    is_active=True,
+                    tlf_details=ReportingEffortTlfDetailsCreate(
+                        title_id=title_id,
+                        population_flag_id=population_flag_id,
+                        ich_category_id=ich_category_id
+                    ),
+                    footnotes=[{"footnote_id": fid, "sequence_number": idx+1} 
+                              for idx, fid in enumerate(footnote_ids)],
+                    acronyms=[{"acronym_id": aid} for aid in acronym_ids]
                 )
-                
-                # Create TLF details if title provided
-                tlf_details = None
-                if item.title:
-                    # In a real implementation, you'd create/get text elements here
-                    # For now, just pass the data
-                    tlf_details = {
-                        "title": item.title
-                    }
                 
                 created_item = await reporting_effort_item.create_with_details(
                     db,
                     obj_in=item_create,
-                    tlf_details=tlf_details,
                     auto_create_tracker=True
                 )
                 
-                # Convert to response model
-                created_items.append(ReportingEffortItem.model_validate(created_item))
+                # Convert to dict for response
+                created_items.append({
+                    "id": created_item.id,
+                    "reporting_effort_id": created_item.reporting_effort_id,
+                    "source_type": created_item.source_type.value if created_item.source_type else None,
+                    "source_id": created_item.source_id,
+                    "source_item_id": created_item.source_item_id,
+                    "item_type": created_item.item_type.value if hasattr(created_item.item_type, 'value') else str(created_item.item_type),
+                    "item_subtype": created_item.item_subtype,
+                    "item_code": created_item.item_code,
+                    "is_active": created_item.is_active,
+                    "created_at": created_item.created_at.isoformat() if created_item.created_at else None,
+                    "updated_at": created_item.updated_at.isoformat() if created_item.updated_at else None
+                })
                 
                 # Broadcast WebSocket event
                 try:
@@ -540,33 +827,43 @@ async def bulk_create_dataset_items(
         # Process each item
         for item in items_in:
             try:
-                # Create reporting effort item
-                item_create = ReportingEffortItemCreate(
+                # Create reporting effort item with dataset details
+                item_create = ReportingEffortItemCreateWithDetails(
                     reporting_effort_id=reporting_effort_id,
-                    source_type=SourceType.BULK_UPLOAD,
-                    item_type=ItemType.Dataset,
+                    source_type=SourceType.BULK_UPLOAD.value,
+                    item_type=ItemType.Dataset.value,
                     item_subtype=item.item_subtype,
                     item_code=item.item_code,
-                    is_active=True
+                    is_active=True,
+                    dataset_details=ReportingEffortDatasetDetailsCreate(
+                        label=item.label,
+                        sorting_order=item.sorting_order,
+                        acronyms=item.acronyms
+                    ),
+                    footnotes=[],
+                    acronyms=[]
                 )
-                
-                # Create dataset details
-                dataset_details = None
-                if item.label or item.acronyms:
-                    dataset_details = {
-                        "label": item.label,
-                        "acronyms": item.acronyms
-                    }
                 
                 created_item = await reporting_effort_item.create_with_details(
                     db,
                     obj_in=item_create,
-                    dataset_details=dataset_details,
                     auto_create_tracker=True
                 )
                 
-                # Convert to response model
-                created_items.append(ReportingEffortItem.model_validate(created_item))
+                # Convert to dict for response
+                created_items.append({
+                    "id": created_item.id,
+                    "reporting_effort_id": created_item.reporting_effort_id,
+                    "source_type": created_item.source_type.value if created_item.source_type else None,
+                    "source_id": created_item.source_id,
+                    "source_item_id": created_item.source_item_id,
+                    "item_type": created_item.item_type.value if hasattr(created_item.item_type, 'value') else str(created_item.item_type),
+                    "item_subtype": created_item.item_subtype,
+                    "item_code": created_item.item_code,
+                    "is_active": created_item.is_active,
+                    "created_at": created_item.created_at.isoformat() if created_item.created_at else None,
+                    "updated_at": created_item.updated_at.isoformat() if created_item.updated_at else None
+                })
                 
                 # Broadcast WebSocket event
                 try:
@@ -635,7 +932,7 @@ async def copy_items_from_package(
                 detail="Reporting effort not found"
             )
         
-        # Verify package exists
+        # Verify package exists  
         from app.crud.package import package
         db_package = await package.get(db, id=copy_request.package_id)
         if not db_package:
