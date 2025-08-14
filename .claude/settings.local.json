@@ -31,7 +31,8 @@
       "Bash(true)",
       "Bash(RESPONSE='{\"\"id\"\":35,\"\"reporting_effort_id\"\":2,\"\"source_type\"\":\"\"custom\"\",\"\"source_id\"\":null,\"\"source_item_id\"\":null,\"\"item_type\"\":\"\"TLF\"\",\"\"item_subtype\"\":\"\"Table\"\",\"\"item_code\"\":\"\"T_DICT_RESPONSE_1755121577\"\",\"\"is_active\"\":true,\"\"created_at\"\":\"\"2025-08-13T21:46:17.512100\"\",\"\"updated_at\"\":\"\"2025-08-13T21:46:17.512100\"\"}')",
       "Bash(./test_bulk_operations.sh:*)",
-      "Bash(bash:*)"
+      "Bash(bash:*)",
+      "Bash(del debug_apis.py debug_crud.py debug_text_element.py debug_create_item.py debug_schema.py debug_enum_serialization.py debug_tracker_creation.py debug_specific_items.py _check_enums.py check_item_42.py check_tracker_42.py tmp_verify.py update_enum_properly.py)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

@@ -648,3 +648,20 @@ Rscript run_app.R  # Or on Windows: "C:\Program Files\R\R-4.2.2\bin\Rscript.exe"
 - Keep DataTable configurations consistent across all modules
 - Coordinate agent usage with MCP tools for comprehensive development workflows
 - Always use `setup_environment.R` for fresh installations to ensure latest package versions
+
+## Packages Module Implementation Notes
+
+### Overview
+The Packages module provides comprehensive interface for managing TLF (Tables, Listings, Figures) and Dataset packages with full CRUD operations and real-time WebSocket synchronization.
+
+### Features
+- **Package Management**: Create, view, edit, delete packages with unique names
+- **Package Items**: Add TLF/Dataset items with study associations
+- **Deletion Protection**: Prevents package deletion if items exist
+- **Real-time Updates**: WebSocket events for all operations
+- **Event Types**: `package_*` and `package_item_*` events
+
+### Module Files
+- `modules/packages_ui.R` - UI components (tabs, forms, tables)
+- `modules/packages_server.R` - Server logic and event handling
+- API endpoints integrated in `modules/api_client.R`

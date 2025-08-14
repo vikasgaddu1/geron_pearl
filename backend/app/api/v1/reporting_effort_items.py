@@ -98,7 +98,6 @@ async def create_reporting_effort_item(
     Create a new reporting effort item.
     Automatically creates a tracker entry.
     """
-    print(f"DEBUG API: Received request to create item: {item_in}")
     try:
         # Verify reporting effort exists
         db_effort = await reporting_effort.get(db, id=item_in.reporting_effort_id)

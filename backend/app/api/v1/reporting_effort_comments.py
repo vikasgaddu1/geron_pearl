@@ -176,14 +176,12 @@ async def create_comment(
                 )
         
         # Create the comment
-        print(f"DEBUG: Creating comment with type {comment_type} ({type(comment_type)})")
         comment_create = ReportingEffortTrackerCommentCreate(
             reporting_effort_item_id=item_id,
             comment_text=comment_request.comment_text,
             comment_type=comment_type,
             parent_comment_id=comment_request.parent_comment_id
         )
-        print(f"DEBUG: Comment create object: {comment_create}")
         
         created_comment = await reporting_effort_tracker_comment.create(
             db,
@@ -191,7 +189,6 @@ async def create_comment(
             user_id=current_user_id,
             user_role=current_user_role or UserRole.VIEWER
         )
-        print(f"DEBUG: Created comment: {created_comment}")
         
         print(f"Comment created successfully: ID {created_comment.id} by user {current_user_id}")
         

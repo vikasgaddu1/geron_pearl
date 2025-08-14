@@ -200,6 +200,20 @@
 - [ ] Cross-browser compatibility
 - [ ] Mobile responsiveness
 
+## Additional Features to Implement
+
+### Text Elements (TNFP) Bulk Upload
+- [ ] Create Excel/CSV template for bulk import
+- [ ] Add backend endpoint for bulk text element upload
+- [ ] Implement duplicate detection with conflict resolution
+- [ ] Create validation report generator
+- [ ] Add transaction-based import (all or nothing)
+- [ ] Implement import history tracking
+- [ ] Add rollback capability for failed imports
+- [ ] Create UI for bulk upload in admin frontend
+- [ ] Add progress indicator for large imports
+- [ ] Generate downloadable error report
+
 ## Rollback Points
 1. Phase 1 complete - Database only
 2. Phase 2 complete - Backend functional

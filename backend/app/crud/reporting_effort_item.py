@@ -59,7 +59,6 @@ class ReportingEffortItemCRUD:
                     item_data["source_type"] = source_type_value.value
                 except AttributeError:
                     item_data["source_type"] = str(source_type_value).lower()
-        print(f"DEBUG: Creating ReportingEffortItem with data: {item_data}")
         db_obj = ReportingEffortItem(**item_data)
         db.add(db_obj)
         await db.flush()  # Get the ID
