@@ -819,8 +819,8 @@ async def export_trackers(
         # Get trackers for all items
         export_data = []
         for item in items:
-            tracker = await reporting_effort_item_tracker.get_by_item_id(
-                db, item_id=item.id
+            tracker = await reporting_effort_item_tracker.get_by_item(
+                db, reporting_effort_item_id=item.id
             )
             
             if tracker:
@@ -927,8 +927,8 @@ async def import_trackers(
             item = item_by_code[import_data.item_code]
             
             # Get tracker for item
-            tracker = await reporting_effort_item_tracker.get_by_item_id(
-                db, item_id=item.id
+            tracker = await reporting_effort_item_tracker.get_by_item(
+                db, reporting_effort_item_id=item.id
             )
             
             if not tracker:
