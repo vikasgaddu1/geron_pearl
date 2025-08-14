@@ -11,25 +11,51 @@ from app.models.reporting_effort_tlf_details import ReportingEffortTlfDetails
 from app.models.reporting_effort_dataset_details import ReportingEffortDatasetDetails
 from app.models.reporting_effort_item_footnote import ReportingEffortItemFootnote
 from app.models.reporting_effort_item_acronym import ReportingEffortItemAcronym
-from app.models.package_item import ItemType
+from app.models.enums import ItemType, SourceType
 from app.schemas.reporting_effort_item import (
     ReportingEffortItemCreate,
-    ReportingEffortItemUpdate
+    ReportingEffortItemUpdate,
+    ReportingEffortItemCreateWithDetails
 )
 
 
 class ReportingEffortItemCRUD:
     """CRUD operations for ReportingEffortItem."""
     
+    async def create(self, db: AsyncSession, *, obj_in: ReportingEffortItemCreate) -> ReportingEffortItem:
+        """Create a new reporting effort item."""
+        # Check for duplicate
+        existing = await self.get_by_unique_key(
+            db,
+            reporting_effort_id=obj_in.reporting_effort_id,
+            item_type=obj_in.item_type,
+            item_subtype=obj_in.item_subtype,
+            item_code=obj_in.item_code
+        )
+        if existing:
+            raise ValueError(f"A {obj_in.item_type} with code {obj_in.item_code} already exists in this reporting effort")
+        
+        # With unified str,Enum, we can pass directly
+        db_obj = ReportingEffortItem(
+            reporting_effort_id=obj_in.reporting_effort_id,
+            source_type=obj_in.source_type,
+            source_id=obj_in.source_id,
+            source_item_id=obj_in.source_item_id,
+            item_type=obj_in.item_type,
+            item_subtype=obj_in.item_subtype,
+            item_code=obj_in.item_code,
+            is_active=obj_in.is_active
+        )
+        db.add(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
+        return db_obj
+    
     async def create_with_details(
         self,
         db: AsyncSession,
         *,
-        obj_in: ReportingEffortItemCreate,
-        tlf_details: Optional[Dict[str, Any]] = None,
-        dataset_details: Optional[Dict[str, Any]] = None,
-        footnote_ids: Optional[List[int]] = None,
-        acronym_ids: Optional[List[int]] = None,
+        obj_in: ReportingEffortItemCreateWithDetails,
         auto_create_tracker: bool = True
     ) -> ReportingEffortItem:
         """
@@ -37,64 +63,90 @@ class ReportingEffortItemCRUD:
         
         Args:
             db: Database session
-            obj_in: Item creation data
-            tlf_details: TLF-specific details (if item_type is TLF)
-            dataset_details: Dataset-specific details (if item_type is Dataset)
-            footnote_ids: List of footnote IDs to associate
-            acronym_ids: List of acronym IDs to associate
+            obj_in: Item creation data with details
             auto_create_tracker: Whether to auto-create tracker entry
         
         Returns:
             Created item with all relationships
         """
-        # Create main item (use mode='json' to properly serialize enums)
-        item_data = obj_in.model_dump(mode='json')
-        # Normalize enum to lowercase values to match DB enum labels
-        source_type_value = item_data.get("source_type")
-        if source_type_value is not None:
-            if isinstance(source_type_value, str):
-                item_data["source_type"] = source_type_value.lower()
-            else:
-                try:
-                    item_data["source_type"] = source_type_value.value
-                except AttributeError:
-                    item_data["source_type"] = str(source_type_value).lower()
-        db_obj = ReportingEffortItem(**item_data)
-        db.add(db_obj)
-        await db.flush()  # Get the ID
+        # Check for duplicate
+        existing = await self.get_by_unique_key(
+            db,
+            reporting_effort_id=obj_in.reporting_effort_id,
+            item_type=obj_in.item_type,
+            item_subtype=obj_in.item_subtype,
+            item_code=obj_in.item_code
+        )
+        if existing:
+            raise ValueError(f"A {obj_in.item_type} with code {obj_in.item_code} already exists in this reporting effort")
+        # Create the main reporting effort item
+        # With unified str,Enum, we can pass directly
+        import logging
+        logger = logging.getLogger(__name__)
         
-        # Create type-specific details
-        if obj_in.item_type == ItemType.TLF and tlf_details:
-            tlf_obj = ReportingEffortTlfDetails(
-                reporting_effort_item_id=db_obj.id,
-                **tlf_details
+        logger.info(f"About to create ReportingEffortItem with:")
+        logger.info(f"  source_type: '{obj_in.source_type}' (type: {type(obj_in.source_type)})")
+        logger.info(f"  item_type: '{obj_in.item_type}' (type: {type(obj_in.item_type)})")
+        
+        try:
+            db_obj = ReportingEffortItem(
+                reporting_effort_id=obj_in.reporting_effort_id,
+                source_type=obj_in.source_type,
+                source_id=obj_in.source_id,
+                source_item_id=obj_in.source_item_id,
+                item_type=obj_in.item_type,
+                item_subtype=obj_in.item_subtype,
+                item_code=obj_in.item_code,
+                is_active=obj_in.is_active
             )
-            db.add(tlf_obj)
-        elif obj_in.item_type == ItemType.Dataset and dataset_details:
-            dataset_obj = ReportingEffortDatasetDetails(
+            logger.info(f"Successfully created ReportingEffortItem object")
+            
+            db.add(db_obj)
+            logger.info(f"Added to database session")
+            
+            await db.flush()  # Get the ID without committing
+            logger.info(f"Flushed to database, item ID: {db_obj.id}")
+            
+        except Exception as db_error:
+            logger.error(f"Error creating ReportingEffortItem: {str(db_error)}", exc_info=True)
+            raise
+        
+        # Create TLF details if provided and item is TLF
+        if obj_in.item_type == ItemType.TLF and obj_in.tlf_details:
+            tlf_details = ReportingEffortTlfDetails(
                 reporting_effort_item_id=db_obj.id,
-                **dataset_details
+                title_id=obj_in.tlf_details.title_id,
+                population_flag_id=obj_in.tlf_details.population_flag_id,
+                ich_category_id=getattr(obj_in.tlf_details, 'ich_category_id', None)
             )
-            db.add(dataset_obj)
+            db.add(tlf_details)
+        
+        # Create Dataset details if provided and item is Dataset
+        elif obj_in.item_type == ItemType.Dataset and obj_in.dataset_details:
+            dataset_details = ReportingEffortDatasetDetails(
+                reporting_effort_item_id=db_obj.id,
+                label=obj_in.dataset_details.label,
+                sorting_order=obj_in.dataset_details.sorting_order,
+                acronyms=obj_in.dataset_details.acronyms
+            )
+            db.add(dataset_details)
         
         # Create footnote associations
-        if footnote_ids:
-            for idx, footnote_id in enumerate(footnote_ids):
-                footnote_assoc = ReportingEffortItemFootnote(
-                    reporting_effort_item_id=db_obj.id,
-                    footnote_id=footnote_id,
-                    sequence_number=idx + 1
-                )
-                db.add(footnote_assoc)
+        for footnote in obj_in.footnotes:
+            footnote_assoc = ReportingEffortItemFootnote(
+                reporting_effort_item_id=db_obj.id,
+                footnote_id=footnote.footnote_id,
+                sequence_number=footnote.sequence_number
+            )
+            db.add(footnote_assoc)
         
         # Create acronym associations
-        if acronym_ids:
-            for acronym_id in acronym_ids:
-                acronym_assoc = ReportingEffortItemAcronym(
-                    reporting_effort_item_id=db_obj.id,
-                    acronym_id=acronym_id
-                )
-                db.add(acronym_assoc)
+        for acronym in obj_in.acronyms:
+            acronym_assoc = ReportingEffortItemAcronym(
+                reporting_effort_item_id=db_obj.id,
+                acronym_id=acronym.acronym_id
+            )
+            db.add(acronym_assoc)
         
         # Auto-create tracker entry
         if auto_create_tracker:
@@ -107,7 +159,18 @@ class ReportingEffortItemCRUD:
         await db.refresh(db_obj)
         
         # Load all relationships
-        return await self.get_with_details(db, id=db_obj.id)
+        result = await db.execute(
+            select(ReportingEffortItem)
+            .options(
+                selectinload(ReportingEffortItem.tlf_details),
+                selectinload(ReportingEffortItem.dataset_details),
+                selectinload(ReportingEffortItem.footnotes),
+                selectinload(ReportingEffortItem.acronyms),
+                selectinload(ReportingEffortItem.tracker)
+            )
+            .where(ReportingEffortItem.id == db_obj.id)
+        )
+        return result.scalar_one()
     
     async def get(
         self,
@@ -156,6 +219,26 @@ class ReportingEffortItemCRUD:
         )
         return list(result.scalars().all())
     
+    async def get_by_unique_key(
+        self, db: AsyncSession, *, 
+        reporting_effort_id: int, 
+        item_type: str,
+        item_subtype: str,
+        item_code: str
+    ) -> Optional[ReportingEffortItem]:
+        """Get a reporting effort item by its unique key combination."""
+        result = await db.execute(
+            select(ReportingEffortItem).where(
+                and_(
+                    ReportingEffortItem.reporting_effort_id == reporting_effort_id,
+                    ReportingEffortItem.item_type == item_type,
+                    ReportingEffortItem.item_subtype == item_subtype,
+                    ReportingEffortItem.item_code == item_code
+                )
+            )
+        )
+        return result.scalar_one_or_none()
+    
     async def get_by_reporting_effort(
         self,
         db: AsyncSession,
@@ -193,7 +276,20 @@ class ReportingEffortItemCRUD:
         db.add(db_obj)
         await db.commit()
         await db.refresh(db_obj)
-        return db_obj
+        
+        # Reload with relationships
+        result = await db.execute(
+            select(ReportingEffortItem)
+            .options(
+                selectinload(ReportingEffortItem.tlf_details),
+                selectinload(ReportingEffortItem.dataset_details),
+                selectinload(ReportingEffortItem.footnotes),
+                selectinload(ReportingEffortItem.acronyms),
+                selectinload(ReportingEffortItem.tracker)
+            )
+            .where(ReportingEffortItem.id == db_obj.id)
+        )
+        return result.scalar_one()
     
     async def delete(
         self,
@@ -206,8 +302,27 @@ class ReportingEffortItemCRUD:
         
         Note: Will cascade delete tracker, comments, and associations.
         """
-        db_obj = await self.get(db, id=id)
+        db_obj = await self.get_with_details(db, id=id)
         if db_obj:
+            # Delete related details first (if any)
+            if db_obj.tlf_details:
+                await db.delete(db_obj.tlf_details)
+            if db_obj.dataset_details:
+                await db.delete(db_obj.dataset_details)
+            
+            # Delete footnote associations
+            for footnote in db_obj.footnotes:
+                await db.delete(footnote)
+            
+            # Delete acronym associations
+            for acronym in db_obj.acronyms:
+                await db.delete(acronym)
+            
+            # Delete tracker if exists
+            if db_obj.tracker:
+                await db.delete(db_obj.tracker)
+            
+            # Delete the item itself
             await db.delete(db_obj)
             await db.commit()
         return db_obj
@@ -235,7 +350,7 @@ class ReportingEffortItemCRUD:
         from app.crud.package_item import package_item
         
         # Get package items
-        package_items = await package_item.get_by_package(db, package_id=package_id)
+        package_items = await package_item.get_by_package_id(db, package_id=package_id)
         
         # Filter if specific items requested
         if item_ids:
@@ -243,49 +358,91 @@ class ReportingEffortItemCRUD:
         
         created_items = []
         for pkg_item in package_items:
-            # Create reporting effort item
-            item_data = ReportingEffortItemCreate(
+            # Create reporting effort item - not used anymore, can be removed
+            # item_data = ReportingEffortItemCreate(...)
+            
+            # Build the complete item data with details
+            from app.schemas.reporting_effort_item import (
+                ReportingEffortItemCreateWithDetails,
+                ReportingEffortTlfDetailsCreate,
+                ReportingEffortDatasetDetailsCreate,
+                ReportingEffortItemFootnoteCreate,
+                ReportingEffortItemAcronymCreate
+            )
+            
+            # Prepare TLF details if applicable
+            tlf_details = None
+            if pkg_item.item_type == ItemType.TLF and pkg_item.tlf_details:
+                tlf_details = ReportingEffortTlfDetailsCreate(
+                    title_id=pkg_item.tlf_details.title_id,
+                    population_flag_id=pkg_item.tlf_details.population_flag_id,
+                    ich_category_id=getattr(pkg_item.tlf_details, 'ich_category_id', None)
+                )
+            
+            # Prepare dataset details if applicable
+            dataset_details = None
+            if pkg_item.item_type == ItemType.Dataset and pkg_item.dataset_details:
+                dataset_details = ReportingEffortDatasetDetailsCreate(
+                    label=pkg_item.dataset_details.label,
+                    sorting_order=pkg_item.dataset_details.sorting_order,
+                    acronyms=pkg_item.dataset_details.acronyms
+                )
+            
+            # Prepare footnotes
+            footnotes = []
+            if pkg_item.footnotes:
+                for idx, f in enumerate(pkg_item.footnotes):
+                    footnotes.append(ReportingEffortItemFootnoteCreate(
+                        footnote_id=f.footnote_id,
+                        sequence_number=getattr(f, 'sequence_number', idx + 1)
+                    ))
+            
+            # Prepare acronyms
+            acronyms = []
+            if pkg_item.acronyms:
+                for a in pkg_item.acronyms:
+                    acronyms.append(ReportingEffortItemAcronymCreate(
+                        acronym_id=a.acronym_id
+                    ))
+            
+            # Create complete item data with details
+            # Always pass string values for enums
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"About to create ReportingEffortItemCreateWithDetails")
+            logger.info(f"pkg_item.item_type = {pkg_item.item_type} (type={type(pkg_item.item_type)})")
+            
+            item_data_with_details = ReportingEffortItemCreateWithDetails(
                 reporting_effort_id=reporting_effort_id,
-                source_type="package",
+                source_type=SourceType.PACKAGE.value,  # Use enum value
                 source_id=package_id,
                 source_item_id=pkg_item.id,
-                item_type=pkg_item.item_type,
+                item_type=pkg_item.item_type.value,
                 item_subtype=pkg_item.item_subtype,
                 item_code=pkg_item.item_code,
-                is_active=True
-            )
-            
-            # Copy TLF details
-            tlf_details = None
-            if pkg_item.tlf_details:
-                tlf_details = {
-                    "title_id": pkg_item.tlf_details.title_id,
-                    "population_flag_id": pkg_item.tlf_details.population_flag_id
-                }
-            
-            # Copy dataset details
-            dataset_details = None
-            if pkg_item.dataset_details:
-                dataset_details = {
-                    "label": pkg_item.dataset_details.label,
-                    "sorting_order": pkg_item.dataset_details.sorting_order,
-                    "acronyms": pkg_item.dataset_details.acronyms
-                }
-            
-            # Get footnote and acronym IDs
-            footnote_ids = [f.footnote_id for f in pkg_item.footnotes] if pkg_item.footnotes else None
-            acronym_ids = [a.acronym_id for a in pkg_item.acronyms] if pkg_item.acronyms else None
-            
-            # Create item with details
-            created_item = await self.create_with_details(
-                db,
-                obj_in=item_data,
+                is_active=True,
                 tlf_details=tlf_details,
                 dataset_details=dataset_details,
-                footnote_ids=footnote_ids,
-                acronym_ids=acronym_ids
+                footnotes=footnotes,
+                acronyms=acronyms
             )
-            created_items.append(created_item)
+            
+            logger.info(f"Created ReportingEffortItemCreateWithDetails, calling create_with_details")
+            logger.info(f"Schema validation passed - source_type: '{item_data_with_details.source_type}' (type: {type(item_data_with_details.source_type)})")
+            logger.info(f"Schema validation passed - item_type: '{item_data_with_details.item_type}' (type: {type(item_data_with_details.item_type)})")
+            
+            try:
+                # Create item with details
+                created_item = await self.create_with_details(
+                    db,
+                    obj_in=item_data_with_details,
+                    auto_create_tracker=True
+                )
+                logger.info(f"Successfully created item with ID: {created_item.id}")
+                created_items.append(created_item)
+            except Exception as create_error:
+                logger.error(f"Error in create_with_details for item {pkg_item.item_code}: {str(create_error)}", exc_info=True)
+                raise
         
         return created_items
     
@@ -321,47 +478,75 @@ class ReportingEffortItemCRUD:
         
         created_items = []
         for src_item in source_items:
-            # Create new item
-            item_data = ReportingEffortItemCreate(
-                reporting_effort_id=target_reporting_effort_id,
-                source_type="reporting_effort",
-                source_id=source_reporting_effort_id,
-                source_item_id=src_item.id,
-                item_type=src_item.item_type,
-                item_subtype=src_item.item_subtype,
-                item_code=src_item.item_code,
-                is_active=src_item.is_active
+            # Create new item - not used anymore, can be removed
+            # item_data = ReportingEffortItemCreate(...)
+            
+            # Build the complete item data with details
+            from app.schemas.reporting_effort_item import (
+                ReportingEffortItemCreateWithDetails,
+                ReportingEffortTlfDetailsCreate,
+                ReportingEffortDatasetDetailsCreate,
+                ReportingEffortItemFootnoteCreate,
+                ReportingEffortItemAcronymCreate
             )
             
-            # Copy TLF details
+            # Prepare TLF details if applicable
             tlf_details = None
-            if src_item.tlf_details:
-                tlf_details = {
-                    "title_id": src_item.tlf_details.title_id,
-                    "population_flag_id": src_item.tlf_details.population_flag_id
-                }
+            if src_item.item_type == ItemType.TLF and src_item.tlf_details:
+                tlf_details = ReportingEffortTlfDetailsCreate(
+                    title_id=src_item.tlf_details.title_id,
+                    population_flag_id=src_item.tlf_details.population_flag_id,
+                    ich_category_id=getattr(src_item.tlf_details, 'ich_category_id', None)
+                )
             
-            # Copy dataset details
+            # Prepare dataset details if applicable
             dataset_details = None
-            if src_item.dataset_details:
-                dataset_details = {
-                    "label": src_item.dataset_details.label,
-                    "sorting_order": src_item.dataset_details.sorting_order,
-                    "acronyms": src_item.dataset_details.acronyms
-                }
+            if src_item.item_type == ItemType.Dataset and src_item.dataset_details:
+                dataset_details = ReportingEffortDatasetDetailsCreate(
+                    label=src_item.dataset_details.label,
+                    sorting_order=src_item.dataset_details.sorting_order,
+                    acronyms=src_item.dataset_details.acronyms
+                )
             
-            # Get footnote and acronym IDs
-            footnote_ids = [f.footnote_id for f in src_item.footnotes] if src_item.footnotes else None
-            acronym_ids = [a.acronym_id for a in src_item.acronyms] if src_item.acronyms else None
+            # Prepare footnotes
+            footnotes = []
+            if src_item.footnotes:
+                for idx, f in enumerate(src_item.footnotes):
+                    footnotes.append(ReportingEffortItemFootnoteCreate(
+                        footnote_id=f.footnote_id,
+                        sequence_number=getattr(f, 'sequence_number', idx + 1)
+                    ))
+            
+            # Prepare acronyms
+            acronyms = []
+            if src_item.acronyms:
+                for a in src_item.acronyms:
+                    acronyms.append(ReportingEffortItemAcronymCreate(
+                        acronym_id=a.acronym_id
+                    ))
+            
+            # Create complete item data with details
+            # Always pass string values for enums
+            item_data_with_details = ReportingEffortItemCreateWithDetails(
+                reporting_effort_id=target_reporting_effort_id,
+                source_type=SourceType.REPORTING_EFFORT.value,  # Use enum value
+                source_id=source_reporting_effort_id,
+                source_item_id=src_item.id,
+                item_type=src_item.item_type.value,
+                item_subtype=src_item.item_subtype,
+                item_code=src_item.item_code,
+                is_active=src_item.is_active,
+                tlf_details=tlf_details,
+                dataset_details=dataset_details,
+                footnotes=footnotes,
+                acronyms=acronyms
+            )
             
             # Create item with details
             created_item = await self.create_with_details(
                 db,
-                obj_in=item_data,
-                tlf_details=tlf_details,
-                dataset_details=dataset_details,
-                footnote_ids=footnote_ids,
-                acronym_ids=acronym_ids
+                obj_in=item_data_with_details,
+                auto_create_tracker=True
             )
             created_items.append(created_item)
         

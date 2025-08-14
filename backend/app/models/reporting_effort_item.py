@@ -41,7 +41,8 @@ class ReportingEffortItem(Base, TimestampMixin):
             SourceType,
             name='sourcetype',
             create_type=False,
-            native_enum=False
+            native_enum=False,
+            values_callable=lambda obj: [e.value for e in obj]
         ),
         nullable=True,
         doc="Where this item came from"
@@ -63,7 +64,8 @@ class ReportingEffortItem(Base, TimestampMixin):
             ItemType,
             name='itemtype',
             create_type=False,
-            native_enum=False
+            native_enum=False,
+            values_callable=lambda obj: [e.value for e in obj]
         ),
         nullable=False,
         index=True,

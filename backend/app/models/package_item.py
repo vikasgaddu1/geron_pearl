@@ -2,16 +2,10 @@
 
 from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-import enum
 
 from app.db.base import Base
 from app.db.mixins import TimestampMixin
-
-
-class ItemType(enum.Enum):
-    """Enum for package item types."""
-    TLF = "TLF"
-    Dataset = "Dataset"
+from app.models.enums import ItemType
 
 
 class PackageItem(Base, TimestampMixin):
@@ -22,7 +16,7 @@ class PackageItem(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     package_id: Mapped[int] = mapped_column(Integer, ForeignKey("packages.id"), nullable=False, index=True)
     item_type: Mapped[ItemType] = mapped_column(
-        Enum(ItemType),
+        Enum(ItemType, native_enum=False, values_callable=lambda obj: [e.value for e in obj]),
         nullable=False,
         index=True,
         doc="Type of package item (TLF or Dataset)"

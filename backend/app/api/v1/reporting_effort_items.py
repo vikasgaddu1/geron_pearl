@@ -923,7 +923,12 @@ async def copy_items_from_package(
     """
     Copy items from a package to a reporting effort.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
+        logger.info(f"Starting copy operation: package_id={copy_request.package_id}, reporting_effort_id={reporting_effort_id}")
+        
         # Verify reporting effort exists
         db_effort = await reporting_effort.get(db, id=reporting_effort_id)
         if not db_effort:
@@ -941,12 +946,14 @@ async def copy_items_from_package(
                 detail="Source package not found"
             )
         
+        logger.info(f"Calling copy_from_package with validated inputs")
         created_items = await reporting_effort_item.copy_from_package(
             db,
             reporting_effort_id=reporting_effort_id,
             package_id=copy_request.package_id,
             item_ids=copy_request.item_ids
         )
+        logger.info(f"Copy operation completed successfully, created {len(created_items)} items")
         
         print(f"Copied {len(created_items)} items from package {copy_request.package_id} to reporting effort {reporting_effort_id}")
         
@@ -981,13 +988,37 @@ async def copy_items_from_package(
         
         return created_items
         
+    except ValueError as e:
+        # Handle validation errors (e.g., enum validation, duplicates)
+        logger.error(f"Validation error during copy operation: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Validation error: {str(e)}"
+        )
     except Exception as e:
+        # Log the full exception for debugging
+        logger.error(f"Unexpected error during copy operation: {str(e)}", exc_info=True)
+        
         if isinstance(e, HTTPException):
             raise
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to copy items from package: {str(e)}"
-        )
+        
+        # Provide more specific error messages based on error type
+        error_msg = str(e)
+        if "enum" in error_msg.lower() or "sourcetype" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Database enum validation error: {error_msg}. This indicates an issue with data type conversion."
+            )
+        elif "duplicate" in error_msg.lower() or "unique" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Duplicate item error: {error_msg}"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to copy items from package: {error_msg}"
+            )
 
 @router.post("/{reporting_effort_id}/copy-from-reporting-effort", response_model=List[ReportingEffortItemWithDetails])
 async def copy_items_from_reporting_effort(
