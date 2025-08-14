@@ -71,6 +71,10 @@ class ReportingEffortItemCRUD:
         Returns:
             Created item with all relationships, or None if duplicate and skip_duplicates=True
         """
+        # Initialize logger first
+        import logging
+        logger = logging.getLogger(__name__)
+        
         # Check for duplicate
         existing = await self.get_by_unique_key(
             db,
@@ -87,8 +91,6 @@ class ReportingEffortItemCRUD:
                 raise ValueError(f"A {obj_in.item_type} with code {obj_in.item_code} already exists in this reporting effort")
         # Create the main reporting effort item
         # With unified str,Enum, we can pass directly
-        import logging
-        logger = logging.getLogger(__name__)
         
         logger.info(f"About to create ReportingEffortItem with:")
         logger.info(f"  source_type: '{obj_in.source_type}' (type: {type(obj_in.source_type)})")
