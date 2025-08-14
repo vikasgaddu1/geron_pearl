@@ -16,13 +16,13 @@ reporting_effort_tracker_ui <- function(id) {
     div(
       style = "display: flex; justify-content: center; padding: 20px;",
       div(
-        style = "width: 100%; max-width: 1400px;",
+        style = "width: 100%; max-width: 100%;",
         
         # Main card
         card(
           class = "border border-2",
           full_screen = FALSE,
-          height = "750px",
+          height = "auto",
           
           # Header
           card_header(
@@ -305,19 +305,19 @@ reporting_effort_tracker_ui <- function(id) {
                     "TLF Tracker",
                     value = "tlf",
                     div(class = "mb-2", uiOutput(ns("effort_label_tlf"))),
-                    div(style = "height: 560px; overflow-x: auto;", DTOutput(ns("tracker_table_tlf")))
+                    div(style = "min-height: 560px; overflow-x: auto;", DTOutput(ns("tracker_table_tlf")))
                   ),
                   nav_panel(
                     "SDTM Tracker",
                     value = "sdtm",
                     div(class = "mb-2", uiOutput(ns("effort_label_sdtm"))),
-                    div(style = "height: 560px; overflow-x: auto;", DTOutput(ns("tracker_table_sdtm")))
+                    div(style = "min-height: 560px; overflow-x: auto;", DTOutput(ns("tracker_table_sdtm")))
                   ),
                   nav_panel(
                     "ADaM Tracker",
                     value = "adam",
                     div(class = "mb-2", uiOutput(ns("effort_label_adam"))),
-                    div(style = "height: 560px; overflow-x: auto;", DTOutput(ns("tracker_table_adam")))
+                    div(style = "min-height: 560px; overflow-x: auto;", DTOutput(ns("tracker_table_adam")))
                   )
                 )
               )
