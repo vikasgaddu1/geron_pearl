@@ -13,6 +13,7 @@ reporting_effort_items_server <- function(id) {
     items_data <- reactiveVal(data.frame())
     reporting_efforts_list <- reactiveVal(list())
     packages_list <- reactiveVal(list())
+    database_releases_lookup <- reactiveVal(list())
     last_update <- reactiveVal(Sys.time())
     is_editing <- reactiveVal(FALSE)
     editing_item_id <- reactiveVal(NULL)
@@ -59,13 +60,25 @@ reporting_effort_items_server <- function(id) {
           }
         }
         
-        # Create choices for select input with correct field names
+        # Load database releases for label lookup
+        db_rel_result <- get_database_releases()
+        db_lookup <- list()
+        if (!("error" %in% names(db_rel_result))) {
+          for (rel in db_rel_result) {
+            db_lookup[[as.character(rel$id)]] <- rel$database_release_label
+          }
+        }
+        database_releases_lookup(db_lookup)
+        
+        # Create choices for select input with user-friendly names
         choices <- setNames(
           sapply(result, function(x) x$id),
           sapply(result, function(x) {
             study_name <- studies_lookup[[as.character(x$study_id)]] %||% paste0("Study ", x$study_id)
-            # Format: Study Name – DB Release
-            paste0(study_name, " \u2013 ", x$database_release_label)
+            db_label <- db_lookup[[as.character(x$database_release_id)]] %||% paste0("Release ", x$database_release_id)
+            # x$database_release_label is the reporting effort label
+            re_label <- x$database_release_label %||% paste0("Effort ", x$id)
+            paste0(re_label, " (", study_name, ", ", db_label, ")")
           })
         )
         # Add empty option at the beginning
@@ -279,7 +292,7 @@ reporting_effort_items_server <- function(id) {
           }
         }
         if (!is.null(selected_effort)) {
-          # Lookup study name
+          # Lookup study and DB names
           studies <- get_studies()
           study_name <- NULL
           if (!("error" %in% names(studies))) {
@@ -290,7 +303,10 @@ reporting_effort_items_server <- function(id) {
               }
             }
           }
-          label_text <- if (!is.null(study_name)) paste0(study_name, " \u2013 ", selected_effort$database_release_label) else selected_effort$database_release_label
+          db_lookup <- database_releases_lookup()
+          db_label <- db_lookup[[as.character(selected_effort$database_release_id)]] %||% paste0("Release ", selected_effort$database_release_id)
+          re_label <- selected_effort$database_release_label %||% paste0("Effort ", selected_effort$id)
+          label_text <- paste0(re_label, " (", if (!is.null(study_name)) study_name else paste0("Study ", selected_effort$study_id), ", ", db_label, ")")
           div(
             class = "alert alert-info py-2 mb-3 d-flex align-items-center",
             style = "background: linear-gradient(90deg, #cfe2ff 0%, #e7f1ff 100%); border-left: 4px solid #0d6efd;",
@@ -331,7 +347,10 @@ reporting_effort_items_server <- function(id) {
               }
             }
           }
-          label_text <- if (!is.null(study_name)) paste0(study_name, " \u2013 ", selected_effort$database_release_label) else selected_effort$database_release_label
+          db_lookup <- database_releases_lookup()
+          db_label <- db_lookup[[as.character(selected_effort$database_release_id)]] %||% paste0("Release ", selected_effort$database_release_id)
+          re_label <- selected_effort$database_release_label %||% paste0("Effort ", selected_effort$id)
+          label_text <- paste0(re_label, " (", if (!is.null(study_name)) study_name else paste0("Study ", selected_effort$study_id), ", ", db_label, ")")
           div(
             class = "alert alert-info py-2 mb-3 d-flex align-items-center",
             style = "background: linear-gradient(90deg, #cfe2ff 0%, #e7f1ff 100%); border-left: 4px solid #0d6efd;",
