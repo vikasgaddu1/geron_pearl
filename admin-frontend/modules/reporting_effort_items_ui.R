@@ -44,7 +44,7 @@ reporting_effort_items_ui <- function(id) {
                   " Current Reporting Effort:"
                 ),
                 div(
-                  style = "width: 300px;",
+                  style = "width: 420px;",
                   title = "All items will be added to this reporting effort",
                   selectizeInput(
                     ns("selected_reporting_effort"),

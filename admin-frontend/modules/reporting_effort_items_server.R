@@ -64,7 +64,8 @@ reporting_effort_items_server <- function(id) {
           sapply(result, function(x) x$id),
           sapply(result, function(x) {
             study_name <- studies_lookup[[as.character(x$study_id)]] %||% paste0("Study ", x$study_id)
-            paste0(x$database_release_label, " (", study_name, ")")
+            # Format: Study Name – DB Release
+            paste0(study_name, " \u2013 ", x$database_release_label)
           })
         )
         # Add empty option at the beginning
@@ -289,7 +290,7 @@ reporting_effort_items_server <- function(id) {
               }
             }
           }
-          label_text <- if (!is.null(study_name)) paste0(selected_effort$database_release_label, " (", study_name, ")") else selected_effort$database_release_label
+          label_text <- if (!is.null(study_name)) paste0(study_name, " \u2013 ", selected_effort$database_release_label) else selected_effort$database_release_label
           div(
             class = "alert alert-info py-2 mb-3 d-flex align-items-center",
             style = "background: linear-gradient(90deg, #cfe2ff 0%, #e7f1ff 100%); border-left: 4px solid #0d6efd;",
@@ -330,7 +331,7 @@ reporting_effort_items_server <- function(id) {
               }
             }
           }
-          label_text <- if (!is.null(study_name)) paste0(selected_effort$database_release_label, " (", study_name, ")") else selected_effort$database_release_label
+          label_text <- if (!is.null(study_name)) paste0(study_name, " \u2013 ", selected_effort$database_release_label) else selected_effort$database_release_label
           div(
             class = "alert alert-info py-2 mb-3 d-flex align-items-center",
             style = "background: linear-gradient(90deg, #cfe2ff 0%, #e7f1ff 100%); border-left: 4px solid #0d6efd;",

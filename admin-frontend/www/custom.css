@@ -80,6 +80,21 @@
   animation: none;
 }
 
+/* Reporting effort selector emphasis styles (match package styling) */
+.effort-selector-wrapper {
+  background-color: #fff3cd !important;
+  border: 2px solid #ffc107 !important;
+  border-radius: 8px;
+  padding: 5px 10px;
+  animation: subtle-pulse 3s infinite;
+}
+
+.effort-selector-wrapper.has-selection {
+  background-color: #d4edda !important;
+  border-color: #28a745 !important;
+  animation: none;
+}
+
 /* Dark mode adjustments for package selector */
 [data-bs-theme="dark"] .package-selector-wrapper {
   background-color: #664d03 !important;
@@ -87,6 +102,17 @@
 }
 
 [data-bs-theme="dark"] .package-selector-wrapper.has-selection {
+  background-color: #0f5132 !important;
+  border-color: #198754 !important;
+}
+
+/* Dark mode adjustments for reporting effort selector */
+[data-bs-theme="dark"] .effort-selector-wrapper {
+  background-color: #664d03 !important;
+  border-color: #ffca2c !important;
+}
+
+[data-bs-theme="dark"] .effort-selector-wrapper.has-selection {
   background-color: #0f5132 !important;
   border-color: #198754 !important;
 }
