@@ -151,6 +151,11 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# BMAD-METHOD framework files
+.bmad-core/
+.claude/
+.cursor/rules/
+
 # pytype static type analyzer
 .pytype/
 
