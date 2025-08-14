@@ -477,6 +477,246 @@ class ReportingEffortItemCRUD:
             }
         }
     
+    async def copy_tlf_from_package(
+        self,
+        db: AsyncSession,
+        *,
+        reporting_effort_id: int,
+        package_id: int,
+        item_ids: Optional[List[int]] = None
+    ) -> Dict[str, Any]:
+        """
+        Copy only TLF items from a package to a reporting effort.
+        
+        Args:
+            db: Database session
+            reporting_effort_id: Target reporting effort ID
+            package_id: Source package ID
+            item_ids: Optional list of specific item IDs to copy (None = copy all TLF items)
+        
+        Returns:
+            Dictionary with 'created_items', 'skipped_items', and 'summary' keys
+        """
+        from app.crud.package_item import package_item
+        
+        # Get package items, filtering for TLF items only
+        package_items = await package_item.get_by_package_id(db, package_id=package_id)
+        tlf_items = [item for item in package_items if item.item_type == ItemType.TLF]
+        
+        # Filter if specific items requested
+        if item_ids:
+            tlf_items = [item for item in tlf_items if item.id in item_ids]
+        
+        created_items = []
+        skipped_items = []
+        
+        for pkg_item in tlf_items:
+            # Build the complete item data with details
+            from app.schemas.reporting_effort_item import (
+                ReportingEffortItemCreateWithDetails,
+                ReportingEffortTlfDetailsCreate,
+                ReportingEffortItemFootnoteCreate,
+                ReportingEffortItemAcronymCreate
+            )
+            
+            # Prepare TLF details if applicable
+            tlf_details = None
+            if pkg_item.tlf_details:
+                tlf_details = ReportingEffortTlfDetailsCreate(
+                    title_id=pkg_item.tlf_details.title_id,
+                    population_flag_id=pkg_item.tlf_details.population_flag_id,
+                    ich_category_id=getattr(pkg_item.tlf_details, 'ich_category_id', None)
+                )
+            
+            # Prepare footnotes
+            footnotes = []
+            if pkg_item.footnotes:
+                for idx, f in enumerate(pkg_item.footnotes):
+                    footnotes.append(ReportingEffortItemFootnoteCreate(
+                        footnote_id=f.footnote_id,
+                        sequence_number=getattr(f, 'sequence_number', idx + 1)
+                    ))
+            
+            # Prepare acronyms
+            acronyms = []
+            if pkg_item.acronyms:
+                for a in pkg_item.acronyms:
+                    acronyms.append(ReportingEffortItemAcronymCreate(
+                        acronym_id=a.acronym_id
+                    ))
+            
+            # Create complete item data with details
+            item_data_with_details = ReportingEffortItemCreateWithDetails(
+                reporting_effort_id=reporting_effort_id,
+                source_type=SourceType.PACKAGE.value,
+                source_id=package_id,
+                source_item_id=pkg_item.id,
+                item_type=pkg_item.item_type.value,
+                item_subtype=pkg_item.item_subtype,
+                item_code=pkg_item.item_code,
+                is_active=True,
+                tlf_details=tlf_details,
+                dataset_details=None,  # Always None for TLF items
+                footnotes=footnotes,
+                acronyms=acronyms
+            )
+            
+            try:
+                # Create item with details, skipping duplicates
+                created_item = await self.create_with_details(
+                    db,
+                    obj_in=item_data_with_details,
+                    auto_create_tracker=True,
+                    skip_duplicates=True
+                )
+                
+                if created_item is not None:
+                    created_items.append(created_item)
+                else:
+                    skipped_items.append({
+                        'item_type': pkg_item.item_type.value,
+                        'item_subtype': pkg_item.item_subtype,
+                        'item_code': pkg_item.item_code,
+                        'reason': 'already_exists'
+                    })
+                    
+            except Exception as create_error:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error in create_with_details for TLF item {pkg_item.item_code}: {str(create_error)}", exc_info=True)
+                raise
+        
+        return {
+            'created_items': created_items,
+            'skipped_items': skipped_items,
+            'summary': {
+                'total_attempted': len(tlf_items),
+                'created_count': len(created_items),
+                'skipped_count': len(skipped_items),
+                'success': True
+            }
+        }
+    
+    async def copy_dataset_from_package(
+        self,
+        db: AsyncSession,
+        *,
+        reporting_effort_id: int,
+        package_id: int,
+        item_ids: Optional[List[int]] = None
+    ) -> Dict[str, Any]:
+        """
+        Copy only Dataset items from a package to a reporting effort.
+        
+        Args:
+            db: Database session
+            reporting_effort_id: Target reporting effort ID
+            package_id: Source package ID
+            item_ids: Optional list of specific item IDs to copy (None = copy all Dataset items)
+        
+        Returns:
+            Dictionary with 'created_items', 'skipped_items', and 'summary' keys
+        """
+        from app.crud.package_item import package_item
+        
+        # Get package items, filtering for Dataset items only
+        package_items = await package_item.get_by_package_id(db, package_id=package_id)
+        dataset_items = [item for item in package_items if item.item_type == ItemType.Dataset]
+        
+        # Filter if specific items requested
+        if item_ids:
+            dataset_items = [item for item in dataset_items if item.id in item_ids]
+        
+        created_items = []
+        skipped_items = []
+        
+        for pkg_item in dataset_items:
+            # Build the complete item data with details
+            from app.schemas.reporting_effort_item import (
+                ReportingEffortItemCreateWithDetails,
+                ReportingEffortDatasetDetailsCreate,
+                ReportingEffortItemFootnoteCreate,
+                ReportingEffortItemAcronymCreate
+            )
+            
+            # Prepare dataset details if applicable
+            dataset_details = None
+            if pkg_item.dataset_details:
+                dataset_details = ReportingEffortDatasetDetailsCreate(
+                    label=pkg_item.dataset_details.label,
+                    sorting_order=pkg_item.dataset_details.sorting_order,
+                    acronyms=pkg_item.dataset_details.acronyms
+                )
+            
+            # Prepare footnotes
+            footnotes = []
+            if pkg_item.footnotes:
+                for idx, f in enumerate(pkg_item.footnotes):
+                    footnotes.append(ReportingEffortItemFootnoteCreate(
+                        footnote_id=f.footnote_id,
+                        sequence_number=getattr(f, 'sequence_number', idx + 1)
+                    ))
+            
+            # Prepare acronyms
+            acronyms = []
+            if pkg_item.acronyms:
+                for a in pkg_item.acronyms:
+                    acronyms.append(ReportingEffortItemAcronymCreate(
+                        acronym_id=a.acronym_id
+                    ))
+            
+            # Create complete item data with details
+            item_data_with_details = ReportingEffortItemCreateWithDetails(
+                reporting_effort_id=reporting_effort_id,
+                source_type=SourceType.PACKAGE.value,
+                source_id=package_id,
+                source_item_id=pkg_item.id,
+                item_type=pkg_item.item_type.value,
+                item_subtype=pkg_item.item_subtype,
+                item_code=pkg_item.item_code,
+                is_active=True,
+                tlf_details=None,  # Always None for Dataset items
+                dataset_details=dataset_details,
+                footnotes=footnotes,
+                acronyms=acronyms
+            )
+            
+            try:
+                # Create item with details, skipping duplicates
+                created_item = await self.create_with_details(
+                    db,
+                    obj_in=item_data_with_details,
+                    auto_create_tracker=True,
+                    skip_duplicates=True
+                )
+                
+                if created_item is not None:
+                    created_items.append(created_item)
+                else:
+                    skipped_items.append({
+                        'item_type': pkg_item.item_type.value,
+                        'item_subtype': pkg_item.item_subtype,
+                        'item_code': pkg_item.item_code,
+                        'reason': 'already_exists'
+                    })
+                    
+            except Exception as create_error:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error in create_with_details for Dataset item {pkg_item.item_code}: {str(create_error)}", exc_info=True)
+                raise
+        
+        return {
+            'created_items': created_items,
+            'skipped_items': skipped_items,
+            'summary': {
+                'total_attempted': len(dataset_items),
+                'created_count': len(created_items),
+                'skipped_count': len(skipped_items),
+                'success': True
+            }
+        }
+    
     async def copy_from_reporting_effort(
         self,
         db: AsyncSession,
@@ -608,6 +848,254 @@ class ReportingEffortItemCRUD:
             'skipped_items': skipped_items,
             'summary': {
                 'total_attempted': len(source_items),
+                'created_count': len(created_items),
+                'skipped_count': len(skipped_items),
+                'success': True
+            }
+        }
+    
+    async def copy_tlf_from_reporting_effort(
+        self,
+        db: AsyncSession,
+        *,
+        target_reporting_effort_id: int,
+        source_reporting_effort_id: int,
+        item_ids: Optional[List[int]] = None
+    ) -> Dict[str, Any]:
+        """
+        Copy only TLF items from another reporting effort with graceful duplicate handling.
+        
+        Args:
+            db: Database session
+            target_reporting_effort_id: Target reporting effort ID
+            source_reporting_effort_id: Source reporting effort ID
+            item_ids: Optional list of specific item IDs to copy (None = copy all TLF items)
+        
+        Returns:
+            Dictionary with created_items, skipped_items, and summary
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        # Get source items, filtering for TLF items only
+        source_items = await self.get_by_reporting_effort(
+            db, 
+            reporting_effort_id=source_reporting_effort_id
+        )
+        tlf_items = [item for item in source_items if item.item_type == ItemType.TLF]
+        
+        # Filter if specific items requested
+        if item_ids:
+            tlf_items = [item for item in tlf_items if item.id in item_ids]
+        
+        created_items = []
+        skipped_items = []
+        
+        logger.info(f"Starting TLF copy from reporting effort {source_reporting_effort_id} to {target_reporting_effort_id}, processing {len(tlf_items)} TLF items")
+        
+        for src_item in tlf_items:
+            # Build the complete item data with details
+            from app.schemas.reporting_effort_item import (
+                ReportingEffortItemCreateWithDetails,
+                ReportingEffortTlfDetailsCreate,
+                ReportingEffortItemFootnoteCreate,
+                ReportingEffortItemAcronymCreate
+            )
+            
+            # Prepare TLF details if applicable
+            tlf_details = None
+            if src_item.tlf_details:
+                tlf_details = ReportingEffortTlfDetailsCreate(
+                    title_id=src_item.tlf_details.title_id,
+                    population_flag_id=src_item.tlf_details.population_flag_id,
+                    ich_category_id=getattr(src_item.tlf_details, 'ich_category_id', None)
+                )
+            
+            # Prepare footnotes
+            footnotes = []
+            if src_item.footnotes:
+                for idx, f in enumerate(src_item.footnotes):
+                    footnotes.append(ReportingEffortItemFootnoteCreate(
+                        footnote_id=f.footnote_id,
+                        sequence_number=getattr(f, 'sequence_number', idx + 1)
+                    ))
+            
+            # Prepare acronyms
+            acronyms = []
+            if src_item.acronyms:
+                for a in src_item.acronyms:
+                    acronyms.append(ReportingEffortItemAcronymCreate(
+                        acronym_id=a.acronym_id
+                    ))
+            
+            # Create complete item data with details
+            item_data_with_details = ReportingEffortItemCreateWithDetails(
+                reporting_effort_id=target_reporting_effort_id,
+                source_type=SourceType.REPORTING_EFFORT.value,
+                source_id=source_reporting_effort_id,
+                source_item_id=src_item.id,
+                item_type=src_item.item_type.value,
+                item_subtype=src_item.item_subtype,
+                item_code=src_item.item_code,
+                is_active=src_item.is_active,
+                tlf_details=tlf_details,
+                dataset_details=None,  # Always None for TLF items
+                footnotes=footnotes,
+                acronyms=acronyms
+            )
+            
+            # Create item with details, skipping duplicates
+            logger.info(f"Attempting to create TLF item with code: {src_item.item_code}")
+            created_item = await self.create_with_details(
+                db,
+                obj_in=item_data_with_details,
+                auto_create_tracker=True,
+                skip_duplicates=True
+            )
+            
+            if created_item:
+                created_items.append(created_item)
+                logger.info(f"Successfully created TLF item: {src_item.item_code}")
+            else:
+                # Item was skipped due to duplicate
+                skipped_items.append({
+                    'item_code': src_item.item_code,
+                    'item_type': src_item.item_type.value,
+                    'item_subtype': src_item.item_subtype or '',
+                    'reason': 'Duplicate item already exists'
+                })
+                logger.info(f"Skipped duplicate TLF item: {src_item.item_code}")
+        
+        logger.info(f"TLF copy completed: {len(created_items)} created, {len(skipped_items)} skipped")
+        
+        return {
+            'created_items': created_items,
+            'skipped_items': skipped_items,
+            'summary': {
+                'total_attempted': len(tlf_items),
+                'created_count': len(created_items),
+                'skipped_count': len(skipped_items),
+                'success': True
+            }
+        }
+    
+    async def copy_dataset_from_reporting_effort(
+        self,
+        db: AsyncSession,
+        *,
+        target_reporting_effort_id: int,
+        source_reporting_effort_id: int,
+        item_ids: Optional[List[int]] = None
+    ) -> Dict[str, Any]:
+        """
+        Copy only Dataset items from another reporting effort with graceful duplicate handling.
+        
+        Args:
+            db: Database session
+            target_reporting_effort_id: Target reporting effort ID
+            source_reporting_effort_id: Source reporting effort ID
+            item_ids: Optional list of specific item IDs to copy (None = copy all Dataset items)
+        
+        Returns:
+            Dictionary with created_items, skipped_items, and summary
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        # Get source items, filtering for Dataset items only
+        source_items = await self.get_by_reporting_effort(
+            db, 
+            reporting_effort_id=source_reporting_effort_id
+        )
+        dataset_items = [item for item in source_items if item.item_type == ItemType.Dataset]
+        
+        # Filter if specific items requested
+        if item_ids:
+            dataset_items = [item for item in dataset_items if item.id in item_ids]
+        
+        created_items = []
+        skipped_items = []
+        
+        logger.info(f"Starting Dataset copy from reporting effort {source_reporting_effort_id} to {target_reporting_effort_id}, processing {len(dataset_items)} Dataset items")
+        
+        for src_item in dataset_items:
+            # Build the complete item data with details
+            from app.schemas.reporting_effort_item import (
+                ReportingEffortItemCreateWithDetails,
+                ReportingEffortDatasetDetailsCreate,
+                ReportingEffortItemFootnoteCreate,
+                ReportingEffortItemAcronymCreate
+            )
+            
+            # Prepare dataset details if applicable
+            dataset_details = None
+            if src_item.dataset_details:
+                dataset_details = ReportingEffortDatasetDetailsCreate(
+                    label=src_item.dataset_details.label,
+                    sorting_order=src_item.dataset_details.sorting_order,
+                    acronyms=src_item.dataset_details.acronyms
+                )
+            
+            # Prepare footnotes
+            footnotes = []
+            if src_item.footnotes:
+                for idx, f in enumerate(src_item.footnotes):
+                    footnotes.append(ReportingEffortItemFootnoteCreate(
+                        footnote_id=f.footnote_id,
+                        sequence_number=getattr(f, 'sequence_number', idx + 1)
+                    ))
+            
+            # Prepare acronyms
+            acronyms = []
+            if src_item.acronyms:
+                for a in src_item.acronyms:
+                    acronyms.append(ReportingEffortItemAcronymCreate(
+                        acronym_id=a.acronym_id
+                    ))
+            
+            # Create complete item data with details
+            item_data_with_details = ReportingEffortItemCreateWithDetails(
+                reporting_effort_id=target_reporting_effort_id,
+                source_type=SourceType.REPORTING_EFFORT.value,
+                source_id=source_reporting_effort_id,
+                source_item_id=src_item.id,
+                item_type=src_item.item_type.value,
+                item_subtype=src_item.item_subtype,
+                item_code=src_item.item_code,
+                is_active=src_item.is_active,
+                tlf_details=None,  # Always None for Dataset items
+                dataset_details=dataset_details,
+                footnotes=footnotes,
+                acronyms=acronyms
+            )
+            
+            # Create item with details, skipping duplicates
+            logger.info(f"Attempting to create Dataset item with code: {src_item.item_code}")
+            created_item = await self.create_with_details(
+                db,
+                obj_in=item_data_with_details,
+                auto_create_tracker=True,
+                skip_duplicates=True
+            )
+            
+            if created_item:
+                created_items.append(created_item)
+                logger.info(f"Successfully created Dataset item: {src_item.item_code}")
+            else:
+                # Item was skipped due to duplicate
+                skipped_items.append({
+                    'item_code': src_item.item_code,
+                    'item_type': src_item.item_type.value,
+                    'item_subtype': src_item.item_subtype or '',
+                    'reason': 'Duplicate item already exists'
+                })
+                logger.info(f"Skipped duplicate Dataset item: {src_item.item_code}")
+        
+        logger.info(f"Dataset copy completed: {len(created_items)} created, {len(skipped_items)} skipped")
+        
+        return {
+            'created_items': created_items,
+            'skipped_items': skipped_items,
+            'summary': {
+                'total_attempted': len(dataset_items),
                 'created_count': len(created_items),
                 'skipped_count': len(skipped_items),
                 'success': True

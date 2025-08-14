@@ -861,10 +861,82 @@ copy_items_from_package <- function(reporting_effort_id, package_id) {
   })
 }
 
+# Copy TLF items from package
+copy_tlf_items_from_package <- function(reporting_effort_id, package_id) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_items_endpoint(), "/", reporting_effort_id, "/copy-tlf-from-package")) |>
+      httr2::req_method("POST") |>
+      httr2::req_body_json(list(package_id = as.integer(package_id))) |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Copy Dataset items from package
+copy_dataset_items_from_package <- function(reporting_effort_id, package_id) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_items_endpoint(), "/", reporting_effort_id, "/copy-dataset-from-package")) |>
+      httr2::req_method("POST") |>
+      httr2::req_body_json(list(package_id = as.integer(package_id))) |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
 # Copy items from reporting effort
 copy_items_from_reporting_effort <- function(reporting_effort_id, source_reporting_effort_id) {
   tryCatch({
     response <- httr2::request(paste0(get_reporting_effort_items_endpoint(), "/", reporting_effort_id, "/copy-from-reporting-effort")) |>
+      httr2::req_method("POST") |>
+      httr2::req_body_json(list(source_reporting_effort_id = as.integer(source_reporting_effort_id))) |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Copy TLF items from reporting effort
+copy_tlf_items_from_reporting_effort <- function(reporting_effort_id, source_reporting_effort_id) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_items_endpoint(), "/", reporting_effort_id, "/copy-tlf-from-reporting-effort")) |>
+      httr2::req_method("POST") |>
+      httr2::req_body_json(list(source_reporting_effort_id = as.integer(source_reporting_effort_id))) |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Copy Dataset items from reporting effort
+copy_dataset_items_from_reporting_effort <- function(reporting_effort_id, source_reporting_effort_id) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_items_endpoint(), "/", reporting_effort_id, "/copy-dataset-from-reporting-effort")) |>
       httr2::req_method("POST") |>
       httr2::req_body_json(list(source_reporting_effort_id = as.integer(source_reporting_effort_id))) |>
       httr2::req_error(is_error = ~ FALSE) |>

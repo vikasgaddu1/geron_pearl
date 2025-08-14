@@ -1007,20 +1007,221 @@ async def copy_items_from_package(
         
         # Provide more specific error messages based on error type
         error_msg = str(e)
-        if "enum" in error_msg.lower() or "sourcetype" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Database enum validation error: {error_msg}. This indicates an issue with data type conversion."
-            )
-        elif "duplicate" in error_msg.lower() or "unique" in error_msg.lower():
+        if "already exists" in error_msg:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Duplicate item error: {error_msg}"
+                detail=f"Duplicate item conflict: {error_msg}"
             )
         else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to copy items from package: {error_msg}"
+            )
+
+@router.post("/{reporting_effort_id}/copy-tlf-from-package", response_model=CopyOperationResponse)
+async def copy_tlf_items_from_package(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    reporting_effort_id: int,
+    copy_request: CopyFromPackageRequest,
+) -> CopyOperationResponse:
+    """
+    Copy only TLF items from a package to a reporting effort.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info(f"Starting TLF copy operation: package_id={copy_request.package_id}, reporting_effort_id={reporting_effort_id}")
+        
+        # Verify reporting effort exists
+        db_effort = await reporting_effort.get(db, id=reporting_effort_id)
+        if not db_effort:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Reporting effort not found"
+            )
+        
+        # Verify package exists  
+        from app.crud.package import package
+        db_package = await package.get(db, id=copy_request.package_id)
+        if not db_package:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Source package not found"
+            )
+        
+        logger.info(f"Calling copy_tlf_from_package with validated inputs")
+        copy_result = await reporting_effort_item.copy_tlf_from_package(
+            db,
+            reporting_effort_id=reporting_effort_id,
+            package_id=copy_request.package_id,
+            item_ids=copy_request.item_ids
+        )
+        logger.info(f"TLF copy operation completed successfully: {copy_result['summary']}")
+        
+        print(f"TLF copy operation results: {copy_result['summary']['created_count']} created, {copy_result['summary']['skipped_count']} skipped")
+        
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="reporting_effort_items",
+                record_id=reporting_effort_id,
+                action="COPY_TLF_FROM_PACKAGE",
+                user_id=getattr(request.state, 'user_id', None),
+                changes={
+                    "copy_operation": {
+                        "source_package_id": copy_request.package_id,
+                        "source_item_ids": copy_request.item_ids,
+                        "item_type": "TLF",
+                        "summary": copy_result['summary'],
+                        "created_item_ids": [item.id for item in copy_result['created_items']],
+                        "skipped_items": copy_result['skipped_items']
+                    }
+                },
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            logger.error(f"Audit logging error: {audit_error}")
+        
+        # Broadcast WebSocket events for each created item
+        for item in copy_result['created_items']:
+            try:
+                await broadcast_reporting_effort_item_created(item)
+            except Exception:
+                pass
+        
+        # Return the complete copy operation response
+        return CopyOperationResponse(**copy_result)
+        
+    except ValueError as e:
+        logger.error(f"Validation error during TLF copy operation: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Validation error: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during TLF copy operation: {str(e)}", exc_info=True)
+        
+        if isinstance(e, HTTPException):
+            raise
+        
+        error_msg = str(e)
+        if "already exists" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Duplicate item conflict: {error_msg}"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to copy TLF items from package: {error_msg}"
+            )
+
+@router.post("/{reporting_effort_id}/copy-dataset-from-package", response_model=CopyOperationResponse)
+async def copy_dataset_items_from_package(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    reporting_effort_id: int,
+    copy_request: CopyFromPackageRequest,
+) -> CopyOperationResponse:
+    """
+    Copy only Dataset items from a package to a reporting effort.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info(f"Starting Dataset copy operation: package_id={copy_request.package_id}, reporting_effort_id={reporting_effort_id}")
+        
+        # Verify reporting effort exists
+        db_effort = await reporting_effort.get(db, id=reporting_effort_id)
+        if not db_effort:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Reporting effort not found"
+            )
+        
+        # Verify package exists  
+        from app.crud.package import package
+        db_package = await package.get(db, id=copy_request.package_id)
+        if not db_package:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Source package not found"
+            )
+        
+        logger.info(f"Calling copy_dataset_from_package with validated inputs")
+        copy_result = await reporting_effort_item.copy_dataset_from_package(
+            db,
+            reporting_effort_id=reporting_effort_id,
+            package_id=copy_request.package_id,
+            item_ids=copy_request.item_ids
+        )
+        logger.info(f"Dataset copy operation completed successfully: {copy_result['summary']}")
+        
+        print(f"Dataset copy operation results: {copy_result['summary']['created_count']} created, {copy_result['summary']['skipped_count']} skipped")
+        
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="reporting_effort_items",
+                record_id=reporting_effort_id,
+                action="COPY_DATASET_FROM_PACKAGE",
+                user_id=getattr(request.state, 'user_id', None),
+                changes={
+                    "copy_operation": {
+                        "source_package_id": copy_request.package_id,
+                        "source_item_ids": copy_request.item_ids,
+                        "item_type": "Dataset",
+                        "summary": copy_result['summary'],
+                        "created_item_ids": [item.id for item in copy_result['created_items']],
+                        "skipped_items": copy_result['skipped_items']
+                    }
+                },
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            logger.error(f"Audit logging error: {audit_error}")
+        
+        # Broadcast WebSocket events for each created item
+        for item in copy_result['created_items']:
+            try:
+                await broadcast_reporting_effort_item_created(item)
+            except Exception:
+                pass
+        
+        # Return the complete copy operation response
+        return CopyOperationResponse(**copy_result)
+        
+    except ValueError as e:
+        logger.error(f"Validation error during Dataset copy operation: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Validation error: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during Dataset copy operation: {str(e)}", exc_info=True)
+        
+        if isinstance(e, HTTPException):
+            raise
+        
+        error_msg = str(e)
+        if "already exists" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Duplicate item conflict: {error_msg}"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to copy Dataset items from package: {error_msg}"
             )
 
 @router.post("/{reporting_effort_id}/copy-from-reporting-effort", response_model=CopyOperationResponse)
@@ -1131,3 +1332,237 @@ async def copy_items_from_reporting_effort(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to copy items from reporting effort: {error_msg}"
         )
+
+@router.post("/{reporting_effort_id}/copy-tlf-from-reporting-effort", response_model=CopyOperationResponse)
+async def copy_tlf_items_from_reporting_effort(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    reporting_effort_id: int,
+    copy_request: CopyFromReportingEffortRequest,
+) -> CopyOperationResponse:
+    """
+    Copy only TLF items from another reporting effort with graceful duplicate handling.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info(f"Starting TLF copy operation: source_reporting_effort_id={copy_request.source_reporting_effort_id}, target_reporting_effort_id={reporting_effort_id}")
+        # Verify target reporting effort exists
+        db_effort = await reporting_effort.get(db, id=reporting_effort_id)
+        if not db_effort:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Target reporting effort not found"
+            )
+        
+        # Verify source reporting effort exists
+        db_source_effort = await reporting_effort.get(db, id=copy_request.source_reporting_effort_id)
+        if not db_source_effort:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Source reporting effort not found"
+            )
+        
+        logger.info(f"Calling copy_tlf_from_reporting_effort with validated inputs")
+        copy_result = await reporting_effort_item.copy_tlf_from_reporting_effort(
+            db,
+            target_reporting_effort_id=reporting_effort_id,
+            source_reporting_effort_id=copy_request.source_reporting_effort_id,
+            item_ids=copy_request.item_ids
+        )
+        logger.info(f"TLF copy operation completed successfully: {copy_result['summary']}")
+        
+        print(f"TLF copy operation results: {copy_result['summary']['created_count']} created, {copy_result['summary']['skipped_count']} skipped")
+        
+        # Process results for audit logging and WebSocket broadcast
+        created_items = copy_result['created_items']
+        skipped_items = copy_result['skipped_items']
+        summary = copy_result['summary']
+        
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="reporting_effort_items",
+                record_id=reporting_effort_id,
+                action="COPY_TLF_FROM_REPORTING_EFFORT",
+                user_id=getattr(request.state, 'user_id', None),
+                changes={
+                    "copy_operation": {
+                        "source_reporting_effort_id": copy_request.source_reporting_effort_id,
+                        "source_item_ids": copy_request.item_ids,
+                        "item_type": "TLF",
+                        "created_count": summary['created_count'],
+                        "skipped_count": summary['skipped_count'],
+                        "created_item_ids": [item.id for item in created_items],
+                        "skipped_items": skipped_items
+                    }
+                },
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            logger.error(f"Audit logging error: {audit_error}")
+        
+        # Broadcast WebSocket events for each created item
+        for item in created_items:
+            try:
+                await broadcast_reporting_effort_item_created(item)
+            except Exception:
+                pass
+        
+        return CopyOperationResponse(
+            created_items=created_items,
+            skipped_items=skipped_items,
+            summary=summary
+        )
+        
+    except ValueError as e:
+        error_msg = str(e)
+        logger.error(f"Validation error during TLF copy from reporting effort: {error_msg}")
+        if "already exists" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Duplicate item conflict: {error_msg}"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Validation error: {error_msg}"
+            )
+    except Exception as e:
+        logger.error(f"Unexpected error during TLF copy from reporting effort: {str(e)}", exc_info=True)
+        
+        if isinstance(e, HTTPException):
+            raise
+        
+        error_msg = str(e)
+        if "already exists" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Duplicate item conflict: {error_msg}"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to copy TLF items from reporting effort: {error_msg}"
+            )
+
+@router.post("/{reporting_effort_id}/copy-dataset-from-reporting-effort", response_model=CopyOperationResponse)
+async def copy_dataset_items_from_reporting_effort(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    reporting_effort_id: int,
+    copy_request: CopyFromReportingEffortRequest,
+) -> CopyOperationResponse:
+    """
+    Copy only Dataset items from another reporting effort with graceful duplicate handling.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info(f"Starting Dataset copy operation: source_reporting_effort_id={copy_request.source_reporting_effort_id}, target_reporting_effort_id={reporting_effort_id}")
+        # Verify target reporting effort exists
+        db_effort = await reporting_effort.get(db, id=reporting_effort_id)
+        if not db_effort:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Target reporting effort not found"
+            )
+        
+        # Verify source reporting effort exists
+        db_source_effort = await reporting_effort.get(db, id=copy_request.source_reporting_effort_id)
+        if not db_source_effort:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Source reporting effort not found"
+            )
+        
+        logger.info(f"Calling copy_dataset_from_reporting_effort with validated inputs")
+        copy_result = await reporting_effort_item.copy_dataset_from_reporting_effort(
+            db,
+            target_reporting_effort_id=reporting_effort_id,
+            source_reporting_effort_id=copy_request.source_reporting_effort_id,
+            item_ids=copy_request.item_ids
+        )
+        logger.info(f"Dataset copy operation completed successfully: {copy_result['summary']}")
+        
+        print(f"Dataset copy operation results: {copy_result['summary']['created_count']} created, {copy_result['summary']['skipped_count']} skipped")
+        
+        # Process results for audit logging and WebSocket broadcast
+        created_items = copy_result['created_items']
+        skipped_items = copy_result['skipped_items']
+        summary = copy_result['summary']
+        
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="reporting_effort_items",
+                record_id=reporting_effort_id,
+                action="COPY_DATASET_FROM_REPORTING_EFFORT",
+                user_id=getattr(request.state, 'user_id', None),
+                changes={
+                    "copy_operation": {
+                        "source_reporting_effort_id": copy_request.source_reporting_effort_id,
+                        "source_item_ids": copy_request.item_ids,
+                        "item_type": "Dataset",
+                        "created_count": summary['created_count'],
+                        "skipped_count": summary['skipped_count'],
+                        "created_item_ids": [item.id for item in created_items],
+                        "skipped_items": skipped_items
+                    }
+                },
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            logger.error(f"Audit logging error: {audit_error}")
+        
+        # Broadcast WebSocket events for each created item
+        for item in created_items:
+            try:
+                await broadcast_reporting_effort_item_created(item)
+            except Exception:
+                pass
+        
+        return CopyOperationResponse(
+            created_items=created_items,
+            skipped_items=skipped_items,
+            summary=summary
+        )
+        
+    except ValueError as e:
+        error_msg = str(e)
+        logger.error(f"Validation error during Dataset copy from reporting effort: {error_msg}")
+        if "already exists" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Duplicate item conflict: {error_msg}"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Validation error: {error_msg}"
+            )
+    except Exception as e:
+        logger.error(f"Unexpected error during Dataset copy from reporting effort: {str(e)}", exc_info=True)
+        
+        if isinstance(e, HTTPException):
+            raise
+        
+        error_msg = str(e)
+        if "already exists" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Duplicate item conflict: {error_msg}"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to copy Dataset items from reporting effort: {error_msg}"
+            )

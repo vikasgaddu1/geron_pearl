@@ -69,33 +69,6 @@ reporting_effort_items_ui <- function(id) {
                 tagList(icon("plus"), " Add Item"),
                 class = "btn btn-success btn-sm",
                 title = "Add a new item to the selected reporting effort"
-              ),
-              # Dropdown for copy operations
-              div(
-                class = "dropdown",
-                tags$button(
-                  class = "btn btn-info btn-sm dropdown-toggle",
-                  type = "button",
-                  `data-bs-toggle` = "dropdown",
-                  `aria-expanded` = "false",
-                  title = "Copy items from packages or other reporting efforts",
-                  tagList(icon("copy"), " Copy Items")
-                ),
-                tags$ul(
-                  class = "dropdown-menu",
-                  tags$li(tags$a(
-                    class = "dropdown-item", 
-                    href = "#",
-                    id = ns("copy_from_package_btn"),
-                    tagList(icon("box"), " Copy from Package")
-                  )),
-                  tags$li(tags$a(
-                    class = "dropdown-item", 
-                    href = "#",
-                    id = ns("copy_from_effort_btn"),
-                    tagList(icon("clipboard"), " Copy from Reporting Effort")
-                  ))
-                )
               )
             )
           ),
@@ -174,7 +147,41 @@ reporting_effort_items_ui <- function(id) {
                     icon = bs_icon("table"),
                     div(
                       class = "mt-3",
-                      uiOutput(ns("tlf_header")),
+                      # TLF Items header with copy button
+                      div(
+                        class = "d-flex justify-content-between align-items-center mb-3",
+                        uiOutput(ns("tlf_header")),
+                        div(
+                          class = "d-flex gap-2",
+                          # Copy TLF items from package
+                          div(
+                            class = "dropdown",
+                            tags$button(
+                              class = "btn btn-info btn-sm dropdown-toggle",
+                              type = "button",
+                              `data-bs-toggle` = "dropdown",
+                              `aria-expanded` = "false",
+                              title = "Copy TLF items from packages or other reporting efforts",
+                              tagList(icon("copy"), " Copy TLF Items")
+                            ),
+                            tags$ul(
+                              class = "dropdown-menu",
+                              tags$li(tags$a(
+                                class = "dropdown-item", 
+                                href = "#",
+                                id = ns("copy_tlf_from_package_btn"),
+                                tagList(icon("box"), " Copy from Package")
+                              )),
+                              tags$li(tags$a(
+                                class = "dropdown-item", 
+                                href = "#",
+                                id = ns("copy_tlf_from_effort_btn"),
+                                tagList(icon("clipboard"), " Copy from Reporting Effort")
+                              ))
+                            )
+                          )
+                        )
+                      ),
                       DT::dataTableOutput(ns("tlf_table"))
                     )
                   ),
@@ -184,7 +191,41 @@ reporting_effort_items_ui <- function(id) {
                     icon = bs_icon("database"),
                     div(
                       class = "mt-3",
-                      uiOutput(ns("dataset_header")),
+                      # Dataset Items header with copy button
+                      div(
+                        class = "d-flex justify-content-between align-items-center mb-3",
+                        uiOutput(ns("dataset_header")),
+                        div(
+                          class = "d-flex gap-2",
+                          # Copy Dataset items from package
+                          div(
+                            class = "dropdown",
+                            tags$button(
+                              class = "btn btn-info btn-sm dropdown-toggle",
+                              type = "button",
+                              `data-bs-toggle` = "dropdown",
+                              `aria-expanded` = "false",
+                              title = "Copy Dataset items from packages or other reporting efforts",
+                              tagList(icon("copy"), " Copy Dataset Items")
+                            ),
+                            tags$ul(
+                              class = "dropdown-menu",
+                              tags$li(tags$a(
+                                class = "dropdown-item", 
+                                href = "#",
+                                id = ns("copy_dataset_from_package_btn"),
+                                tagList(icon("box"), " Copy from Package")
+                              )),
+                              tags$li(tags$a(
+                                class = "dropdown-item", 
+                                href = "#",
+                                id = ns("copy_dataset_from_effort_btn"),
+                                tagList(icon("clipboard"), " Copy from Reporting Effort")
+                              ))
+                            )
+                          )
+                        )
+                      ),
                       DT::dataTableOutput(ns("dataset_table"))
                     )
                   )
@@ -200,6 +241,17 @@ reporting_effort_items_ui <- function(id) {
     # JavaScript for dropdown clicks
     tags$script(HTML(sprintf("
       document.addEventListener('DOMContentLoaded', function() {
+        // TLF copy buttons
+        document.getElementById('%s').addEventListener('click', function(e) {
+          e.preventDefault();
+          Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
+        });
+        document.getElementById('%s').addEventListener('click', function(e) {
+          e.preventDefault();
+          Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
+        });
+        
+        // Dataset copy buttons
         document.getElementById('%s').addEventListener('click', function(e) {
           e.preventDefault();
           Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
@@ -210,8 +262,10 @@ reporting_effort_items_ui <- function(id) {
         });
       });
     ", 
-    ns("copy_from_package_btn"), ns("copy_from_package_clicked"),
-    ns("copy_from_effort_btn"), ns("copy_from_effort_clicked")
+    ns("copy_tlf_from_package_btn"), ns("copy_tlf_from_package_clicked"),
+    ns("copy_tlf_from_effort_btn"), ns("copy_tlf_from_effort_clicked"),
+    ns("copy_dataset_from_package_btn"), ns("copy_dataset_from_package_clicked"),
+    ns("copy_dataset_from_effort_btn"), ns("copy_dataset_from_effort_clicked")
     )))
   )
 }

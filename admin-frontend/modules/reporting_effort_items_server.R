@@ -249,9 +249,102 @@ reporting_effort_items_server <- function(id) {
       if (!is.null(effort_id) && effort_id != "") {
         current_reporting_effort_id(effort_id)
         load_items_data()
+        # Highlight selector wrapper like package management
+        shinyjs::runjs(sprintf(
+          "$('#%s').addClass('has-selection');",
+          ns("effort_selector_wrapper")
+        ))
       } else {
         current_reporting_effort_id(NULL)
         items_data(data.frame())
+        shinyjs::runjs(sprintf(
+          "$('#%s').removeClass('has-selection');",
+          ns("effort_selector_wrapper")
+        ))
+      }
+    })
+
+    # Render TLF header with selected reporting effort name
+    output$tlf_header <- renderUI({
+      effort_id <- current_reporting_effort_id()
+      if (!is.null(effort_id) && effort_id != "") {
+        efforts <- reporting_efforts_list()
+        # Find selected effort
+        selected_effort <- NULL
+        for (e in efforts) {
+          if (as.character(e$id) == as.character(effort_id)) {
+            selected_effort <- e
+            break
+          }
+        }
+        if (!is.null(selected_effort)) {
+          # Lookup study name
+          studies <- get_studies()
+          study_name <- NULL
+          if (!("error" %in% names(studies))) {
+            for (s in studies) {
+              if (as.character(s$id) == as.character(selected_effort$study_id)) {
+                study_name <- s$title
+                break
+              }
+            }
+          }
+          label_text <- if (!is.null(study_name)) paste0(selected_effort$database_release_label, " (", study_name, ")") else selected_effort$database_release_label
+          div(
+            class = "alert alert-info py-2 mb-3 d-flex align-items-center",
+            style = "background: linear-gradient(90deg, #cfe2ff 0%, #e7f1ff 100%); border-left: 4px solid #0d6efd;",
+            icon("clipboard-list", class = "me-2"),
+            tags$span(
+              "Current Reporting Effort: ",
+              tags$strong(label_text, class = "text-primary")
+            )
+          )
+        } else {
+          NULL
+        }
+      } else {
+        NULL
+      }
+    })
+
+    # Render Dataset header with selected reporting effort name
+    output$dataset_header <- renderUI({
+      effort_id <- current_reporting_effort_id()
+      if (!is.null(effort_id) && effort_id != "") {
+        efforts <- reporting_efforts_list()
+        selected_effort <- NULL
+        for (e in efforts) {
+          if (as.character(e$id) == as.character(effort_id)) {
+            selected_effort <- e
+            break
+          }
+        }
+        if (!is.null(selected_effort)) {
+          studies <- get_studies()
+          study_name <- NULL
+          if (!("error" %in% names(studies))) {
+            for (s in studies) {
+              if (as.character(s$id) == as.character(selected_effort$study_id)) {
+                study_name <- s$title
+                break
+              }
+            }
+          }
+          label_text <- if (!is.null(study_name)) paste0(selected_effort$database_release_label, " (", study_name, ")") else selected_effort$database_release_label
+          div(
+            class = "alert alert-info py-2 mb-3 d-flex align-items-center",
+            style = "background: linear-gradient(90deg, #cfe2ff 0%, #e7f1ff 100%); border-left: 4px solid #0d6efd;",
+            icon("clipboard-list", class = "me-2"),
+            tags$span(
+              "Current Reporting Effort: ",
+              tags$strong(label_text, class = "text-primary")
+            )
+          )
+        } else {
+          NULL
+        }
+      } else {
+        NULL
       }
     })
     
@@ -840,8 +933,8 @@ reporting_effort_items_server <- function(id) {
       removeModal()
     })
     
-    # Copy from package
-    observeEvent(input$copy_from_package_clicked, {
+    # Copy TLF items from package
+    observeEvent(input$copy_tlf_from_package_clicked, {
       effort_id <- current_reporting_effort_id()
       if (is.null(effort_id) || effort_id == "") {
         showNotification("Please select a reporting effort first", type = "warning")
@@ -861,64 +954,64 @@ reporting_effort_items_server <- function(id) {
       )
       
       showModal(modalDialog(
-        title = tagList(icon("copy"), " Copy Items from Package"),
+        title = tagList(icon("copy"), " Copy TLF Items from Package"),
         size = "m",
         easyClose = FALSE,
         
         div(
           class = "mb-3",
-          tags$p("Select a package to copy all its items to this reporting effort."),
+          tags$p("Select a package to copy only TLF items to this reporting effort."),
           
           selectInput(
-            ns("copy_package_id"),
+            ns("copy_tlf_package_id"),
             "Select Package",
             choices = package_choices,
             width = "100%"
           ),
           
           tags$div(
-            class = "alert alert-warning small",
-            tags$strong("Note: "), "This will copy all items from the selected package. Duplicate item codes will be skipped."
+            class = "alert alert-info small",
+            tags$strong("Note: "), "This will copy only TLF items from the selected package. Duplicate item codes will be skipped."
           )
         ),
         
         footer = div(
           class = "d-flex justify-content-end gap-2",
-          actionButton(ns("cancel_copy_package"), "Cancel", 
+          actionButton(ns("cancel_copy_tlf_package"), "Cancel", 
                       class = "btn btn-secondary"),
-          actionButton(ns("process_copy_package"), "Copy Items", 
+          actionButton(ns("process_copy_tlf_package"), "Copy TLF Items", 
                       icon = icon("copy"),
                       class = "btn btn-primary")
         )
       ))
     })
     
-    # Process copy from package
-    observeEvent(input$process_copy_package, {
-      if (is.null(input$copy_package_id) || input$copy_package_id == "") {
+    # Process copy TLF items from package
+    observeEvent(input$process_copy_tlf_package, {
+      if (is.null(input$copy_tlf_package_id) || input$copy_tlf_package_id == "") {
         showNotification("Please select a package", type = "warning")
         return()
       }
       
       effort_id <- current_reporting_effort_id()
-      result <- copy_items_from_package(effort_id, input$copy_package_id)
+      result <- copy_tlf_items_from_package(effort_id, input$copy_tlf_package_id)
       
       if (!is.null(result$error)) {
         showNotification(paste("Copy failed:", result$error), type = "error")
       } else {
-        showNotification(paste("Successfully copied", result$copied_count, "items"), type = "message")
+        showNotification(paste("Successfully copied", result$copied_count, "TLF items"), type = "message")
         load_items_data()
         removeModal()
       }
     })
     
-    # Cancel copy from package
-    observeEvent(input$cancel_copy_package, {
+    # Cancel copy TLF items from package
+    observeEvent(input$cancel_copy_tlf_package, {
       removeModal()
     })
     
-    # Copy from reporting effort
-    observeEvent(input$copy_from_effort_clicked, {
+    # Copy TLF items from reporting effort
+    observeEvent(input$copy_tlf_from_effort_clicked, {
       effort_id <- current_reporting_effort_id()
       if (is.null(effort_id) || effort_id == "") {
         showNotification("Please select a reporting effort first", type = "warning")
@@ -956,59 +1049,231 @@ reporting_effort_items_server <- function(id) {
       )
       
       showModal(modalDialog(
-        title = tagList(icon("copy"), " Copy Items from Reporting Effort"),
+        title = tagList(icon("copy"), " Copy TLF Items from Reporting Effort"),
         size = "m",
         easyClose = FALSE,
         
         div(
           class = "mb-3",
-          tags$p("Select a reporting effort to copy all its items to the current reporting effort."),
+          tags$p("Select a reporting effort to copy only TLF items to the current reporting effort."),
           
           selectInput(
-            ns("copy_effort_id"),
+            ns("copy_tlf_effort_id"),
             "Select Source Reporting Effort",
             choices = effort_choices,
             width = "100%"
           ),
           
           tags$div(
-            class = "alert alert-warning small",
-            tags$strong("Note: "), "This will copy all items from the selected reporting effort. Duplicate item codes will be skipped."
+            class = "alert alert-info small",
+            tags$strong("Note: "), "This will copy only TLF items from the selected reporting effort. Duplicate item codes will be skipped."
           )
         ),
         
         footer = div(
           class = "d-flex justify-content-end gap-2",
-          actionButton(ns("cancel_copy_effort"), "Cancel", 
+          actionButton(ns("cancel_copy_tlf_effort"), "Cancel", 
                       class = "btn btn-secondary"),
-          actionButton(ns("process_copy_effort"), "Copy Items", 
+          actionButton(ns("process_copy_tlf_effort"), "Copy TLF Items", 
                       icon = icon("copy"),
                       class = "btn btn-primary")
         )
       ))
     })
     
-    # Process copy from reporting effort
-    observeEvent(input$process_copy_effort, {
-      if (is.null(input$copy_effort_id) || input$copy_effort_id == "") {
+    # Process copy TLF items from reporting effort
+    observeEvent(input$process_copy_tlf_effort, {
+      if (is.null(input$copy_tlf_effort_id) || input$copy_tlf_effort_id == "") {
         showNotification("Please select a reporting effort", type = "warning")
         return()
       }
       
       effort_id <- current_reporting_effort_id()
-      result <- copy_items_from_reporting_effort(effort_id, input$copy_effort_id)
+      result <- copy_tlf_items_from_reporting_effort(effort_id, input$copy_tlf_effort_id)
       
       if (!is.null(result$error)) {
         showNotification(paste("Copy failed:", result$error), type = "error")
       } else {
-        showNotification(paste("Successfully copied", result$copied_count, "items"), type = "message")
+        showNotification(paste("Successfully copied", result$copied_count, "TLF items"), type = "message")
         load_items_data()
         removeModal()
       }
     })
     
-    # Cancel copy from reporting effort
-    observeEvent(input$cancel_copy_effort, {
+    # Cancel copy TLF items from reporting effort
+    observeEvent(input$cancel_copy_tlf_effort, {
+      removeModal()
+    })
+    
+    # Copy Dataset items from package
+    observeEvent(input$copy_dataset_from_package_clicked, {
+      effort_id <- current_reporting_effort_id()
+      if (is.null(effort_id) || effort_id == "") {
+        showNotification("Please select a reporting effort first", type = "warning")
+        return()
+      }
+      
+      packages <- packages_list()
+      if (length(packages) == 0) {
+        showNotification("No packages available", type = "warning")
+        return()
+      }
+      
+      # Create choices for packages
+      package_choices <- setNames(
+        sapply(packages, function(x) x$id),
+        sapply(packages, function(x) x$package_name)
+      )
+      
+      showModal(modalDialog(
+        title = tagList(icon("copy"), " Copy Dataset Items from Package"),
+        size = "m",
+        easyClose = FALSE,
+        
+        div(
+          class = "mb-3",
+          tags$p("Select a package to copy only Dataset items to this reporting effort."),
+          
+          selectInput(
+            ns("copy_dataset_package_id"),
+            "Select Package",
+            choices = package_choices,
+            width = "100%"
+          ),
+          
+          tags$div(
+            class = "alert alert-info small",
+            tags$strong("Note: "), "This will copy only Dataset items from the selected package. Duplicate item codes will be skipped."
+          )
+        ),
+        
+        footer = div(
+          class = "d-flex justify-content-end gap-2",
+          actionButton(ns("cancel_copy_dataset_package"), "Cancel", 
+                      class = "btn btn-secondary"),
+          actionButton(ns("process_copy_dataset_package"), "Copy Dataset Items", 
+                      icon = icon("copy"),
+                      class = "btn btn-primary")
+        )
+      ))
+    })
+    
+    # Process copy Dataset items from package
+    observeEvent(input$process_copy_dataset_package, {
+      if (is.null(input$copy_dataset_package_id) || input$copy_dataset_package_id == "") {
+        showNotification("Please select a package", type = "warning")
+        return()
+      }
+      
+      effort_id <- current_reporting_effort_id()
+      result <- copy_dataset_items_from_package(effort_id, input$copy_dataset_package_id)
+      
+      if (!is.null(result$error)) {
+        showNotification(paste("Copy failed:", result$error), type = "error")
+      } else {
+        showNotification(paste("Successfully copied", result$copied_count, "Dataset items"), type = "message")
+        load_items_data()
+        removeModal()
+      }
+    })
+    
+    # Cancel copy Dataset items from package
+    observeEvent(input$cancel_copy_dataset_package, {
+      removeModal()
+    })
+    
+    # Copy Dataset items from reporting effort
+    observeEvent(input$copy_dataset_from_effort_clicked, {
+      effort_id <- current_reporting_effort_id()
+      if (is.null(effort_id) || effort_id == "") {
+        showNotification("Please select a reporting effort first", type = "warning")
+        return()
+      }
+      
+      efforts <- reporting_efforts_list()
+      if (length(efforts) == 0) {
+        showNotification("No reporting efforts available", type = "warning")
+        return()
+      }
+      
+      # Filter out current effort and create choices
+      other_efforts <- efforts[sapply(efforts, function(x) x$id != effort_id)]
+      if (length(other_efforts) == 0) {
+        showNotification("No other reporting efforts available to copy from", type = "warning")
+        return()
+      }
+      
+      # Load studies for name lookup
+      studies_result <- get_studies()
+      studies_lookup <- list()
+      if (!("error" %in% names(studies_result))) {
+        for (study in studies_result) {
+          studies_lookup[[as.character(study$id)]] <- study$title
+        }
+      }
+      
+      effort_choices <- setNames(
+        sapply(other_efforts, function(x) x$id),
+        sapply(other_efforts, function(x) {
+          study_name <- studies_lookup[[as.character(x$study_id)]] %||% paste0("Study ", x$study_id)
+          paste0(x$database_release_label, " (", study_name, ")")
+        })
+      )
+      
+      showModal(modalDialog(
+        title = tagList(icon("copy"), " Copy Dataset Items from Reporting Effort"),
+        size = "m",
+        easyClose = FALSE,
+        
+        div(
+          class = "mb-3",
+          tags$p("Select a reporting effort to copy only Dataset items to the current reporting effort."),
+          
+          selectInput(
+            ns("copy_dataset_effort_id"),
+            "Select Source Reporting Effort",
+            choices = effort_choices,
+            width = "100%"
+          ),
+          
+          tags$div(
+            class = "alert alert-info small",
+            tags$strong("Note: "), "This will copy only Dataset items from the selected reporting effort. Duplicate item codes will be skipped."
+          )
+        ),
+        
+        footer = div(
+          class = "d-flex justify-content-end gap-2",
+          actionButton(ns("cancel_copy_dataset_effort"), "Cancel", 
+                      class = "btn btn-secondary"),
+          actionButton(ns("process_copy_dataset_effort"), "Copy Dataset Items", 
+                      icon = icon("copy"),
+                      class = "btn btn-primary")
+        )
+      ))
+    })
+    
+    # Process copy Dataset items from reporting effort
+    observeEvent(input$process_copy_dataset_effort, {
+      if (is.null(input$copy_dataset_effort_id) || input$copy_dataset_effort_id == "") {
+        showNotification("Please select a reporting effort", type = "warning")
+        return()
+      }
+      
+      effort_id <- current_reporting_effort_id()
+      result <- copy_dataset_items_from_reporting_effort(effort_id, input$copy_dataset_effort_id)
+      
+      if (!is.null(result$error)) {
+        showNotification(paste("Copy failed:", result$error), type = "error")
+      } else {
+        showNotification(paste("Successfully copied", result$copied_count, "Dataset items"), type = "message")
+        load_items_data()
+        removeModal()
+      }
+    })
+    
+    # Cancel copy Dataset items from reporting effort
+    observeEvent(input$cancel_copy_dataset_effort, {
       removeModal()
     })
     
