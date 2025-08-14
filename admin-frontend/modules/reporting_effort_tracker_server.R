@@ -10,9 +10,8 @@ reporting_effort_tracker_server <- function(id) {
     reporting_efforts_list <- reactiveVal(list())
     database_releases_lookup <- reactiveVal(list())
 
-    trackers_tlf <- reactiveVal(data.frame())
-    trackers_sdtm <- reactiveVal(data.frame())
-    trackers_adam <- reactiveVal(data.frame())
+    # Single reactive value following the working items module pattern
+    tracker_data <- reactiveVal(list())  # Will store tlf_trackers, sdtm_trackers, adam_trackers
 
     # Load reporting efforts for dropdown (same labelling as items)
     load_reporting_efforts <- function() {
@@ -66,50 +65,112 @@ reporting_effort_tracker_server <- function(id) {
         selector_id = ns("effort_selector_wrapper"), has_selection = !is.null(current_reporting_effort_id())
       ))
       # Reload all three tables
-      load_tracker_tables()
-      # Update effort label under each tab
-      render_effort_labels()
+      tryCatch({
+        load_tracker_tables()
+      }, error = function(e) {
+        showNotification(paste("ERROR in load_tracker_tables():", e$message), type = "error", duration = 10)
+      })
+      # Note: effort labels are now reactive and will update automatically
     }, ignoreInit = TRUE)
 
-    # Effort label outputs
-    render_effort_labels <- function() {
+    # Effort label outputs - make reactive to table data using new pattern
+    output$effort_label_tlf <- renderUI({
       eff_id <- current_reporting_effort_id()
-      if (is.null(eff_id)) {
-        output$effort_label_tlf <- renderUI(HTML(""))
-        output$effort_label_sdtm <- renderUI(HTML(""))
-        output$effort_label_adam <- renderUI(HTML(""))
-        return()
-      }
+      if (is.null(eff_id)) return(HTML(""))
+      
+      # Get data from single reactive value like items module
+      data_list <- tracker_data()
+      tlf_rows <- if (is.list(data_list) && !is.null(data_list$tlf_trackers)) nrow(data_list$tlf_trackers) else 0
+      sdtm_rows <- if (is.list(data_list) && !is.null(data_list$sdtm_trackers)) nrow(data_list$sdtm_trackers) else 0  
+      adam_rows <- if (is.list(data_list) && !is.null(data_list$adam_trackers)) nrow(data_list$adam_trackers) else 0
+      
       # Find selected label
       eff <- NULL
       for (x in reporting_efforts_list()) if (as.character(x$id) == as.character(eff_id)) eff <- x
+      
+      # Add debug info to label to trace execution
+      debug_info <- paste("DEBUG: Tables - TLF:", tlf_rows, "SDTM:", sdtm_rows, "ADaM:", adam_rows)
+      
       lbl <- if (!is.null(eff)) {
         paste0("Current Reporting Effort: ",
                (eff$database_release_label %||% paste0("Effort ", eff$id)),
                " (", eff$study_title %||% (eff$study_id %||% ""), ", ",
-               eff$database_release_label %||% (eff$database_release_id %||% ""), ")")
-      } else ""
-      output$effort_label_tlf <- renderUI(tags$div(class = "text-muted small fw-semibold", lbl))
-      output$effort_label_sdtm <- renderUI(tags$div(class = "text-muted small fw-semibold", lbl))
-      output$effort_label_adam <- renderUI(tags$div(class = "text-muted small fw-semibold", lbl))
-    }
+               eff$database_release_label %||% (eff$database_release_id %||% ""), ") - ", debug_info)
+      } else debug_info
+      tags$div(class = "text-muted small fw-semibold", lbl)
+    })
+    
+    output$effort_label_sdtm <- renderUI({
+      eff_id <- current_reporting_effort_id()
+      if (is.null(eff_id)) return(HTML(""))
+      
+      # Get data from single reactive value
+      data_list <- tracker_data()
+      tlf_rows <- if (is.list(data_list) && !is.null(data_list$tlf_trackers)) nrow(data_list$tlf_trackers) else 0
+      sdtm_rows <- if (is.list(data_list) && !is.null(data_list$sdtm_trackers)) nrow(data_list$sdtm_trackers) else 0  
+      adam_rows <- if (is.list(data_list) && !is.null(data_list$adam_trackers)) nrow(data_list$adam_trackers) else 0
+      
+      # Find selected label
+      eff <- NULL
+      for (x in reporting_efforts_list()) if (as.character(x$id) == as.character(eff_id)) eff <- x
+      
+      # Add debug info to label to trace execution  
+      debug_info <- paste("DEBUG: Tables - TLF:", tlf_rows, "SDTM:", sdtm_rows, "ADaM:", adam_rows)
+      
+      lbl <- if (!is.null(eff)) {
+        paste0("Current Reporting Effort: ",
+               (eff$database_release_label %||% paste0("Effort ", eff$id)),
+               " (", eff$study_title %||% (eff$study_id %||% ""), ", ",
+               eff$database_release_label %||% (eff$database_release_id %||% ""), ") - ", debug_info)
+      } else debug_info
+      tags$div(class = "text-muted small fw-semibold", lbl)
+    })
+    
+    output$effort_label_adam <- renderUI({
+      eff_id <- current_reporting_effort_id()
+      if (is.null(eff_id)) return(HTML(""))
+      
+      # Get data from single reactive value
+      data_list <- tracker_data()
+      tlf_rows <- if (is.list(data_list) && !is.null(data_list$tlf_trackers)) nrow(data_list$tlf_trackers) else 0
+      sdtm_rows <- if (is.list(data_list) && !is.null(data_list$sdtm_trackers)) nrow(data_list$sdtm_trackers) else 0  
+      adam_rows <- if (is.list(data_list) && !is.null(data_list$adam_trackers)) nrow(data_list$adam_trackers) else 0
+      
+      # Find selected label
+      eff <- NULL
+      for (x in reporting_efforts_list()) if (as.character(x$id) == as.character(eff_id)) eff <- x
+      
+      # Add debug info to label to trace execution
+      debug_info <- paste("DEBUG: Tables - TLF:", tlf_rows, "SDTM:", sdtm_rows, "ADaM:", adam_rows)
+      
+      lbl <- if (!is.null(eff)) {
+        paste0("Current Reporting Effort: ",
+               (eff$database_release_label %||% paste0("Effort ", eff$id)),
+               " (", eff$study_title %||% (eff$study_id %||% ""), ", ",
+               eff$database_release_label %||% (eff$database_release_id %||% ""), ") - ", debug_info)
+      } else debug_info
+      tags$div(class = "text-muted small fw-semibold", lbl)
+    })
 
     # Load tracker tables based on items of selected effort
     load_tracker_tables <- function() {
       eff_id <- current_reporting_effort_id()
+      showNotification(paste("Loading tracker data for effort ID:", eff_id), type = "message", duration = 3)
+      
       if (is.null(eff_id)) {
-        trackers_tlf(data.frame())
-        trackers_sdtm(data.frame())
-        trackers_adam(data.frame())
+        tracker_data(list())  # Clear single reactive value
         return()
       }
 
       items <- get_reporting_effort_items_by_effort(eff_id)
+      
       if ("error" %in% names(items)) {
         showNotification(paste("Error loading items for trackers:", items$error), type = "error")
-        trackers_tlf(data.frame()); trackers_sdtm(data.frame()); trackers_adam(data.frame())
+        tracker_data(list())  # Clear single reactive value on error
         return()
       }
+      
+      showNotification(paste("Found", length(items), "items to process"), type = "message", duration = 3)
 
       # Split items by subtype for Dataset and by type for TLFs
       # We will build simple frames with inline actions
@@ -149,36 +210,156 @@ reporting_effort_tracker_server <- function(id) {
           tlf_rows[[length(tlf_rows) + 1]] <- build_row(it)
         } else if (it$item_type == "Dataset") {
           # Map dataset subtypes SDTM/ADaM from item_subtype
-          if (tolower(it$item_subtype) == "sdtm") sdtm_rows[[length(sdtm_rows) + 1]] <- build_row(it)
-          else adam_rows[[length(adam_rows) + 1]] <- build_row(it)
+          if (tolower(it$item_subtype) == "sdtm") {
+            sdtm_rows[[length(sdtm_rows) + 1]] <- build_row(it)
+          } else {
+            adam_rows[[length(adam_rows) + 1]] <- build_row(it)
+          }
         }
       }
 
-      to_df <- function(rows) if (length(rows)) do.call(rbind, rows) else data.frame(Item=character(0), Category=character(0), Production_Programmer=character(0), QC_Programmer=character(0), Priority=character(0), Production_Status=character(0), QC_Status=character(0), Assign_Date=character(0), QC_Completion_Date=character(0), Actions=character(0), stringsAsFactors = FALSE)
-      trackers_tlf(to_df(tlf_rows))
-      trackers_sdtm(to_df(sdtm_rows))
-      trackers_adam(to_df(adam_rows))
+      to_df <- function(rows) {
+        if (length(rows)) {
+          do.call(rbind, rows)
+        } else {
+          data.frame(Item=character(0), Category=character(0), Production_Programmer=character(0), QC_Programmer=character(0), Priority=character(0), Production_Status=character(0), QC_Status=character(0), Assign_Date=character(0), QC_Completion_Date=character(0), Actions=character(0), stringsAsFactors = FALSE)
+        }
+      }
+      
+      tlf_df <- to_df(tlf_rows)
+      sdtm_df <- to_df(sdtm_rows) 
+      adam_df <- to_df(adam_rows)
+      
+      # Store in single reactive value following items module pattern
+      combined_tracker_data <- list()
+      combined_tracker_data$tlf_trackers <- tlf_df
+      combined_tracker_data$sdtm_trackers <- sdtm_df  
+      combined_tracker_data$adam_trackers <- adam_df
+      
+      tracker_data(combined_tracker_data)
+      
+      # Show progress notification
+      showNotification(paste("Created tables - TLF:", nrow(tlf_df), "rows, SDTM:", nrow(sdtm_df), "rows, ADaM:", nrow(adam_df), "rows"), type = "message", duration = 5)
     }
 
-    # Render DataTables
-    render_tracker_table <- function(data_rv) {
-      DT::renderDataTable({
-        df <- data_rv()
-        if (nrow(df) == 0) {
-          df <- data.frame(Item=character(0), Category=character(0), Priority=character(0), Production_Status=character(0), QC_Status=character(0), Actions=character(0), stringsAsFactors = FALSE)
-        }
-        DT::datatable(
-          df,
-          options = list(dom = 'tpi', pageLength = 25, ordering = TRUE, autoWidth = TRUE, columnDefs = list(list(targets = ncol(df), orderable = FALSE))),
-          escape = FALSE,
-          selection = 'none',
-          rownames = FALSE
+    # Render TLF Tracker Table (following items module pattern)
+    output$tracker_table_tlf <- DT::renderDataTable({
+      data_list <- tracker_data()
+      cat("DEBUG: Rendering TLF tracker table\n")
+      
+      # Get TLF tracker data from the list structure
+      tlf_data <- if (is.list(data_list) && !is.null(data_list$tlf_trackers)) {
+        data_list$tlf_trackers
+      } else {
+        data.frame()
+      }
+      cat("DEBUG: TLF tracker data rows:", nrow(tlf_data), "\n")
+      
+      if (nrow(tlf_data) == 0) {
+        cat("DEBUG: No TLF tracker data - rendering empty table\n")
+        empty_df <- data.frame(
+          Item=character(0), Category=character(0), Priority=character(0), 
+          Production_Status=character(0), QC_Status=character(0), Actions=character(0),
+          stringsAsFactors = FALSE
         )
-      })
-    }
-    output$tracker_table_tlf <- render_tracker_table(trackers_tlf)
-    output$tracker_table_sdtm <- render_tracker_table(trackers_sdtm)
-    output$tracker_table_adam <- render_tracker_table(trackers_adam)
+        
+        DT::datatable(
+          empty_df,
+          options = list(
+            dom = 'rtip', pageLength = 25,
+            language = list(emptyTable = "No TLF tracker items found for this reporting effort")
+          ),
+          escape = FALSE, selection = 'none', rownames = FALSE
+        )
+      } else {
+        cat("DEBUG: Rendering TLF tracker table with data, rows:", nrow(tlf_data), "\n")
+        
+        DT::datatable(
+          tlf_data,
+          options = list(dom = 'tpi', pageLength = 25, ordering = TRUE, autoWidth = TRUE,
+                         columnDefs = list(list(targets = ncol(tlf_data), orderable = FALSE))),
+          escape = FALSE, selection = 'none', rownames = FALSE
+        )
+      }
+    })
+    
+    # Render SDTM Tracker Table  
+    output$tracker_table_sdtm <- DT::renderDataTable({
+      data_list <- tracker_data()
+      cat("DEBUG: Rendering SDTM tracker table\n")
+      
+      sdtm_data <- if (is.list(data_list) && !is.null(data_list$sdtm_trackers)) {
+        data_list$sdtm_trackers
+      } else {
+        data.frame()
+      }
+      cat("DEBUG: SDTM tracker data rows:", nrow(sdtm_data), "\n")
+      
+      if (nrow(sdtm_data) == 0) {
+        empty_df <- data.frame(
+          Item=character(0), Category=character(0), Priority=character(0), 
+          Production_Status=character(0), QC_Status=character(0), Actions=character(0),
+          stringsAsFactors = FALSE
+        )
+        
+        DT::datatable(
+          empty_df,
+          options = list(
+            dom = 'rtip', pageLength = 25,
+            language = list(emptyTable = "No SDTM tracker items found for this reporting effort")
+          ),
+          escape = FALSE, selection = 'none', rownames = FALSE
+        )
+      } else {
+        cat("DEBUG: Rendering SDTM tracker table with data, rows:", nrow(sdtm_data), "\n")
+        
+        DT::datatable(
+          sdtm_data,
+          options = list(dom = 'tpi', pageLength = 25, ordering = TRUE, autoWidth = TRUE,
+                         columnDefs = list(list(targets = ncol(sdtm_data), orderable = FALSE))),
+          escape = FALSE, selection = 'none', rownames = FALSE
+        )
+      }
+    })
+    
+    # Render ADaM Tracker Table
+    output$tracker_table_adam <- DT::renderDataTable({
+      data_list <- tracker_data()  
+      cat("DEBUG: Rendering ADaM tracker table\n")
+      
+      adam_data <- if (is.list(data_list) && !is.null(data_list$adam_trackers)) {
+        data_list$adam_trackers
+      } else {
+        data.frame()
+      }
+      cat("DEBUG: ADaM tracker data rows:", nrow(adam_data), "\n")
+      
+      if (nrow(adam_data) == 0) {
+        empty_df <- data.frame(
+          Item=character(0), Category=character(0), Priority=character(0), 
+          Production_Status=character(0), QC_Status=character(0), Actions=character(0),
+          stringsAsFactors = FALSE
+        )
+        
+        DT::datatable(
+          empty_df,
+          options = list(
+            dom = 'rtip', pageLength = 25,
+            language = list(emptyTable = "No ADaM tracker items found for this reporting effort")
+          ),
+          escape = FALSE, selection = 'none', rownames = FALSE
+        )
+      } else {
+        cat("DEBUG: Rendering ADaM tracker table with data, rows:", nrow(adam_data), "\n")
+        
+        DT::datatable(
+          adam_data,
+          options = list(dom = 'tpi', pageLength = 25, ordering = TRUE, autoWidth = TRUE,
+                         columnDefs = list(list(targets = ncol(adam_data), orderable = FALSE))),
+          escape = FALSE, selection = 'none', rownames = FALSE
+        )
+      }
+    })
 
     # Inline row actions
     observeEvent(input$row_action, {
