@@ -252,6 +252,82 @@ uv run alembic current
 uv run alembic history
 ```
 
+## Critical Development Guidelines
+
+### Schema-Model Alignment
+
+**⚠️ IMPORTANT**: Pydantic schemas MUST exactly match SQLAlchemy model field types to prevent runtime validation errors.
+
+#### Common Issues and Prevention
+
+1. **Field Type Mismatches**
+   - **Problem**: SQLAlchemy model has a string field, but Pydantic schema expects integer
+   - **Example**: `priority` field defined as `String(50)` in model but `int` in schema
+   - **Solution**: Always verify field types match between models and schemas
+   ```python
+   # Model (app/models/reporting_effort_item_tracker.py)
+   priority: Mapped[str] = mapped_column(String(50), default="medium")
+   
+   # Schema (app/schemas/reporting_effort_item_tracker.py)
+   priority: Optional[str] = Field(None, description="Priority level")  # ✅ Matches model
+   # priority: Optional[int] = Field(None, ge=1, le=5)  # ❌ Would cause validation error
+   ```
+
+2. **Enum Serialization Issues**
+   - **Problem**: Nested relationships with enums can fail Pydantic validation
+   - **Example**: `ItemType.TLF` enum object vs "TLF" string value
+   - **Solution**: Use `use_enum_values=True` in ConfigDict or avoid nested enum fields
+   ```python
+   model_config = ConfigDict(from_attributes=True, use_enum_values=True)
+   ```
+
+3. **Eager Loading Complications**
+   - **Problem**: SQLAlchemy eager loading with `selectinload` can cause detached instance errors
+   - **Solution**: Only eager load when necessary; remove if causing serialization issues
+
+#### Debugging HTTP 500 Errors
+
+When encountering "Internal Server Error" without visible logs:
+
+1. **Add verbose error logging to endpoints**:
+   ```python
+   except Exception as e:
+       logger.error(f"Error in endpoint: {str(e)}", exc_info=True)
+       raise HTTPException(
+           status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+           detail=f"Failed: {str(e)}"  # Include error in development
+       )
+   ```
+
+2. **Test CRUD operations directly**:
+   ```python
+   # Create test_endpoint.py to isolate issues
+   async def test():
+       async with AsyncSessionLocal() as db:
+           result = await crud_method.get_multi(db)
+           # Try Pydantic validation
+           Schema.model_validate(result[0])
+   ```
+
+3. **Run model validator after changes**:
+   ```bash
+   uv run python tests/validator/run_model_validation.py
+   ```
+
+4. **Common error patterns**:
+   - `ResponseValidationError` → Schema doesn't match returned data
+   - `DetachedInstanceError` → Lazy loading after session closed
+   - `ValidationError` with enum → Enum value vs object mismatch
+   - `int_parsing` error → String field expected as integer
+
+#### Best Practices
+
+1. **Always run model validator** after modifying models or schemas
+2. **Test endpoints with curl** before frontend integration
+3. **Use consistent field types** across the stack (DB → Model → Schema → API)
+4. **Document field constraints** in both models and schemas
+5. **Avoid complex nested relationships** in response schemas when possible
+
 ## Production Deployment
 
 ### Posit Connect Deployment

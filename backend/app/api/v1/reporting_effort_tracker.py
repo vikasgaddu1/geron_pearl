@@ -9,9 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
 from app.crud import reporting_effort_item_tracker, reporting_effort_item, user, audit_log
+from app.db.session import get_db
 
 logger = logging.getLogger(__name__)
-from app.db.session import get_db
 from app.schemas.reporting_effort_item_tracker import (
     ReportingEffortItemTracker,
     ReportingEffortItemTrackerCreate,
@@ -165,10 +165,11 @@ async def read_trackers(
             )
         else:
             return await reporting_effort_item_tracker.get_multi(db, skip=skip, limit=limit)
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error retrieving trackers: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve trackers"
+            detail=f"Failed to retrieve trackers: {str(e)}"
         )
 
 @router.get("/{tracker_id}", response_model=ReportingEffortItemTracker)

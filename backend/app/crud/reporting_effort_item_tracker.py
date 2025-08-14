@@ -4,7 +4,6 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from sqlalchemy import select, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker
 from app.schemas.reporting_effort_item_tracker import (

@@ -17,18 +17,20 @@ reporting_effort_tracker_server <- function(id) {
         if (length(result) > 0) {
           df <- data.frame(
             ID = sapply(result, function(x) x$id),
-            Item_Code = sapply(result, function(x) if (!is.null(x$reporting_effort_item$item_code)) x$reporting_effort_item$item_code else "N/A"),
-            Item_Type = sapply(result, function(x) if (!is.null(x$reporting_effort_item$item_type)) x$reporting_effort_item$item_type else "N/A"),
+            Item_ID = sapply(result, function(x) if (!is.null(x$reporting_effort_item_id)) x$reporting_effort_item_id else "N/A"),
+            Priority = sapply(result, function(x) if (!is.null(x$priority)) x$priority else "medium"),
             Production_Status = sapply(result, function(x) if (!is.null(x$production_status)) x$production_status else "not_started"),
+            QC_Status = sapply(result, function(x) if (!is.null(x$qc_status)) x$qc_status else "not_started"),
             Actions = sapply(result, function(x) x$id),
             stringsAsFactors = FALSE
           )
         } else {
           df <- data.frame(
             ID = character(0),
-            Item_Code = character(0),
-            Item_Type = character(0),
+            Item_ID = character(0),
+            Priority = character(0),
             Production_Status = character(0),
+            QC_Status = character(0),
             Actions = character(0),
             stringsAsFactors = FALSE
           )
@@ -54,9 +56,10 @@ reporting_effort_tracker_server <- function(id) {
       
       if (nrow(data) == 0) {
         empty_df <- data.frame(
-          Item_Code = character(0),
-          Item_Type = character(0),
+          Item_ID = character(0),
+          Priority = character(0),
           Production_Status = character(0),
+          QC_Status = character(0),
           Actions = character(0),
           stringsAsFactors = FALSE
         )
@@ -74,7 +77,7 @@ reporting_effort_tracker_server <- function(id) {
         )
       } else {
         # Remove ID column for display
-        display_df <- data[, c("Item_Code", "Item_Type", "Production_Status", "Actions")]
+        display_df <- data[, c("Item_ID", "Priority", "Production_Status", "QC_Status", "Actions")]
         
         DT::datatable(
           display_df,

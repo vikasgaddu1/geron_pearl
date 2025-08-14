@@ -41,12 +41,13 @@ class ReportingEffortItemInDB(ReportingEffortItemBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
 
 class ReportingEffortItem(ReportingEffortItemInDB):
     """Schema for ReportingEffortItem response."""
-    pass
+    
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
 
 class ReportingEffortItemWithDetails(ReportingEffortItemInDB):

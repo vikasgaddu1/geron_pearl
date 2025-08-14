@@ -304,3 +304,6 @@ test-results.xml
 *.bak
 *.backup 
 .Rproj.user
+
+# Utility scripts (local development tools)
+scripts/

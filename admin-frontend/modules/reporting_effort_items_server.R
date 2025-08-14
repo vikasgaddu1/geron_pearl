@@ -50,13 +50,25 @@ reporting_effort_items_server <- function(id) {
       } else {
         reporting_efforts_list(result)
         
-        # Create choices for select input
+        # Also load studies to get study names
+        studies_result <- get_studies()
+        studies_lookup <- list()
+        if (!("error" %in% names(studies_result))) {
+          for (study in studies_result) {
+            studies_lookup[[as.character(study$id)]] <- study$title
+          }
+        }
+        
+        # Create choices for select input with correct field names
         choices <- setNames(
           sapply(result, function(x) x$id),
-          sapply(result, function(x) paste0(x$effort_name, " (", x$study_name, ")"))
+          sapply(result, function(x) {
+            study_name <- studies_lookup[[as.character(x$study_id)]] %||% paste0("Study ", x$study_id)
+            paste0(x$database_release_label, " (", study_name, ")")
+          })
         )
         # Add empty option at the beginning
-        choices <- c(setNames("", ""), choices)
+        choices <- c(setNames("", "Select a Reporting Effort"), choices)
         
         updateSelectInput(session, "selected_reporting_effort", choices = choices)
       }
@@ -717,9 +729,21 @@ reporting_effort_items_server <- function(id) {
         return()
       }
       
+      # Load studies for name lookup
+      studies_result <- get_studies()
+      studies_lookup <- list()
+      if (!("error" %in% names(studies_result))) {
+        for (study in studies_result) {
+          studies_lookup[[as.character(study$id)]] <- study$title
+        }
+      }
+      
       effort_choices <- setNames(
         sapply(other_efforts, function(x) x$id),
-        sapply(other_efforts, function(x) paste0(x$effort_name, " (", x$study_name, ")"))
+        sapply(other_efforts, function(x) {
+          study_name <- studies_lookup[[as.character(x$study_id)]] %||% paste0("Study ", x$study_id)
+          paste0(x$database_release_label, " (", study_name, ")")
+        })
       )
       
       showModal(modalDialog(

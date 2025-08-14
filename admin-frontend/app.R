@@ -43,6 +43,10 @@ source("modules/reporting_effort_tracker_ui.R")
 source("modules/reporting_effort_tracker_server.R")
 source("modules/users_ui.R")
 source("modules/users_server.R")
+source("modules/database_backup_ui.R")
+source("modules/database_backup_server.R")
+source("modules/admin_dashboard_ui.R")
+source("modules/admin_dashboard_server.R")
 
 # Theme with automatic dark mode support
 pearl_theme <-  bs_theme(
@@ -140,12 +144,16 @@ ui <- page_navbar(
     )
   ),
 
+  # Dashboard
+  nav_panel("Dashboard", value = "dashboard_tab", icon = icon("chart-line"), admin_dashboard_ui("admin_dashboard")),
+  
   # Primary navigation (grouped)
   nav_menu(
     "Data Management",
     nav_panel("Study Management", value = "study_tree_tab", study_tree_ui("study_tree")),
     nav_panel("TFL Properties", value = "tnfp_tab", tnfp_ui("tnfp")),
-    nav_panel("User Management", value = "users_tab", users_ui("users"))
+    nav_panel("User Management", value = "users_tab", users_ui("users")),
+    nav_panel("Database Backup", value = "database_backup_tab", database_backup_ui("database_backup"))
   ),
 
   nav_menu(
@@ -238,6 +246,12 @@ server <- function(input, output, session) {
   
   # Reporting Effort Tracker module
   reporting_effort_tracker_server("reporting_effort_tracker")
+  
+  # Database Backup module
+  database_backup_server("database_backup")
+  
+  # Admin Dashboard module
+  admin_dashboard_server("admin_dashboard")
   
   # Package Management placeholder handlers
   observeEvent(input$refresh_packages_btn, {

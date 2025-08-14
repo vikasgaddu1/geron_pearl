@@ -7,13 +7,14 @@ from pydantic import BaseModel, Field, ConfigDict
 from app.models.reporting_effort_item_tracker import ProductionStatus, QCStatus
 
 
+
 class ReportingEffortItemTrackerBase(BaseModel):
     """Base schema for ReportingEffortItemTracker."""
     
     production_programmer_id: Optional[int] = Field(None, description="User ID of production programmer")
     production_status: Optional[ProductionStatus] = Field(None, description="Production status")
     due_date: Optional[date] = Field(None, description="Target completion date")
-    priority: Optional[int] = Field(None, ge=1, le=5, description="Priority level (1=highest, 5=lowest)")
+    priority: Optional[str] = Field(None, description="Priority level: low, medium, high, critical")
     qc_level: Optional[str] = Field(None, max_length=50, description="QC level required")
     qc_programmer_id: Optional[int] = Field(None, description="User ID of QC programmer")
     qc_status: Optional[QCStatus] = Field(None, description="QC status")
@@ -42,7 +43,7 @@ class ReportingEffortItemTrackerInDB(ReportingEffortItemTrackerBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
 
 class ReportingEffortItemTracker(ReportingEffortItemTrackerInDB):

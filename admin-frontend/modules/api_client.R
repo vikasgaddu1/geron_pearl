@@ -1070,6 +1070,111 @@ import_tracker_data <- function(reporting_effort_id, file_path) {
   })
 }
 
+# Database Backup Functions
+get_database_backup_endpoint <- function() {
+  api_base <- Sys.getenv("PEARL_API_URL", "http://localhost:8000")
+  paste0(api_base, "/api/v1/database-backup")
+}
+
+# Create database backup
+create_database_backup <- function(description = NULL) {
+  tryCatch({
+    request <- httr2::request(paste0(get_database_backup_endpoint(), "/create")) |>
+      httr2::req_method("POST") |>
+      httr2::req_headers("X-User-Role" = "admin")
+    
+    if (!is.null(description)) {
+      request <- request |> httr2::req_body_json(list(description = description))
+    }
+    
+    response <- request |> 
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    
+    if (httr2::resp_status(response) == 200) {
+      list(success = TRUE, data = httr2::resp_body_json(response))
+    } else {
+      list(success = FALSE, error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(success = FALSE, error = e$message)
+  })
+}
+
+# List database backups
+list_database_backups <- function() {
+  tryCatch({
+    response <- httr2::request(paste0(get_database_backup_endpoint(), "/list")) |>
+      httr2::req_headers("X-User-Role" = "admin") |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    
+    if (httr2::resp_status(response) == 200) {
+      list(success = TRUE, data = httr2::resp_body_json(response))
+    } else {
+      list(success = FALSE, error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(success = FALSE, error = e$message)
+  })
+}
+
+# Delete database backup
+delete_database_backup <- function(filename) {
+  tryCatch({
+    response <- httr2::request(paste0(get_database_backup_endpoint(), "/delete/", filename)) |>
+      httr2::req_method("DELETE") |>
+      httr2::req_headers("X-User-Role" = "admin") |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    
+    if (httr2::resp_status(response) == 200) {
+      list(success = TRUE, data = httr2::resp_body_json(response))
+    } else {
+      list(success = FALSE, error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(success = FALSE, error = e$message)
+  })
+}
+
+# Restore database backup
+restore_database_backup <- function(filename) {
+  tryCatch({
+    response <- httr2::request(paste0(get_database_backup_endpoint(), "/restore/", filename)) |>
+      httr2::req_method("POST") |>
+      httr2::req_headers("X-User-Role" = "admin") |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    
+    if (httr2::resp_status(response) == 200) {
+      list(success = TRUE, data = httr2::resp_body_json(response))
+    } else {
+      list(success = FALSE, error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(success = FALSE, error = e$message)
+  })
+}
+
+# Get backup status
+get_database_backup_status <- function() {
+  tryCatch({
+    response <- httr2::request(paste0(get_database_backup_endpoint(), "/status")) |>
+      httr2::req_headers("X-User-Role" = "admin") |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    
+    if (httr2::resp_status(response) == 200) {
+      list(success = TRUE, data = httr2::resp_body_json(response))
+    } else {
+      list(success = FALSE, error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(success = FALSE, error = e$message)
+  })
+}
+
 # Health check function
 health_check <- function() {
   api_base <- Sys.getenv("PEARL_API_URL", "http://localhost:8000")
