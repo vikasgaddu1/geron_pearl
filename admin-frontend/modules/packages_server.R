@@ -313,6 +313,127 @@ packages_server <- function(id) {
       showNotification("Data refreshed", type = "message", duration = 2)
     })
     
+    # Export to Excel button
+    observeEvent(input$export_excel, {
+      # Check if openxlsx is available
+      if (!requireNamespace("openxlsx", quietly = TRUE)) {
+        showNotification("Please install the 'openxlsx' package to export to Excel", type = "error")
+        return()
+      }
+      
+      # Get all packages data
+      packages <- packages_data()
+      
+      if (nrow(packages) == 0) {
+        showNotification("No packages to export", type = "warning")
+        return()
+      }
+      
+      # Create workbook
+      wb <- openxlsx::createWorkbook()
+      
+      # Add Packages sheet
+      openxlsx::addWorksheet(wb, "Packages")
+      
+      # Prepare packages data for export
+      export_packages <- data.frame(
+        ID = packages$ID,
+        `Package Name` = packages$`Package Name`,
+        check.names = FALSE
+      )
+      
+      openxlsx::writeData(wb, "Packages", export_packages)
+      
+      # Add Package Items sheet
+      openxlsx::addWorksheet(wb, "Package Items")
+      
+      # Collect all items for all packages
+      all_items <- data.frame()
+      
+      for (pkg_id in packages$ID) {
+        result <- get_package_items(pkg_id)
+        if (!"error" %in% names(result) && length(result) > 0) {
+          for (item in result) {
+            item_df <- data.frame(
+              Package_ID = pkg_id,
+              Package_Name = packages[packages$ID == pkg_id, "Package Name"],
+              Item_ID = item$id %||% NA,
+              Study = item$study_label %||% NA,
+              Type = item$item_type %||% NA,
+              Subtype = if(!is.null(item$tlf_details) && !is.null(item$tlf_details$tlf_subtype)) item$tlf_details$tlf_subtype else NA,
+              Code = item$item_code %||% NA,
+              Title = item$title_label %||% NA,
+              stringsAsFactors = FALSE
+            )
+            all_items <- rbind(all_items, item_df)
+          }
+        }
+      }
+      
+      if (nrow(all_items) > 0) {
+        openxlsx::writeData(wb, "Package Items", all_items)
+      } else {
+        openxlsx::writeData(wb, "Package Items", data.frame(Message = "No items found"))
+      }
+      
+      # Add metadata sheet
+      openxlsx::addWorksheet(wb, "Export Info")
+      metadata <- data.frame(
+        Property = c("Export Date", "Total Packages", "Total Items", "Exported By"),
+        Value = c(
+          format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+          nrow(packages),
+          nrow(all_items),
+          "PEARL System"
+        )
+      )
+      openxlsx::writeData(wb, "Export Info", metadata)
+      
+      # Style the workbook
+      headerStyle <- openxlsx::createStyle(
+        fontSize = 12,
+        fontColour = "#FFFFFF",
+        fgFill = "#4472C4",
+        halign = "center",
+        valign = "center",
+        textDecoration = "bold"
+      )
+      
+      # Apply styles to all sheets
+      for (sheet in c("Packages", "Package Items", "Export Info")) {
+        openxlsx::addStyle(wb, sheet, headerStyle, rows = 1, cols = 1:10, gridExpand = TRUE)
+      }
+      
+      # Save the file
+      filename <- paste0("PEARL_Packages_Export_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".xlsx")
+      filepath <- file.path(tempdir(), filename)
+      openxlsx::saveWorkbook(wb, filepath, overwrite = TRUE)
+      
+      # Download the file
+      showModal(modalDialog(
+        title = "Export Complete",
+        paste("Excel file has been generated:", filename),
+        br(),
+        downloadButton(ns("download_excel"), "Download Excel File"),
+        footer = modalButton("Close")
+      ))
+      
+      # Store filepath for download handler
+      session$userData$export_filepath <- filepath
+    })
+    
+    # Download handler for Excel export
+    output$download_excel <- downloadHandler(
+      filename = function() {
+        paste0("PEARL_Packages_Export_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".xlsx")
+      },
+      content = function(file) {
+        if (!is.null(session$userData$export_filepath)) {
+          file.copy(session$userData$export_filepath, file)
+        }
+      }
+    )
+    
     # Handle package table clicks (edit/delete)
     observeEvent(input$package_action_click, {
       info <- input$package_action_click

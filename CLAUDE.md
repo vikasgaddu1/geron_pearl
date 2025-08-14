@@ -243,5 +243,3 @@ Use for creating simple, reliable endpoint testing for FastAPI applications usin
 - **Backend**: See [backend/CLAUDE.md](backend/CLAUDE.md) and [backend/README.md](backend/README.md)
 - **Frontend**: See [admin-frontend/CLAUDE.md](admin-frontend/CLAUDE.md) and [admin-frontend/README.md](admin-frontend/README.md)
 - **Testing**: See [backend/tests/README.md](backend/tests/README.md)
-- do not use emoji in code
-- after implementing each feature run the hook to git
