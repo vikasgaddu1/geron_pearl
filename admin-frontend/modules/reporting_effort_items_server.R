@@ -55,7 +55,8 @@ reporting_effort_items_server <- function(id) {
           sapply(result, function(x) x$id),
           sapply(result, function(x) paste0(x$effort_name, " (", x$study_name, ")"))
         )
-        choices <- c("" = "", choices)
+        # Add empty option at the beginning
+        choices <- c(setNames("", ""), choices)
         
         updateSelectInput(session, "selected_reporting_effort", choices = choices)
       }

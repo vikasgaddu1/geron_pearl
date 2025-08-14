@@ -563,8 +563,7 @@ users_server <- function(id) {
           "Biostatistics" = "biostatistics", 
           "biostatistics" = "biostatistics",
           "Management" = "management",
-          "management" = "management",
-          "" = ""
+          "management" = "management"
         )
         
         results <- list(
