@@ -114,9 +114,11 @@ reporting_effort_items_server <- function(id) {
           Code = sapply(items_list, function(x) x$item_code),
           Title = sapply(items_list, function(x) {
             if (x$item_type == "TLF" && !is.null(x$tlf_details)) {
-              x$tlf_details$title %||% ""
+              # For TLF items, show title_id for now (TODO: resolve to actual title text)
+              paste0("Title ID: ", x$tlf_details$title_id %||% "N/A")
             } else if (x$item_type == "Dataset" && !is.null(x$dataset_details)) {
-              x$dataset_details$dataset_name %||% ""
+              # For Dataset items, use the label field 
+              x$dataset_details$label %||% ""
             } else {
               ""
             }
