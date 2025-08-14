@@ -299,25 +299,25 @@ reporting_effort_tracker_ui <- function(id) {
                 ),
 
                 # Three trackers: TLF, SDTM, ADaM
-                navset_card_pill(
+                navset_pill(
                   id = ns("tracker_tabs"),
                   nav_panel(
                     "TLF Tracker",
                     value = "tlf",
                     div(class = "mb-2", uiOutput(ns("effort_label_tlf"))),
-                    div(style = "height: 560px; overflow-y: auto;", DTOutput(ns("tracker_table_tlf")))
+                    div(style = "height: 560px; overflow-x: auto;", DTOutput(ns("tracker_table_tlf")))
                   ),
                   nav_panel(
                     "SDTM Tracker",
                     value = "sdtm",
                     div(class = "mb-2", uiOutput(ns("effort_label_sdtm"))),
-                    div(style = "height: 560px; overflow-y: auto;", DTOutput(ns("tracker_table_sdtm")))
+                    div(style = "height: 560px; overflow-x: auto;", DTOutput(ns("tracker_table_sdtm")))
                   ),
                   nav_panel(
                     "ADaM Tracker",
                     value = "adam",
                     div(class = "mb-2", uiOutput(ns("effort_label_adam"))),
-                    div(style = "height: 560px; overflow-y: auto;", DTOutput(ns("tracker_table_adam")))
+                    div(style = "height: 560px; overflow-x: auto;", DTOutput(ns("tracker_table_adam")))
                   )
                 )
               )

@@ -89,9 +89,9 @@ reporting_effort_tracker_server <- function(id) {
                " (", eff$study_title %||% (eff$study_id %||% ""), ", ",
                eff$database_release_label %||% (eff$database_release_id %||% ""), ")")
       } else ""
-      output$effort_label_tlf <- renderUI(tags$div(class = "text-muted small", lbl))
-      output$effort_label_sdtm <- renderUI(tags$div(class = "text-muted small", lbl))
-      output$effort_label_adam <- renderUI(tags$div(class = "text-muted small", lbl))
+      output$effort_label_tlf <- renderUI(tags$div(class = "text-muted small fw-semibold", lbl))
+      output$effort_label_sdtm <- renderUI(tags$div(class = "text-muted small fw-semibold", lbl))
+      output$effort_label_adam <- renderUI(tags$div(class = "text-muted small fw-semibold", lbl))
     }
 
     # Load tracker tables based on items of selected effort
@@ -119,15 +119,23 @@ reporting_effort_tracker_server <- function(id) {
         prod_status <- tracker$production_status %||% "not_started"
         qc_status <- tracker$qc_status %||% "not_started"
         priority <- tracker$priority %||% "medium"
+        due_date <- tracker$due_date %||% ""
+        qc_done <- tracker$qc_completion_date %||% ""
+        prod_prog <- tracker$production_programmer_username %||% tracker$production_programmer_id %||% "Not Assigned"
+        qc_prog <- tracker$qc_programmer_username %||% tracker$qc_programmer_id %||% "Not Assigned"
         actions <- sprintf(
           "<div class='btn-group btn-group-sm' role='group'>\n           <a href='#' class='btn btn-outline-primary pearl-tracker-action' data-action='prog_comment' data-id='%s' title='Programmer comment'><i class='fa fa-user-edit'></i></a>\n           <a href='#' class='btn btn-outline-info pearl-tracker-action' data-action='biostat_comment' data-id='%s' title='Biostat comment'><i class='fa fa-notes-medical'></i></a>\n           <a href='#' class='btn btn-outline-secondary pearl-tracker-action' data-action='edit' data-id='%s' title='Edit tracker'><i class='fa fa-edit'></i></a>\n         </div>",
           tracker_id %||% item$id, tracker_id %||% item$id, tracker_id %||% item$id)
         data.frame(
           Item = item$item_code %||% "",
           Category = item$item_subtype %||% "",
+          Production_Programmer = prod_prog,
+          QC_Programmer = qc_prog,
           Priority = priority,
           Production_Status = prod_status,
           QC_Status = qc_status,
+          Assign_Date = due_date,
+          QC_Completion_Date = qc_done,
           Actions = actions,
           stringsAsFactors = FALSE
         )
@@ -146,7 +154,7 @@ reporting_effort_tracker_server <- function(id) {
         }
       }
 
-      to_df <- function(rows) if (length(rows)) do.call(rbind, rows) else data.frame(Item=character(0), Category=character(0), Priority=character(0), Production_Status=character(0), QC_Status=character(0), Actions=character(0), stringsAsFactors = FALSE)
+      to_df <- function(rows) if (length(rows)) do.call(rbind, rows) else data.frame(Item=character(0), Category=character(0), Production_Programmer=character(0), QC_Programmer=character(0), Priority=character(0), Production_Status=character(0), QC_Status=character(0), Assign_Date=character(0), QC_Completion_Date=character(0), Actions=character(0), stringsAsFactors = FALSE)
       trackers_tlf(to_df(tlf_rows))
       trackers_sdtm(to_df(sdtm_rows))
       trackers_adam(to_df(adam_rows))
@@ -161,7 +169,7 @@ reporting_effort_tracker_server <- function(id) {
         }
         DT::datatable(
           df,
-          options = list(dom = 'rtip', pageLength = 25, ordering = TRUE, autoWidth = TRUE, columnDefs = list(list(targets = ncol(df), orderable = FALSE))),
+          options = list(dom = 'tpi', pageLength = 25, ordering = TRUE, autoWidth = TRUE, columnDefs = list(list(targets = ncol(df), orderable = FALSE))),
           escape = FALSE,
           selection = 'none',
           rownames = FALSE

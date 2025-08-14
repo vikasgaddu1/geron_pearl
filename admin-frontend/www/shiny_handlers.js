@@ -12,3 +12,15 @@ Shiny.addCustomMessageHandler('websocket_refresh', function (message) {
     console.log('WebSocket not connected, skipping refresh');
   }
 });
+
+// Toggle selection highlight for reporting effort selector wrappers
+Shiny.addCustomMessageHandler('toggleEffortSelection', function (message) {
+  try {
+    var el = document.getElementById(message.selector_id);
+    if (!el) return;
+    if (message.has_selection) el.classList.add('has-selection');
+    else el.classList.remove('has-selection');
+  } catch (e) {
+    console.warn('toggleEffortSelection error', e);
+  }
+});
