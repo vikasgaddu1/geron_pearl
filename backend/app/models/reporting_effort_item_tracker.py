@@ -134,4 +134,8 @@ class ReportingEffortItemTracker(Base, TimestampMixin):
     )
     
     def __repr__(self) -> str:
-        return f"<ReportingEffortItemTracker(id={self.id}, item={self.reporting_effort_item_id}, prod_status={self.production_status}, qc_status={self.qc_status})>"
+        try:
+            return f"<ReportingEffortItemTracker(id={self.id}, item={self.reporting_effort_item_id}, prod_status={self.production_status}, qc_status={self.qc_status})>"
+        except Exception:
+            # Handle detached instance or other attribute access issues
+            return f"<ReportingEffortItemTracker(detached)>"

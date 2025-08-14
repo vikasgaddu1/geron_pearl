@@ -12,6 +12,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "python-multipart>=0.0.9",
     "alembic>=1.13.0",
+    "fastapi-mcp>=0.4.0",
 ]
 
 [project.optional-dependencies]
@@ -89,3 +90,6 @@ exclude_lines = [
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
+
+[tool.uv.sources]
+fastapi-mcp = { git = "https://github.com/tadata-org/fastapi_mcp.git" }

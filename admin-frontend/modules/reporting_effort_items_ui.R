@@ -1,4 +1,4 @@
-# Reporting Effort Items UI Module - CRUD for reporting effort items
+# Reporting Effort Items UI Module - Manage TLF and Dataset items
 
 reporting_effort_items_ui <- function(id) {
   ns <- NS(id)
@@ -22,26 +22,39 @@ reporting_effort_items_ui <- function(id) {
         card(
           class = "border border-2",
           full_screen = FALSE,
-          height = "700px",
+          height = NULL,
           
           # Header
           card_header(
             class = "d-flex justify-content-between align-items-center",
             div(
               tags$h4(bs_icon("list-task"), " Reporting Effort Items", class = "mb-0 text-primary"),
-              tags$small("Manage TLFs and datasets for reporting efforts", class = "text-muted")
+              tags$small("Manage TLF and Dataset items in reporting efforts", class = "text-muted")
             ),
             div(
-              class = "d-flex gap-2",
-              # Reporting Effort selector
+              class = "d-flex gap-2 align-items-center",
+              # Reporting Effort selector with prominent label
               div(
-                style = "min-width: 200px;",
-                selectInput(
-                  ns("selected_reporting_effort"),
-                  NULL,
-                  choices = NULL,
-                  width = "100%",
-                  selectize = TRUE
+                id = ns("effort_selector_wrapper"),
+                class = "d-flex align-items-center gap-2 effort-selector-wrapper",
+                tags$label(
+                  class = "mb-0 fw-bold",
+                  style = "white-space: nowrap;",
+                  icon("clipboard-list", class = "text-info"),
+                  " Current Reporting Effort:"
+                ),
+                div(
+                  style = "width: 300px;",
+                  title = "All items will be added to this reporting effort",
+                  selectizeInput(
+                    ns("selected_reporting_effort"),
+                    label = NULL,
+                    choices = NULL,
+                    options = list(
+                      placeholder = "⚠ Select a reporting effort first...",
+                      maxItems = 1
+                    )
+                  )
                 )
               ),
               actionButton(
@@ -53,12 +66,11 @@ reporting_effort_items_ui <- function(id) {
               ),
               actionButton(
                 ns("toggle_add_item"),
-                "Add Item",
-                icon = icon("plus"),
+                tagList(icon("plus"), " Add Item"),
                 class = "btn btn-success btn-sm",
-                title = "Add a new item"
+                title = "Add a new item to the selected reporting effort"
               ),
-              # Dropdown for bulk operations
+              # Dropdown for copy operations
               div(
                 class = "dropdown",
                 tags$button(
@@ -66,48 +78,22 @@ reporting_effort_items_ui <- function(id) {
                   type = "button",
                   `data-bs-toggle` = "dropdown",
                   `aria-expanded` = "false",
-                  title = "Bulk operations and copy features",
-                  tagList(icon("tools"), " Actions")
+                  title = "Copy items from packages or other reporting efforts",
+                  tagList(icon("copy"), " Copy Items")
                 ),
                 tags$ul(
                   class = "dropdown-menu",
                   tags$li(tags$a(
                     class = "dropdown-item", 
                     href = "#",
-                    id = ns("bulk_tlf_btn"),
-                    tagList(icon("upload"), " Bulk Upload TLFs")
-                  )),
-                  tags$li(tags$a(
-                    class = "dropdown-item", 
-                    href = "#",
-                    id = ns("bulk_dataset_btn"),
-                    tagList(icon("upload"), " Bulk Upload Datasets")
-                  )),
-                  tags$li(tags$hr(class = "dropdown-divider")),
-                  tags$li(tags$a(
-                    class = "dropdown-item", 
-                    href = "#",
                     id = ns("copy_from_package_btn"),
-                    tagList(icon("copy"), " Copy from Package")
+                    tagList(icon("box"), " Copy from Package")
                   )),
                   tags$li(tags$a(
                     class = "dropdown-item", 
                     href = "#",
                     id = ns("copy_from_effort_btn"),
-                    tagList(icon("copy"), " Copy from Reporting Effort")
-                  )),
-                  tags$li(tags$hr(class = "dropdown-divider")),
-                  tags$li(tags$a(
-                    class = "dropdown-item", 
-                    href = "#",
-                    id = ns("export_tracker_btn"),
-                    tagList(icon("download"), " Export Tracker Data")
-                  )),
-                  tags$li(tags$a(
-                    class = "dropdown-item", 
-                    href = "#",
-                    id = ns("import_tracker_btn"),
-                    tagList(icon("upload"), " Import Tracker Data")
+                    tagList(icon("clipboard"), " Copy from Reporting Effort")
                   ))
                 )
               )
@@ -119,11 +105,14 @@ reporting_effort_items_ui <- function(id) {
             class = "p-0",
             style = "height: 100%;",
             
+            # Effort selection reminder
+            uiOutput(ns("effort_reminder")),
+            
             layout_sidebar(
               fillable = TRUE,
               sidebar = sidebar(
                 id = ns("items_sidebar"),
-                width = 500,
+                width = 450,
                 position = "right",
                 padding = c(3, 3, 3, 4),
                 open = "closed",
@@ -131,172 +120,79 @@ reporting_effort_items_ui <- function(id) {
                 # Item Form
                 div(
                   id = ns("item_form"),
-                  tags$h6("Add/Edit Item", class = "text-center fw-bold mb-3"),
+                  tags$h6("Add Individual Item", class = "text-center fw-bold mb-3"),
                   
-                  # Item Type
-                  radioButtons(
-                    ns("item_type"),
-                    "Item Type",
-                    choices = list("TLF" = "TLF", "Dataset" = "Dataset"),
-                    selected = "TLF",
-                    inline = TRUE
-                  ),
-                  
-                  # Item Code
-                  textInput(
-                    ns("item_code"),
-                    "Item Code",
-                    placeholder = "Enter item code..."
-                  ),
-                  
-                  # Item Subtype (conditional on type)
-                  conditionalPanel(
-                    condition = "input.item_type == 'TLF'",
-                    ns = ns,
-                    selectInput(
-                      ns("tlf_subtype"),
-                      "TLF Subtype",
-                      choices = list(
-                        "Table" = "Table",
-                        "Listing" = "Listing", 
-                        "Figure" = "Figure"
-                      ),
-                      selected = "Table"
-                    )
-                  ),
-                  
-                  conditionalPanel(
-                    condition = "input.item_type == 'Dataset'",
-                    ns = ns,
-                    selectInput(
-                      ns("dataset_subtype"),
-                      "Dataset Subtype",
-                      choices = list(
-                        "ADAM" = "ADAM",
-                        "SDTM" = "SDTM",
-                        "Raw" = "Raw"
-                      ),
-                      selected = "ADAM"
-                    )
-                  ),
-                  
-                  # TLF-specific fields
-                  conditionalPanel(
-                    condition = "input.item_type == 'TLF'",
-                    ns = ns,
-                    textInput(
-                      ns("tlf_title"),
-                      "Title",
-                      placeholder = "Enter TLF title..."
-                    ),
-                    textAreaInput(
-                      ns("tlf_description"),
-                      "Description",
-                      placeholder = "Enter TLF description...",
-                      rows = 3
-                    ),
-                    textInput(
-                      ns("tlf_population"),
-                      "Population",
-                      placeholder = "e.g., Safety, ITT, PP..."
-                    ),
-                    checkboxInput(
-                      ns("tlf_mock_available"),
-                      "Mock Available",
-                      value = FALSE
-                    ),
-                    checkboxInput(
-                      ns("tlf_asr_ready"),
-                      "ASR Ready",
-                      value = FALSE
-                    )
-                  ),
-                  
-                  # Dataset-specific fields
-                  conditionalPanel(
-                    condition = "input.item_type == 'Dataset'",
-                    ns = ns,
-                    textInput(
-                      ns("dataset_name"),
-                      "Dataset Name",
-                      placeholder = "Enter dataset name..."
-                    ),
-                    textAreaInput(
-                      ns("dataset_description"),
-                      "Description",
-                      placeholder = "Enter dataset description...",
-                      rows = 3
-                    ),
-                    textInput(
-                      ns("dataset_location"),
-                      "Location",
-                      placeholder = "Enter dataset path/location..."
-                    ),
-                    checkboxInput(
-                      ns("dataset_locked"),
-                      "Locked",
-                      value = FALSE
-                    )
-                  ),
+                  # Dynamic form content based on item type
+                  uiOutput(ns("add_item_form")),
                   
                   # Hidden ID field for editing
                   hidden(
                     numericInput(ns("edit_item_id"), "ID", value = NA)
                   ),
                   
-                  # Action buttons
-                  layout_columns(
-                    col_widths = c(6, 6),
-                    gap = 2,
-                    actionButton(
-                      ns("save_item"),
-                      "Create",
-                      icon = icon("check"),
-                      class = "btn btn-success w-100",
-                      style = "height: auto; padding: 0.375rem 0.75rem;",
-                      title = "Create the item"
-                    ),
-                    actionButton(
-                      ns("cancel_item"),
-                      "Cancel",
-                      icon = icon("times"),
-                      class = "btn btn-secondary w-100",
-                      style = "height: auto; padding: 0.375rem 0.75rem;",
-                      title = "Cancel and close"
-                    )
-                  )
+                  # Bulk Upload Section
+                  tags$hr(class = "my-4"),
+                  tags$h6("Bulk Upload", class = "text-center fw-bold mb-3"),
+                  
+                  # Dynamic template download
+                  uiOutput(ns("template_download")),
+                  
+                  # Dynamic file upload instructions
+                  uiOutput(ns("upload_instructions")),
+                  
+                  # File input
+                  fileInput(
+                    ns("bulk_upload_file"),
+                    label = NULL,
+                    accept = c(".xlsx", ".xls"),
+                    buttonLabel = "Choose Excel File",
+                    placeholder = "No file selected"
+                  ),
+                  
+                  # Upload button
+                  actionButton(
+                    ns("process_bulk_upload"),
+                    tagList(icon("upload"), "Process Upload"),
+                    class = "btn btn-primary w-100",
+                    style = "height: auto; padding: 0.375rem 0.75rem;",
+                    title = "Process the bulk upload file"
+                  ),
+                  
+                  # Upload results placeholder
+                  uiOutput(ns("upload_results"))
                 )
               ),
               
               # Main content area
               div(
                 style = "padding: 10px 0;",
-                uiOutput(ns("items_error_msg")),
-                
-                # Status message for no reporting effort selected
-                conditionalPanel(
-                  condition = "input.selected_reporting_effort == null || input.selected_reporting_effort == ''",
-                  ns = ns,
-                  div(
-                    class = "alert alert-info text-center",
-                    style = "margin: 50px 20px;",
-                    tags$h5(icon("info-circle"), " Select a Reporting Effort"),
-                    tags$p("Please select a reporting effort from the dropdown above to view and manage its items.")
-                  )
-                ),
-                
-                # DataTable container with fixed height
-                conditionalPanel(
-                  condition = "input.selected_reporting_effort != null && input.selected_reporting_effort != ''",
-                  ns = ns,
-                  div(
-                    style = "height: 550px; overflow-y: auto;",
-                    DTOutput(ns("items_table"))
+                navset_pill(
+                  id = ns("item_tabs"),
+                  nav_panel(
+                    "TLF Items",
+                    value = "tlf",
+                    icon = bs_icon("table"),
+                    div(
+                      class = "mt-3",
+                      uiOutput(ns("tlf_header")),
+                      DT::dataTableOutput(ns("tlf_table"))
+                    )
+                  ),
+                  nav_panel(
+                    "Dataset Items",
+                    value = "dataset",
+                    icon = bs_icon("database"),
+                    div(
+                      class = "mt-3",
+                      uiOutput(ns("dataset_header")),
+                      DT::dataTableOutput(ns("dataset_table"))
+                    )
                   )
                 )
               )
             )
-          )
+          ),
+          
         )
       )
     ),
@@ -312,30 +208,10 @@ reporting_effort_items_ui <- function(id) {
           e.preventDefault();
           Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
         });
-        document.getElementById('%s').addEventListener('click', function(e) {
-          e.preventDefault();
-          Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
-        });
-        document.getElementById('%s').addEventListener('click', function(e) {
-          e.preventDefault();
-          Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
-        });
-        document.getElementById('%s').addEventListener('click', function(e) {
-          e.preventDefault();
-          Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
-        });
-        document.getElementById('%s').addEventListener('click', function(e) {
-          e.preventDefault();
-          Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
-        });
       });
     ", 
-    ns("bulk_tlf_btn"), ns("bulk_tlf_clicked"),
-    ns("bulk_dataset_btn"), ns("bulk_dataset_clicked"),
     ns("copy_from_package_btn"), ns("copy_from_package_clicked"),
-    ns("copy_from_effort_btn"), ns("copy_from_effort_clicked"),
-    ns("export_tracker_btn"), ns("export_tracker_clicked"),
-    ns("import_tracker_btn"), ns("import_tracker_clicked")
+    ns("copy_from_effort_btn"), ns("copy_from_effort_clicked")
     )))
   )
 }

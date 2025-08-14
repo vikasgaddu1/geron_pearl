@@ -366,6 +366,40 @@ This application is designed for deployment on **Posit Connect** servers:
    - R Shiny apps can connect via HTTP requests to `/api/v1/studies` endpoints
    - CORS is pre-configured for cross-origin requests
 
+## Recent Changes
+
+### August 14, 2024 - Reporting Effort Items Module Fixes
+
+Fixed critical issues in the Reporting Effort Items module after BMAD rewrite:
+
+#### Issues Resolved:
+1. **Import Conflicts**: Fixed SQLAlchemy model overriding Pydantic schema imports
+   - Renamed SQLAlchemy import to `ReportingEffortItemModel` to avoid namespace collision
+   
+2. **Enum Serialization Errors**: Fixed ItemType and SourceType enum validation errors
+   - Converted all endpoints to return plain dicts with proper enum value serialization
+   - Changed `BulkUploadResponse` to use `List[dict]` instead of `List[ReportingEffortItem]`
+   
+3. **CRUD Method Signature Mismatches**: Fixed `copy_from_package` and `copy_from_reporting_effort` methods
+   - Properly constructed `ReportingEffortItemCreateWithDetails` objects instead of passing individual parameters
+   
+4. **DetachedInstanceError**: Fixed SQLAlchemy session detachment issues
+   - Added safe `__repr__` method in `ReportingEffortItemTracker` model with exception handling
+   - Converted `/by-effort/{reporting_effort_id}` endpoint to return dicts instead of Pydantic models
+   
+5. **MCP Integration Error**: Temporarily disabled fastapi_mcp integration causing import errors
+
+#### Files Modified:
+- `app/api/v1/reporting_effort_items.py` - Fixed imports, response models, and endpoint returns
+- `app/crud/reporting_effort_item.py` - Fixed copy methods to use proper schema construction
+- `app/models/reporting_effort_item_tracker.py` - Added safe __repr__ method
+- `app/main.py` - Commented out MCP integration
+
+#### Testing:
+- All endpoints now working: list, get by ID, get by effort, create, update, delete
+- Bulk operations (copy from package/effort) functioning correctly
+- Frontend integration restored - dropdown selection works without errors
+
 ## Security Notes
 
 - JWT authentication is prepared but not implemented

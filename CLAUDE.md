@@ -244,3 +244,4 @@ Use for creating simple, reliable endpoint testing for FastAPI applications usin
 - **Frontend**: See [admin-frontend/CLAUDE.md](admin-frontend/CLAUDE.md) and [admin-frontend/README.md](admin-frontend/README.md)
 - **Testing**: See [backend/tests/README.md](backend/tests/README.md)
 - for windows path use '/'
+- fastapi-mcp is running at http://localhost:8000/mcp

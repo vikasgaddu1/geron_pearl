@@ -6,6 +6,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from app.models.enums import SourceType, ItemType
+from app.schemas.reporting_effort_item_tracker import ReportingEffortItemTrackerInDB
 
 
 class ReportingEffortItemBase(BaseModel):
@@ -144,6 +145,14 @@ class ReportingEffortItemFootnoteCreate(ReportingEffortItemFootnoteBase):
     pass
 
 
+class ReportingEffortItemFootnoteInDB(ReportingEffortItemFootnoteBase):
+    """Schema for footnote association from database."""
+    
+    reporting_effort_item_id: int
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ReportingEffortItemAcronymBase(BaseModel):
     """Base schema for acronym association."""
     
@@ -155,14 +164,22 @@ class ReportingEffortItemAcronymCreate(ReportingEffortItemAcronymBase):
     pass
 
 
+class ReportingEffortItemAcronymInDB(ReportingEffortItemAcronymBase):
+    """Schema for acronym association from database."""
+    
+    reporting_effort_item_id: int
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ReportingEffortItemWithDetails(ReportingEffortItemInDB):
     """Schema for ReportingEffortItem with all related details."""
     
     tlf_details: Optional[ReportingEffortTlfDetailsInDB] = None
     dataset_details: Optional[ReportingEffortDatasetDetailsInDB] = None
-    footnotes: List[ReportingEffortItemFootnoteBase] = Field(default_factory=list)
-    acronyms: List[ReportingEffortItemAcronymBase] = Field(default_factory=list)
-    tracker: Optional[dict] = None
+    footnotes: List[ReportingEffortItemFootnoteInDB] = Field(default_factory=list)
+    acronyms: List[ReportingEffortItemAcronymInDB] = Field(default_factory=list)
+    tracker: Optional[ReportingEffortItemTrackerInDB] = None
     
     model_config = ConfigDict(from_attributes=True)
 
