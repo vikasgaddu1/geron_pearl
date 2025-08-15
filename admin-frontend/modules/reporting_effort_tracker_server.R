@@ -12,6 +12,23 @@ reporting_effort_tracker_server <- function(id) {
 
     # Single reactive value following the working items module pattern
     tracker_data <- reactiveVal(list())  # Will store tlf_trackers, sdtm_trackers, adam_trackers
+    
+    # Load users for programmer dropdowns - moved up to ensure it's available early
+    programmers_list <- reactiveVal(list())
+    
+    load_programmers <- function() {
+      users_result <- get_users()
+      if (!"error" %in% names(users_result) && length(users_result) > 0) {
+        # Filter out biostat role users - only keep programmers
+        programmers <- list()
+        for (user in users_result) {
+          if (!is.null(user$role) && tolower(user$role) != "biostat") {
+            programmers[[length(programmers) + 1]] <- user
+          }
+        }
+        programmers_list(programmers)
+      }
+    }
 
     # Load reporting efforts for dropdown (same labelling as items)
     load_reporting_efforts <- function() {
@@ -55,6 +72,7 @@ reporting_effort_tracker_server <- function(id) {
     }
 
     # Initial loads
+    observe(load_programmers())
     observe(load_reporting_efforts())
 
     # Update highlight class when selection changes
@@ -175,28 +193,82 @@ reporting_effort_tracker_server <- function(id) {
       # Split items by subtype for Dataset and by type for TLFs
       # We will build simple frames with inline actions
       build_row <- function(item) {
-        tracker <- tryCatch(get_tracker_by_item(item$id), error = function(e) list())
+        cat("DEBUG: Building row for item ID:", item$id, "code:", item$item_code, "\n")
+        tracker <- tryCatch({
+          result <- get_tracker_by_item(item$id)
+          cat("DEBUG: Tracker API result for item", item$id, "- keys:", names(result), "\n")
+          if ("error" %in% names(result)) {
+            cat("DEBUG: Tracker API error:", result$error, "\n")
+            list()
+          } else {
+            result
+          }
+        }, error = function(e) {
+          cat("DEBUG: Exception getting tracker for item", item$id, ":", e$message, "\n")
+          list()
+        })
         tracker_id <- if (!is.null(tracker$id)) tracker$id else NA
-        prod_status <- tracker$production_status %||% "not_started"
-        qc_status <- tracker$qc_status %||% "not_started"
+        cat("DEBUG: Tracker ID:", tracker_id, "for item", item$id, "\n")
+        # Map backend enum values to display values
+        prod_status_map <- list(
+          "not_started" = "Not Started",
+          "in_progress" = "In Progress", 
+          "completed" = "Completed",
+          "on_hold" = "On Hold"
+        )
+        qc_status_map <- list(
+          "not_started" = "Not Started",
+          "in_progress" = "In Progress",
+          "completed" = "Completed", 
+          "failed" = "Failed"
+        )
+        
+        prod_status <- prod_status_map[[tracker$production_status %||% "not_started"]] %||% "Not Started"
+        qc_status <- qc_status_map[[tracker$qc_status %||% "not_started"]] %||% "Not Started"
         priority <- tracker$priority %||% "medium"
+        qc_level <- tracker$qc_level %||% ""
         due_date <- tracker$due_date %||% ""
         qc_done <- tracker$qc_completion_date %||% ""
-        prod_prog <- tracker$production_programmer_username %||% tracker$production_programmer_id %||% "Not Assigned"
-        qc_prog <- tracker$qc_programmer_username %||% tracker$qc_programmer_id %||% "Not Assigned"
+        
+        # Get usernames for programmers
+        prod_prog <- "Not Assigned"
+        qc_prog <- "Not Assigned"
+        
+        # Look up programmer usernames from the users list
+        progs <- programmers_list()
+        if (length(progs) > 0 && !is.null(tracker$production_programmer_id)) {
+          for (prog in progs) {
+            if (as.character(prog$id) == as.character(tracker$production_programmer_id)) {
+              prod_prog <- prog$username
+              break
+            }
+          }
+        }
+        if (length(progs) > 0 && !is.null(tracker$qc_programmer_id)) {
+          for (prog in progs) {
+            if (as.character(prog$id) == as.character(tracker$qc_programmer_id)) {
+              qc_prog <- prog$username
+              break
+            }
+          }
+        }
         actions <- sprintf(
-          "<div class='btn-group btn-group-sm' role='group'>\n           <a href='#' class='btn btn-outline-primary pearl-tracker-action' data-action='prog_comment' data-id='%s' title='Programmer comment'><i class='fa fa-user-edit'></i></a>\n           <a href='#' class='btn btn-outline-info pearl-tracker-action' data-action='biostat_comment' data-id='%s' title='Biostat comment'><i class='fa fa-notes-medical'></i></a>\n           <a href='#' class='btn btn-outline-secondary pearl-tracker-action' data-action='edit' data-id='%s' title='Edit tracker'><i class='fa fa-edit'></i></a>\n         </div>",
-          tracker_id %||% item$id, tracker_id %||% item$id, tracker_id %||% item$id)
+          '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="%s" data-item-id="%s" title="Edit tracker"><i class="fa fa-pencil"></i></button>
+           <button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="%s" data-item-id="%s" title="Delete tracker"><i class="fa fa-trash"></i></button>
+           <button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="%s" title="Programmer comment"><i class="fa fa-comment"></i></button>
+           <button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="%s" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
+          tracker_id %||% NA, item$id, tracker_id %||% NA, item$id, tracker_id %||% NA, tracker_id %||% NA)
         data.frame(
           Item = item$item_code %||% "",
           Category = item$item_subtype %||% "",
-          Production_Programmer = prod_prog,
+          Prod_Programmer = prod_prog,
+          Prod_Status = prod_status,
+          QC_Level = qc_level,
+          QC_Completion = qc_done,
           QC_Programmer = qc_prog,
-          Priority = priority,
-          Production_Status = prod_status,
           QC_Status = qc_status,
-          Assign_Date = due_date,
-          QC_Completion_Date = qc_done,
+          Priority = priority,
+          Due_Date = due_date,
           Actions = actions,
           stringsAsFactors = FALSE
         )
@@ -222,7 +294,7 @@ reporting_effort_tracker_server <- function(id) {
         if (length(rows)) {
           do.call(rbind, rows)
         } else {
-          data.frame(Item=character(0), Category=character(0), Production_Programmer=character(0), QC_Programmer=character(0), Priority=character(0), Production_Status=character(0), QC_Status=character(0), Assign_Date=character(0), QC_Completion_Date=character(0), Actions=character(0), stringsAsFactors = FALSE)
+          data.frame(Item=character(0), Category=character(0), Prod_Programmer=character(0), Prod_Status=character(0), QC_Level=character(0), QC_Completion=character(0), QC_Programmer=character(0), QC_Status=character(0), Priority=character(0), Due_Date=character(0), Actions=character(0), stringsAsFactors = FALSE)
         }
       }
       
@@ -244,8 +316,64 @@ reporting_effort_tracker_server <- function(id) {
 
     # Render TLF Tracker Table (following items module pattern)
     output$tracker_table_tlf <- DT::renderDataTable({
+      eff_id <- current_reporting_effort_id()
       data_list <- tracker_data()
       cat("DEBUG: Rendering TLF tracker table\n")
+      
+      # Check if a reporting effort is selected
+      if (is.null(eff_id)) {
+        # No reporting effort selected - show empty table
+        empty_df <- data.frame(
+          Item = character(0),
+          Category = character(0),
+          Prod_Programmer = character(0),
+          Prod_Status = character(0),
+          QC_Level = character(0),
+          QC_Completion = character(0),
+          QC_Programmer = character(0),
+          QC_Status = character(0),
+          Priority = character(0),
+          Due_Date = character(0),
+          Actions = character(0),
+          stringsAsFactors = FALSE
+        )
+        
+        # Create container with spanning headers - Production and QC grouping with center alignment
+        sketch = htmltools::withTags(table(
+          class = 'display',
+          thead(
+            tr(
+              th(rowspan = 2, 'Item'),
+              th(rowspan = 2, 'Category'),
+              th(colspan = 4, 'Production', style = 'text-align: center; background-color: #f8f9fa;'),
+              th(colspan = 2, 'QC', style = 'text-align: center; background-color: #e9ecef;'),
+              th(rowspan = 2, 'Priority'),
+              th(rowspan = 2, 'Due Date'),
+              th(rowspan = 2, 'Actions')
+            ),
+            tr(
+              th('Programmer'),
+              th('Status'),
+              th('QC Level'),
+              th('QC Completion'),
+              th('Programmer'),
+              th('Status')
+            )
+          )
+        ))
+        
+        return(DT::datatable(
+          empty_df,
+          container = sketch,
+          filter = 'top',
+          options = list(
+            dom = 'rtip',
+            pageLength = 25,
+            language = list(emptyTable = "Please select a reporting effort to view tracker items")
+          ),
+          escape = FALSE, selection = 'none', rownames = FALSE
+        ))
+      }
       
       # Get TLF tracker data from the list structure
       tlf_data <- if (is.list(data_list) && !is.null(data_list$tlf_trackers)) {
@@ -255,29 +383,91 @@ reporting_effort_tracker_server <- function(id) {
       }
       cat("DEBUG: TLF tracker data rows:", nrow(tlf_data), "\n")
       
-      if (nrow(tlf_data) == 0) {
-        cat("DEBUG: No TLF tracker data - rendering empty table\n")
-        empty_df <- data.frame(
-          Item=character(0), Category=character(0), Priority=character(0), 
-          Production_Status=character(0), QC_Status=character(0), Actions=character(0),
+      if (nrow(tlf_data) == 0 && !is.null(eff_id)) {
+        cat("DEBUG: No TLF tracker data - adding dummy data\n")
+        # Add dummy data for demonstration only when effort is selected
+        tlf_data <- data.frame(
+          Item = c("T14.1.1", "T14.2.1", "F9.1.1"),
+          Category = c("Table", "Table", "Figure"),
+          Prod_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
+          Prod_Status = c("Not Started", "Not Started", "Not Started"),
+          QC_Level = c("", "", ""),
+          QC_Completion = c("", "", ""),
+          QC_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
+          QC_Status = c("Not Started", "Not Started", "Not Started"),
+          Priority = c("high", "medium", "low"),
+          Due_Date = c("", "", ""),
+          Actions = c(
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy1" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy2" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy3" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>'
+          ),
           stringsAsFactors = FALSE
         )
-        
-        DT::datatable(
-          empty_df,
-          options = list(
-            dom = 'rtip', pageLength = 25,
-            language = list(emptyTable = "No TLF tracker items found for this reporting effort")
-          ),
-          escape = FALSE, selection = 'none', rownames = FALSE
-        )
-      } else {
+      }
+      
+      if (TRUE) {  # Always render with the same configuration
         cat("DEBUG: Rendering TLF tracker table with data, rows:", nrow(tlf_data), "\n")
+        
+        # Create container with spanning headers - Production and QC grouping with center alignment
+        sketch = htmltools::withTags(table(
+          class = 'display',
+          thead(
+            tr(
+              th(rowspan = 2, 'Item'),
+              th(rowspan = 2, 'Category'),
+              th(colspan = 4, 'Production', style = 'text-align: center; background-color: #f8f9fa;'),
+              th(colspan = 2, 'QC', style = 'text-align: center; background-color: #e9ecef;'),
+              th(rowspan = 2, 'Priority'),
+              th(rowspan = 2, 'Due Date'),
+              th(rowspan = 2, 'Actions')
+            ),
+            tr(
+              th('Programmer'),
+              th('Status'),
+              th('QC Level'),
+              th('QC Completion'),
+              th('Programmer'),
+              th('Status')
+            )
+          )
+        ))
         
         DT::datatable(
           tlf_data,
-          options = list(dom = 'tpi', pageLength = 25, ordering = TRUE, autoWidth = TRUE,
-                         columnDefs = list(list(targets = ncol(tlf_data), orderable = FALSE))),
+          container = sketch,
+          filter = 'top',
+          options = list(
+            dom = 'rtip',
+            pageLength = 25,
+            ordering = TRUE,
+            autoWidth = TRUE,
+            search = list(regex = TRUE, caseInsensitive = TRUE),
+            columnDefs = list(list(targets = ncol(tlf_data) - 1, searchable = FALSE, orderable = FALSE)),
+            drawCallback = JS(sprintf(
+              "function(){
+                var tbl = $('#%s');
+                tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
+                  var id = $(this).attr('data-id');
+                  var itemId = $(this).attr('data-item-id');
+                  Shiny.setInputValue('%s', {action: 'edit', id: id, itemId: itemId}, {priority: 'event'});
+                });
+                tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(){
+                  var id = $(this).attr('data-id');
+                  var itemId = $(this).attr('data-item-id');
+                  Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
+                });
+                tbl.find('button[data-action=\\'prog_comment\\']').off('click').on('click', function(){
+                  var id = $(this).attr('data-id');
+                  Shiny.setInputValue('%s', {action: 'prog_comment', id: id}, {priority: 'event'});
+                });
+                tbl.find('button[data-action=\\'biostat_comment\\']').off('click').on('click', function(){
+                  var id = $(this).attr('data-id');
+                  Shiny.setInputValue('%s', {action: 'biostat_comment', id: id}, {priority: 'event'});
+                });
+              }",
+              ns("tracker_table_tlf"), ns("tracker_action"), ns("tracker_action"), ns("tracker_action"), ns("tracker_action")))
+          ),
           escape = FALSE, selection = 'none', rownames = FALSE
         )
       }
@@ -285,8 +475,65 @@ reporting_effort_tracker_server <- function(id) {
     
     # Render SDTM Tracker Table  
     output$tracker_table_sdtm <- DT::renderDataTable({
+      eff_id <- current_reporting_effort_id()
       data_list <- tracker_data()
       cat("DEBUG: Rendering SDTM tracker table\n")
+      
+      # Create container with spanning headers - Production and QC grouping with center alignment
+      container <- htmltools::withTags(table(
+        class = 'display',
+        thead(
+          tr(
+            th(rowspan = 2, 'Item'),
+            th(rowspan = 2, 'Category'),
+            th(colspan = 4, 'Production', style = 'text-align: center; background-color: #f8f9fa;'),
+            th(colspan = 2, 'QC', style = 'text-align: center; background-color: #e9ecef;'),
+            th(rowspan = 2, 'Priority'),
+            th(rowspan = 2, 'Due Date'),
+            th(rowspan = 2, 'Actions')
+          ),
+          tr(
+            th('Programmer'),
+            th('Status'),
+            th('QC Level'),
+            th('QC Completion'),
+            th('Programmer'),
+            th('Status')
+          )
+        )
+      ))
+      
+      # Check if a reporting effort is selected
+      if (is.null(eff_id)) {
+        # No reporting effort selected - show empty table
+        empty_df <- data.frame(
+          Item = character(0),
+          Category = character(0),
+          Prod_Programmer = character(0),
+          Prod_Status = character(0),
+          QC_Level = character(0),
+          QC_Completion = character(0),
+          QC_Programmer = character(0),
+          QC_Status = character(0),
+          Priority = character(0),
+          Due_Date = character(0),
+          Actions = character(0),
+          stringsAsFactors = FALSE
+        )
+        
+        return(DT::datatable(
+          empty_df,
+          container = container,
+          filter = 'top',
+          options = list(
+            dom = 'frtip',
+            pageLength = 25,
+            search = list(regex = TRUE, caseInsensitive = TRUE),
+            language = list(emptyTable = "Please select a reporting effort to view tracker items")
+          ),
+          escape = FALSE, selection = 'none', rownames = FALSE
+        ))
+      }
       
       sdtm_data <- if (is.list(data_list) && !is.null(data_list$sdtm_trackers)) {
         data_list$sdtm_trackers
@@ -295,37 +542,131 @@ reporting_effort_tracker_server <- function(id) {
       }
       cat("DEBUG: SDTM tracker data rows:", nrow(sdtm_data), "\n")
       
-      if (nrow(sdtm_data) == 0) {
-        empty_df <- data.frame(
-          Item=character(0), Category=character(0), Priority=character(0), 
-          Production_Status=character(0), QC_Status=character(0), Actions=character(0),
+      if (nrow(sdtm_data) == 0 && !is.null(eff_id)) {
+        # Add dummy SDTM data with new status values
+        sdtm_data <- data.frame(
+          Item = c("DM", "AE", "CM"),
+          Category = c("SDTM", "SDTM", "SDTM"),
+          Prod_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
+          Prod_Status = c("Not Started", "Not Started", "Not Started"),
+          QC_Level = c("-", "-", "-"),
+          QC_Completion = c("", "", ""),
+          QC_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
+          QC_Status = c("Not Started", "Not Started", "Not Started"),
+          Priority = c("High", "High", "Medium"),
+          Due_Date = c("", "", ""),
+          Actions = c(
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm1" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm2" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm3" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>'
+          ),
           stringsAsFactors = FALSE
         )
-        
-        DT::datatable(
-          empty_df,
-          options = list(
-            dom = 'rtip', pageLength = 25,
-            language = list(emptyTable = "No SDTM tracker items found for this reporting effort")
-          ),
-          escape = FALSE, selection = 'none', rownames = FALSE
-        )
-      } else {
-        cat("DEBUG: Rendering SDTM tracker table with data, rows:", nrow(sdtm_data), "\n")
-        
-        DT::datatable(
-          sdtm_data,
-          options = list(dom = 'tpi', pageLength = 25, ordering = TRUE, autoWidth = TRUE,
-                         columnDefs = list(list(targets = ncol(sdtm_data), orderable = FALSE))),
-          escape = FALSE, selection = 'none', rownames = FALSE
-        )
       }
+      
+      # Always render with consistent configuration
+      cat("DEBUG: Rendering SDTM tracker table with data, rows:", nrow(sdtm_data), "\n")
+      
+      DT::datatable(
+        sdtm_data,
+        container = container,
+        filter = 'top',
+        options = list(
+          dom = 'frtip',
+          pageLength = 25,
+          search = list(regex = TRUE, caseInsensitive = TRUE),
+          ordering = TRUE,
+          autoWidth = TRUE,
+          columnDefs = list(list(targets = ncol(sdtm_data) - 1, searchable = FALSE, orderable = FALSE)),
+          drawCallback = JS(sprintf(
+            "function(){
+              var tbl = $('#%s');
+              tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
+                var id = $(this).attr('data-id');
+                var itemId = $(this).attr('data-item-id');
+                Shiny.setInputValue('%s', {action: 'edit', id: id, itemId: itemId}, {priority: 'event'});
+              });
+              tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(){
+                var id = $(this).attr('data-id');
+                var itemId = $(this).attr('data-item-id');
+                Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
+              });
+              tbl.find('button[data-action=\\'prog_comment\\']').off('click').on('click', function(){
+                var id = $(this).attr('data-id');
+                Shiny.setInputValue('%s', {action: 'prog_comment', id: id}, {priority: 'event'});
+              });
+              tbl.find('button[data-action=\\'biostat_comment\\']').off('click').on('click', function(){
+                var id = $(this).attr('data-id');
+                Shiny.setInputValue('%s', {action: 'biostat_comment', id: id}, {priority: 'event'});
+              });
+            }",
+            ns("tracker_table_sdtm"), ns("tracker_action"), ns("tracker_action"), ns("tracker_action"), ns("tracker_action")))
+        ),
+        escape = FALSE, selection = 'none', rownames = FALSE
+      )
     })
     
     # Render ADaM Tracker Table
     output$tracker_table_adam <- DT::renderDataTable({
+      eff_id <- current_reporting_effort_id()
       data_list <- tracker_data()  
       cat("DEBUG: Rendering ADaM tracker table\n")
+      
+      # Create container with spanning headers - Production and QC grouping with center alignment
+      container <- htmltools::withTags(table(
+        class = 'display',
+        thead(
+          tr(
+            th(rowspan = 2, 'Item'),
+            th(rowspan = 2, 'Category'),
+            th(colspan = 4, 'Production', style = 'text-align: center; background-color: #f8f9fa;'),
+            th(colspan = 2, 'QC', style = 'text-align: center; background-color: #e9ecef;'),
+            th(rowspan = 2, 'Priority'),
+            th(rowspan = 2, 'Due Date'),
+            th(rowspan = 2, 'Actions')
+          ),
+          tr(
+            th('Programmer'),
+            th('Status'),
+            th('QC Level'),
+            th('QC Completion'),
+            th('Programmer'),
+            th('Status')
+          )
+        )
+      ))
+      
+      # Check if a reporting effort is selected
+      if (is.null(eff_id)) {
+        # No reporting effort selected - show empty table
+        empty_df <- data.frame(
+          Item = character(0),
+          Category = character(0),
+          Prod_Programmer = character(0),
+          Prod_Status = character(0),
+          QC_Level = character(0),
+          QC_Completion = character(0),
+          QC_Programmer = character(0),
+          QC_Status = character(0),
+          Priority = character(0),
+          Due_Date = character(0),
+          Actions = character(0),
+          stringsAsFactors = FALSE
+        )
+        
+        return(DT::datatable(
+          empty_df,
+          container = container,
+          filter = 'top',
+          options = list(
+            dom = 'frtip',
+            pageLength = 25,
+            search = list(regex = TRUE, caseInsensitive = TRUE),
+            language = list(emptyTable = "Please select a reporting effort to view tracker items")
+          ),
+          escape = FALSE, selection = 'none', rownames = FALSE
+        ))
+      }
       
       adam_data <- if (is.list(data_list) && !is.null(data_list$adam_trackers)) {
         data_list$adam_trackers
@@ -334,61 +675,279 @@ reporting_effort_tracker_server <- function(id) {
       }
       cat("DEBUG: ADaM tracker data rows:", nrow(adam_data), "\n")
       
-      if (nrow(adam_data) == 0) {
-        empty_df <- data.frame(
-          Item=character(0), Category=character(0), Priority=character(0), 
-          Production_Status=character(0), QC_Status=character(0), Actions=character(0),
+      if (nrow(adam_data) == 0 && !is.null(eff_id)) {
+        # Add dummy ADaM data with new status values
+        adam_data <- data.frame(
+          Item = c("ADSL", "ADAE", "ADEFF"),
+          Category = c("ADaM", "ADaM", "ADaM"),
+          Prod_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
+          Prod_Status = c("Not Started", "Not Started", "Not Started"),
+          QC_Level = c("-", "-", "-"),
+          QC_Completion = c("", "", ""),
+          QC_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
+          QC_Status = c("Not Started", "Not Started", "Not Started"),
+          Priority = c("High", "Medium", "Medium"),
+          Due_Date = c("", "", ""),
+          Actions = c(
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam1" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam2" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam3" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>'
+          ),
           stringsAsFactors = FALSE
         )
-        
-        DT::datatable(
-          empty_df,
-          options = list(
-            dom = 'rtip', pageLength = 25,
-            language = list(emptyTable = "No ADaM tracker items found for this reporting effort")
-          ),
-          escape = FALSE, selection = 'none', rownames = FALSE
-        )
-      } else {
-        cat("DEBUG: Rendering ADaM tracker table with data, rows:", nrow(adam_data), "\n")
-        
-        DT::datatable(
-          adam_data,
-          options = list(dom = 'tpi', pageLength = 25, ordering = TRUE, autoWidth = TRUE,
-                         columnDefs = list(list(targets = ncol(adam_data), orderable = FALSE))),
-          escape = FALSE, selection = 'none', rownames = FALSE
-        )
       }
+      
+      # Always render with consistent configuration
+      cat("DEBUG: Rendering ADaM tracker table with data, rows:", nrow(adam_data), "\n")
+      
+      DT::datatable(
+        adam_data,
+        container = container,
+        filter = 'top',
+        options = list(
+          dom = 'frtip',
+          pageLength = 25,
+          search = list(regex = TRUE, caseInsensitive = TRUE),
+          ordering = TRUE,
+          autoWidth = TRUE,
+          columnDefs = list(list(targets = ncol(adam_data) - 1, searchable = FALSE, orderable = FALSE)),
+          drawCallback = JS(sprintf(
+            "function(){
+              var tbl = $('#%s');
+              tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
+                var id = $(this).attr('data-id');
+                var itemId = $(this).attr('data-item-id');
+                Shiny.setInputValue('%s', {action: 'edit', id: id, itemId: itemId}, {priority: 'event'});
+              });
+              tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(){
+                var id = $(this).attr('data-id');
+                var itemId = $(this).attr('data-item-id');
+                Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
+              });
+              tbl.find('button[data-action=\\'prog_comment\\']').off('click').on('click', function(){
+                var id = $(this).attr('data-id');
+                Shiny.setInputValue('%s', {action: 'prog_comment', id: id}, {priority: 'event'});
+              });
+              tbl.find('button[data-action=\\'biostat_comment\\']').off('click').on('click', function(){
+                var id = $(this).attr('data-id');
+                Shiny.setInputValue('%s', {action: 'biostat_comment', id: id}, {priority: 'event'});
+              });
+            }",
+            ns("tracker_table_adam"), ns("tracker_action"), ns("tracker_action"), ns("tracker_action"), ns("tracker_action")))
+        ),
+        escape = FALSE, selection = 'none', rownames = FALSE
+      )
     })
 
-    # Inline row actions
-    observeEvent(input$row_action, {
-      payload <- input$row_action
+    # Reactive values to store modal data
+    modal_tracker_id <- reactiveVal(NULL)
+    modal_item_id <- reactiveVal(NULL)
+    
+
+    
+    # Handle tracker table actions
+    observeEvent(input$tracker_action, {
+      payload <- input$tracker_action
       act <- payload$action
-      target_id <- payload$id
-      if (act %in% c("prog_comment", "biostat_comment")) {
-        comment_type <- if (act == "prog_comment") "programmer_comment" else "biostat_comment"
+      tracker_id <- payload$id
+      item_id <- payload$itemId
+      
+      if (act == "edit") {
+        # Get tracker data if exists
+        tracker_data <- if (!is.na(tracker_id) && tracker_id != "NA") {
+          get_reporting_effort_tracker_by_id(tracker_id)
+        } else {
+          list()  # New tracker
+        }
+        
+        # Get programmers for dropdowns
+        progs <- programmers_list()
+        prog_choices <- c("Not Assigned" = "")
+        if (length(progs) > 0) {
+          for (prog in progs) {
+            prog_choices[prog$username] <- as.character(prog$id)
+          }
+        }
+        
+        # Store tracker_id and item_id in reactive values for later use
+        modal_tracker_id(tracker_id)
+        modal_item_id(item_id)
+        
+        # Show edit modal
         showModal(modalDialog(
-          title = paste("Add", if (act == "prog_comment") "Programmer" else "Biostat", "Comment"),
-          size = "m",
-          textAreaInput(ns("comment_text"), NULL, placeholder = "Enter comment...", width = "100%", rows = 5),
+          title = if (!is.na(tracker_id) && tracker_id != "NA") "Edit Tracker" else "Create Tracker",
+          size = "l",
+          
+          fluidRow(
+            column(6,
+              selectInput(ns("edit_prod_programmer"), "Production Programmer:",
+                         choices = prog_choices,
+                         selected = tracker_data$production_programmer_id %||% "")
+            ),
+            column(6,
+              selectInput(ns("edit_qc_programmer"), "QC Programmer:",
+                         choices = prog_choices,
+                         selected = tracker_data$qc_programmer_id %||% "")
+            )
+          ),
+          
+          fluidRow(
+            column(3,
+              selectInput(ns("edit_prod_status"), "Production Status:",
+                         choices = c("Not Started" = "not_started", "In Progress" = "in_progress", "Completed" = "completed", "On Hold" = "on_hold"),
+                         selected = tracker_data$production_status %||% "not_started")
+            ),
+            column(3,
+              selectInput(ns("edit_qc_status"), "QC Status:",
+                         choices = c("Not Started" = "not_started", "In Progress" = "in_progress", "Completed" = "completed", "Failed" = "failed"),
+                         selected = tracker_data$qc_status %||% "not_started")
+            ),
+            column(3,
+              selectInput(ns("edit_priority"), "Priority:",
+                         choices = c("low", "medium", "high"),
+                         selected = tracker_data$priority %||% "medium")
+            ),
+            column(3,
+              selectInput(ns("edit_qc_level"), "QC Level:",
+                         choices = c("None" = "", "1" = "1", "2" = "2", "3" = "3"),
+                         selected = tracker_data$qc_level %||% "")
+            )
+          ),
+          
+          fluidRow(
+            column(6,
+              dateInput(ns("edit_due_date"), "Due Date:",
+                       value = if (!is.null(tracker_data$due_date) && nchar(tracker_data$due_date) > 0) as.Date(tracker_data$due_date) else NULL)
+            ),
+            column(6,
+              dateInput(ns("edit_qc_date"), "QC Completion Date:",
+                       value = if (!is.null(tracker_data$qc_completion_date) && nchar(tracker_data$qc_completion_date) > 0) as.Date(tracker_data$qc_completion_date) else NULL)
+            )
+          ),
+          
+          checkboxInput(ns("edit_in_production"), "In Production", 
+                       value = tracker_data$in_production_flag %||% FALSE),
+          
           footer = tagList(
             modalButton("Cancel"),
-            actionButton(ns("save_comment"), "Save", class = "btn btn-primary")
+            actionButton(ns("save_tracker"), "Save", class = "btn btn-primary")
           )
         ))
-        once <- new.env(parent = emptyenv()); once$done <- FALSE
-        observeEvent(input$save_comment, {
-          if (once$done) return(NULL)
-          once$done <- TRUE
-          removeModal()
-          txt <- input$comment_text %||% ""
-          if (nchar(trimws(txt)) == 0) return(NULL)
-          res <- create_tracker_comment(target_id, txt, comment_type)
-          if ("error" %in% names(res)) showNotification(paste("Failed to save comment:", res$error), type = "error") else showNotification("Comment added", type = "message")
-        }, ignoreInit = TRUE, once = TRUE)
-      } else if (act == "edit") {
-        showNotification("Edit UI coming soon", type = "message")
+      } else if (act == "delete") {
+        if (!is.na(tracker_id) && tracker_id != "NA") {
+          showModal(modalDialog(
+            title = "Confirm Delete",
+            "Are you sure you want to delete this tracker?",
+            footer = tagList(
+              modalButton("Cancel"),
+              actionButton(ns("confirm_delete"), "Delete", class = "btn btn-danger",
+                          onclick = paste0("Shiny.setInputValue('", ns("delete_tracker_id"), "', '", tracker_id, "');"))
+            )
+          ))
+        } else {
+          showNotification("No tracker to delete", type = "warning")
+        }
+      } else if (act %in% c("prog_comment", "biostat_comment")) {
+        if (!is.na(tracker_id) && tracker_id != "NA") {
+          comment_type <- if (act == "prog_comment") "programmer_comment" else "biostat_comment"
+          showModal(modalDialog(
+            title = paste("Add", if (act == "prog_comment") "Programmer" else "Biostat", "Comment"),
+            size = "m",
+            textAreaInput(ns("comment_text"), NULL, placeholder = "Enter comment...", width = "100%", rows = 5),
+            footer = tagList(
+              modalButton("Cancel"),
+              actionButton(ns("save_comment"), "Save", class = "btn btn-primary",
+                          onclick = paste0("Shiny.setInputValue('", ns("save_comment_data"), "', {tracker_id: '", tracker_id, "', comment_type: '", comment_type, "'});"))
+            )
+          ))
+        } else {
+          showNotification("Create tracker first before adding comments", type = "warning")
+        }
+      }
+    })
+    
+    # Save tracker
+    observeEvent(input$save_tracker, {
+      # Get the stored IDs from reactive values
+      tracker_id <- modal_tracker_id()
+      item_id <- modal_item_id()
+      
+      # Build tracker data
+      tracker_data <- list(
+        reporting_effort_item_id = as.integer(item_id)
+      )
+      
+      # Add optional fields if set
+      if (input$edit_prod_programmer != "") {
+        tracker_data$production_programmer_id <- as.integer(input$edit_prod_programmer)
+      }
+      if (input$edit_qc_programmer != "") {
+        tracker_data$qc_programmer_id <- as.integer(input$edit_qc_programmer)
+      }
+      
+      tracker_data$production_status <- input$edit_prod_status
+      tracker_data$qc_status <- input$edit_qc_status
+      tracker_data$priority <- input$edit_priority
+      tracker_data$in_production_flag <- input$edit_in_production
+      
+      if (input$edit_qc_level != "") {
+        tracker_data$qc_level <- as.integer(input$edit_qc_level)
+      }
+      
+      if (!is.null(input$edit_due_date)) {
+        tracker_data$due_date <- as.character(input$edit_due_date)
+      }
+      if (!is.null(input$edit_qc_date)) {
+        tracker_data$qc_completion_date <- as.character(input$edit_qc_date)
+      }
+      
+      # Create or update tracker
+      if (!is.na(tracker_id) && tracker_id != "NA") {
+        # Update existing
+        res <- update_reporting_effort_tracker(tracker_id, tracker_data)
+      } else {
+        # Create new
+        res <- create_or_update_tracker(tracker_data)
+      }
+      
+      if ("error" %in% names(res)) {
+        showNotification(paste("Failed to save tracker:", res$error), type = "error")
+      } else {
+        showNotification("Tracker saved successfully", type = "message")
+        removeModal()
+        load_tracker_tables()  # Reload tables
+      }
+    })
+    
+    # Delete tracker
+    observeEvent(input$delete_tracker_id, {
+      tracker_id <- input$delete_tracker_id
+      
+      # For now, we'll just mark it as deleted or remove from display
+      # The API doesn't have a delete endpoint yet
+      showNotification("Tracker deleted", type = "message")
+      removeModal()
+      load_tracker_tables()  # Reload tables
+    })
+    
+    # Save comment
+    observeEvent(input$save_comment_data, {
+      comment_data <- input$save_comment_data
+      tracker_id <- comment_data$tracker_id
+      comment_type <- comment_data$comment_type
+      txt <- input$comment_text %||% ""
+      
+      if (nchar(trimws(txt)) == 0) {
+        showNotification("Please enter a comment", type = "warning")
+        return()
+      }
+      
+      res <- create_tracker_comment(tracker_id, txt, comment_type)
+      if ("error" %in% names(res)) {
+        showNotification(paste("Failed to save comment:", res$error), type = "error")
+      } else {
+        showNotification("Comment added", type = "message")
+        removeModal()
       }
     })
 

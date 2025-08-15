@@ -257,6 +257,11 @@ For detailed WebSocket implementation patterns, see [admin-frontend/CLAUDE.md](.
 - Docker (containerization)
 - Posit Connect (deployment)
 
+**Future Technologies (Phase 5):**
+- Transformers.js for client-side semantic search
+- IndexedDB for embedding cache storage
+- WebAssembly for ML model execution
+
 For detailed technical patterns and constraints, see [backend/CLAUDE.md](../backend/CLAUDE.md).
 
 ## Implementation Phases
@@ -288,9 +293,73 @@ For detailed technical patterns and constraints, see [backend/CLAUDE.md](../back
 - Analytics dashboard
 - Export capabilities (Excel, PDF)
 - Notification system
-- Advanced search
+- Advanced Semantic Search (Vector Embeddings) - See [FR-11](#fr-11-cross-database-semantic-search) below
 
 For detailed implementation status, see [REPORTING_EFFORT_TRACKER_TODO.md](../REPORTING_EFFORT_TRACKER_TODO.md).
+
+### Phase 5 Feature Detail: Advanced Semantic Search
+
+#### FR-11: Cross-Database Semantic Search
+**Status:** 📋 PLANNED (Q2 2026)  
+**Priority:** High  
+**Location:** User Frontend - Dedicated Search Page
+
+**Overview:**  
+Implement a dedicated search page in the user-frontend application that provides intelligent, meaning-based search across all tracker data in the database using vector embeddings.
+
+**Technical Approach:**
+- Client-side vector embeddings using Transformers.js
+- Model: Xenova/all-MiniLM-L6-v2 (~30MB, 384-dimension embeddings)
+- IndexedDB for embedding cache persistence
+- Real-time semantic similarity scoring
+
+**Key Features:**
+
+1. **Universal Search Interface**
+   - Single search box for all tracker types (TLF, SDTM, ADaM)
+   - Search across all reporting efforts simultaneously
+   - Filter results by effort, type, status, or assignment
+
+2. **Semantic Understanding**
+   - Understands meaning and context, not just keywords
+   - Examples:
+     - "quality issues" → finds "QC Fail", "QC Started", quality-related items
+     - "programmer assignments" → finds all programmer-related fields
+     - "timeline" → finds "Due Date", "QC Completion", time-related fields
+     - "failed validation" → finds "QC Fail", validation errors, issues
+
+3. **Search Modes**
+   - **Semantic Mode**: Meaning-based search using embeddings
+   - **Fuzzy Mode**: Typo-tolerant character matching
+   - **Regex Mode**: Pattern-based technical search
+   - **Hybrid Mode**: Combines all three for best results
+
+4. **Performance Features**
+   - Progressive loading during model download
+   - Batch embedding generation on initial load
+   - Cached embeddings in browser storage
+   - Similarity threshold adjustment (0.5-1.0)
+   - Result ranking by relevance score
+
+5. **User Experience**
+   - Real-time search-as-you-type
+   - Relevance scores displayed for each result
+   - Highlighted matching context in results
+   - Direct navigation to source tracker items
+   - Search history and saved searches
+
+**Benefits:**
+- **Zero ongoing costs**: Runs entirely in browser after model download
+- **Privacy-compliant**: No data sent to external servers
+- **Offline capable**: Works without internet after initial setup
+- **Fast**: <200ms search latency for thousands of items
+- **Intelligent**: Understands synonyms, abbreviations, and context
+
+**Implementation Considerations:**
+- Initial model download: 3-5 seconds (cached for future)
+- Memory usage: ~150MB including model and embeddings
+- Requires modern browser with WebAssembly support
+- Progressive enhancement for older browsers
 
 ## Success Metrics
 
@@ -303,6 +372,8 @@ For detailed implementation status, see [REPORTING_EFFORT_TRACKER_TODO.md](../RE
 - **Time Savings:** 75% reduction in manual tracking time
 - **Error Reduction:** 90% decrease in data entry errors
 - **Collaboration:** 2x increase in cross-team interactions
+- **Search Efficiency:** 80% reduction in time to find relevant tracker items
+- **Search Accuracy:** 95% relevant results in top 10 search results
 
 ### Quality Metrics
 - **System Uptime:** Achieve 99.9% availability

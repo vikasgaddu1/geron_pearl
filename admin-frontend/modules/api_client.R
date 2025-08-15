@@ -3,6 +3,11 @@
 library(httr2)
 library(jsonlite)
 
+# Get the API base URL
+get_api_base_url <- function() {
+  Sys.getenv("PEARL_API_URL", "http://localhost:8000")
+}
+
 # Get the studies endpoint dynamically
 get_studies_endpoint <- function() {
   api_base <- Sys.getenv("PEARL_API_URL", "http://localhost:8000")
@@ -989,6 +994,24 @@ get_reporting_effort_tracker_by_id <- function(tracker_id) {
   })
 }
 
+# Create new tracker entry
+create_reporting_effort_tracker <- function(tracker_data) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_tracker_endpoint(), "/")) |>
+      httr2::req_method("POST") |>
+      httr2::req_body_json(tracker_data) |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) %in% c(200, 201)) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
 # Update tracker entry
 update_reporting_effort_tracker <- function(tracker_id, tracker_data) {
   tryCatch({
@@ -1005,6 +1028,17 @@ update_reporting_effort_tracker <- function(tracker_id, tracker_data) {
   }, error = function(e) {
     list(error = e$message)
   })
+}
+
+# Create or update a tracker (convenience function)
+create_or_update_tracker <- function(tracker_data) {
+  if (!is.null(tracker_data$id)) {
+    # Update existing tracker
+    update_reporting_effort_tracker(tracker_data$id, tracker_data)
+  } else {
+    # Create new tracker
+    create_reporting_effort_tracker(tracker_data)
+  }
 }
 
 # Assign programmer to tracker entry
@@ -1287,9 +1321,13 @@ create_reporting_effort_item_with_details <- function(reporting_effort_id, item_
 get_tracker_by_item <- function(item_id) {
   tryCatch({
     response <- httr2::request(paste0(get_reporting_effort_tracker_endpoint(), "/by-item/", item_id)) |> 
+      httr2::req_error(is_error = ~ FALSE) |>
       httr2::req_perform()
     if (httr2::resp_status(response) == 200) {
       httr2::resp_body_json(response)
+    } else if (httr2::resp_status(response) == 404) {
+      # No tracker exists for this item yet, return empty list
+      list()
     } else {
       list(error = paste("HTTP", httr2::resp_status(response)))
     }
