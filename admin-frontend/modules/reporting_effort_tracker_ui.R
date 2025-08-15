@@ -33,47 +33,6 @@ reporting_effort_tracker_ui <- function(id) {
             ),
             div(
               class = "d-flex gap-2",
-              # Filter controls
-              div(
-                style = "min-width: 150px;",
-                selectInput(
-                  ns("filter_status"),
-                  NULL,
-                  choices = list(
-                    "All Status" = "",
-                    "Not Started" = "not_started",
-                    "In Progress" = "in_progress", 
-                    "Review" = "review",
-                    "Complete" = "complete",
-                    "On Hold" = "on_hold"
-                  ),
-                  width = "100%"
-                )
-              ),
-              div(
-                style = "min-width: 150px;",
-                selectInput(
-                  ns("filter_priority"),
-                  NULL,
-                  choices = list(
-                    "All Priority" = "",
-                    "Low" = "low",
-                    "Medium" = "medium",
-                    "High" = "high",
-                    "Critical" = "critical"
-                  ),
-                  width = "100%"
-                )
-              ),
-              div(
-                style = "min-width: 150px;",
-                selectInput(
-                  ns("filter_programmer"),
-                  NULL,
-                  choices = NULL,
-                  width = "100%"
-                )
-              ),
               actionButton(
                 ns("refresh_btn"),
                 "Refresh",

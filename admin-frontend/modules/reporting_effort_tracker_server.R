@@ -263,12 +263,12 @@ reporting_effort_tracker_server <- function(id) {
           Category = item$item_subtype %||% "",
           Prod_Programmer = prod_prog,
           Prod_Status = prod_status,
-          QC_Level = qc_level,
-          QC_Completion = qc_done,
-          QC_Programmer = qc_prog,
-          QC_Status = qc_status,
           Priority = priority,
           Due_Date = due_date,
+          QC_Programmer = qc_prog,
+          QC_Status = qc_status,
+          QC_Level = qc_level,
+          QC_Completion = qc_done,
           Actions = actions,
           stringsAsFactors = FALSE
         )
@@ -294,7 +294,7 @@ reporting_effort_tracker_server <- function(id) {
         if (length(rows)) {
           do.call(rbind, rows)
         } else {
-          data.frame(Item=character(0), Category=character(0), Prod_Programmer=character(0), Prod_Status=character(0), QC_Level=character(0), QC_Completion=character(0), QC_Programmer=character(0), QC_Status=character(0), Priority=character(0), Due_Date=character(0), Actions=character(0), stringsAsFactors = FALSE)
+          data.frame(Item=character(0), Category=character(0), Prod_Programmer=character(0), Prod_Status=character(0), Priority=character(0), Due_Date=character(0), QC_Programmer=character(0), QC_Status=character(0), QC_Level=character(0), QC_Completion=character(0), Actions=character(0), stringsAsFactors = FALSE)
         }
       }
       
@@ -328,12 +328,12 @@ reporting_effort_tracker_server <- function(id) {
           Category = character(0),
           Prod_Programmer = character(0),
           Prod_Status = character(0),
-          QC_Level = character(0),
-          QC_Completion = character(0),
-          QC_Programmer = character(0),
-          QC_Status = character(0),
           Priority = character(0),
           Due_Date = character(0),
+          QC_Programmer = character(0),
+          QC_Status = character(0),
+          QC_Level = character(0),
+          QC_Completion = character(0),
           Actions = character(0),
           stringsAsFactors = FALSE
         )
@@ -346,18 +346,18 @@ reporting_effort_tracker_server <- function(id) {
               th(rowspan = 2, 'Item'),
               th(rowspan = 2, 'Category'),
               th(colspan = 4, 'Production', style = 'text-align: center; background-color: #f8f9fa;'),
-              th(colspan = 2, 'QC', style = 'text-align: center; background-color: #e9ecef;'),
-              th(rowspan = 2, 'Priority'),
-              th(rowspan = 2, 'Due Date'),
+              th(colspan = 4, 'QC', style = 'text-align: center; background-color: #e9ecef;'),
               th(rowspan = 2, 'Actions')
             ),
             tr(
               th('Programmer'),
               th('Status'),
-              th('QC Level'),
-              th('QC Completion'),
+              th('Priority'),
+              th('Due Date'),
               th('Programmer'),
-              th('Status')
+              th('Status'),
+              th('QC Level'),
+              th('QC Completion')
             )
           )
         ))
@@ -391,12 +391,12 @@ reporting_effort_tracker_server <- function(id) {
           Category = c("Table", "Table", "Figure"),
           Prod_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
           Prod_Status = c("Not Started", "Not Started", "Not Started"),
-          QC_Level = c("", "", ""),
-          QC_Completion = c("", "", ""),
-          QC_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
-          QC_Status = c("Not Started", "Not Started", "Not Started"),
           Priority = c("high", "medium", "low"),
           Due_Date = c("", "", ""),
+          QC_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
+          QC_Status = c("Not Started", "Not Started", "Not Started"),
+          QC_Level = c("", "", ""),
+          QC_Completion = c("", "", ""),
           Actions = c(
             '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy1" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
             '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy2" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
@@ -891,7 +891,7 @@ reporting_effort_tracker_server <- function(id) {
       tracker_data$in_production_flag <- input$edit_in_production
       
       if (input$edit_qc_level != "") {
-        tracker_data$qc_level <- as.integer(input$edit_qc_level)
+        tracker_data$qc_level <- as.character(input$edit_qc_level)
       }
       
       if (!is.null(input$edit_due_date)) {
