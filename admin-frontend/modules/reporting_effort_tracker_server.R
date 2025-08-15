@@ -226,7 +226,7 @@ reporting_effort_tracker_server <- function(id) {
         prod_status <- prod_status_map[[tracker$production_status %||% "not_started"]] %||% "Not Started"
         qc_status <- qc_status_map[[tracker$qc_status %||% "not_started"]] %||% "Not Started"
         priority <- tracker$priority %||% "medium"
-        qc_level <- tracker$qc_level %||% ""
+        qc_level <- tracker$qc_level %||% "3"
         due_date <- tracker$due_date %||% ""
         qc_done <- tracker$qc_completion_date %||% ""
         
@@ -395,7 +395,7 @@ reporting_effort_tracker_server <- function(id) {
           Due_Date = c("", "", ""),
           QC_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
           QC_Status = c("Not Started", "Not Started", "Not Started"),
-          QC_Level = c("", "", ""),
+          QC_Level = c("3", "3", "3"),
           QC_Completion = c("", "", ""),
           Actions = c(
             '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy1" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
@@ -487,18 +487,18 @@ reporting_effort_tracker_server <- function(id) {
             th(rowspan = 2, 'Item'),
             th(rowspan = 2, 'Category'),
             th(colspan = 4, 'Production', style = 'text-align: center; background-color: #f8f9fa;'),
-            th(colspan = 2, 'QC', style = 'text-align: center; background-color: #e9ecef;'),
-            th(rowspan = 2, 'Priority'),
-            th(rowspan = 2, 'Due Date'),
+            th(colspan = 4, 'QC', style = 'text-align: center; background-color: #e9ecef;'),
             th(rowspan = 2, 'Actions')
           ),
           tr(
             th('Programmer'),
             th('Status'),
-            th('QC Level'),
-            th('QC Completion'),
+            th('Priority'),
+            th('Due Date'),
             th('Programmer'),
-            th('Status')
+            th('Status'),
+            th('QC Level'),
+            th('QC Completion')
           )
         )
       ))
@@ -511,12 +511,12 @@ reporting_effort_tracker_server <- function(id) {
           Category = character(0),
           Prod_Programmer = character(0),
           Prod_Status = character(0),
-          QC_Level = character(0),
-          QC_Completion = character(0),
-          QC_Programmer = character(0),
-          QC_Status = character(0),
           Priority = character(0),
           Due_Date = character(0),
+          QC_Programmer = character(0),
+          QC_Status = character(0),
+          QC_Level = character(0),
+          QC_Completion = character(0),
           Actions = character(0),
           stringsAsFactors = FALSE
         )
@@ -549,12 +549,12 @@ reporting_effort_tracker_server <- function(id) {
           Category = c("SDTM", "SDTM", "SDTM"),
           Prod_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
           Prod_Status = c("Not Started", "Not Started", "Not Started"),
-          QC_Level = c("-", "-", "-"),
-          QC_Completion = c("", "", ""),
-          QC_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
-          QC_Status = c("Not Started", "Not Started", "Not Started"),
           Priority = c("High", "High", "Medium"),
           Due_Date = c("", "", ""),
+          QC_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
+          QC_Status = c("Not Started", "Not Started", "Not Started"),
+          QC_Level = c("3", "3", "3"),
+          QC_Completion = c("", "", ""),
           Actions = c(
             '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm1" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
             '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm2" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
@@ -620,18 +620,18 @@ reporting_effort_tracker_server <- function(id) {
             th(rowspan = 2, 'Item'),
             th(rowspan = 2, 'Category'),
             th(colspan = 4, 'Production', style = 'text-align: center; background-color: #f8f9fa;'),
-            th(colspan = 2, 'QC', style = 'text-align: center; background-color: #e9ecef;'),
-            th(rowspan = 2, 'Priority'),
-            th(rowspan = 2, 'Due Date'),
+            th(colspan = 4, 'QC', style = 'text-align: center; background-color: #e9ecef;'),
             th(rowspan = 2, 'Actions')
           ),
           tr(
             th('Programmer'),
             th('Status'),
-            th('QC Level'),
-            th('QC Completion'),
+            th('Priority'),
+            th('Due Date'),
             th('Programmer'),
-            th('Status')
+            th('Status'),
+            th('QC Level'),
+            th('QC Completion')
           )
         )
       ))
@@ -644,12 +644,12 @@ reporting_effort_tracker_server <- function(id) {
           Category = character(0),
           Prod_Programmer = character(0),
           Prod_Status = character(0),
-          QC_Level = character(0),
-          QC_Completion = character(0),
-          QC_Programmer = character(0),
-          QC_Status = character(0),
           Priority = character(0),
           Due_Date = character(0),
+          QC_Programmer = character(0),
+          QC_Status = character(0),
+          QC_Level = character(0),
+          QC_Completion = character(0),
           Actions = character(0),
           stringsAsFactors = FALSE
         )
@@ -682,12 +682,12 @@ reporting_effort_tracker_server <- function(id) {
           Category = c("ADaM", "ADaM", "ADaM"),
           Prod_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
           Prod_Status = c("Not Started", "Not Started", "Not Started"),
-          QC_Level = c("-", "-", "-"),
-          QC_Completion = c("", "", ""),
-          QC_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
-          QC_Status = c("Not Started", "Not Started", "Not Started"),
           Priority = c("High", "Medium", "Medium"),
           Due_Date = c("", "", ""),
+          QC_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
+          QC_Status = c("Not Started", "Not Started", "Not Started"),
+          QC_Level = c("3", "3", "3"),
+          QC_Completion = c("", "", ""),
           Actions = c(
             '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam1" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
             '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam2" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
@@ -810,7 +810,7 @@ reporting_effort_tracker_server <- function(id) {
             column(3,
               selectInput(ns("edit_qc_level"), "QC Level:",
                          choices = c("None" = "", "1" = "1", "2" = "2", "3" = "3"),
-                         selected = tracker_data$qc_level %||% "")
+                         selected = tracker_data$qc_level %||% "3")
             )
           ),
           
