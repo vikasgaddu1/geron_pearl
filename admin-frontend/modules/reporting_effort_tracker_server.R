@@ -314,6 +314,32 @@ reporting_effort_tracker_server <- function(id) {
       showNotification(paste("Created tables - TLF:", nrow(tlf_df), "rows, SDTM:", nrow(sdtm_df), "rows, ADaM:", nrow(adam_df), "rows"), type = "message", duration = 5)
     }
 
+    # Create single container function for consistency
+    create_tracker_container <- function() {
+      htmltools::withTags(table(
+        class = 'display',
+        thead(
+          tr(
+            th(rowspan = 2, 'Item'),
+            th(rowspan = 2, 'Category'),
+            th(colspan = 4, 'Production', style = 'text-align: center; background-color: #f8f9fa;'),
+            th(colspan = 4, 'QC', style = 'text-align: center; background-color: #e9ecef;'),
+            th(rowspan = 2, 'Actions')
+          ),
+          tr(
+            th('Programmer'),
+            th('Status'),
+            th('Priority'),
+            th('Due Date'),
+            th('Programmer'),
+            th('Status'),
+            th('QC Level'),
+            th('QC Completion')
+          )
+        )
+      ))
+    }
+
     # Render TLF Tracker Table (following items module pattern)
     output$tracker_table_tlf <- DT::renderDataTable({
       eff_id <- current_reporting_effort_id()
@@ -338,33 +364,9 @@ reporting_effort_tracker_server <- function(id) {
           stringsAsFactors = FALSE
         )
         
-        # Create container with spanning headers - Production and QC grouping with center alignment
-        sketch = htmltools::withTags(table(
-          class = 'display',
-          thead(
-            tr(
-              th(rowspan = 2, 'Item'),
-              th(rowspan = 2, 'Category'),
-              th(colspan = 4, 'Production', style = 'text-align: center; background-color: #f8f9fa;'),
-              th(colspan = 4, 'QC', style = 'text-align: center; background-color: #e9ecef;'),
-              th(rowspan = 2, 'Actions')
-            ),
-            tr(
-              th('Programmer'),
-              th('Status'),
-              th('Priority'),
-              th('Due Date'),
-              th('Programmer'),
-              th('Status'),
-              th('QC Level'),
-              th('QC Completion')
-            )
-          )
-        ))
-        
         return(DT::datatable(
           empty_df,
-          container = sketch,
+          container = create_tracker_container(),
           filter = 'top',
           options = list(
             dom = 'rtip',
@@ -409,33 +411,9 @@ reporting_effort_tracker_server <- function(id) {
       if (TRUE) {  # Always render with the same configuration
         cat("DEBUG: Rendering TLF tracker table with data, rows:", nrow(tlf_data), "\n")
         
-        # Create container with spanning headers - Production and QC grouping with center alignment
-        sketch = htmltools::withTags(table(
-          class = 'display',
-          thead(
-            tr(
-              th(rowspan = 2, 'Item'),
-              th(rowspan = 2, 'Category'),
-              th(colspan = 4, 'Production', style = 'text-align: center; background-color: #f8f9fa;'),
-              th(colspan = 2, 'QC', style = 'text-align: center; background-color: #e9ecef;'),
-              th(rowspan = 2, 'Priority'),
-              th(rowspan = 2, 'Due Date'),
-              th(rowspan = 2, 'Actions')
-            ),
-            tr(
-              th('Programmer'),
-              th('Status'),
-              th('QC Level'),
-              th('QC Completion'),
-              th('Programmer'),
-              th('Status')
-            )
-          )
-        ))
-        
         DT::datatable(
           tlf_data,
-          container = sketch,
+          container = create_tracker_container(),
           filter = 'top',
           options = list(
             dom = 'rtip',
@@ -479,30 +457,6 @@ reporting_effort_tracker_server <- function(id) {
       data_list <- tracker_data()
       cat("DEBUG: Rendering SDTM tracker table\n")
       
-      # Create container with spanning headers - Production and QC grouping with center alignment
-      container <- htmltools::withTags(table(
-        class = 'display',
-        thead(
-          tr(
-            th(rowspan = 2, 'Item'),
-            th(rowspan = 2, 'Category'),
-            th(colspan = 4, 'Production', style = 'text-align: center; background-color: #f8f9fa;'),
-            th(colspan = 4, 'QC', style = 'text-align: center; background-color: #e9ecef;'),
-            th(rowspan = 2, 'Actions')
-          ),
-          tr(
-            th('Programmer'),
-            th('Status'),
-            th('Priority'),
-            th('Due Date'),
-            th('Programmer'),
-            th('Status'),
-            th('QC Level'),
-            th('QC Completion')
-          )
-        )
-      ))
-      
       # Check if a reporting effort is selected
       if (is.null(eff_id)) {
         # No reporting effort selected - show empty table
@@ -523,7 +477,7 @@ reporting_effort_tracker_server <- function(id) {
         
         return(DT::datatable(
           empty_df,
-          container = container,
+          container = create_tracker_container(),
           filter = 'top',
           options = list(
             dom = 'frtip',
@@ -569,7 +523,7 @@ reporting_effort_tracker_server <- function(id) {
       
       DT::datatable(
         sdtm_data,
-        container = container,
+        container = create_tracker_container(),
         filter = 'top',
         options = list(
           dom = 'frtip',
@@ -612,30 +566,6 @@ reporting_effort_tracker_server <- function(id) {
       data_list <- tracker_data()  
       cat("DEBUG: Rendering ADaM tracker table\n")
       
-      # Create container with spanning headers - Production and QC grouping with center alignment
-      container <- htmltools::withTags(table(
-        class = 'display',
-        thead(
-          tr(
-            th(rowspan = 2, 'Item'),
-            th(rowspan = 2, 'Category'),
-            th(colspan = 4, 'Production', style = 'text-align: center; background-color: #f8f9fa;'),
-            th(colspan = 4, 'QC', style = 'text-align: center; background-color: #e9ecef;'),
-            th(rowspan = 2, 'Actions')
-          ),
-          tr(
-            th('Programmer'),
-            th('Status'),
-            th('Priority'),
-            th('Due Date'),
-            th('Programmer'),
-            th('Status'),
-            th('QC Level'),
-            th('QC Completion')
-          )
-        )
-      ))
-      
       # Check if a reporting effort is selected
       if (is.null(eff_id)) {
         # No reporting effort selected - show empty table
@@ -656,7 +586,7 @@ reporting_effort_tracker_server <- function(id) {
         
         return(DT::datatable(
           empty_df,
-          container = container,
+          container = create_tracker_container(),
           filter = 'top',
           options = list(
             dom = 'frtip',
@@ -702,7 +632,7 @@ reporting_effort_tracker_server <- function(id) {
       
       DT::datatable(
         adam_data,
-        container = container,
+        container = create_tracker_container(),
         filter = 'top',
         options = list(
           dom = 'frtip',
