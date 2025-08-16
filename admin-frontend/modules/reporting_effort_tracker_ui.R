@@ -90,194 +90,47 @@ reporting_effort_tracker_ui <- function(id) {
             )
           ),
           
-          # Body with sidebar
+          # Body without sidebar
           card_body(
-            class = "p-0",
+            class = "p-2",
             style = "height: 100%;",
             
-            layout_sidebar(
-              fillable = TRUE,
-              sidebar = sidebar(
-                id = ns("tracker_sidebar"),
-                width = 450,
-                position = "right",
-                padding = c(3, 3, 3, 4),
-                open = "closed",
-                
-                # Tracker Form
+            # Main content area
+            div(
+              style = "padding: 10px 0;",
+              uiOutput(ns("tracker_error_msg")),
+
+              # Reporting Effort selector (same style as items module)
+              div(
+                id = ns("effort_selector_wrapper"),
+                class = "effort-selector-wrapper mb-3",
                 div(
-                  id = ns("tracker_form"),
-                  tags$h6("Tracker Details", class = "text-center fw-bold mb-3"),
-                  
-                  # Item Information (read-only)
-                  div(
-                    class = "border rounded p-3 mb-3 bg-light",
-                    tags$h6("Item Information", class = "text-muted mb-2"),
-                    textOutput(ns("item_info")),
-                    tags$hr(class = "my-2"),
-                    textOutput(ns("effort_info"))
-                  ),
-                  
-                  # Assignment Section
-                  tags$h6("Assignments", class = "text-primary mb-2"),
-                  
-                  # Production Programmer
-                  selectInput(
-                    ns("production_programmer"),
-                    "Production Programmer",
-                    choices = NULL,
-                    width = "100%"
-                  ),
-                  
-                  # QC Programmer
-                  selectInput(
-                    ns("qc_programmer"),
-                    "QC Programmer", 
-                    choices = NULL,
-                    width = "100%"
-                  ),
-                  
-                  tags$hr(),
-                  
-                  # Status Section
-                  tags$h6("Status & Progress", class = "text-primary mb-2"),
-                  
-                  # Production Status
-                  selectInput(
-                    ns("production_status"),
-                    "Production Status",
-                    choices = list(
-                      "Not Started" = "not_started",
-                      "In Progress" = "in_progress",
-                      "Review" = "review", 
-                      "Complete" = "complete",
-                      "On Hold" = "on_hold"
-                    ),
-                    selected = "not_started"
-                  ),
-                  
-                  # QC Status
-                  selectInput(
-                    ns("qc_status"),
-                    "QC Status",
-                    choices = list(
-                      "Not Started" = "not_started",
-                      "In Progress" = "in_progress",
-                      "Review" = "review",
-                      "Complete" = "complete", 
-                      "On Hold" = "on_hold"
-                    ),
-                    selected = "not_started"
-                  ),
-                  
-                  tags$hr(),
-                  
-                  # Planning Section
-                  tags$h6("Planning", class = "text-primary mb-2"),
-                  
-                  # Priority
-                  selectInput(
-                    ns("priority"),
-                    "Priority",
-                    choices = list(
-                      "Low" = "low",
-                      "Medium" = "medium",
-                      "High" = "high",
-                      "Critical" = "critical"
-                    ),
-                    selected = "medium"
-                  ),
-                  
-                  # Due Date
-                  dateInput(
-                    ns("due_date"),
-                    "Due Date",
-                    value = NULL,
-                    width = "100%"
-                  ),
-                  
-                  # Estimated Hours
-                  numericInput(
-                    ns("estimated_hours"),
-                    "Estimated Hours",
-                    value = NULL,
-                    min = 0,
-                    step = 0.5,
-                    width = "100%"
-                  ),
-                  
-                  # Notes
-                  textAreaInput(
-                    ns("notes"),
-                    "Notes",
-                    placeholder = "Add notes about this item...",
-                    rows = 3
-                  ),
-                  
-                  # Hidden ID field for editing
-                  hidden(
-                    numericInput(ns("edit_tracker_id"), "ID", value = NA)
-                  ),
-                  
-                  # Action buttons
-                  layout_columns(
-                    col_widths = c(6, 6),
-                    gap = 2,
-                    actionButton(
-                      ns("save_tracker"),
-                      "Update",
-                      icon = icon("check"),
-                      class = "btn btn-success w-100",
-                      title = "Save tracker changes"
-                    ),
-                    actionButton(
-                      ns("cancel_tracker"),
-                      "Cancel",
-                      icon = icon("times"),
-                      class = "btn btn-secondary w-100",
-                      title = "Cancel and close"
-                    )
-                  )
+                  class = "d-flex align-items-center flex-wrap gap-2",
+                  tags$label("Select Reporting Effort", `for` = ns("selected_reporting_effort"), class = "me-2 mb-0 fw-semibold"),
+                  selectInput(ns("selected_reporting_effort"), NULL, choices = list("Select a Reporting Effort" = ""), width = "520px")
                 )
               ),
-              
-              # Main content area
-              div(
-                style = "padding: 10px 0;",
-                uiOutput(ns("tracker_error_msg")),
 
-                # Reporting Effort selector (same style as items module)
-                div(
-                  id = ns("effort_selector_wrapper"),
-                  class = "effort-selector-wrapper mb-3",
-                  div(
-                    class = "d-flex align-items-center flex-wrap gap-2",
-                    tags$label("Select Reporting Effort", `for` = ns("selected_reporting_effort"), class = "me-2 mb-0 fw-semibold"),
-                    selectInput(ns("selected_reporting_effort"), NULL, choices = list("Select a Reporting Effort" = ""), width = "520px")
-                  )
+              # Three trackers: TLF, SDTM, ADaM
+              navset_pill(
+                id = ns("tracker_tabs"),
+                nav_panel(
+                  "TLF Tracker",
+                  value = "tlf",
+                  div(class = "mb-2", uiOutput(ns("effort_label_tlf"))),
+                  div(style = "min-height: 560px; overflow-x: auto;", DTOutput(ns("tracker_table_tlf")))
                 ),
-
-                # Three trackers: TLF, SDTM, ADaM
-                navset_pill(
-                  id = ns("tracker_tabs"),
-                  nav_panel(
-                    "TLF Tracker",
-                    value = "tlf",
-                    div(class = "mb-2", uiOutput(ns("effort_label_tlf"))),
-                    div(style = "min-height: 560px; overflow-x: auto;", DTOutput(ns("tracker_table_tlf")))
-                  ),
-                  nav_panel(
-                    "SDTM Tracker",
-                    value = "sdtm",
-                    div(class = "mb-2", uiOutput(ns("effort_label_sdtm"))),
-                    div(style = "min-height: 560px; overflow-x: auto;", DTOutput(ns("tracker_table_sdtm")))
-                  ),
-                  nav_panel(
-                    "ADaM Tracker",
-                    value = "adam",
-                    div(class = "mb-2", uiOutput(ns("effort_label_adam"))),
-                    div(style = "min-height: 560px; overflow-x: auto;", DTOutput(ns("tracker_table_adam")))
-                  )
+                nav_panel(
+                  "SDTM Tracker",
+                  value = "sdtm",
+                  div(class = "mb-2", uiOutput(ns("effort_label_sdtm"))),
+                  div(style = "min-height: 560px; overflow-x: auto;", DTOutput(ns("tracker_table_sdtm")))
+                ),
+                nav_panel(
+                  "ADaM Tracker",
+                  value = "adam",
+                  div(class = "mb-2", uiOutput(ns("effort_label_adam"))),
+                  div(style = "min-height: 560px; overflow-x: auto;", DTOutput(ns("tracker_table_adam")))
                 )
               )
             )

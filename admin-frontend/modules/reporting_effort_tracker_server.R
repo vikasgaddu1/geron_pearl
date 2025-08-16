@@ -254,10 +254,8 @@ reporting_effort_tracker_server <- function(id) {
         }
         actions <- sprintf(
           '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="%s" data-item-id="%s" title="Edit tracker"><i class="fa fa-pencil"></i></button>
-           <button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="%s" data-item-id="%s" title="Delete tracker"><i class="fa fa-trash"></i></button>
-           <button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="%s" title="Programmer comment"><i class="fa fa-comment"></i></button>
-           <button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="%s" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
-          tracker_id %||% NA, item$id, tracker_id %||% NA, item$id, tracker_id %||% NA, tracker_id %||% NA)
+           <button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="%s" data-item-id="%s" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+          tracker_id %||% NA, item$id, tracker_id %||% NA, item$id)
         data.frame(
           Item = item$item_code %||% "",
           Category = item$item_subtype %||% "",
@@ -400,9 +398,9 @@ reporting_effort_tracker_server <- function(id) {
           QC_Level = c("3", "3", "3"),
           QC_Completion = c("", "", ""),
           Actions = c(
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy1" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy2" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy3" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>'
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
           ),
           stringsAsFactors = FALSE
         )
@@ -435,16 +433,8 @@ reporting_effort_tracker_server <- function(id) {
                   var itemId = $(this).attr('data-item-id');
                   Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
                 });
-                tbl.find('button[data-action=\\'prog_comment\\']').off('click').on('click', function(){
-                  var id = $(this).attr('data-id');
-                  Shiny.setInputValue('%s', {action: 'prog_comment', id: id}, {priority: 'event'});
-                });
-                tbl.find('button[data-action=\\'biostat_comment\\']').off('click').on('click', function(){
-                  var id = $(this).attr('data-id');
-                  Shiny.setInputValue('%s', {action: 'biostat_comment', id: id}, {priority: 'event'});
-                });
               }",
-              ns("tracker_table_tlf"), ns("tracker_action"), ns("tracker_action"), ns("tracker_action"), ns("tracker_action")))
+              ns("tracker_table_tlf"), ns("tracker_action"), ns("tracker_action")))
           ),
           escape = FALSE, selection = 'none', rownames = FALSE
         )
@@ -510,9 +500,9 @@ reporting_effort_tracker_server <- function(id) {
           QC_Level = c("3", "3", "3"),
           QC_Completion = c("", "", ""),
           Actions = c(
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm1" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm2" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm3" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>'
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
           ),
           stringsAsFactors = FALSE
         )
@@ -545,16 +535,8 @@ reporting_effort_tracker_server <- function(id) {
                 var itemId = $(this).attr('data-item-id');
                 Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
               });
-              tbl.find('button[data-action=\\'prog_comment\\']').off('click').on('click', function(){
-                var id = $(this).attr('data-id');
-                Shiny.setInputValue('%s', {action: 'prog_comment', id: id}, {priority: 'event'});
-              });
-              tbl.find('button[data-action=\\'biostat_comment\\']').off('click').on('click', function(){
-                var id = $(this).attr('data-id');
-                Shiny.setInputValue('%s', {action: 'biostat_comment', id: id}, {priority: 'event'});
-              });
             }",
-            ns("tracker_table_sdtm"), ns("tracker_action"), ns("tracker_action"), ns("tracker_action"), ns("tracker_action")))
+            ns("tracker_table_sdtm"), ns("tracker_action"), ns("tracker_action")))
         ),
         escape = FALSE, selection = 'none', rownames = FALSE
       )
@@ -619,9 +601,9 @@ reporting_effort_tracker_server <- function(id) {
           QC_Level = c("3", "3", "3"),
           QC_Completion = c("", "", ""),
           Actions = c(
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam1" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam2" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam3" title="Delete tracker"><i class="fa fa-trash"></i></button><button class="btn btn-info btn-sm me-1" data-action="prog_comment" data-id="NA" title="Programmer comment"><i class="fa fa-comment"></i></button><button class="btn btn-primary btn-sm" data-action="biostat_comment" data-id="NA" title="Biostat comment"><i class="fa fa-notes-medical"></i></button>'
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
           ),
           stringsAsFactors = FALSE
         )
@@ -654,16 +636,8 @@ reporting_effort_tracker_server <- function(id) {
                 var itemId = $(this).attr('data-item-id');
                 Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
               });
-              tbl.find('button[data-action=\\'prog_comment\\']').off('click').on('click', function(){
-                var id = $(this).attr('data-id');
-                Shiny.setInputValue('%s', {action: 'prog_comment', id: id}, {priority: 'event'});
-              });
-              tbl.find('button[data-action=\\'biostat_comment\\']').off('click').on('click', function(){
-                var id = $(this).attr('data-id');
-                Shiny.setInputValue('%s', {action: 'biostat_comment', id: id}, {priority: 'event'});
-              });
             }",
-            ns("tracker_table_adam"), ns("tracker_action"), ns("tracker_action"), ns("tracker_action"), ns("tracker_action")))
+            ns("tracker_table_adam"), ns("tracker_action"), ns("tracker_action")))
         ),
         escape = FALSE, selection = 'none', rownames = FALSE
       )
@@ -777,22 +751,6 @@ reporting_effort_tracker_server <- function(id) {
         } else {
           showNotification("No tracker to delete", type = "warning")
         }
-      } else if (act %in% c("prog_comment", "biostat_comment")) {
-        if (!is.na(tracker_id) && tracker_id != "NA") {
-          comment_type <- if (act == "prog_comment") "programmer_comment" else "biostat_comment"
-          showModal(modalDialog(
-            title = paste("Add", if (act == "prog_comment") "Programmer" else "Biostat", "Comment"),
-            size = "m",
-            textAreaInput(ns("comment_text"), NULL, placeholder = "Enter comment...", width = "100%", rows = 5),
-            footer = tagList(
-              modalButton("Cancel"),
-              actionButton(ns("save_comment"), "Save", class = "btn btn-primary",
-                          onclick = paste0("Shiny.setInputValue('", ns("save_comment_data"), "', {tracker_id: '", tracker_id, "', comment_type: '", comment_type, "'});"))
-            )
-          ))
-        } else {
-          showNotification("Create tracker first before adding comments", type = "warning")
-        }
       }
     })
     
@@ -860,26 +818,7 @@ reporting_effort_tracker_server <- function(id) {
       load_tracker_tables()  # Reload tables
     })
     
-    # Save comment
-    observeEvent(input$save_comment_data, {
-      comment_data <- input$save_comment_data
-      tracker_id <- comment_data$tracker_id
-      comment_type <- comment_data$comment_type
-      txt <- input$comment_text %||% ""
-      
-      if (nchar(trimws(txt)) == 0) {
-        showNotification("Please enter a comment", type = "warning")
-        return()
-      }
-      
-      res <- create_tracker_comment(tracker_id, txt, comment_type)
-      if ("error" %in% names(res)) {
-        showNotification(paste("Failed to save comment:", res$error), type = "error")
-      } else {
-        showNotification("Comment added", type = "message")
-        removeModal()
-      }
-    })
+
 
     # Export/import
     observeEvent(input$export_tracker_clicked, {
