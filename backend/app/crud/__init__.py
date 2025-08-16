@@ -9,7 +9,6 @@ from app.crud.package_item import package_item
 from app.crud.crud_user import user
 from app.crud.reporting_effort_item import reporting_effort_item
 from app.crud.reporting_effort_item_tracker import reporting_effort_item_tracker
-from app.crud.reporting_effort_tracker_comment import reporting_effort_tracker_comment
 from app.crud.audit_log import audit_log
 
 __all__ = [
@@ -22,6 +21,5 @@ __all__ = [
     "user",
     "reporting_effort_item",
     "reporting_effort_item_tracker",
-    "reporting_effort_tracker_comment",
     "audit_log"
 ]

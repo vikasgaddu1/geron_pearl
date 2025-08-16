@@ -1336,24 +1336,6 @@ get_tracker_by_item <- function(item_id) {
   })
 }
 
-# Create tracker comment (explicit type)
-create_tracker_comment <- function(tracker_id, comment_text, comment_type = c("programmer_comment", "biostat_comment")) {
-  ct <- match.arg(comment_type)
-  tryCatch({
-    response <- httr2::request(paste0(Sys.getenv("PEARL_API_URL", "http://localhost:8000"), "/api/v1/reporting-effort-comments/")) |>
-      httr2::req_method("POST") |>
-      httr2::req_body_json(list(tracker_id = as.integer(tracker_id), comment_text = comment_text, comment_type = ct)) |>
-      httr2::req_error(is_error = ~ FALSE) |>
-      httr2::req_perform()
-    if (httr2::resp_status(response) %in% c(200,201)) {
-      httr2::resp_body_json(response)
-    } else {
-      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
-    }
-  }, error = function(e) {
-    list(error = e$message)
-  })
-}
 
 # Import trackers using JSON payload (preferred)
 import_tracker_data_json <- function(reporting_effort_id, trackers, update_existing = TRUE) {

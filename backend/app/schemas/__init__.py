@@ -22,11 +22,6 @@ from app.schemas.reporting_effort_item_tracker import (
     ReportingEffortItemTrackerInDB, ReportingEffortItemTrackerUpdate,
     ReportingEffortItemTrackerWithDetails
 )
-from app.schemas.reporting_effort_tracker_comment import (
-    ReportingEffortTrackerComment, ReportingEffortTrackerCommentCreate,
-    ReportingEffortTrackerCommentInDB, ReportingEffortTrackerCommentUpdate,
-    ReportingEffortTrackerCommentWithDetails
-)
 from app.schemas.audit_log import (
     AuditLog, AuditLogCreate, AuditLogInDB, AuditLogWithDetails
 )
@@ -57,10 +52,6 @@ __all__ = [
     "ReportingEffortItemTracker", "ReportingEffortItemTrackerCreate",
     "ReportingEffortItemTrackerInDB", "ReportingEffortItemTrackerUpdate",
     "ReportingEffortItemTrackerWithDetails",
-    # ReportingEffortTrackerComment schemas
-    "ReportingEffortTrackerComment", "ReportingEffortTrackerCommentCreate",
-    "ReportingEffortTrackerCommentInDB", "ReportingEffortTrackerCommentUpdate",
-    "ReportingEffortTrackerCommentWithDetails",
     # AuditLog schemas
     "AuditLog", "AuditLogCreate", "AuditLogInDB", "AuditLogWithDetails"
 ]

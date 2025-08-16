@@ -13,7 +13,6 @@ from app.models.package_item_acronym import PackageItemAcronym
 from app.models.user import User, UserRole, UserDepartment
 from app.models.reporting_effort_item import ReportingEffortItem, SourceType
 from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker, ProductionStatus, QCStatus
-from app.models.reporting_effort_tracker_comment import ReportingEffortTrackerComment, CommentType
 from app.models.reporting_effort_tlf_details import ReportingEffortTlfDetails
 from app.models.reporting_effort_dataset_details import ReportingEffortDatasetDetails
 from app.models.reporting_effort_item_footnote import ReportingEffortItemFootnote
@@ -41,8 +40,6 @@ __all__ = [
     "ReportingEffortItemTracker",
     "ProductionStatus",
     "QCStatus",
-    "ReportingEffortTrackerComment",
-    "CommentType",
     "ReportingEffortTlfDetails",
     "ReportingEffortDatasetDetails",
     "ReportingEffortItemFootnote",
