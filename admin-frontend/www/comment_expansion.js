@@ -61,6 +61,9 @@ window.createCommentExpansion = function(trackerId) {
                 <button type="button" class="btn btn-outline-secondary btn-sm ms-2" id="refresh-comments-${trackerId}">
                   <i class="fa fa-refresh me-1"></i>Refresh
                 </button>
+                <button type="button" class="btn btn-outline-danger btn-sm ms-2 comment-close-btn" data-tracker-id="${trackerId}" title="Close Comments">
+                  <i class="fa fa-times"></i> Close
+                </button>
               </div>
             </div>
           </div>
@@ -173,48 +176,81 @@ function displayComments(trackerId, comments) {
     return;
   }
 
+  // Separate parent comments and replies
+  const parentComments = comments.filter(comment => !comment.parent_comment_id);
+  const replies = comments.filter(comment => comment.parent_comment_id);
+  
+  // Group replies by parent comment ID
+  const repliesByParent = {};
+  replies.forEach(reply => {
+    if (!repliesByParent[reply.parent_comment_id]) {
+      repliesByParent[reply.parent_comment_id] = [];
+    }
+    repliesByParent[reply.parent_comment_id].push(reply);
+  });
+
   let html = '';
-  comments.forEach(comment => {
-    const createdAt = new Date(comment.created_at);
-    const timeAgo = getTimeAgo(createdAt);
-    const typeClass = getCommentTypeClass(comment.comment_type);
-    const statusBadges = getStatusBadges(comment);
+  parentComments.forEach(comment => {
+    html += renderComment(trackerId, comment, false);
     
-    html += `
-      <div class="comment-card mb-3 p-3 border-start border-3 ${typeClass}" style="border-radius: 0.375rem; background-color: #fefefe;">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <div>
-            <span class="badge bg-${getCommentTypeBadge(comment.comment_type)} me-2">${formatCommentType(comment.comment_type)}</span>
-            ${statusBadges}
-          </div>
-          <small class="text-muted">${timeAgo}</small>
-        </div>
-        <p class="mb-2">${escapeHtml(comment.comment_text)}</p>
-        <div class="d-flex justify-content-between align-items-center">
-          <small class="text-muted">
-            <i class="fa fa-user me-1"></i>User ${comment.user_id}
-          </small>
-          <div class="comment-actions">
-            <button class="btn btn-sm btn-outline-secondary me-1" onclick="replyToComment(${trackerId}, ${comment.id})">
-              <i class="fa fa-reply"></i>
-            </button>
-            ${comment.is_pinned ? '' : `
-              <button class="btn btn-sm btn-outline-warning" onclick="pinComment(${trackerId}, ${comment.id})">
-                <i class="fa fa-thumb-tack"></i>
-              </button>
-            `}
-            ${comment.is_resolved ? '' : `
-              <button class="btn btn-sm btn-outline-success" onclick="resolveComment(${trackerId}, ${comment.id})">
-                <i class="fa fa-check"></i>
-              </button>
-            `}
-          </div>
-        </div>
-      </div>
-    `;
+    // Add replies if any exist
+    const commentReplies = repliesByParent[comment.id] || [];
+    if (commentReplies.length > 0) {
+      commentReplies.forEach(reply => {
+        html += renderComment(trackerId, reply, true);
+      });
+    }
   });
   
   container.html(html);
+}
+
+// Render a single comment (used for both parent comments and replies)
+function renderComment(trackerId, comment, isReply = false) {
+  const createdAt = new Date(comment.created_at);
+  const timeAgo = getTimeAgo(createdAt);
+  const typeClass = getCommentTypeClass(comment.comment_type);
+  const statusBadges = getStatusBadges(comment);
+  
+  const marginClass = isReply ? 'ms-4' : '';
+  const replyIndicator = isReply ? '<i class="fa fa-reply me-2 text-info"></i>' : '';
+  const borderClass = isReply ? 'border-info' : typeClass;
+  
+  return `
+    <div class="comment-card mb-3 p-3 border-start border-3 ${borderClass} ${marginClass}" style="border-radius: 0.375rem; background-color: ${isReply ? '#f8f9fa' : '#fefefe'};">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+          ${replyIndicator}
+          <span class="badge bg-${getCommentTypeBadge(comment.comment_type)} me-2">${formatCommentType(comment.comment_type)}</span>
+          ${statusBadges}
+        </div>
+        <small class="text-muted">${timeAgo}</small>
+      </div>
+      <p class="mb-2">${escapeHtml(comment.comment_text)}</p>
+      <div class="d-flex justify-content-between align-items-center">
+        <small class="text-muted">
+          <i class="fa fa-user me-1"></i>User ${comment.user_id}
+        </small>
+        <div class="comment-actions">
+          ${!isReply ? `
+            <button class="btn btn-sm btn-outline-secondary me-1" onclick="replyToComment(${trackerId}, ${comment.id})">
+              <i class="fa fa-reply"></i>
+            </button>
+          ` : ''}
+          ${comment.is_pinned ? '' : `
+            <button class="btn btn-sm btn-outline-warning" onclick="pinComment(${trackerId}, ${comment.id})">
+              <i class="fa fa-thumb-tack"></i>
+            </button>
+          `}
+          ${comment.is_resolved ? '' : `
+            <button class="btn btn-sm btn-outline-success" onclick="resolveComment(${trackerId}, ${comment.id})">
+              <i class="fa fa-check"></i>
+            </button>
+          `}
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 // Submit a new comment
@@ -223,6 +259,15 @@ function submitComment(trackerId, commentData) {
     alert('Cannot add comment: Please create a tracker first before adding comments.');
     return;
   }
+
+  console.log('🚀 Submitting comment with optimistic badge update for tracker:', trackerId);
+
+  // 1. OPTIMISTIC UPDATE: Immediately update badge before API call
+  updateTrackerBadgeOptimistic(trackerId, 'comment_created', {
+    is_resolved: false,  // New comments are unresolved by default
+    is_pinned: false,
+    comment_type: commentData.comment_type
+  });
 
   // Show loading state
   $(`#submit-comment-${trackerId}`).html('<i class="fa fa-spinner fa-spin me-1"></i>Adding...');
@@ -250,20 +295,30 @@ function submitComment(trackerId, commentData) {
     return response.json();
   })
   .then(result => {
+    console.log('✅ Comment created successfully, WebSocket will sync across browsers');
+    
     // Reset form
     $(`#comment-text-${trackerId}`).val('');
     $(`#track-comment-${trackerId}`).prop('checked', false);
     $(`#comment-form-${trackerId}`).hide();
     $(`#comment-actions-${trackerId}`).show();
     
-    // Reload comments
+    // Reload comments for this tracker only
     loadCommentsForTracker(trackerId);
     
-    // Update comment button in table
-    updateCommentButton(trackerId);
+    // Note: Badge update is already done optimistically above
+    // WebSocket will handle cross-browser updates
   })
   .catch(error => {
-    console.error('Error submitting comment:', error);
+    console.error('❌ Error submitting comment:', error);
+    
+    // REVERT OPTIMISTIC UPDATE on error
+    console.log('🔄 Reverting optimistic badge update due to error');
+    updateTrackerBadgeOptimistic(trackerId, 'comment_deleted', {
+      is_resolved: false,
+      is_pinned: false
+    });
+    
     alert(`Error adding comment: ${error.message}`);
   })
   .finally(() => {
@@ -346,8 +401,99 @@ function updateCommentButton(trackerId) {
 
 // Comment action functions
 function replyToComment(trackerId, commentId) {
-  // TODO: Implement reply functionality
-  console.log('TODO: Reply to comment', commentId, 'in tracker', trackerId);
+  // Hide other comment forms and show reply form for this specific comment
+  $(`#comment-form-${trackerId}`).hide();
+  $(`#comment-actions-${trackerId}`).hide();
+  
+  // Remove any existing reply forms
+  $('.reply-form').remove();
+  
+  // Create reply form HTML
+  const replyFormHtml = `
+    <div class="reply-form mt-3 p-3 border-start border-2 border-info" style="margin-left: 20px; background-color: #f8f9fa;">
+      <h6 class="mb-3 text-info"><i class="fa fa-reply me-2"></i>Reply to Comment</h6>
+      <form>
+        <div class="mb-3">
+          <label for="reply-type-${trackerId}-${commentId}" class="form-label">Type</label>
+          <select class="form-select" id="reply-type-${trackerId}-${commentId}">
+            <option value="qc_comment">QC Comment</option>
+            <option value="prod_comment">Production Comment</option>
+            <option value="biostat_comment">Biostat Comment</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="reply-text-${trackerId}-${commentId}" class="form-label">Reply</label>
+          <textarea class="form-control" id="reply-text-${trackerId}-${commentId}" rows="3" 
+                    placeholder="Enter your reply here..."></textarea>
+          <div class="invalid-feedback" id="reply-validation-${trackerId}-${commentId}"></div>
+        </div>
+        <div class="mb-3 form-check">
+          <input type="checkbox" class="form-check-input" id="track-reply-${trackerId}-${commentId}">
+          <label class="form-check-label" for="track-reply-${trackerId}-${commentId}">
+            Track this reply
+          </label>
+        </div>
+        <div class="d-grid gap-2 d-md-flex">
+          <button type="button" class="btn btn-info btn-sm" id="submit-reply-${trackerId}-${commentId}">
+            <i class="fa fa-reply me-1"></i>Submit Reply
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="cancel-reply-${trackerId}-${commentId}">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  `;
+  
+  // Insert reply form after the comment card
+  $(`.comment-card:has(button[onclick*="${commentId}"])`)
+    .closest('.comment-card')
+    .after(replyFormHtml);
+  
+  // Initialize reply form handlers
+  initializeReplyHandlers(trackerId, commentId);
+  
+  // Focus on the reply text area
+  $(`#reply-text-${trackerId}-${commentId}`).focus();
+}
+
+// Initialize handlers for reply form
+function initializeReplyHandlers(trackerId, commentId) {
+  // Submit reply button
+  $(`#submit-reply-${trackerId}-${commentId}`).off('click').on('click', function() {
+    const replyText = $(`#reply-text-${trackerId}-${commentId}`).val().trim();
+    const replyType = $(`#reply-type-${trackerId}-${commentId}`).val();
+    const isTracked = $(`#track-reply-${trackerId}-${commentId}`).is(':checked');
+
+    // Validation
+    if (!replyText) {
+      $(`#reply-text-${trackerId}-${commentId}`).addClass('is-invalid');
+      $(`#reply-validation-${trackerId}-${commentId}`).text('Please enter a reply');
+      return;
+    }
+
+    // Clear validation
+    $(`#reply-text-${trackerId}-${commentId}`).removeClass('is-invalid');
+    $(`#reply-validation-${trackerId}-${commentId}`).text('');
+
+    // Submit reply via API
+    submitComment(trackerId, {
+      comment_text: replyText,
+      comment_type: replyType,
+      is_tracked: isTracked,
+      parent_comment_id: commentId  // This makes it a reply
+    });
+    
+    // Remove reply form after submission
+    $('.reply-form').remove();
+    $(`#comment-actions-${trackerId}`).show();
+  });
+
+  // Cancel reply button
+  $(`#cancel-reply-${trackerId}-${commentId}`).off('click').on('click', function() {
+    $('.reply-form').remove();
+    $(`#comment-actions-${trackerId}`).show();
+  });
 }
 
 function pinComment(trackerId, commentId) {

@@ -130,3 +130,29 @@
     opacity: 0.85;
   }
 }
+
+/* Comment button styles for unresolved comments */
+.comment-add-btn.btn-warning {
+  border-color: #ffc107 !important;
+  background-color: #ffc107 !important;
+  color: #000 !important;
+}
+
+/* Enhanced unresolved comments badge styling */
+.badge.bg-warning.text-dark {
+  border: 1px solid #ffb347 !important;
+  box-shadow: 0 2px 4px rgba(255, 193, 7, 0.3);
+}
+
+/* Dark mode adjustments for comment badges */
+[data-bs-theme="dark"] .badge.bg-warning.text-dark {
+  background-color: #ffca2c !important;
+  color: #000 !important;
+  border-color: #ffc107 !important;
+}
+
+[data-bs-theme="dark"] .comment-add-btn.btn-warning {
+  background-color: #ffca2c !important;
+  border-color: #ffc107 !important;
+  color: #000 !important;
+}

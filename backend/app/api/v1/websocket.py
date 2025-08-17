@@ -349,6 +349,39 @@ async def broadcast_package_item_created(package_item_data):
     logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
+# Comment WebSocket broadcasting functions
+async def broadcast_comment_created(comment_data):
+    """Broadcast that a new comment was created."""
+    logger.info(f"Broadcasting comment_created: tracker_id={comment_data.tracker_id}, type={comment_data.comment_type}")
+    message = broadcast_message("comment_created", sqlalchemy_to_dict(comment_data))
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_comment_updated(comment_data):
+    """Broadcast that a comment was updated."""
+    logger.info(f"Broadcasting comment_updated: comment_id={comment_data.id}, tracker_id={comment_data.tracker_id}")
+    message = broadcast_message("comment_updated", sqlalchemy_to_dict(comment_data))
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_comment_deleted(comment_data):
+    """Broadcast that a comment was deleted."""
+    logger.info(f"Broadcasting comment_deleted: comment_id={comment_data.id}, tracker_id={comment_data.tracker_id}")
+    message = broadcast_message("comment_deleted", sqlalchemy_to_dict(comment_data))
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_comment_resolved(comment_data):
+    """Broadcast that a comment was resolved."""
+    logger.info(f"Broadcasting comment_resolved: comment_id={comment_data.id}, tracker_id={comment_data.tracker_id}")
+    message = broadcast_message("comment_resolved", sqlalchemy_to_dict(comment_data))
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
 async def broadcast_package_item_updated(package_item_data):
     """Broadcast that a package item was updated."""
     logger.info(f"Broadcasting package_item_updated: {package_item_data.item_code}")

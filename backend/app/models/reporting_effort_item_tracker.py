@@ -28,7 +28,7 @@ class QCStatus(str, Enum):
 if TYPE_CHECKING:
     from app.models.reporting_effort_item import ReportingEffortItem
     from app.models.user import User
-    from app.models.reporting_effort_tracker_comment import ReportingEffortTrackerComment
+    from app.models.tracker_comment import TrackerComment
 
 
 class ReportingEffortItemTracker(Base, TimestampMixin):
@@ -120,11 +120,11 @@ class ReportingEffortItemTracker(Base, TimestampMixin):
         foreign_keys=[qc_programmer_id],
         backref="qc_assignments"
     )
-    comments: Mapped[List["ReportingEffortTrackerComment"]] = relationship(
-        "ReportingEffortTrackerComment",
+    comments: Mapped[List["TrackerComment"]] = relationship(
+        "TrackerComment",
         back_populates="tracker",
         cascade="all, delete-orphan",
-        order_by="ReportingEffortTrackerComment.created_at.desc()"
+        order_by="TrackerComment.created_at.desc()"
     )
     
     # Unique constraint

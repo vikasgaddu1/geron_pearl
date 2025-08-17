@@ -125,6 +125,9 @@ class PearlWebSocketClient {
             } else if (data.type.startsWith('user_')) {
                 data.module = 'users';
                 console.log('👤 USER EVENT RECEIVED:', data.type, data.data?.username || 'unknown');
+            } else if (data.type.startsWith('comment_')) {
+                data.module = 'tracker_comments';
+                console.log('💬 COMMENT EVENT RECEIVED:', data.type, `tracker_id=${data.data?.tracker_id}`, data.data?.comment_text?.substring(0, 50) || 'unknown');
             }
         }
         

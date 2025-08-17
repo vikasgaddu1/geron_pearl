@@ -25,6 +25,10 @@ from app.schemas.reporting_effort_item_tracker import (
 from app.schemas.audit_log import (
     AuditLog, AuditLogCreate, AuditLogInDB, AuditLogWithDetails
 )
+from app.schemas.tracker_comment import (
+    TrackerComment, TrackerCommentCreate, TrackerCommentInDB, 
+    TrackerCommentUpdate, CommentSummary, CommentFilter
+)
 
 __all__ = [
     # Study schemas
@@ -53,5 +57,8 @@ __all__ = [
     "ReportingEffortItemTrackerInDB", "ReportingEffortItemTrackerUpdate",
     "ReportingEffortItemTrackerWithDetails",
     # AuditLog schemas
-    "AuditLog", "AuditLogCreate", "AuditLogInDB", "AuditLogWithDetails"
+    "AuditLog", "AuditLogCreate", "AuditLogInDB", "AuditLogWithDetails",
+    # TrackerComment schemas
+    "TrackerComment", "TrackerCommentCreate", "TrackerCommentInDB", 
+    "TrackerCommentUpdate", "CommentSummary", "CommentFilter"
 ]

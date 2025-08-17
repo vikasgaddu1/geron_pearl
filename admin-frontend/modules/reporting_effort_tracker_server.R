@@ -74,6 +74,21 @@ reporting_effort_tracker_server <- function(id) {
     # Initial loads
     observe(load_programmers())
     observe(load_reporting_efforts())
+    
+    # WebSocket connection diagnostic (helps debug cross-browser issues)
+    observe({
+      invalidateLater(15000, session)  # Check every 15 seconds
+      
+      tryCatch({
+        session$sendCustomMessage("websocket_debug_info", list(
+          timestamp = as.character(Sys.time()),
+          session_token = session$token,
+          check_type = "periodic"
+        ))
+      }, error = function(e) {
+        cat("DEBUG: WebSocket diagnostic error:", e$message, "\n")
+      })
+    })
 
     # Update highlight class when selection changes
     observeEvent(input$selected_reporting_effort, {
@@ -252,28 +267,29 @@ reporting_effort_tracker_server <- function(id) {
             }
           }
         }
-        # Add comment button with count (integrate with comment expansion system)
-        # Get comment count for this tracker (dummy for now, will be replaced with API call)
-        comment_count <- 0  # TODO: Replace with actual API call to get comment count
-        comment_status <- if (comment_count > 0) "comments" else "no-comments"
-        comment_text <- if (comment_count > 0) paste(comment_count, "Comments") else "No Comments"
-        
-        # Only create comment button if we have a valid tracker_id
-        comment_button <- if (!is.null(tracker_id) && !is.na(tracker_id) && tracker_id != "NA") {
-          sprintf('<button class="btn btn-info btn-sm me-1 comment-expand-btn" data-tracker-id="%s" title="View/Add Comments">
-                     <i class="fa fa-comment me-1"></i>%s
-                   </button>', tracker_id, comment_text)
+        # Create separate comments column with + button and badges
+        comments_column <- if (!is.null(tracker_id) && !is.na(tracker_id) && tracker_id != "NA") {
+          # Will be filled by get_comment_summaries() API call - placeholder for now
+          sprintf('<div class="comment-column" data-tracker-id="%s">
+                     <button class="btn btn-success btn-sm comment-add-btn" data-tracker-id="%s" title="Add Comment">
+                       <i class="fa fa-plus"></i>
+                     </button>
+                     <span class="comment-badges ms-2" id="badges-%s">
+                       <!-- Badges will be populated by API call -->
+                     </span>
+                   </div>', tracker_id, tracker_id, tracker_id)
         } else {
-          '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first">
-             <i class="fa fa-comment me-1"></i>Create Tracker
-           </button>'
+          '<div class="comment-column">
+             <button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first">
+               <i class="fa fa-plus"></i>
+             </button>
+           </div>'
         }
         
         actions <- sprintf(
-          '%s
-           <button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="%s" data-item-id="%s" title="Edit tracker"><i class="fa fa-pencil"></i></button>
+          '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="%s" data-item-id="%s" title="Edit tracker"><i class="fa fa-pencil"></i></button>
            <button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="%s" data-item-id="%s" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-          comment_button, tracker_id %||% "NA", item$id, tracker_id %||% "NA", item$id)
+          tracker_id %||% "NA", item$id, tracker_id %||% "NA", item$id)
         data.frame(
           Item = item$item_code %||% "",
           Category = item$item_subtype %||% "",
@@ -285,6 +301,7 @@ reporting_effort_tracker_server <- function(id) {
           QC_Status = qc_status,
           QC_Level = qc_level,
           QC_Completion = qc_done,
+          Comments = comments_column,
           Actions = actions,
           stringsAsFactors = FALSE
         )
@@ -310,7 +327,7 @@ reporting_effort_tracker_server <- function(id) {
         if (length(rows)) {
           do.call(rbind, rows)
         } else {
-          data.frame(Item=character(0), Category=character(0), Prod_Programmer=character(0), Prod_Status=character(0), Priority=character(0), Due_Date=character(0), QC_Programmer=character(0), QC_Status=character(0), QC_Level=character(0), QC_Completion=character(0), Actions=character(0), stringsAsFactors = FALSE)
+          data.frame(Item=character(0), Category=character(0), Prod_Programmer=character(0), Prod_Status=character(0), Priority=character(0), Due_Date=character(0), QC_Programmer=character(0), QC_Status=character(0), QC_Level=character(0), QC_Completion=character(0), Comments=character(0), Actions=character(0), stringsAsFactors = FALSE)
         }
       }
       
@@ -326,8 +343,125 @@ reporting_effort_tracker_server <- function(id) {
       
       tracker_data(combined_tracker_data)
       
+      # Get comment summaries for all trackers and update badges
+      tryCatch({
+        # Collect all tracker IDs from the data
+        all_tracker_ids <- c()
+        for (it in items) {
+          tracker <- tryCatch({
+            get_tracker_by_item(it$id)
+          }, error = function(e) list())
+          if (!is.null(tracker$id) && !is.na(tracker$id)) {
+            all_tracker_ids <- c(all_tracker_ids, tracker$id)
+          }
+        }
+        
+        if (length(all_tracker_ids) > 0) {
+          cat("DEBUG: Calling get_tracker_comments_summary with tracker IDs:", paste(all_tracker_ids, collapse = ", "), "\n")
+          # Get comment summaries
+          summaries <- get_tracker_comments_summary(all_tracker_ids)
+          
+          cat("DEBUG: API response:", str(summaries), "\n")
+          
+          if (!("error" %in% names(summaries))) {
+            cat("DEBUG: Sending updateCommentBadges message to JavaScript with delay\n")
+            # Delay badge update to ensure DataTable DOM is fully rendered
+            shinyjs::delay(500, {
+              session$sendCustomMessage("updateCommentBadges", list(
+                summaries = summaries
+              ))
+            })
+          } else {
+            cat("DEBUG: Error in summaries response:", summaries$error, "\n")
+          }
+        } else {
+          cat("DEBUG: No tracker IDs found, skipping badge update\n")
+        }
+      }, error = function(e) {
+        cat("ERROR: Failed to get comment summaries:", e$message, "\n")
+      })
+      
       # Show progress notification
       showNotification(paste("Created tables - TLF:", nrow(tlf_df), "rows, SDTM:", nrow(sdtm_df), "rows, ADaM:", nrow(adam_df), "rows"), type = "message", duration = 5)
+    }
+
+    # Function to update badges for a single tracker (efficient WebSocket updates)
+    update_single_tracker_badges <- function(tracker_id) {
+      tryCatch({
+        cat("DEBUG: Updating badges for single tracker:", tracker_id, "\n")
+        
+        # Get comment summary for just this tracker
+        summary <- get_tracker_comments_summary(c(tracker_id))
+        
+        if (!("error" %in% names(summary)) && length(summary) > 0) {
+          cat("DEBUG: Got summary for tracker", tracker_id, "- sending to JS\n")
+          session$sendCustomMessage("updateCommentBadges", list(
+            summaries = summary
+          ))
+        } else {
+          cat("DEBUG: No summary data available for tracker", tracker_id, "\n")
+        }
+      }, error = function(e) {
+        cat("ERROR: Failed to update single tracker badges:", e$message, "\n")
+      })
+    }
+    
+    # Optimistic comment creation with immediate badge update
+    create_comment_with_optimistic_update <- function(tracker_id, comment_text, comment_type = "qc_comment", user_id = 1, user_role = "USER") {
+      tryCatch({
+        cat("DEBUG: Creating comment with optimistic update for tracker", tracker_id, "\n")
+        
+        # 1. Immediately update badge optimistically
+        session$sendCustomMessage("updateCommentBadgeRealtime", list(
+          tracker_id = tracker_id,
+          event_type = "comment_created",
+          comment_data = list(
+            is_resolved = FALSE,  # New comments are unresolved by default
+            is_pinned = FALSE,
+            comment_type = comment_type
+          )
+        ))
+        
+        # 2. Create the actual comment via API
+        result <- create_tracker_comment(tracker_id, comment_text, comment_type, user_id, user_role)
+        
+        if ("error" %in% names(result)) {
+          # If API call failed, revert the optimistic update
+          cat("ERROR: Comment creation failed, reverting optimistic update:", result$error, "\n")
+          session$sendCustomMessage("updateCommentBadgeRealtime", list(
+            tracker_id = tracker_id,
+            event_type = "comment_deleted",  # Revert the addition
+            comment_data = list(
+              is_resolved = FALSE,
+              is_pinned = FALSE
+            )
+          ))
+          
+          showNotification(paste("Failed to create comment:", result$error), type = "error")
+          return(result)
+        }
+        
+        # 3. Success! The WebSocket will handle the authoritative update from other clients
+        cat("DEBUG: Comment created successfully, WebSocket will sync across clients\n")
+        showNotification("Comment added successfully", type = "message", duration = 3)
+        
+        return(result)
+        
+      }, error = function(e) {
+        cat("ERROR: Exception in optimistic comment creation:", e$message, "\n")
+        # Revert optimistic update on error
+        session$sendCustomMessage("updateCommentBadgeRealtime", list(
+          tracker_id = tracker_id,
+          event_type = "comment_deleted",  # Revert the addition
+          comment_data = list(
+            is_resolved = FALSE,
+            is_pinned = FALSE
+          )
+        ))
+        
+        showNotification(paste("Error creating comment:", e$message), type = "error")
+        return(list(error = e$message))
+      })
     }
 
     # Create single container function for consistency
@@ -340,6 +474,7 @@ reporting_effort_tracker_server <- function(id) {
             th(rowspan = 2, 'Category'),
             th(colspan = 4, 'Production', style = 'text-align: center; background-color: #f8f9fa;'),
             th(colspan = 4, 'QC', style = 'text-align: center; background-color: #e9ecef;'),
+            th(rowspan = 2, 'Comments'),
             th(rowspan = 2, 'Actions')
           ),
           tr(
@@ -376,6 +511,7 @@ reporting_effort_tracker_server <- function(id) {
           QC_Status = character(0),
           QC_Level = character(0),
           QC_Completion = character(0),
+          Comments = character(0),
           Actions = character(0),
           stringsAsFactors = FALSE
         )
@@ -415,10 +551,15 @@ reporting_effort_tracker_server <- function(id) {
           QC_Status = c("Not Started", "Not Started", "Not Started"),
           QC_Level = c("3", "3", "3"),
           QC_Completion = c("", "", ""),
+          Comments = c(
+            '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>',
+            '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>',
+            '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>'
+          ),
           Actions = c(
-            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
           ),
           stringsAsFactors = FALSE
         )
@@ -437,7 +578,10 @@ reporting_effort_tracker_server <- function(id) {
             ordering = TRUE,
             autoWidth = TRUE,
             search = list(regex = TRUE, caseInsensitive = TRUE),
-            columnDefs = list(list(targets = ncol(tlf_data) - 1, searchable = FALSE, orderable = FALSE)),
+            columnDefs = list(
+              list(targets = ncol(tlf_data) - 2, searchable = FALSE, orderable = FALSE, width = "120px"),  # Comments column
+              list(targets = ncol(tlf_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
+            ),
             drawCallback = JS(sprintf(
               "function(settings){
                 var api = this.api();
@@ -455,8 +599,8 @@ reporting_effort_tracker_server <- function(id) {
                   Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
                 });
                 
-                // Comment expand button handlers
-                tbl.find('.comment-expand-btn').off('click').on('click', function(){
+                // Comment add button handlers
+                tbl.find('.comment-add-btn').off('click').on('click', function(){
                   var trackerId = $(this).attr('data-tracker-id');
                   var tr = $(this).closest('tr');
                   var row = api.row(tr);
@@ -477,6 +621,13 @@ reporting_effort_tracker_server <- function(id) {
                     // Initialize comment functionality for this row
                     initializeCommentHandlers(trackerId);
                     loadCommentsForTracker(trackerId);
+                    
+                    // Handle close button in the expansion area
+                    row.child().find('.comment-close-btn').off('click').on('click', function(){
+                      row.child.hide();
+                      tr.removeClass('shown');
+                      tbl.find('.comment-add-btn[data-tracker-id=\"' + trackerId + '\"]').removeClass('active');
+                    });
                   }
                 });
               }",
@@ -507,6 +658,7 @@ reporting_effort_tracker_server <- function(id) {
           QC_Status = character(0),
           QC_Level = character(0),
           QC_Completion = character(0),
+          Comments = character(0),
           Actions = character(0),
           stringsAsFactors = FALSE
         )
@@ -545,10 +697,15 @@ reporting_effort_tracker_server <- function(id) {
           QC_Status = c("Not Started", "Not Started", "Not Started"),
           QC_Level = c("3", "3", "3"),
           QC_Completion = c("", "", ""),
+          Comments = c(
+            '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>',
+            '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>',
+            '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>'
+          ),
           Actions = c(
-            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
           ),
           stringsAsFactors = FALSE
         )
@@ -567,7 +724,10 @@ reporting_effort_tracker_server <- function(id) {
           search = list(regex = TRUE, caseInsensitive = TRUE),
           ordering = TRUE,
           autoWidth = TRUE,
-          columnDefs = list(list(targets = ncol(sdtm_data) - 1, searchable = FALSE, orderable = FALSE)),
+          columnDefs = list(
+            list(targets = ncol(sdtm_data) - 2, searchable = FALSE, orderable = FALSE, width = "120px"),  # Comments column
+            list(targets = ncol(sdtm_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
+          ),
           drawCallback = JS(sprintf(
             "function(settings){
               var api = this.api();
@@ -585,11 +745,12 @@ reporting_effort_tracker_server <- function(id) {
                 Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
               });
               
-              // Comment expand button handlers
-              tbl.find('.comment-expand-btn').off('click').on('click', function(){
+              // Comment add button handlers
+              tbl.find('.comment-add-btn').off('click').on('click', function(){
                 var trackerId = $(this).attr('data-tracker-id');
                 var tr = $(this).closest('tr');
                 var row = api.row(tr);
+                var commentColumn = $(this).closest('.comment-column');
                 
                 // Check if row is already expanded using DataTables' child API
                 if (row.child.isShown()) {
@@ -597,17 +758,33 @@ reporting_effort_tracker_server <- function(id) {
                   row.child.hide();
                   tr.removeClass('shown');
                   $(this).removeClass('active');
+                  commentColumn.find('.comment-close-btn').hide();
                 } else {
                   // Expand - show the child row with comment expansion
                   var expansionHtml = createCommentExpansion(trackerId);
                   row.child(expansionHtml).show();
                   tr.addClass('shown');
                   $(this).addClass('active');
+                  commentColumn.find('.comment-close-btn').show();
                   
                   // Initialize comment functionality for this row
                   initializeCommentHandlers(trackerId);
                   loadCommentsForTracker(trackerId);
                 }
+              });
+              
+              // Comment close button handlers
+              tbl.find('.comment-close-btn').off('click').on('click', function(){
+                var trackerId = $(this).attr('data-tracker-id');
+                var tr = $(this).closest('tr');
+                var row = api.row(tr);
+                var commentColumn = $(this).closest('.comment-column');
+                
+                // Collapse the comment expansion
+                row.child.hide();
+                tr.removeClass('shown');
+                commentColumn.find('.comment-add-btn').removeClass('active');
+                $(this).hide();
               });
             }",
             ns("tracker_action"), ns("tracker_action")))
@@ -636,6 +813,7 @@ reporting_effort_tracker_server <- function(id) {
           QC_Status = character(0),
           QC_Level = character(0),
           QC_Completion = character(0),
+          Comments = character(0),
           Actions = character(0),
           stringsAsFactors = FALSE
         )
@@ -674,10 +852,15 @@ reporting_effort_tracker_server <- function(id) {
           QC_Status = c("Not Started", "Not Started", "Not Started"),
           QC_Level = c("3", "3", "3"),
           QC_Completion = c("", "", ""),
+          Comments = c(
+            '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>',
+            '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>',
+            '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>'
+          ),
           Actions = c(
-            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
           ),
           stringsAsFactors = FALSE
         )
@@ -696,7 +879,10 @@ reporting_effort_tracker_server <- function(id) {
           search = list(regex = TRUE, caseInsensitive = TRUE),
           ordering = TRUE,
           autoWidth = TRUE,
-          columnDefs = list(list(targets = ncol(adam_data) - 1, searchable = FALSE, orderable = FALSE)),
+          columnDefs = list(
+            list(targets = ncol(adam_data) - 2, searchable = FALSE, orderable = FALSE, width = "120px"),  # Comments column
+            list(targets = ncol(adam_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
+          ),
           drawCallback = JS(sprintf(
             "function(settings){
               var api = this.api();
@@ -714,11 +900,12 @@ reporting_effort_tracker_server <- function(id) {
                 Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
               });
               
-              // Comment expand button handlers
-              tbl.find('.comment-expand-btn').off('click').on('click', function(){
+              // Comment add button handlers
+              tbl.find('.comment-add-btn').off('click').on('click', function(){
                 var trackerId = $(this).attr('data-tracker-id');
                 var tr = $(this).closest('tr');
                 var row = api.row(tr);
+                var commentColumn = $(this).closest('.comment-column');
                 
                 // Check if row is already expanded using DataTables' child API
                 if (row.child.isShown()) {
@@ -726,17 +913,33 @@ reporting_effort_tracker_server <- function(id) {
                   row.child.hide();
                   tr.removeClass('shown');
                   $(this).removeClass('active');
+                  commentColumn.find('.comment-close-btn').hide();
                 } else {
                   // Expand - show the child row with comment expansion
                   var expansionHtml = createCommentExpansion(trackerId);
                   row.child(expansionHtml).show();
                   tr.addClass('shown');
                   $(this).addClass('active');
+                  commentColumn.find('.comment-close-btn').show();
                   
                   // Initialize comment functionality for this row
                   initializeCommentHandlers(trackerId);
                   loadCommentsForTracker(trackerId);
                 }
+              });
+              
+              // Comment close button handlers
+              tbl.find('.comment-close-btn').off('click').on('click', function(){
+                var trackerId = $(this).attr('data-tracker-id');
+                var tr = $(this).closest('tr');
+                var row = api.row(tr);
+                var commentColumn = $(this).closest('.comment-column');
+                
+                // Collapse the comment expansion
+                row.child.hide();
+                tr.removeClass('shown');
+                commentColumn.find('.comment-add-btn').removeClass('active');
+                $(this).hide();
               });
             }",
             ns("tracker_action"), ns("tracker_action")))
@@ -959,36 +1162,89 @@ reporting_effort_tracker_server <- function(id) {
       }
     })
 
-    # WebSocket event handling for comments
+    # WebSocket event handling for comments - ENHANCED for cross-browser sync
     observeEvent(input$`tracker_comments-websocket_event`, {
       if (!is.null(input$`tracker_comments-websocket_event`)) {
         event_data <- input$`tracker_comments-websocket_event`
-        cat("DEBUG: Comment WebSocket event received:", event_data$type, "\n")
+        cat("🔄 CROSS-BROWSER WebSocket comment event received:", event_data$type, "\n")
+        cat("🔄 Event timestamp:", event_data$timestamp %||% "unknown", "\n")
         
         # Handle different comment event types
         if (startsWith(event_data$type, "comment_")) {
-          # Refresh the comment display for the affected tracker
+          # Process comment events from OTHER browsers (cross-browser sync)
           if (!is.null(event_data$data$tracker_id)) {
             tracker_id <- event_data$data$tracker_id
-            cat("DEBUG: Refreshing comments for tracker ID:", tracker_id, "\n")
+            cat("🌐 Processing CROSS-BROWSER comment event for tracker ID:", tracker_id, "\n")
             
             # Send JavaScript message to refresh comments for this tracker
             session$sendCustomMessage("refreshComments", list(
               tracker_id = tracker_id,
-              event_type = event_data$type
+              event_type = event_data$type,
+              is_cross_browser = TRUE  # Flag to indicate this came from another browser
             ))
-          }
-          
-          # If this is a comment creation, also refresh the comment count in the button
-          if (event_data$type == "comment_created") {
-            # Reload the tracker tables to update comment counts
+            
+            # IMMEDIATE badge update for cross-browser synchronization
             tryCatch({
-              load_tracker_tables()
+              cat("🚀 Sending CROSS-BROWSER real-time badge update for tracker", tracker_id, "\n")
+              session$sendCustomMessage("updateCommentBadgeRealtime", list(
+                tracker_id = tracker_id,
+                event_type = event_data$type,
+                comment_data = event_data$data,
+                is_cross_browser = TRUE,
+                source = "websocket_cross_browser"
+              ))
             }, error = function(e) {
-              cat("ERROR: Failed to reload tracker tables after comment creation:", e$message, "\n")
+              cat("❌ ERROR: Failed to send cross-browser badge update:", e$message, "\n")
             })
+            
+            # Also force a badge refresh using API to ensure accuracy
+            later::later(function() {
+              tryCatch({
+                cat("🔄 Background API badge refresh for cross-browser sync, tracker:", tracker_id, "\n")
+                update_single_tracker_badges(tracker_id)
+              }, error = function(e) {
+                cat("ERROR: Failed background cross-browser badge refresh:", e$message, "\n")
+              })
+            }, delay = 1.0)  # Faster refresh for cross-browser updates
           }
         }
+      }
+    })
+    
+    # Comment action handlers (pin, unpin, etc.)
+    observeEvent(input$comment_action, {
+      if (!is.null(input$comment_action)) {
+        action_data <- input$comment_action
+        cat("DEBUG: Comment action received:", action_data$action, "for comment", action_data$comment_id, "\n")
+        
+        tryCatch({
+          result <- NULL
+          
+          if (action_data$action == "pin") {
+            result <- pin_tracker_comment(action_data$comment_id, user_id = 1, user_role = "USER")
+            action_name <- "pinned"
+          } else if (action_data$action == "unpin") {
+            result <- unpin_tracker_comment(action_data$comment_id, user_id = 1, user_role = "USER")
+            action_name <- "unpinned"
+          } else if (action_data$action == "mark_addressed") {
+            result <- resolve_tracker_comment(action_data$comment_id, is_resolved = TRUE, user_id = 1, user_role = "USER")
+            action_name <- "marked as addressed"
+          } else {
+            showNotification(paste("Unknown action:", action_data$action), type = "error")
+            return()
+          }
+          
+          if (!is.null(result$error)) {
+            showNotification(paste("Error:", result$error), type = "error")
+          } else {
+            showNotification(paste("Comment", action_name, "successfully"), type = "message")
+            # The WebSocket event will handle the refresh automatically
+          }
+          
+        }, error = function(e) {
+          cat("ERROR: Failed to execute comment action:", e$message, "\n")
+          showNotification(paste("Error executing action:", e$message), type = "error")
+        })
       }
     })
 

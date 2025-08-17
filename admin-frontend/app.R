@@ -41,6 +41,7 @@ source("modules/reporting_effort_items_ui.R")
 source("modules/reporting_effort_items_server.R")
 source("modules/reporting_effort_tracker_ui.R")
 source("modules/reporting_effort_tracker_server.R")
+source("modules/comment_expansion.R")
 source("modules/users_ui.R")
 source("modules/users_server.R")
 source("modules/database_backup_ui.R")
@@ -114,9 +115,12 @@ ui <- page_navbar(
       # Use a local SVG favicon for better tab rendering
       tags$link(rel = "icon", type = "image/svg+xml", href = "favicon-pearl.svg"),
       tags$link(rel = "stylesheet", type = "text/css", href = "custom.css"),
-      tags$script(HTML(sprintf("const pearlApiUrl = '%s'; const pearlWsPath = '%s';", API_BASE_URL, API_WEBSOCKET_PATH))),
+      tags$script(HTML(sprintf("const pearlApiUrl = '%s'; const pearlWsPath = '%s'; window.PEARL_API_URL = '%s';", API_BASE_URL, API_WEBSOCKET_PATH, API_BASE_URL))),
       tags$script(src = "websocket_client.js"),
       tags$script(src = "shiny_handlers.js"),
+      tags$script(src = "comment_expansion.js"),
+      # Comment expansion CSS
+      comment_expansion_css(),
       tags$script(HTML("
         // Provide default red badges so users see status even before Shiny renders
         document.addEventListener('DOMContentLoaded', function() {
