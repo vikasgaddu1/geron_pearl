@@ -77,15 +77,13 @@ function updateTrackerBadgeOptimistic(trackerId, changeType, commentData) {
   
   var badgeContainer = document.getElementById('badges-' + trackerId);
   if (!badgeContainer) {
-    console.warn('Badge container not found for tracker', trackerId, '- attempting fallback search');
-    // Fallback: try to find by class and data attribute
+    // Try fallback search methods
     badgeContainer = document.querySelector(`.comment-badges[data-tracker-id="${trackerId}"]`);
     if (!badgeContainer) {
-      // Last resort: try finding by partial ID match
       badgeContainer = document.querySelector(`[id*="badges-${trackerId}"]`);
     }
     if (!badgeContainer) {
-      console.error('❌ Badge container not found for tracker', trackerId, 'even with fallback methods');
+      console.log('⏭️ Tracker', trackerId, 'not visible - skipping optimistic update');
       return;
     } else {
       console.log('✅ Found badge container using fallback method for tracker', trackerId);
@@ -172,7 +170,7 @@ function getCurrentBadgeCounts(trackerId) {
 function updateSingleTrackerBadge(trackerId, summary) {
   var badgeContainer = document.getElementById('badges-' + trackerId);
   if (!badgeContainer) {
-    console.warn('Badge container not found for tracker', trackerId);
+    // Silently skip - tracker not visible on current page/view
     return;
   }
   
@@ -195,15 +193,26 @@ Shiny.addCustomMessageHandler('updateCommentBadges', function (message) {
       return;
     }
     
-    console.log('Processing summaries for trackers:', Object.keys(message.summaries));
+    var trackerIds = Object.keys(message.summaries);
+    console.log('Processing summaries for trackers:', trackerIds);
+    
+    var updatedCount = 0;
+    var skippedCount = 0;
     
     // Iterate through all comment badge containers
-    Object.keys(message.summaries).forEach(function(trackerId) {
+    trackerIds.forEach(function(trackerId) {
       var summary = message.summaries[trackerId];
-      updateSingleTrackerBadge(trackerId, summary);
+      var badgeContainer = document.getElementById('badges-' + trackerId);
+      
+      if (badgeContainer) {
+        updateSingleTrackerBadge(trackerId, summary);
+        updatedCount++;
+      } else {
+        skippedCount++;
+      }
     });
     
-    console.log('Updated comment badges for', Object.keys(message.summaries).length, 'trackers');
+    console.log('Badge update summary: ' + updatedCount + ' updated, ' + skippedCount + ' skipped (not visible)');
   } catch (e) {
     console.warn('updateCommentBadges error', e);
   }
