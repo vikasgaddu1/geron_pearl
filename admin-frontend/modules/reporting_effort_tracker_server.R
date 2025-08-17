@@ -222,7 +222,7 @@ reporting_effort_tracker_server <- function(id) {
           cat("DEBUG: Exception getting tracker for item", item$id, ":", e$message, "\n")
           list()
         })
-        tracker_id <- if (!is.null(tracker$id)) tracker$id else NA
+        tracker_id <- if (!is.null(tracker$id)) tracker$id else ""
         cat("DEBUG: Tracker ID:", tracker_id, "for item", item$id, "\n")
         # Map backend enum values to display values
         prod_status_map <- list(

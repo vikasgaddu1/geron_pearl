@@ -219,9 +219,11 @@ study_tree_server <- function(id) {
       return(error_string)
     }
 
-    # Render tree (collapsed by default)
-    output$tree_display <- shinyTree::renderTree({
-      build_tree_data()
+    # Initialize tree data - shinyTree will handle rendering automatically
+    # We use updateTree to populate the tree instead of renderTree to avoid ID conflicts
+    observe({
+      tree_data <- build_tree_data()
+      shinyTree::updateTree(session, "tree_display", tree_data)
     })
 
     # Helper function to walk the shinyTree input and find selected paths
@@ -285,7 +287,8 @@ study_tree_server <- function(id) {
 
     # Refresh tree
     observeEvent(input$refresh_tree, {
-      output$tree_display <- shinyTree::renderTree({ build_tree_data() })
+      tree_data <- build_tree_data()
+      shinyTree::updateTree(session, "tree_display", tree_data)
       last_update(Sys.time())
     })
 
@@ -381,7 +384,8 @@ study_tree_server <- function(id) {
           showNotification("Study created", type = "message")
           removeModal()
           iv_study_new$disable()  # Disable validation after successful creation
-          output$tree_display <- shinyTree::renderTree({ build_tree_data() })
+          tree_data <- build_tree_data()
+      shinyTree::updateTree(session, "tree_display", tree_data)
           last_update(Sys.time())
         }
       }
@@ -523,7 +527,8 @@ study_tree_server <- function(id) {
             showNotification("Database release created", type = "message")
             removeModal()
             iv_release_new$disable()  # Disable validation after successful creation
-            output$tree_display <- shinyTree::renderTree({ build_tree_data() })
+            tree_data <- build_tree_data()
+      shinyTree::updateTree(session, "tree_display", tree_data)
             last_update(Sys.time())
           }
         }, once = TRUE, ignoreInit = TRUE)
@@ -648,7 +653,8 @@ study_tree_server <- function(id) {
             showNotification("Reporting effort created", type = "message")
             removeModal()
             iv_effort_new$disable()  # Disable validation after successful creation
-            output$tree_display <- shinyTree::renderTree({ build_tree_data() })
+            tree_data <- build_tree_data()
+      shinyTree::updateTree(session, "tree_display", tree_data)
             last_update(Sys.time())
           }
         }, once = TRUE, ignoreInit = TRUE)
@@ -774,7 +780,8 @@ study_tree_server <- function(id) {
               showNotification("Study updated", type = "message")
               removeModal()
               iv_edit$disable()  # Disable validation after successful update
-              output$tree_display <- shinyTree::renderTree({ build_tree_data() })
+              tree_data <- build_tree_data()
+      shinyTree::updateTree(session, "tree_display", tree_data)
               last_update(Sys.time())
             }
           }, once = TRUE, ignoreInit = TRUE)
@@ -887,7 +894,8 @@ study_tree_server <- function(id) {
               showNotification("Database release updated", type = "message")
               removeModal()
               iv_edit$disable()  # Disable validation after successful update
-              output$tree_display <- shinyTree::renderTree({ build_tree_data() })
+              tree_data <- build_tree_data()
+      shinyTree::updateTree(session, "tree_display", tree_data)
               last_update(Sys.time())
             }
           }, once = TRUE, ignoreInit = TRUE)
@@ -1013,7 +1021,8 @@ study_tree_server <- function(id) {
               showNotification("Reporting effort updated", type = "message")
               removeModal()
               iv_edit$disable()  # Disable validation after successful update
-              output$tree_display <- shinyTree::renderTree({ build_tree_data() })
+              tree_data <- build_tree_data()
+      shinyTree::updateTree(session, "tree_display", tree_data)
               last_update(Sys.time())
             }
           }, once = TRUE, ignoreInit = TRUE)
