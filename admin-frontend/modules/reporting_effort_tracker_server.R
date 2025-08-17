@@ -252,10 +252,19 @@ reporting_effort_tracker_server <- function(id) {
             }
           }
         }
+        # Add comment button with count (integrate with comment expansion system)
+        # Get comment count for this tracker (dummy for now, will be replaced with API call)
+        comment_count <- 0  # TODO: Replace with actual API call to get comment count
+        comment_status <- if (comment_count > 0) "comments" else "no-comments"
+        comment_text <- if (comment_count > 0) paste(comment_count, "Comments") else "No Comments"
+        
         actions <- sprintf(
-          '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="%s" data-item-id="%s" title="Edit tracker"><i class="fa fa-pencil"></i></button>
+          '<button class="btn btn-info btn-sm me-1 comment-expand-btn" data-tracker-id="%s" title="View/Add Comments">
+             <i class="fa fa-comment me-1"></i>%s
+           </button>
+           <button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="%s" data-item-id="%s" title="Edit tracker"><i class="fa fa-pencil"></i></button>
            <button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="%s" data-item-id="%s" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-          tracker_id %||% NA, item$id, tracker_id %||% NA, item$id)
+          tracker_id %||% NA, comment_text, tracker_id %||% NA, item$id, tracker_id %||% NA, item$id)
         data.frame(
           Item = item$item_code %||% "",
           Category = item$item_subtype %||% "",
@@ -421,8 +430,11 @@ reporting_effort_tracker_server <- function(id) {
             search = list(regex = TRUE, caseInsensitive = TRUE),
             columnDefs = list(list(targets = ncol(tlf_data) - 1, searchable = FALSE, orderable = FALSE)),
             drawCallback = JS(sprintf(
-              "function(){
-                var tbl = $('#%s');
+              "function(settings){
+                var api = this.api();
+                var tbl = $(api.table().node()).closest('.dataTables_wrapper').find('table');
+                
+                // Edit/Delete button handlers
                 tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
                   var id = $(this).attr('data-id');
                   var itemId = $(this).attr('data-item-id');
@@ -433,8 +445,33 @@ reporting_effort_tracker_server <- function(id) {
                   var itemId = $(this).attr('data-item-id');
                   Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
                 });
+                
+                // Comment expand button handlers
+                tbl.find('.comment-expand-btn').off('click').on('click', function(){
+                  var trackerId = $(this).attr('data-tracker-id');
+                  var tr = $(this).closest('tr');
+                  var row = api.row(tr);
+                  
+                  // Check if row is already expanded using DataTables' child API
+                  if (row.child.isShown()) {
+                    // Collapse - hide the child row
+                    row.child.hide();
+                    tr.removeClass('shown');
+                    $(this).removeClass('active');
+                  } else {
+                    // Expand - show the child row with comment expansion
+                    var expansionHtml = createCommentExpansion(trackerId);
+                    row.child(expansionHtml).show();
+                    tr.addClass('shown');
+                    $(this).addClass('active');
+                    
+                    // Initialize comment functionality for this row
+                    initializeCommentHandlers(trackerId);
+                    loadCommentsForTracker(trackerId);
+                  }
+                });
               }",
-              ns("tracker_table_tlf"), ns("tracker_action"), ns("tracker_action")))
+              ns("tracker_action"), ns("tracker_action")))
           ),
           escape = FALSE, selection = 'none', rownames = FALSE
         )
@@ -500,9 +537,9 @@ reporting_effort_tracker_server <- function(id) {
           QC_Level = c("3", "3", "3"),
           QC_Completion = c("", "", ""),
           Actions = c(
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
+            '<button class="btn btn-info btn-sm me-1 comment-expand-btn" data-tracker-id="NA" title="View/Add Comments"><i class="fa fa-comment me-1"></i>No Comments</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-info btn-sm me-1 comment-expand-btn" data-tracker-id="NA" title="View/Add Comments"><i class="fa fa-comment me-1"></i>No Comments</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-info btn-sm me-1 comment-expand-btn" data-tracker-id="NA" title="View/Add Comments"><i class="fa fa-comment me-1"></i>No Comments</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
           ),
           stringsAsFactors = FALSE
         )
@@ -523,8 +560,11 @@ reporting_effort_tracker_server <- function(id) {
           autoWidth = TRUE,
           columnDefs = list(list(targets = ncol(sdtm_data) - 1, searchable = FALSE, orderable = FALSE)),
           drawCallback = JS(sprintf(
-            "function(){
-              var tbl = $('#%s');
+            "function(settings){
+              var api = this.api();
+              var tbl = $(api.table().node()).closest('.dataTables_wrapper').find('table');
+              
+              // Edit/Delete button handlers
               tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
                 var id = $(this).attr('data-id');
                 var itemId = $(this).attr('data-item-id');
@@ -535,8 +575,33 @@ reporting_effort_tracker_server <- function(id) {
                 var itemId = $(this).attr('data-item-id');
                 Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
               });
+              
+              // Comment expand button handlers
+              tbl.find('.comment-expand-btn').off('click').on('click', function(){
+                var trackerId = $(this).attr('data-tracker-id');
+                var tr = $(this).closest('tr');
+                var row = api.row(tr);
+                
+                // Check if row is already expanded using DataTables' child API
+                if (row.child.isShown()) {
+                  // Collapse - hide the child row
+                  row.child.hide();
+                  tr.removeClass('shown');
+                  $(this).removeClass('active');
+                } else {
+                  // Expand - show the child row with comment expansion
+                  var expansionHtml = createCommentExpansion(trackerId);
+                  row.child(expansionHtml).show();
+                  tr.addClass('shown');
+                  $(this).addClass('active');
+                  
+                  // Initialize comment functionality for this row
+                  initializeCommentHandlers(trackerId);
+                  loadCommentsForTracker(trackerId);
+                }
+              });
             }",
-            ns("tracker_table_sdtm"), ns("tracker_action"), ns("tracker_action")))
+            ns("tracker_action"), ns("tracker_action")))
         ),
         escape = FALSE, selection = 'none', rownames = FALSE
       )
@@ -601,9 +666,9 @@ reporting_effort_tracker_server <- function(id) {
           QC_Level = c("3", "3", "3"),
           QC_Completion = c("", "", ""),
           Actions = c(
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
+            '<button class="btn btn-info btn-sm me-1 comment-expand-btn" data-tracker-id="NA" title="View/Add Comments"><i class="fa fa-comment me-1"></i>No Comments</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-info btn-sm me-1 comment-expand-btn" data-tracker-id="NA" title="View/Add Comments"><i class="fa fa-comment me-1"></i>No Comments</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-info btn-sm me-1 comment-expand-btn" data-tracker-id="NA" title="View/Add Comments"><i class="fa fa-comment me-1"></i>No Comments</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
           ),
           stringsAsFactors = FALSE
         )
@@ -624,8 +689,11 @@ reporting_effort_tracker_server <- function(id) {
           autoWidth = TRUE,
           columnDefs = list(list(targets = ncol(adam_data) - 1, searchable = FALSE, orderable = FALSE)),
           drawCallback = JS(sprintf(
-            "function(){
-              var tbl = $('#%s');
+            "function(settings){
+              var api = this.api();
+              var tbl = $(api.table().node()).closest('.dataTables_wrapper').find('table');
+              
+              // Edit/Delete button handlers
               tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
                 var id = $(this).attr('data-id');
                 var itemId = $(this).attr('data-item-id');
@@ -636,8 +704,33 @@ reporting_effort_tracker_server <- function(id) {
                 var itemId = $(this).attr('data-item-id');
                 Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
               });
+              
+              // Comment expand button handlers
+              tbl.find('.comment-expand-btn').off('click').on('click', function(){
+                var trackerId = $(this).attr('data-tracker-id');
+                var tr = $(this).closest('tr');
+                var row = api.row(tr);
+                
+                // Check if row is already expanded using DataTables' child API
+                if (row.child.isShown()) {
+                  // Collapse - hide the child row
+                  row.child.hide();
+                  tr.removeClass('shown');
+                  $(this).removeClass('active');
+                } else {
+                  // Expand - show the child row with comment expansion
+                  var expansionHtml = createCommentExpansion(trackerId);
+                  row.child(expansionHtml).show();
+                  tr.addClass('shown');
+                  $(this).addClass('active');
+                  
+                  // Initialize comment functionality for this row
+                  initializeCommentHandlers(trackerId);
+                  loadCommentsForTracker(trackerId);
+                }
+              });
             }",
-            ns("tracker_table_adam"), ns("tracker_action"), ns("tracker_action")))
+            ns("tracker_action"), ns("tracker_action")))
         ),
         escape = FALSE, selection = 'none', rownames = FALSE
       )
@@ -854,6 +947,39 @@ reporting_effort_tracker_server <- function(id) {
       if ("error" %in% names(res)) showNotification(paste("Import failed:", res$error), type = "error") else {
         showNotification(paste("Import completed. Updated:", res$updated %||% 0), type = "message")
         load_tracker_tables()
+      }
+    })
+
+    # WebSocket event handling for comments
+    observeEvent(input$`tracker_comments-websocket_event`, {
+      if (!is.null(input$`tracker_comments-websocket_event`)) {
+        event_data <- input$`tracker_comments-websocket_event`
+        cat("DEBUG: Comment WebSocket event received:", event_data$type, "\n")
+        
+        # Handle different comment event types
+        if (startsWith(event_data$type, "comment_")) {
+          # Refresh the comment display for the affected tracker
+          if (!is.null(event_data$data$tracker_id)) {
+            tracker_id <- event_data$data$tracker_id
+            cat("DEBUG: Refreshing comments for tracker ID:", tracker_id, "\n")
+            
+            # Send JavaScript message to refresh comments for this tracker
+            session$sendCustomMessage("refreshComments", list(
+              tracker_id = tracker_id,
+              event_type = event_data$type
+            ))
+          }
+          
+          # If this is a comment creation, also refresh the comment count in the button
+          if (event_data$type == "comment_created") {
+            # Reload the tracker tables to update comment counts
+            tryCatch({
+              load_tracker_tables()
+            }, error = function(e) {
+              cat("ERROR: Failed to reload tracker tables after comment creation:", e$message, "\n")
+            })
+          }
+        }
       }
     })
 
