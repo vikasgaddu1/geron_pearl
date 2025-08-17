@@ -335,3 +335,50 @@ window.testCrossBrowserCommentSync = function() {
 
 // Auto-add to help
 console.log('🧪 DEBUG: Added window.testCrossBrowserCommentSync() function');
+
+// OPTION 1: Periodic Badge Refresh (Most Reliable)
+// Implements 30-second badge refresh for cross-browser synchronization
+(function initPeriodicBadgeRefresh() {
+  console.log('🔄 OPTION 1: Initializing periodic badge refresh (30 seconds)');
+  
+  setInterval(() => {
+    // Check if there are any comment badges visible on the page
+    var badgeContainers = document.querySelectorAll('.comment-badges');
+    if (badgeContainers.length > 0) {
+      console.log(`🔄 PERIODIC REFRESH: Found ${badgeContainers.length} badge containers, triggering refresh`);
+      
+      // Trigger Shiny input to refresh all badges
+      if (typeof Shiny !== 'undefined') {
+        Shiny.setInputValue('refresh_all_badges', Date.now(), {priority: 'event'});
+      }
+    }
+  }, 30000); // 30 seconds
+  
+  console.log('✅ Periodic badge refresh initialized - will refresh every 30 seconds');
+})();
+
+// Handle periodic badge refresh trigger from R
+Shiny.addCustomMessageHandler('triggerBadgeRefresh', function(message) {
+  try {
+    console.log('🔄 PERIODIC REFRESH: Received triggerBadgeRefresh message from R');
+    
+    // Check if we're on a page with comment badges
+    var badgeContainers = document.querySelectorAll('.comment-badges');
+    if (badgeContainers.length === 0) {
+      console.log('🔄 PERIODIC REFRESH: No badge containers found, skipping refresh');
+      return;
+    }
+    
+    console.log(`🔄 PERIODIC REFRESH: Found ${badgeContainers.length} badge containers, triggering module refresh`);
+    
+    // Trigger the reporting effort tracker module to refresh its data
+    // This will automatically refresh comment badges as part of the normal flow
+    if (typeof Shiny !== 'undefined') {
+      Shiny.setInputValue('reporting_effort_tracker-refresh_data', Date.now(), {priority: 'event'});
+      console.log('✅ PERIODIC REFRESH: Triggered reporting_effort_tracker refresh');
+    }
+    
+  } catch (e) {
+    console.error('❌ ERROR: Failed to handle periodic badge refresh trigger:', e);
+  }
+});

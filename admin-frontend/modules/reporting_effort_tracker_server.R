@@ -268,7 +268,7 @@ reporting_effort_tracker_server <- function(id) {
           }
         }
         # Create separate comments column with + button and badges
-        comments_column <- if (!is.null(tracker_id) && !is.na(tracker_id) && tracker_id != "NA") {
+        comments_column <- if (!is.null(tracker_id) && !is.na(tracker_id) && tracker_id != "") {
           # Will be filled by get_comment_summaries() API call - placeholder for now
           sprintf('<div class="comment-column" data-tracker-id="%s">
                      <button class="btn btn-success btn-sm comment-add-btn" data-tracker-id="%s" title="Add Comment">
@@ -289,7 +289,7 @@ reporting_effort_tracker_server <- function(id) {
         actions <- sprintf(
           '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="%s" data-item-id="%s" title="Edit tracker"><i class="fa fa-pencil"></i></button>
            <button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="%s" data-item-id="%s" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-          tracker_id %||% "NA", item$id, tracker_id %||% "NA", item$id)
+          tracker_id %||% "", item$id, tracker_id %||% "", item$id)
         data.frame(
           Item = item$item_code %||% "",
           Category = item$item_subtype %||% "",
@@ -557,9 +557,9 @@ reporting_effort_tracker_server <- function(id) {
             '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>'
           ),
           Actions = c(
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="dummy1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="dummy1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="dummy2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="dummy2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="dummy3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="dummy3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
           ),
           stringsAsFactors = FALSE
         )
@@ -703,9 +703,9 @@ reporting_effort_tracker_server <- function(id) {
             '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>'
           ),
           Actions = c(
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="sdtm1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="sdtm1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="sdtm2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="sdtm2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="sdtm3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="sdtm3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
           ),
           stringsAsFactors = FALSE
         )
@@ -858,9 +858,9 @@ reporting_effort_tracker_server <- function(id) {
             '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>'
           ),
           Actions = c(
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="adam1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="adam1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="adam2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="adam2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="adam3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="adam3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
           ),
           stringsAsFactors = FALSE
         )
@@ -963,7 +963,7 @@ reporting_effort_tracker_server <- function(id) {
       
       if (act == "edit") {
         # Get tracker data if exists
-        tracker_data <- if (!is.na(tracker_id) && tracker_id != "NA") {
+        tracker_data <- if (!is.na(tracker_id) && tracker_id != "") {
           get_reporting_effort_tracker_by_id(tracker_id)
         } else {
           list()  # New tracker
@@ -984,7 +984,7 @@ reporting_effort_tracker_server <- function(id) {
         
         # Show edit modal
         showModal(modalDialog(
-          title = if (!is.na(tracker_id) && tracker_id != "NA") "Edit Tracker" else "Create Tracker",
+          title = if (!is.na(tracker_id) && tracker_id != "") "Edit Tracker" else "Create Tracker",
           size = "l",
           
           fluidRow(
@@ -1043,7 +1043,7 @@ reporting_effort_tracker_server <- function(id) {
           )
         ))
       } else if (act == "delete") {
-        if (!is.na(tracker_id) && tracker_id != "NA") {
+        if (!is.na(tracker_id) && tracker_id != "") {
           showModal(modalDialog(
             title = "Confirm Delete",
             "Are you sure you want to delete this tracker?",
@@ -1095,7 +1095,7 @@ reporting_effort_tracker_server <- function(id) {
       }
       
       # Create or update tracker
-      if (!is.na(tracker_id) && tracker_id != "NA") {
+      if (!is.na(tracker_id) && tracker_id != "") {
         # Update existing
         res <- update_reporting_effort_tracker(tracker_id, tracker_data)
       } else {

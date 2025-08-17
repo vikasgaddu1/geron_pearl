@@ -220,7 +220,7 @@ study_tree_server <- function(id) {
     }
 
     # Render tree (collapsed by default)
-    output$study_tree <- shinyTree::renderTree({
+    output$tree_display <- shinyTree::renderTree({
       build_tree_data()
     })
 
@@ -250,7 +250,7 @@ study_tree_server <- function(id) {
     }
     
     # Track selection; enable/disable buttons accordingly
-    observeEvent(input$study_tree, {
+    observeEvent(input$tree_display, {
       # Default: nothing selected
       selected_node(list(type = NULL, label = NULL, path = NULL))
       
@@ -258,7 +258,7 @@ study_tree_server <- function(id) {
       shinyjs::enable(ns("add_child"))
       
       # Find all selected paths in the tree
-      selected_paths <- find_selected_paths(input$study_tree)
+      selected_paths <- find_selected_paths(input$tree_display)
       
       # We only support single selection, so take the first path if any
       if (length(selected_paths) > 0) {
@@ -285,7 +285,7 @@ study_tree_server <- function(id) {
 
     # Refresh tree
     observeEvent(input$refresh_tree, {
-      output$study_tree <- shinyTree::renderTree({ build_tree_data() })
+      output$tree_display <- shinyTree::renderTree({ build_tree_data() })
       last_update(Sys.time())
     })
 
@@ -381,7 +381,7 @@ study_tree_server <- function(id) {
           showNotification("Study created", type = "message")
           removeModal()
           iv_study_new$disable()  # Disable validation after successful creation
-          output$study_tree <- shinyTree::renderTree({ build_tree_data() })
+          output$tree_display <- shinyTree::renderTree({ build_tree_data() })
           last_update(Sys.time())
         }
       }
@@ -389,7 +389,7 @@ study_tree_server <- function(id) {
 
     # Utility to find selected node metadata by walking built tree and matching name
     find_selected_info <- function() {
-      sel <- shinyTree::get_selected(input$study_tree, format = "names")
+      sel <- shinyTree::get_selected(input$tree_display, format = "names")
       if (length(sel) == 0) return(NULL)
       selected_label <- sel[[1]]
       # Rebuild tree to traverse attributes
@@ -523,7 +523,7 @@ study_tree_server <- function(id) {
             showNotification("Database release created", type = "message")
             removeModal()
             iv_release_new$disable()  # Disable validation after successful creation
-            output$study_tree <- shinyTree::renderTree({ build_tree_data() })
+            output$tree_display <- shinyTree::renderTree({ build_tree_data() })
             last_update(Sys.time())
           }
         }, once = TRUE, ignoreInit = TRUE)
@@ -648,7 +648,7 @@ study_tree_server <- function(id) {
             showNotification("Reporting effort created", type = "message")
             removeModal()
             iv_effort_new$disable()  # Disable validation after successful creation
-            output$study_tree <- shinyTree::renderTree({ build_tree_data() })
+            output$tree_display <- shinyTree::renderTree({ build_tree_data() })
             last_update(Sys.time())
           }
         }, once = TRUE, ignoreInit = TRUE)
@@ -774,7 +774,7 @@ study_tree_server <- function(id) {
               showNotification("Study updated", type = "message")
               removeModal()
               iv_edit$disable()  # Disable validation after successful update
-              output$study_tree <- shinyTree::renderTree({ build_tree_data() })
+              output$tree_display <- shinyTree::renderTree({ build_tree_data() })
               last_update(Sys.time())
             }
           }, once = TRUE, ignoreInit = TRUE)
@@ -887,7 +887,7 @@ study_tree_server <- function(id) {
               showNotification("Database release updated", type = "message")
               removeModal()
               iv_edit$disable()  # Disable validation after successful update
-              output$study_tree <- shinyTree::renderTree({ build_tree_data() })
+              output$tree_display <- shinyTree::renderTree({ build_tree_data() })
               last_update(Sys.time())
             }
           }, once = TRUE, ignoreInit = TRUE)
@@ -1013,7 +1013,7 @@ study_tree_server <- function(id) {
               showNotification("Reporting effort updated", type = "message")
               removeModal()
               iv_edit$disable()  # Disable validation after successful update
-              output$study_tree <- shinyTree::renderTree({ build_tree_data() })
+              output$tree_display <- shinyTree::renderTree({ build_tree_data() })
               last_update(Sys.time())
             }
           }, once = TRUE, ignoreInit = TRUE)

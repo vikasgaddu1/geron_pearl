@@ -125,7 +125,7 @@ window.initializeCommentHandlers = function(trackerId) {
 // Load comments for a specific tracker
 window.loadCommentsForTracker = function(trackerId) {
   // Handle invalid or placeholder tracker IDs
-  if (!trackerId || trackerId === 'NA' || trackerId === 'undefined' || isNaN(parseInt(trackerId))) {
+  if (!trackerId || trackerId === '' || trackerId === 'undefined' || isNaN(parseInt(trackerId))) {
     $(`#comments-list-${trackerId}`).html(`
       <div class="text-muted text-center py-3">
         <i class="fa fa-info-circle me-2"></i>No comments yet. Add one to get started!
@@ -255,7 +255,7 @@ function renderComment(trackerId, comment, isReply = false) {
 
 // Submit a new comment
 function submitComment(trackerId, commentData) {
-  if (!trackerId || trackerId === 'NA' || trackerId === 'undefined' || isNaN(parseInt(trackerId))) {
+  if (!trackerId || trackerId === '' || trackerId === 'undefined' || isNaN(parseInt(trackerId))) {
     alert('Cannot add comment: Please create a tracker first before adding comments.');
     return;
   }

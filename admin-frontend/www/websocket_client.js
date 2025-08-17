@@ -126,8 +126,10 @@ class PearlWebSocketClient {
                 data.module = 'users';
                 console.log('👤 USER EVENT RECEIVED:', data.type, data.data?.username || 'unknown');
             } else if (data.type.startsWith('comment_')) {
-                data.module = 'tracker_comments';
-                console.log('💬 COMMENT EVENT RECEIVED:', data.type, `tracker_id=${data.data?.tracker_id}`, data.data?.comment_text?.substring(0, 50) || 'unknown');
+                // OPTION 1: Skip complex R module routing for comments
+                // Use periodic refresh instead of real-time cross-browser sync
+                console.log('💬 COMMENT EVENT RECEIVED (using periodic refresh):', data.type, `tracker_id=${data.data?.tracker_id}`, data.data?.comment_text?.substring(0, 50) || 'unknown');
+                // data.module = 'tracker_comments'; // DISABLED: Complex routing removed
             }
         }
         

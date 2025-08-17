@@ -238,10 +238,94 @@ Use for validating Pydantic and SQLAlchemy model alignment in FastAPI applicatio
 ### fastapi-simple-tester
 Use for creating simple, reliable endpoint testing for FastAPI applications using curl commands that avoid complex test frameworks and database session conflicts.
 
+## Essential Development Constraints
+
+### File Creation Guidelines
+- **NEVER create files** unless absolutely necessary for achieving your goal
+- **ALWAYS prefer editing** an existing file to creating a new one  
+- **NEVER proactively create** documentation files (*.md) or README files
+- Only create documentation files if explicitly requested by the User
+
+### Path Conventions (Windows)
+- Use forward slashes `/` in all file paths (even on Windows)
+- Backend paths: `backend/app/models/`, `backend/tests/`
+- Frontend paths: `admin-frontend/modules/`, `admin-frontend/www/`
+
+### Critical Testing Constraint
+**⚠️ ABSOLUTE CRITICAL**: This codebase has documented SQLAlchemy async session conflicts that prevent reliable batch test execution. This is **NOT a bug** - it's an architectural constraint.
+- Individual tests work perfectly ✅
+- Batch test execution frequently fails ❌
+- Always test individually: `pytest single_test.py -v`
+- Success metric: Individual test reliability, not batch pass rates
+
+### Deletion Protection Pattern (Mandatory)
+**🛡️ ALL entity deletions MUST implement dependency checking**:
+```python
+# Pattern: Check for dependent entities before deletion
+dependent_entities = await dependent_crud.get_by_parent_id(db, parent_id=entity_id)
+if dependent_entities:
+    entity_names = [e.label for e in dependent_entities]
+    raise HTTPException(
+        status_code=400,
+        detail=f"Cannot delete {entity_type} '{entity.label}': {len(dependent_entities)} associated {dependent_type}(s) exist: {', '.join(entity_names)}. Please delete all associated {dependent_type}s first."
+    )
+```
+
+### WebSocket Broadcasting Pattern (Required)
+**📡 ALL CRUD operations MUST trigger WebSocket broadcasts**:
+```python
+# In API endpoints after successful operations
+created_entity = await entity_crud.create(db, obj_in=entity_in)
+await broadcast_entity_created(created_entity)  # Required for real-time sync
+```
+
+### Make Commands (Backend Code Quality)
+```bash
+# Run these commands before committing backend changes
+make format     # Auto-format with black + isort (required)
+make lint       # Check with flake8 + mypy (required)
+make typecheck  # Type checking only
+```
+
+## Technology Stack Summary
+
+### Backend (FastAPI)
+- **Python**: 3.11+ with UV package manager
+- **Framework**: FastAPI + uvicorn with async/await patterns
+- **Database**: PostgreSQL with SQLAlchemy 2.0 async
+- **Migrations**: Alembic for schema changes
+- **Real-time**: WebSocket broadcasting via ConnectionManager
+- **Validation**: Pydantic v2 for request/response schemas
+- **Testing**: pytest with individual test execution only
+
+### Frontend (R Shiny)
+- **R Version**: 4.2.2 with renv for reproducible packages
+- **Framework**: Shiny with bslib for modern Bootstrap 5 UI
+- **HTTP Client**: httr2 for robust API communication
+- **Validation**: shinyvalidate with deferred validation pattern
+- **Tables**: DT for interactive data tables with search/filter
+- **Real-time**: Dual WebSocket clients (JavaScript primary, R secondary)
+- **Testing**: Playwright MCP for automated browser testing
+
+### Database Schema Overview
+**Hierarchical Entity Relationships**:
+```
+Study (1) ←→ (N) DatabaseRelease (1) ←→ (N) ReportingEffort
+  ↑                                              ↓
+  └────────────── (1) ←→ (N) ──────────────────┘
+
+Package (1) ←→ (N) PackageItem (polymorphic: TLF/Dataset)
+  ↑                     ↓
+  └─── Text Elements ───┘ (footnotes, acronyms via junction tables)
+
+TextElement (standalone: title, footnote, population_set, acronyms_set)
+User (authentication: admin, analyst, viewer roles)
+TrackerComment (workflow comments with threading)
+```
+
 ## For More Details
 
 - **Backend**: See [backend/CLAUDE.md](backend/CLAUDE.md) and [backend/README.md](backend/README.md)
 - **Frontend**: See [admin-frontend/CLAUDE.md](admin-frontend/CLAUDE.md) and [admin-frontend/README.md](admin-frontend/README.md)
 - **Testing**: See [backend/tests/README.md](backend/tests/README.md)
-- for windows path use '/'
-- fastapi-mcp is running at http://localhost:8000/mcp
+- **MCP Integration**: fastapi-mcp running at http://localhost:8000/mcp

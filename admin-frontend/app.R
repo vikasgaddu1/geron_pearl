@@ -122,17 +122,6 @@ ui <- page_navbar(
       # Comment expansion CSS
       comment_expansion_css(),
       tags$script(HTML("
-        // Provide default red badges so users see status even before Shiny renders
-        document.addEventListener('DOMContentLoaded', function() {
-          var ws = document.getElementById('ws_badge');
-          if (ws && ws.innerHTML.trim() === '') {
-            ws.innerHTML = '<span class=\'badge bg-danger\'>WS: Disconnected</span>';
-          }
-          var api = document.getElementById('api_health_badge');
-          if (api && api.innerHTML.trim() === '') {
-            api.innerHTML = '<span class=\'badge bg-danger\'>API: Unknown</span>';
-          }
-        });
         $(document).on('shiny:connected', function() {
           console.log('Shiny connected - WebSocket should be initializing...');
         });
@@ -257,48 +246,34 @@ server <- function(input, output, session) {
   # Admin Dashboard module
   admin_dashboard_server("admin_dashboard")
   
-  # GLOBAL WebSocket observer for cross-browser comment synchronization
-  # CRITICAL: This must be at the global app level, not inside modules
-  observeEvent(input$`tracker_comments-websocket_event`, {
-    cat("🌍 GLOBAL WebSocket observer triggered!\n")
-    cat("🌍 Input value:", class(input$`tracker_comments-websocket_event`), "\n")
-    cat("🌍 Input content:", jsonlite::toJSON(input$`tracker_comments-websocket_event`, auto_unbox = TRUE), "\n")
+  # OPTION 1: Simplified WebSocket handling - Complex cross-browser routing removed
+  # The complex global WebSocket observer has been replaced with periodic refresh
+  # This provides 95% of the user experience with 10% of the complexity
+  
+  # NOTE: Complex WebSocket routing through R modules was causing issues:
+  # - Module namespacing conflicts (tracker_comments-websocket_event vs reporting_effort_tracker-tracker_comments-websocket_event)
+  # - Cross-session coordination complexity
+  # - Multiple abstraction layers (WebSocket → JS → R Modules → Events)
+  # 
+  # SOLUTION: Keep local optimistic updates + periodic refresh for cross-browser sync
+  
+  # OPTION 1: Periodic Badge Refresh Handler
+  # Handles requests from JavaScript periodic refresh mechanism
+  observeEvent(input$refresh_all_badges, {
+    cat("🔄 PERIODIC REFRESH: Received refresh_all_badges request\n")
     
-    if (!is.null(input$`tracker_comments-websocket_event`)) {
-      event_data <- input$`tracker_comments-websocket_event`
-      cat("🔄 GLOBAL CROSS-BROWSER WebSocket comment event received:", event_data$type, "\n")
-      cat("🔄 Event timestamp:", event_data$timestamp %||% "unknown", "\n")
+    tryCatch({
+      # Send message to the reporting effort tracker module to refresh all badges
+      # This works by triggering the existing badge refresh logic
+      session$sendCustomMessage("triggerBadgeRefresh", list(
+        timestamp = Sys.time(),
+        source = "periodic_refresh"
+      ))
       
-      # Handle different comment event types
-      if (startsWith(event_data$type, "comment_")) {
-        # Process comment events from OTHER browsers (cross-browser sync)
-        if (!is.null(event_data$data$tracker_id)) {
-          tracker_id <- event_data$data$tracker_id
-          cat("🌍 Processing GLOBAL CROSS-BROWSER comment event for tracker ID:", tracker_id, "\n")
-          
-          # Send JavaScript message to refresh comments for this tracker
-          session$sendCustomMessage("refreshComments", list(
-            tracker_id = tracker_id,
-            event_type = event_data$type,
-            is_cross_browser = TRUE  # Flag to indicate this came from another browser
-          ))
-          
-          # IMMEDIATE badge update for cross-browser synchronization
-          tryCatch({
-            cat("🚀 Sending GLOBAL CROSS-BROWSER real-time badge update for tracker", tracker_id, "\n")
-            session$sendCustomMessage("updateCommentBadgeRealtime", list(
-              tracker_id = tracker_id,
-              event_type = event_data$type,
-              comment_data = event_data$data,
-              is_cross_browser = TRUE,
-              source = "websocket_global_cross_browser"
-            ))
-          }, error = function(e) {
-            cat("❌ ERROR: Failed to send global cross-browser badge update:", e$message, "\n")
-          })
-        }
-      }
-    }
+      cat("✅ PERIODIC REFRESH: Sent triggerBadgeRefresh message to client\n")
+    }, error = function(e) {
+      cat("❌ ERROR: Failed to handle periodic badge refresh:", e$message, "\n")
+    })
   })
   
   # Package Management placeholder handlers

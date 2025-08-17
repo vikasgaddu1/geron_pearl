@@ -58,7 +58,7 @@ study_tree_ui <- function(id) {
               class = "row g-3",
               div(
                 class = "col-12",
-                shinyTree::shinyTree(ns("study_tree"), search = TRUE, theme = "default", themeIcons = TRUE, themeDots = TRUE)
+                shinyTree::shinyTree(ns("tree_display"), search = TRUE, theme = "default", themeIcons = TRUE, themeDots = TRUE)
               )
             )
           ),
