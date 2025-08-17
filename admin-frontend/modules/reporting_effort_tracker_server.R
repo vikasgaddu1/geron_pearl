@@ -258,13 +258,22 @@ reporting_effort_tracker_server <- function(id) {
         comment_status <- if (comment_count > 0) "comments" else "no-comments"
         comment_text <- if (comment_count > 0) paste(comment_count, "Comments") else "No Comments"
         
+        # Only create comment button if we have a valid tracker_id
+        comment_button <- if (!is.null(tracker_id) && !is.na(tracker_id) && tracker_id != "NA") {
+          sprintf('<button class="btn btn-info btn-sm me-1 comment-expand-btn" data-tracker-id="%s" title="View/Add Comments">
+                     <i class="fa fa-comment me-1"></i>%s
+                   </button>', tracker_id, comment_text)
+        } else {
+          '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first">
+             <i class="fa fa-comment me-1"></i>Create Tracker
+           </button>'
+        }
+        
         actions <- sprintf(
-          '<button class="btn btn-info btn-sm me-1 comment-expand-btn" data-tracker-id="%s" title="View/Add Comments">
-             <i class="fa fa-comment me-1"></i>%s
-           </button>
+          '%s
            <button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="%s" data-item-id="%s" title="Edit tracker"><i class="fa fa-pencil"></i></button>
            <button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="%s" data-item-id="%s" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-          tracker_id %||% NA, comment_text, tracker_id %||% NA, item$id, tracker_id %||% NA, item$id)
+          comment_button, tracker_id %||% "NA", item$id, tracker_id %||% "NA", item$id)
         data.frame(
           Item = item$item_code %||% "",
           Category = item$item_subtype %||% "",
@@ -407,9 +416,9 @@ reporting_effort_tracker_server <- function(id) {
           QC_Level = c("3", "3", "3"),
           QC_Completion = c("", "", ""),
           Actions = c(
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
+            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="dummy3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="dummy3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
           ),
           stringsAsFactors = FALSE
         )
@@ -537,9 +546,9 @@ reporting_effort_tracker_server <- function(id) {
           QC_Level = c("3", "3", "3"),
           QC_Completion = c("", "", ""),
           Actions = c(
-            '<button class="btn btn-info btn-sm me-1 comment-expand-btn" data-tracker-id="NA" title="View/Add Comments"><i class="fa fa-comment me-1"></i>No Comments</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-info btn-sm me-1 comment-expand-btn" data-tracker-id="NA" title="View/Add Comments"><i class="fa fa-comment me-1"></i>No Comments</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-info btn-sm me-1 comment-expand-btn" data-tracker-id="NA" title="View/Add Comments"><i class="fa fa-comment me-1"></i>No Comments</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
+            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="sdtm3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="sdtm3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
           ),
           stringsAsFactors = FALSE
         )
@@ -666,9 +675,9 @@ reporting_effort_tracker_server <- function(id) {
           QC_Level = c("3", "3", "3"),
           QC_Completion = c("", "", ""),
           Actions = c(
-            '<button class="btn btn-info btn-sm me-1 comment-expand-btn" data-tracker-id="NA" title="View/Add Comments"><i class="fa fa-comment me-1"></i>No Comments</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-info btn-sm me-1 comment-expand-btn" data-tracker-id="NA" title="View/Add Comments"><i class="fa fa-comment me-1"></i>No Comments</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-info btn-sm me-1 comment-expand-btn" data-tracker-id="NA" title="View/Add Comments"><i class="fa fa-comment me-1"></i>No Comments</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
+            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
+            '<button class="btn btn-outline-secondary btn-sm me-1" disabled title="Create tracker first"><i class="fa fa-comment me-1"></i>Create Tracker</button><button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="NA" data-item-id="adam3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="NA" data-item-id="adam3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
           ),
           stringsAsFactors = FALSE
         )
