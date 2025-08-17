@@ -329,3 +329,4 @@ TrackerComment (workflow comments with threading)
 - **Frontend**: See [admin-frontend/CLAUDE.md](admin-frontend/CLAUDE.md) and [admin-frontend/README.md](admin-frontend/README.md)
 - **Testing**: See [backend/tests/README.md](backend/tests/README.md)
 - **MCP Integration**: fastapi-mcp running at http://localhost:8000/mcp
+- remember to kill backend or frontend there are bat files in scripts folder

@@ -221,8 +221,9 @@ study_tree_server <- function(id) {
 
     # Render tree (collapsed by default)
     # NOTE: shinyTree automatically creates both input and output bindings with the same ID
-    # The "Shared input/output ID" warnings are expected behavior for this widget
-    # shinyTree needs both to function: input for selections, output for rendering
+    # The "Shared input/output ID" warnings in browser console are EXPECTED and NOT an error
+    # This is normal shinyTree behavior - it needs both input and output with same ID to function
+    # The widget handles selections (input) and rendering (output) through this dual binding
     output$tree_display <- shinyTree::renderTree({
       build_tree_data()
     })
