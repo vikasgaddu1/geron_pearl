@@ -274,10 +274,10 @@ reporting_effort_tracker_server <- function(id) {
                      <button class="btn btn-success btn-sm comment-add-btn" data-tracker-id="%s" title="Add Comment">
                        <i class="fa fa-plus"></i>
                      </button>
-                     <span class="comment-badges ms-2" id="badges-%s">
+                     <span class="comment-badges ms-2" id="badges-%s" data-tracker-id="%s">
                        <!-- Badges will be populated by API call -->
                      </span>
-                   </div>', tracker_id, tracker_id, tracker_id)
+                   </div>', tracker_id, tracker_id, tracker_id, tracker_id)
         } else {
           '<div class="comment-column">
              <button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first">
@@ -1162,8 +1162,43 @@ reporting_effort_tracker_server <- function(id) {
       }
     })
 
-    # WebSocket event handling for comments - ENHANCED for cross-browser sync
+    # WebSocket event handling for comments - ENHANCED for cross-browser sync with DEBUG
+    # CRITICAL: This observer must be GLOBAL, not module-scoped, to receive WebSocket events
     observeEvent(input$`tracker_comments-websocket_event`, {
+      cat("🌐 NAMESPACED WebSocket event observer triggered!\n")
+      cat("🌐 Input value:", class(input$`tracker_comments-websocket_event`), "\n")
+      cat("🌐 Input content:", jsonlite::toJSON(input$`tracker_comments-websocket_event`, auto_unbox = TRUE), "\n")
+      
+      if (!is.null(input$`tracker_comments-websocket_event`)) {
+        event_data <- input$`tracker_comments-websocket_event`
+        cat("🔄 NAMESPACED CROSS-BROWSER WebSocket comment event received:", event_data$type, "\n")
+        cat("🔄 Module namespace: reporting_effort_tracker\n")
+      }
+    })
+    
+    # ADDITIONAL: Try observing the global (non-namespaced) event as well
+    # Use session$userData to access global inputs if available
+    if (exists("session") && !is.null(session$userData)) {
+      observe({
+        # Try to observe global WebSocket events
+        tryCatch({
+          global_input <- session$input$`tracker_comments-websocket_event`
+          if (!is.null(global_input)) {
+            cat("🌍 GLOBAL WebSocket event detected in module!\n")
+            cat("🌍 Input content:", jsonlite::toJSON(global_input, auto_unbox = TRUE), "\n")
+          }
+        }, error = function(e) {
+          # Silently ignore if global input doesn't exist
+        })
+      })
+    }
+    
+    # FALLBACK: Original observer with debugging
+    observeEvent(input$`tracker_comments-websocket_event`, {
+      cat("🌐 ORIGINAL WebSocket event observer triggered!\n")
+      cat("🌐 Input value:", class(input$`tracker_comments-websocket_event`), "\n")
+      cat("🌐 Input content:", jsonlite::toJSON(input$`tracker_comments-websocket_event`, auto_unbox = TRUE), "\n")
+      
       if (!is.null(input$`tracker_comments-websocket_event`)) {
         event_data <- input$`tracker_comments-websocket_event`
         cat("🔄 CROSS-BROWSER WebSocket comment event received:", event_data$type, "\n")
@@ -1211,6 +1246,26 @@ reporting_effort_tracker_server <- function(id) {
       }
     })
     
+    # DEBUG: Force badge refresh handler
+    observeEvent(input$force_badge_refresh, {
+      cat("🔧 MANUAL badge refresh triggered!\n")
+      cat("🔧 Data:", jsonlite::toJSON(input$force_badge_refresh, auto_unbox = TRUE), "\n")
+      
+      # Trigger badge update for all visible trackers
+      tryCatch({
+        load_tracker_tables()
+        cat("🔧 Manual badge refresh completed\n")
+      }, error = function(e) {
+        cat("🔧 ERROR in manual badge refresh:", e$message, "\n")
+      })
+    })
+    
+    # DEBUG: Test any Shiny input events
+    observe({
+      cat("🔍 R Server is alive and processing reactive expressions\n")
+      invalidateLater(30000, session)  # Every 30 seconds
+    })
+
     # Comment action handlers (pin, unpin, etc.)
     observeEvent(input$comment_action, {
       if (!is.null(input$comment_action)) {

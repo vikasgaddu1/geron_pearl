@@ -257,6 +257,50 @@ server <- function(input, output, session) {
   # Admin Dashboard module
   admin_dashboard_server("admin_dashboard")
   
+  # GLOBAL WebSocket observer for cross-browser comment synchronization
+  # CRITICAL: This must be at the global app level, not inside modules
+  observeEvent(input$`tracker_comments-websocket_event`, {
+    cat("🌍 GLOBAL WebSocket observer triggered!\n")
+    cat("🌍 Input value:", class(input$`tracker_comments-websocket_event`), "\n")
+    cat("🌍 Input content:", jsonlite::toJSON(input$`tracker_comments-websocket_event`, auto_unbox = TRUE), "\n")
+    
+    if (!is.null(input$`tracker_comments-websocket_event`)) {
+      event_data <- input$`tracker_comments-websocket_event`
+      cat("🔄 GLOBAL CROSS-BROWSER WebSocket comment event received:", event_data$type, "\n")
+      cat("🔄 Event timestamp:", event_data$timestamp %||% "unknown", "\n")
+      
+      # Handle different comment event types
+      if (startsWith(event_data$type, "comment_")) {
+        # Process comment events from OTHER browsers (cross-browser sync)
+        if (!is.null(event_data$data$tracker_id)) {
+          tracker_id <- event_data$data$tracker_id
+          cat("🌍 Processing GLOBAL CROSS-BROWSER comment event for tracker ID:", tracker_id, "\n")
+          
+          # Send JavaScript message to refresh comments for this tracker
+          session$sendCustomMessage("refreshComments", list(
+            tracker_id = tracker_id,
+            event_type = event_data$type,
+            is_cross_browser = TRUE  # Flag to indicate this came from another browser
+          ))
+          
+          # IMMEDIATE badge update for cross-browser synchronization
+          tryCatch({
+            cat("🚀 Sending GLOBAL CROSS-BROWSER real-time badge update for tracker", tracker_id, "\n")
+            session$sendCustomMessage("updateCommentBadgeRealtime", list(
+              tracker_id = tracker_id,
+              event_type = event_data$type,
+              comment_data = event_data$data,
+              is_cross_browser = TRUE,
+              source = "websocket_global_cross_browser"
+            ))
+          }, error = function(e) {
+            cat("❌ ERROR: Failed to send global cross-browser badge update:", e$message, "\n")
+          })
+        }
+      }
+    }
+  })
+  
   # Package Management placeholder handlers
   observeEvent(input$refresh_packages_btn, {
     showNotification(

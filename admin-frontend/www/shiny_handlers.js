@@ -77,8 +77,19 @@ function updateTrackerBadgeOptimistic(trackerId, changeType, commentData) {
   
   var badgeContainer = document.getElementById('badges-' + trackerId);
   if (!badgeContainer) {
-    console.warn('Badge container not found for tracker', trackerId);
-    return;
+    console.warn('Badge container not found for tracker', trackerId, '- attempting fallback search');
+    // Fallback: try to find by class and data attribute
+    badgeContainer = document.querySelector(`.comment-badges[data-tracker-id="${trackerId}"]`);
+    if (!badgeContainer) {
+      // Last resort: try finding by partial ID match
+      badgeContainer = document.querySelector(`[id*="badges-${trackerId}"]`);
+    }
+    if (!badgeContainer) {
+      console.error('❌ Badge container not found for tracker', trackerId, 'even with fallback methods');
+      return;
+    } else {
+      console.log('✅ Found badge container using fallback method for tracker', trackerId);
+    }
   }
   
   // Get current counts from existing badges or start with zeros
@@ -198,9 +209,15 @@ Shiny.addCustomMessageHandler('updateCommentBadges', function (message) {
   }
 });
 
+// DEBUG: Add global tracking for WebSocket events from Shiny
+window.pearlWebSocketEventCounter = 0;
+
 // Handle real-time comment updates from WebSocket - ENHANCED for cross-browser sync
 Shiny.addCustomMessageHandler('updateCommentBadgeRealtime', function(message) {
   try {
+    window.pearlWebSocketEventCounter++;
+    console.log(`🎯 SHINY->JS EVENT #${window.pearlWebSocketEventCounter}: updateCommentBadgeRealtime`);
+    
     // Enhanced logging for cross-browser debugging
     if (message.is_cross_browser) {
       console.log('🌍 CROSS-BROWSER WebSocket badge update received:', message);
@@ -256,3 +273,65 @@ Shiny.addCustomMessageHandler('websocket_debug_info', function(message) {
     console.error('Error in WebSocket debug:', e);
   }
 });
+
+// DEBUG: Function to test cross-browser comment badge synchronization
+window.testCrossBrowserCommentSync = function() {
+  console.log('🧪 TESTING Cross-Browser Comment Badge Synchronization');
+  console.log('='.repeat(60));
+  
+  // Check WebSocket connection
+  console.log('1. WebSocket Connection:');
+  if (window.pearlWebSocket && window.pearlWebSocket.isConnected()) {
+    console.log('   ✅ WebSocket is connected');
+  } else {
+    console.log('   ❌ WebSocket is NOT connected');
+    return;
+  }
+  
+  // Check if we're on the tracker page
+  console.log('2. Page/Module Check:');
+  var trackerElements = document.querySelectorAll('.comment-badges');
+  console.log(`   Found ${trackerElements.length} comment badge containers`);
+  
+  if (trackerElements.length === 0) {
+    console.log('   ❌ No comment badge containers found - not on tracker page?');
+    return;
+  }
+  
+  // Test Shiny input availability
+  console.log('3. Shiny Event Counter:');
+  console.log(`   Total Shiny->JS events received: ${window.pearlWebSocketEventCounter || 0}`);
+  
+  // Test manual WebSocket event injection
+  console.log('4. Testing Manual Event Injection:');
+  try {
+    // Simulate a WebSocket event
+    if (typeof Shiny !== 'undefined') {
+      Shiny.setInputValue('tracker_comments-websocket_event', {
+        type: 'comment_created',
+        data: {
+          tracker_id: 151,
+          comment_text: 'TEST CROSS-BROWSER',
+          is_resolved: false,
+          is_pinned: false
+        },
+        timestamp: Date.now()
+      }, {priority: 'event'});
+      console.log('   ✅ Injected test WebSocket event to Shiny');
+    } else {
+      console.log('   ❌ Shiny is not available');
+    }
+  } catch (e) {
+    console.log('   ❌ Error injecting test event:', e.message);
+  }
+  
+  console.log('');
+  console.log('📋 Instructions:');
+  console.log('1. Run this function in BOTH browser windows');
+  console.log('2. Add a comment in one browser');
+  console.log('3. Watch for "🎯 SHINY->JS EVENT" messages in the other browser');
+  console.log('4. If no events appear, the R observer is not loaded/active');
+};
+
+// Auto-add to help
+console.log('🧪 DEBUG: Added window.testCrossBrowserCommentSync() function');
