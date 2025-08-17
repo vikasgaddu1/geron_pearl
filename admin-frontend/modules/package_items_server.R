@@ -971,7 +971,7 @@ package_items_server <- function(id) {
       } else {
         # Reset form for new item
         editing_item_id(NULL)
-        updateNumericInput(session, "edit_item_id", value = NA)
+        updateNumericInput(session, "edit_item_id", value = NULL)
         
         # Clear any previous upload results
         output$upload_results <- renderUI({

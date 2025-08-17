@@ -322,7 +322,7 @@ users_server <- function(id) {
       updateTextInput(session, "new_username", value = "")
       updateSelectInput(session, "new_role", selected = "VIEWER")
       updateSelectInput(session, "new_department", selected = "")
-      updateNumericInput(session, "edit_user_id", value = NA)
+      updateNumericInput(session, "edit_user_id", value = NULL)
       updateActionButton(session, "save_user", 
                        label = "Create",
                        icon = icon("check"))
@@ -444,7 +444,7 @@ users_server <- function(id) {
       updateTextInput(session, "new_username", value = "")
       updateSelectInput(session, "new_role", selected = "VIEWER")
       updateSelectInput(session, "new_department", selected = "")
-      updateNumericInput(session, "edit_user_id", value = NA)
+      updateNumericInput(session, "edit_user_id", value = NULL)
     })
     
     # Refresh button

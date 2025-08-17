@@ -233,7 +233,7 @@ packages_simple_server <- function(id) {
       # Reset form for new package
       editing_package_id(NULL)
       updateTextInput(session, "new_package_name", value = "")
-      updateNumericInput(session, "edit_package_id", value = NA)
+      updateNumericInput(session, "edit_package_id", value = NULL)
       updateActionButton(session, "save_package", 
                        label = "Create",
                        icon = icon("check"))
@@ -280,7 +280,7 @@ packages_simple_server <- function(id) {
       
       # Reset form
       updateTextInput(session, "new_package_name", value = "")
-      updateNumericInput(session, "edit_package_id", value = NA)
+      updateNumericInput(session, "edit_package_id", value = NULL)
     })
     
     # Refresh button
