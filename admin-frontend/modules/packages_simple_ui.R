@@ -85,7 +85,7 @@ packages_simple_ui <- function(id) {
                   
                   # Hidden ID field for editing
                   hidden(
-                    numericInput(ns("edit_package_id"), "ID", value = NA)
+                    numericInput(ns("edit_package_id"), "ID", value = NULL)
                   ),
                   
                   # Action buttons

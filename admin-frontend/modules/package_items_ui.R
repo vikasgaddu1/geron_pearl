@@ -100,7 +100,7 @@ package_items_ui <- function(id) {
                   
                   # Hidden ID field for editing
                   hidden(
-                    numericInput(ns("edit_item_id"), "ID", value = NA)
+                    numericInput(ns("edit_item_id"), "ID", value = NULL)
                   ),
                   
                   # Bulk Upload Section

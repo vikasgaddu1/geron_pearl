@@ -94,7 +94,7 @@ users_ui <- function(id) {
                   
                   # Hidden ID field for editing
                   hidden(
-                    numericInput(ns("edit_user_id"), "ID", value = NA)
+                    numericInput(ns("edit_user_id"), "ID", value = NULL)
                   ),
                   
                   # Action buttons
