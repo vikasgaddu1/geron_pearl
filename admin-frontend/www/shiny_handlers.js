@@ -25,247 +25,51 @@ Shiny.addCustomMessageHandler('toggleEffortSelection', function (message) {
   }
 });
 
-// Helper function to render badges based on summary data
-function renderCommentBadges(summary) {
-  var badgesHtml = '';
-  
-  // PRIORITY: Unresolved comments badge (most important - always show first)
-  if (summary.unresolved_comments && summary.unresolved_comments > 0) {
-    badgesHtml += '<span class="badge bg-warning text-dark me-1" title="⚠️ ' + summary.unresolved_comments + ' Unaddressed Comments - Action Required!" style="font-weight: bold;">' + 
-                 '<i class="fa fa-exclamation-triangle me-1"></i>' + summary.unresolved_comments + '</span>';
-  }
-  
-  // Add total comments badge if there are any comments (but less prominent)
-  if (summary.total_comments && summary.total_comments > 0) {
-    badgesHtml += '<span class="badge bg-info me-1" title="Total Comments">' + 
-                 summary.total_comments + '</span>';
-  }
-  
-  // Add pinned comments badge if there are any
-  if (summary.pinned_comments && summary.pinned_comments > 0) {
-    badgesHtml += '<span class="badge bg-danger" title="Pinned Comments">' + 
-                 '<i class="fa fa-thumb-tack me-1"></i>' + summary.pinned_comments + '</span>';
-  }
-  
-  return badgesHtml;
-}
-
-// Helper function to update button styling based on comments
-function updateCommentButtonStyle(trackerId, summary) {
-  var badgeContainer = document.getElementById('badges-' + trackerId);
-  if (!badgeContainer) return;
-  
-  var commentButton = badgeContainer.closest('.comment-column').querySelector('.comment-add-btn');
-  if (commentButton && summary.unresolved_comments && summary.unresolved_comments > 0) {
-    // Add a subtle pulsing animation to draw attention
-    commentButton.classList.add('btn-warning');
-    commentButton.classList.remove('btn-success');
-    commentButton.style.animation = 'subtle-pulse 2s infinite';
-    commentButton.title = 'Add Comment - ' + summary.unresolved_comments + ' unaddressed comment(s) need attention!';
-  } else if (commentButton) {
-    // Reset to normal state
-    commentButton.classList.add('btn-success');
-    commentButton.classList.remove('btn-warning');
-    commentButton.style.animation = '';
-    commentButton.title = 'Add Comment';
-  }
-}
-
-// Optimistic badge update for single tracker (immediate feedback)
-function updateTrackerBadgeOptimistic(trackerId, changeType, commentData) {
-  console.log('🚀 Optimistic badge update for tracker', trackerId, 'change:', changeType);
-  
-  var badgeContainer = document.getElementById('badges-' + trackerId);
-  if (!badgeContainer) {
-    // Try fallback search methods
-    badgeContainer = document.querySelector(`.comment-badges[data-tracker-id="${trackerId}"]`);
-    if (!badgeContainer) {
-      badgeContainer = document.querySelector(`[id*="badges-${trackerId}"]`);
-    }
-    if (!badgeContainer) {
-      console.log('⏭️ Tracker', trackerId, 'not visible - skipping optimistic update');
-      return;
-    } else {
-      console.log('✅ Found badge container using fallback method for tracker', trackerId);
-    }
-  }
-  
-  // Get current counts from existing badges or start with zeros
-  var currentSummary = getCurrentBadgeCounts(trackerId);
-  
-  // Apply optimistic changes based on comment type
-  switch (changeType) {
-    case 'comment_created':
-      currentSummary.total_comments++;
-      // New comments are unresolved by default unless specified otherwise
-      if (!commentData.is_resolved) {
-        currentSummary.unresolved_comments++;
-      }
-      if (commentData.is_pinned) {
-        currentSummary.pinned_comments++;
-      }
-      break;
-      
-    case 'comment_resolved':
-      if (commentData.is_resolved) {
-        currentSummary.unresolved_comments = Math.max(0, currentSummary.unresolved_comments - 1);
-      } else {
-        currentSummary.unresolved_comments++;
-      }
-      break;
-      
-    case 'comment_deleted':
-      currentSummary.total_comments = Math.max(0, currentSummary.total_comments - 1);
-      if (!commentData.is_resolved) {
-        currentSummary.unresolved_comments = Math.max(0, currentSummary.unresolved_comments - 1);
-      }
-      if (commentData.is_pinned) {
-        currentSummary.pinned_comments = Math.max(0, currentSummary.pinned_comments - 1);
-      }
-      break;
-  }
-  
-  // Update the badges immediately
-  updateSingleTrackerBadge(trackerId, currentSummary);
-  
-  console.log('✅ Optimistic update complete for tracker', trackerId);
-}
-
-// Get current badge counts from the DOM
-function getCurrentBadgeCounts(trackerId) {
-  var badgeContainer = document.getElementById('badges-' + trackerId);
-  var summary = {
-    total_comments: 0,
-    unresolved_comments: 0,
-    pinned_comments: 0
-  };
-  
-  if (!badgeContainer) return summary;
-  
-  // Parse existing badges to get current counts
-  var totalBadge = badgeContainer.querySelector('.badge.bg-info');
-  var unresolvedBadge = badgeContainer.querySelector('.badge.bg-warning');
-  var pinnedBadge = badgeContainer.querySelector('.badge.bg-danger');
-  
-  if (totalBadge) {
-    summary.total_comments = parseInt(totalBadge.textContent.trim()) || 0;
-  }
-  
-  if (unresolvedBadge) {
-    // Extract number from text content, accounting for the icon
-    var text = unresolvedBadge.textContent.replace(/[^\d]/g, '');
-    summary.unresolved_comments = parseInt(text) || 0;
-  }
-  
-  if (pinnedBadge) {
-    // Extract number from text content, accounting for the icon
-    var text = pinnedBadge.textContent.replace(/[^\d]/g, '');
-    summary.pinned_comments = parseInt(text) || 0;
-  }
-  
-  return summary;
-}
-
-// Update badges for a single tracker
-function updateSingleTrackerBadge(trackerId, summary) {
-  var badgeContainer = document.getElementById('badges-' + trackerId);
-  if (!badgeContainer) {
-    // Silently skip - tracker not visible on current page/view
-    return;
-  }
-  
-  badgeContainer.innerHTML = renderCommentBadges(summary);
-  updateCommentButtonStyle(trackerId, summary);
-  
-  // Add a subtle flash effect to indicate update
-  badgeContainer.style.opacity = '0.7';
-  setTimeout(() => {
-    badgeContainer.style.opacity = '1';
-  }, 150);
-}
-
-// Update comment badges with summaries from the API
-Shiny.addCustomMessageHandler('updateCommentBadges', function (message) {
+// Handle real-time comment updates from WebSocket - Enhanced for new simplified system
+function refreshCommentsHandler(message) {
   try {
-    console.log('updateCommentBadges called with:', message);
-    if (!message.summaries) {
-      console.log('No summaries in message');
-      return;
+    console.log('📬 Received refresh comments message from WebSocket:', message);
+    const trackerId = message.tracker_id;
+    const eventType = message.event_type;
+    const unresolvedCount = message.unresolved_count || 0;
+    
+    // Update smart comment button with new count using simplified system
+    if (typeof updateSmartCommentButton === 'function') {
+      updateSmartCommentButton(trackerId, unresolvedCount);
     }
     
-    var trackerIds = Object.keys(message.summaries);
-    console.log('Processing summaries for trackers:', trackerIds);
-    
-    var updatedCount = 0;
-    var skippedCount = 0;
-    
-    // Iterate through all comment badge containers
-    trackerIds.forEach(function(trackerId) {
-      var summary = message.summaries[trackerId];
-      var badgeContainer = document.getElementById('badges-' + trackerId);
-      
-      if (badgeContainer) {
-        updateSingleTrackerBadge(trackerId, summary);
-        updatedCount++;
-      } else {
-        skippedCount++;
+    // Check if this tracker's comments are currently displayed and refresh them
+    const commentsContainer = $(`#comments-list-${trackerId}`);
+    if (commentsContainer.length > 0) {
+      console.log(`🔄 Refreshing comments for tracker ${trackerId} due to ${eventType}`);
+      if (typeof loadCommentsForTracker === 'function') {
+        loadCommentsForTracker(trackerId);
       }
-    });
-    
-    console.log('Badge update summary: ' + updatedCount + ' updated, ' + skippedCount + ' skipped (not visible)');
-  } catch (e) {
-    console.warn('updateCommentBadges error', e);
-  }
-});
-
-// DEBUG: Add global tracking for WebSocket events from Shiny
-window.pearlWebSocketEventCounter = 0;
-
-// Handle real-time comment updates from WebSocket - ENHANCED for cross-browser sync
-Shiny.addCustomMessageHandler('updateCommentBadgeRealtime', function(message) {
-  try {
-    window.pearlWebSocketEventCounter++;
-    console.log(`🎯 SHINY->JS EVENT #${window.pearlWebSocketEventCounter}: updateCommentBadgeRealtime`);
-    
-    // Enhanced logging for cross-browser debugging
-    if (message.is_cross_browser) {
-      console.log('🌍 CROSS-BROWSER WebSocket badge update received:', message);
-    } else {
-      console.log('🔄 Local real-time comment badge update:', message);
     }
     
-    if (!message.tracker_id) {
-      console.warn('No tracker_id in real-time badge update message');
-      return;
-    }
-    
-    // Determine the change type and comment data
-    var changeType = message.event_type;
-    var commentData = message.comment_data || {};
-    var source = message.source || 'local';
-    
-    console.log(`📊 Processing badge update: tracker=${message.tracker_id}, type=${changeType}, source=${source}`);
-    
-    // Apply badge update (optimistic for local, authoritative for cross-browser)
-    updateTrackerBadgeOptimistic(message.tracker_id, changeType, commentData);
-    
-    // Add visual indication for cross-browser updates
-    if (message.is_cross_browser) {
-      var badgeContainer = document.getElementById('badges-' + message.tracker_id);
-      if (badgeContainer) {
-        // Add brief flash effect to show cross-browser update
-        badgeContainer.style.backgroundColor = '#e3f2fd';
-        badgeContainer.style.transition = 'background-color 0.3s';
-        setTimeout(() => {
-          badgeContainer.style.backgroundColor = '';
-        }, 1000);
+    // Show brief notification for real-time updates
+    if (eventType === 'comment_created') {
+      if (typeof showCommentNotification === 'function') {
+        showCommentNotification(`New comment added to tracker ${trackerId}`, 'success');
+      }
+    } else if (eventType === 'comment_updated') {
+      if (typeof showCommentNotification === 'function') {
+        showCommentNotification(`Comment updated in tracker ${trackerId}`, 'info');
+      }
+    } else if (eventType === 'comment_resolved') {
+      if (typeof showCommentNotification === 'function') {
+        showCommentNotification(`Comment resolved in tracker ${trackerId}`, 'success');
       }
     }
     
   } catch (e) {
-    console.error('❌ Error in real-time comment badge update:', e);
+    console.error('❌ Error handling real-time comment refresh:', e);
   }
-});
+}
+
+// Register both as Shiny message handler and global function
+Shiny.addCustomMessageHandler('refreshComments', refreshCommentsHandler);
+window.refreshCommentsHandler = refreshCommentsHandler;
 
 // Debug: Add WebSocket connection status indicator
 Shiny.addCustomMessageHandler('websocket_debug_info', function(message) {
@@ -283,111 +87,176 @@ Shiny.addCustomMessageHandler('websocket_debug_info', function(message) {
   }
 });
 
-// DEBUG: Function to test cross-browser comment badge synchronization
-window.testCrossBrowserCommentSync = function() {
-  console.log('🧪 TESTING Cross-Browser Comment Badge Synchronization');
-  console.log('='.repeat(60));
-  
-  // Check WebSocket connection
-  console.log('1. WebSocket Connection:');
-  if (window.pearlWebSocket && window.pearlWebSocket.isConnected()) {
-    console.log('   ✅ WebSocket is connected');
-  } else {
-    console.log('   ❌ WebSocket is NOT connected');
-    return;
-  }
-  
-  // Check if we're on the tracker page
-  console.log('2. Page/Module Check:');
-  var trackerElements = document.querySelectorAll('.comment-badges');
-  console.log(`   Found ${trackerElements.length} comment badge containers`);
-  
-  if (trackerElements.length === 0) {
-    console.log('   ❌ No comment badge containers found - not on tracker page?');
-    return;
-  }
-  
-  // Test Shiny input availability
-  console.log('3. Shiny Event Counter:');
-  console.log(`   Total Shiny->JS events received: ${window.pearlWebSocketEventCounter || 0}`);
-  
-  // Test manual WebSocket event injection
-  console.log('4. Testing Manual Event Injection:');
+// Cache for comment summaries so we can apply after tables render
+window.pearlCommentSummaries = window.pearlCommentSummaries || {};
+
+// Helper to apply cached summaries to any buttons currently in the DOM
+function applyCommentSummariesToButtons() {
   try {
-    // Simulate a WebSocket event
-    if (typeof Shiny !== 'undefined') {
-      Shiny.setInputValue('tracker_comments-websocket_event', {
-        type: 'comment_created',
-        data: {
-          tracker_id: 151,
-          comment_text: 'TEST CROSS-BROWSER',
-          is_resolved: false,
-          is_pinned: false
-        },
-        timestamp: Date.now()
-      }, {priority: 'event'});
-      console.log('   ✅ Injected test WebSocket event to Shiny');
-    } else {
-      console.log('   ❌ Shiny is not available');
-    }
-  } catch (e) {
-    console.log('   ❌ Error injecting test event:', e.message);
-  }
-  
-  console.log('');
-  console.log('📋 Instructions:');
-  console.log('1. Run this function in BOTH browser windows');
-  console.log('2. Add a comment in one browser');
-  console.log('3. Watch for "🎯 SHINY->JS EVENT" messages in the other browser');
-  console.log('4. If no events appear, the R observer is not loaded/active');
-};
-
-// Auto-add to help
-console.log('🧪 DEBUG: Added window.testCrossBrowserCommentSync() function');
-
-// OPTION 1: Periodic Badge Refresh (Most Reliable)
-// Implements 30-second badge refresh for cross-browser synchronization
-(function initPeriodicBadgeRefresh() {
-  console.log('🔄 OPTION 1: Initializing periodic badge refresh (30 seconds)');
-  
-  setInterval(() => {
-    // Check if there are any comment badges visible on the page
-    var badgeContainers = document.querySelectorAll('.comment-badges');
-    if (badgeContainers.length > 0) {
-      console.log(`🔄 PERIODIC REFRESH: Found ${badgeContainers.length} badge containers, triggering refresh`);
-      
-      // Trigger Shiny input to refresh all badges
-      if (typeof Shiny !== 'undefined') {
-        Shiny.setInputValue('refresh_all_badges', Date.now(), {priority: 'event'});
+    const map = window.pearlCommentSummaries || {};
+    const buttons = document.querySelectorAll('.comment-btn[data-tracker-id]');
+    buttons.forEach(btn => {
+      const idStr = btn.getAttribute('data-tracker-id');
+      if (!idStr) return;
+      const id = parseInt(idStr, 10);
+      const count = map[id];
+      if (typeof count !== 'undefined' && typeof updateSmartCommentButton === 'function') {
+        updateSmartCommentButton(id, Number(count));
       }
-    }
-  }, 30000); // 30 seconds
-  
-  console.log('✅ Periodic badge refresh initialized - will refresh every 30 seconds');
-})();
+    });
+  } catch (e) {
+    console.error('❌ Error applying comment summaries to buttons:', e);
+  }
+}
 
-// Handle periodic badge refresh trigger from R
-Shiny.addCustomMessageHandler('triggerBadgeRefresh', function(message) {
+// Re-apply cached unresolved counts after any DataTable draw or Shiny output recalculation
+$(document).on('draw.dt', 'table.dataTable', function () {
+  try { applyCommentSummariesToButtons(); } catch (e) { console.warn('Badge reapply on draw error', e); }
+});
+$(document).on('shiny:recalculated', function () {
+  try { applyCommentSummariesToButtons(); } catch (e) { console.warn('Badge reapply on recalculated error', e); }
+});
+
+// Handle initial smart comment button updates from R server
+Shiny.addCustomMessageHandler('updateSmartCommentButtons', function(message) {
   try {
-    console.log('🔄 PERIODIC REFRESH: Received triggerBadgeRefresh message from R');
+    console.log('🎯 Received smart comment button update message:', message);
+
+    // Accept either an array or an object map keyed by tracker_id
+    const summaries = message && message.summaries
+      ? (Array.isArray(message.summaries) ? message.summaries : Object.values(message.summaries))
+      : [];
+
+    if (!summaries.length) {
+      console.log('No summaries data provided');
+      return;
+    }
+
+    // Build cache map and persist globally for later draw callbacks
+    const summaryMap = {};
+
+    // Update each smart comment button with the actual unresolved count
+    summaries.forEach(summary => {
+      const trackerId = summary.tracker_id ?? summary.trackerId ?? summary.id;
+      const unresolvedCount = summary.unresolved_count ?? summary.unresolved_comments ?? 0;
+
+      console.log(`🔧 Updating smart button for tracker ${trackerId} with count ${unresolvedCount}`);
+
+      // Update the smart comment button using the existing function
+      if (trackerId != null && typeof updateSmartCommentButton === 'function') {
+        updateSmartCommentButton(trackerId, unresolvedCount);
+        summaryMap[Number(trackerId)] = Number(unresolvedCount);
+      } else if (trackerId == null) {
+        console.log('⚠️ Missing trackerId in summary:', summary);
+      } else {
+        console.log('updateSmartCommentButton function not available');
+      }
+    });
+
+    // Save and re-apply after this message in case tables render after
+    window.pearlCommentSummaries = summaryMap;
+    applyCommentSummariesToButtons();
+
+  } catch (e) {
+    console.error('❌ Error updating smart comment buttons:', e);
+  }
+});
+
+// Helper function for optimistic badge updates (used by comment_expansion.js)
+function updateTrackerBadgeOptimistic(trackerId, eventType, commentData) {
+  try {
+    console.log(`🔄 Optimistic badge update: tracker=${trackerId}, event=${eventType}`);
     
-    // Check if we're on a page with comment badges
-    var badgeContainers = document.querySelectorAll('.comment-badges');
-    if (badgeContainers.length === 0) {
-      console.log('🔄 PERIODIC REFRESH: No badge containers found, skipping refresh');
+    // Find the smart comment button for this tracker
+    const button = $(`.comment-btn[data-tracker-id="${trackerId}"]`);
+    if (button.length === 0) {
+      console.log(`No comment button found for tracker ${trackerId}`);
       return;
     }
     
-    console.log(`🔄 PERIODIC REFRESH: Found ${badgeContainers.length} badge containers, triggering module refresh`);
+    // Get current count from button
+    let currentCount = parseInt(button.attr('data-unresolved-count') || '0');
     
-    // Trigger the reporting effort tracker module to refresh its data
-    // This will automatically refresh comment badges as part of the normal flow
-    if (typeof Shiny !== 'undefined') {
-      Shiny.setInputValue('reporting_effort_tracker-refresh_data', Date.now(), {priority: 'event'});
-      console.log('✅ PERIODIC REFRESH: Triggered reporting_effort_tracker refresh');
+    // Update count based on event type
+    if (eventType === 'comment_created' && !commentData.is_resolved) {
+      currentCount++;
+    } else if (eventType === 'comment_resolved' && commentData.is_resolved) {
+      currentCount = Math.max(0, currentCount - 1);
+    } else if (eventType === 'comment_unresolved' && !commentData.is_resolved) {
+      currentCount++;
+    } else if (eventType === 'comment_deleted' && !commentData.is_resolved) {
+      currentCount = Math.max(0, currentCount - 1);
+    }
+    
+    // Update the smart comment button
+    if (typeof updateSmartCommentButton === 'function') {
+      updateSmartCommentButton(trackerId, currentCount);
     }
     
   } catch (e) {
-    console.error('❌ ERROR: Failed to handle periodic badge refresh trigger:', e);
+    console.error('❌ Error in optimistic badge update:', e);
+  }
+}
+
+// Unified badge update handler for cross-browser synchronization
+Shiny.addCustomMessageHandler('unifiedCommentBadgeUpdate', function(message) {
+  try {
+    console.log('🎯 Unified cross-browser badge update:', message);
+    
+    const trackerId = message.tracker_id;
+    const unresolvedCount = message.unresolved_count;
+    const source = message.source || 'unknown';
+    
+    console.log(`🔄 Cross-browser badge update: tracker=${trackerId}, count=${unresolvedCount}, source=${source}`);
+    
+    // Always use the most recent count value for cross-browser sync
+    if (typeof updateSmartCommentButton === 'function') {
+      updateSmartCommentButton(trackerId, unresolvedCount);
+    } else {
+      console.log('⚠️ updateSmartCommentButton function not available');
+    }
+    
+    // Store update metadata for debugging
+    const button = $(`.comment-btn[data-tracker-id="${trackerId}"]`);
+    if (button.length > 0) {
+      button.attr('data-last-update-source', source);
+      button.attr('data-last-update-time', Date.now());
+      button.attr('data-cross-browser-sync', 'true');
+    }
+    
+  } catch (e) {
+    console.error('❌ Error in unified cross-browser badge update:', e);
   }
 });
+
+// Dashboard summary card toggle handler
+Shiny.addCustomMessageHandler('toggleDashboardCard', function(message) {
+  try {
+    console.log('📊 Dashboard card toggle:', message);
+    
+    const cardElement = document.querySelector('[id*="dashboard_summary_card"]');
+    const countElement = document.querySelector('[id*="attention_count"]');
+    
+    if (cardElement) {
+      if (message.show && message.count > 0) {
+        cardElement.style.display = 'block';
+        if (countElement) {
+          countElement.textContent = message.count;
+          // Update badge color based on urgency
+          countElement.className = message.count > 5 ? 
+            'badge bg-danger text-white fs-6' : 
+            'badge bg-warning text-dark fs-6';
+        }
+      } else {
+        cardElement.style.display = 'none';
+      }
+    } else {
+      console.log('⚠️ Dashboard card element not found');
+    }
+    
+  } catch (e) {
+    console.error('❌ Error toggling dashboard card:', e);
+  }
+});
+
+console.log('✅ Simplified shiny_handlers.js loaded - legacy periodic refresh system removed');
