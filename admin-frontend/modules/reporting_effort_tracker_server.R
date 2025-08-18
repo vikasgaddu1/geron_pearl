@@ -1183,10 +1183,11 @@ reporting_effort_tracker_server <- function(id) {
           
           # Update badge with new comment count
           if (!is.null(tracker_id) && !is.null(unresolved_count)) {
-            session$sendCustomMessage("updateCommentBadges", list(
+            cat("DEBUG: Updating comment badge via WebSocket - tracker_id:", tracker_id, "unresolved_count:", unresolved_count, "\n")
+            session$sendCustomMessage("updateSmartCommentButtons", list(
               summaries = list(list(
                 tracker_id = tracker_id,
-                unresolved_parent_comments = unresolved_count
+                unresolved_count = unresolved_count  # Use consistent field name
               )),
               source = "websocket_realtime"
             ))

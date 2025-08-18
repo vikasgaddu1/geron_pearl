@@ -244,7 +244,7 @@ async def get_comment_summary(
         parent_comments = [c for c in comments if c.is_parent_comment]
         replies = [c for c in comments if not c.is_parent_comment]
         
-        unresolved_parent_comments = len([c for c in parent_comments if not c.is_resolved])
+        unresolved_count = len([c for c in parent_comments if not c.is_resolved])
         resolved_parent_comments = len([c for c in parent_comments if c.is_resolved])
         total_replies = len(replies)
         
@@ -255,7 +255,7 @@ async def get_comment_summary(
         return TrackerCommentSummary(
             tracker_id=tracker_id,
             total_comments=total_comments,
-            unresolved_parent_comments=unresolved_parent_comments,
+            unresolved_count=unresolved_count,
             resolved_parent_comments=resolved_parent_comments,
             total_replies=total_replies,
             latest_comment_at=latest_comment_at

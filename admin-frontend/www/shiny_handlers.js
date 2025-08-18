@@ -90,6 +90,39 @@ Shiny.addCustomMessageHandler('websocket_debug_info', function(message) {
 // Cache for comment summaries so we can apply after tables render
 window.pearlCommentSummaries = window.pearlCommentSummaries || {};
 
+// Smart comment button update function (bridges to updateCommentButtonBadge)
+window.updateSmartCommentButton = function(trackerId, unresolvedCount) {
+  console.log(`🔧 updateSmartCommentButton: tracker=${trackerId}, count=${unresolvedCount}`);
+  
+  // Use the existing badge update function if available
+  if (typeof window.updateCommentButtonBadge === 'function') {
+    window.updateCommentButtonBadge(trackerId, unresolvedCount);
+    return;
+  }
+  
+  // Fallback implementation for button update
+  const button = document.querySelector(`[data-tracker-id="${trackerId}"]`);
+  if (!button) {
+    console.warn(`No comment button found for tracker ${trackerId}`);
+    return;
+  }
+  
+  // Store the count as data attribute
+  button.setAttribute('data-unresolved-count', unresolvedCount);
+  
+  if (unresolvedCount === 0) {
+    // Green button with just "+"
+    button.className = 'btn btn-success btn-sm comment-btn';
+    button.innerHTML = '<i class="fa fa-plus"></i>';
+    button.title = 'Add Comment';
+  } else {
+    // Yellow button with "+N" 
+    button.className = 'btn btn-warning btn-sm comment-btn';
+    button.innerHTML = `<i class="fa fa-plus"></i> ${unresolvedCount}`;
+    button.title = `${unresolvedCount} Unresolved Comments`;
+  }
+};
+
 // Helper to apply cached summaries to any buttons currently in the DOM
 function applyCommentSummariesToButtons() {
   try {

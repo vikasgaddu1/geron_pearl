@@ -55,7 +55,7 @@ class TrackerCommentSummary(BaseModel):
     """Summary of comments for a tracker"""
     tracker_id: int
     total_comments: int
-    unresolved_parent_comments: int  # Only parent comments count toward unresolved badge
+    unresolved_count: int  # Only parent comments count toward unresolved badge
     resolved_parent_comments: int
     total_replies: int
     latest_comment_at: Optional[datetime] = None

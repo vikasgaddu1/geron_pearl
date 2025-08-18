@@ -114,6 +114,8 @@ class TypeMapper:
     # Common type equivalencies
     TYPE_EQUIVALENCIES = {
         ('str', 'string'): True,
+        ('str', 'text'): True,  # SQLAlchemy Text maps to Python str
+        ('text', 'str'): True,  # Reverse mapping
         ('int', 'integer'): True,
         ('float', 'number'): True,
         ('bool', 'boolean'): True,
@@ -294,10 +296,22 @@ class FastAPIModelValidator:
         
         # Extract fields
         for stmt in node.body:
+            field_info = None
+            
+            # Handle annotated assignments (modern SQLAlchemy 2.0+)
             if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
-                field_info = self._extract_sqlalchemy_field_info(stmt, content)
-                if field_info:
-                    model_info.fields[field_info.name] = field_info
+                field_info = self._extract_sqlalchemy_field_info_annotated(stmt, content)
+            
+            # Handle regular assignments (traditional SQLAlchemy style)
+            elif isinstance(stmt, ast.Assign):
+                for target in stmt.targets:
+                    if isinstance(target, ast.Name):
+                        field_info = self._extract_sqlalchemy_field_info_simple(target.id, stmt, content)
+                        if field_info:
+                            break  # Only process the first valid target
+            
+            if field_info:
+                model_info.fields[field_info.name] = field_info
         
         return model_info
     
@@ -324,7 +338,7 @@ class FastAPIModelValidator:
         
         return model_info
     
-    def _extract_sqlalchemy_field_info(self, stmt: ast.AnnAssign, content: str) -> Optional[FieldInfo]:
+    def _extract_sqlalchemy_field_info_annotated(self, stmt: ast.AnnAssign, content: str) -> Optional[FieldInfo]:
         """Extract field information from SQLAlchemy model."""
         field_name = stmt.target.id
         
@@ -362,6 +376,55 @@ class FastAPIModelValidator:
                                 field_info.constraints['primary_key'] = self._evaluate_boolean(keyword.value)
                             elif keyword.arg == 'autoincrement':
                                 field_info.constraints['autoincrement'] = self._evaluate_boolean(keyword.value)
+        
+        return field_info
+    
+    def _extract_sqlalchemy_field_info_simple(self, field_name: str, stmt: ast.Assign, content: str) -> Optional[FieldInfo]:
+        """Extract field information from SQLAlchemy model using simple assignment (id = Column(...))."""
+        # Skip assignments that aren't Column definitions
+        if not isinstance(stmt.value, ast.Call):
+            return None
+        
+        func_name = self._ast_to_string(stmt.value.func)
+        if 'Column' not in func_name and 'mapped_column' not in func_name:
+            return None
+        
+        field_info = FieldInfo(
+            name=field_name,
+            type_="unknown"  # Will be inferred from Column definition
+        )
+        
+        # Extract column properties
+        for arg in stmt.value.args:
+            if isinstance(arg, ast.Name):
+                # Column type (first positional argument)
+                arg_name = arg.id
+                if arg_name in self.type_mapper.SQLALCHEMY_TO_PYTHON:
+                    python_type = self.type_mapper.SQLALCHEMY_TO_PYTHON[arg_name]
+                    field_info.type_ = arg_name.lower()
+                    field_info.python_type = python_type
+                break
+            elif isinstance(arg, ast.Call) and isinstance(arg.func, ast.Name):
+                # Handle DateTime(timezone=True) cases
+                arg_name = arg.func.id
+                if arg_name in self.type_mapper.SQLALCHEMY_TO_PYTHON:
+                    python_type = self.type_mapper.SQLALCHEMY_TO_PYTHON[arg_name]
+                    field_info.type_ = arg_name.lower()
+                    field_info.python_type = python_type
+                break
+        
+        # Extract keyword arguments
+        for keyword in stmt.value.keywords:
+            if keyword.arg == 'nullable':
+                field_info.nullable = self._evaluate_boolean(keyword.value)
+            elif keyword.arg == 'default':
+                field_info.default = self._ast_to_string(keyword.value)
+            elif keyword.arg == 'index':
+                field_info.constraints['index'] = self._evaluate_boolean(keyword.value)
+            elif keyword.arg == 'primary_key':
+                field_info.constraints['primary_key'] = self._evaluate_boolean(keyword.value)
+            elif keyword.arg == 'autoincrement':
+                field_info.constraints['autoincrement'] = self._evaluate_boolean(keyword.value)
         
         return field_info
     

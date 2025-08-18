@@ -440,14 +440,13 @@ if (typeof Shiny !== 'undefined') {
         
         if (summary && typeof summary === 'object') {
           const trackerId = summary.tracker_id;
-          // Support both field names: unresolved_count (expected) and unresolved_parent_comments (actual from R)
-          const unresolvedCount = summary.unresolved_count !== undefined ? summary.unresolved_count : summary.unresolved_parent_comments;
+          const unresolvedCount = summary.unresolved_count;
           
           if (trackerId !== undefined && unresolvedCount !== undefined) {
             console.log(`Updating button for tracker ${trackerId} with count ${unresolvedCount}`);
             updateCommentButtonBadge(trackerId, unresolvedCount);
           } else {
-            console.warn('Missing tracker_id or unresolved_count/unresolved_parent_comments in summary:', summary);
+            console.warn('Missing tracker_id or unresolved_count in summary:', summary);
           }
         } else {
           console.warn('Invalid summary format:', summary);
