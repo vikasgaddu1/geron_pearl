@@ -440,7 +440,7 @@ if (typeof Shiny !== 'undefined') {
         
         if (summary && typeof summary === 'object') {
           const trackerId = summary.tracker_id;
-          const unresolvedCount = summary.unresolved_count;
+          const unresolvedCount = summary.unresolved_count || summary.unresolved_parent_comments || 0;
           
           if (trackerId !== undefined && unresolvedCount !== undefined) {
             console.log(`Updating button for tracker ${trackerId} with count ${unresolvedCount}`);
