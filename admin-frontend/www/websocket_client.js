@@ -145,20 +145,19 @@ class PearlWebSocketClient {
                     if (trackerId) {
                         console.log('✂️ Attempting surgical row removal for tracker:', trackerId);
                         
-                        // Try surgical removal first
+                        // Try surgical removal first (local optimization)
                         const surgicalSuccess = window.removeTrackerRowSurgically(trackerId, deleteContext);
                         
                         if (surgicalSuccess) {
-                            console.log('✅ Surgical removal successful - skipping full table refresh');
-                            // Don't route to Shiny module for full refresh since surgical removal worked
-                            return;
+                            console.log('✅ Surgical removal successful locally');
+                            // Continue routing to ensure cross-browser synchronization
                         } else {
-                            console.log('⚠️ Surgical removal failed - will fall back to full refresh via Shiny');
-                            // Continue with normal routing for fallback refresh
+                            console.log('⚠️ Surgical removal failed - will use full refresh via Shiny');
                         }
                     } else {
                         console.log('⚠️ No tracker ID in delete message - using full refresh');
                     }
+                    // Always route delete events to ensure cross-browser synchronization
                 }
             } else if (data.type.startsWith('comment_')) {
                 // Route comment events to reporting effort tracker module for real-time badge updates
