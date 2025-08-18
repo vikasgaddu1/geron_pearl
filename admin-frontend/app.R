@@ -118,6 +118,7 @@ ui <- page_navbar(
       tags$script(HTML(sprintf("const pearlApiUrl = '%s'; const pearlWsPath = '%s'; window.PEARL_API_URL = '%s';", API_BASE_URL, API_WEBSOCKET_PATH, API_BASE_URL))),
       tags$script(src = paste0("websocket_client.js?v=", as.numeric(Sys.time()))),
       tags$script(src = "shiny_handlers.js"),
+      tags$script(src = "crud_activity_manager.js"),
       tags$script(src = "simplified_comments.js"),
       tags$script(HTML("
         $(document).on('shiny:connected', function() {
