@@ -1171,16 +1171,16 @@ reporting_effort_tracker_server <- function(id) {
       }
     })
 
-    # WebSocket event handling - Clean implementation following established patterns
-    observeEvent(input$`reporting_effort_tracker-websocket_event`, {
-      if (!is.null(input$`reporting_effort_tracker-websocket_event`)) {
-        event_data <- input$`reporting_effort_tracker-websocket_event`
+    # WebSocket event handling - Following packages/package_items pattern
+    observeEvent(input$websocket_event, {
+      if (!is.null(input$websocket_event)) {
+        event_data <- input$websocket_event
+        
+        cat("DEBUG: R WebSocket event received - type:", event_data$type, "\n")
+        cat("DEBUG: Event data structure:", str(event_data), "\n")
         
         # Handle comment events that should trigger badge updates
         if (startsWith(event_data$type, "comment_")) {
-          cat("DEBUG: R WebSocket event received - type:", event_data$type, "\n")
-          cat("DEBUG: Event data structure:", str(event_data), "\n")
-          
           tracker_id <- event_data$data$tracker_id
           unresolved_count <- event_data$data$unresolved_count
           
