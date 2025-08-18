@@ -1355,6 +1355,22 @@ get_tracker_by_item <- function(item_id) {
   })
 }
 
+# Get all trackers for a reporting effort (bulk optimized)
+get_trackers_by_effort_bulk <- function(reporting_effort_id) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_tracker_endpoint(), "/bulk/", reporting_effort_id)) |> 
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
 
 # Import trackers using JSON payload (preferred)
 import_tracker_data_json <- function(reporting_effort_id, trackers, update_existing = TRUE) {

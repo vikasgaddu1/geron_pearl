@@ -246,6 +246,80 @@ class ReportingEffortItemTrackerCRUD:
         
         return summary
 
+    async def get_trackers_by_effort_bulk(
+        self,
+        db: AsyncSession,
+        *,
+        reporting_effort_id: int
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all trackers for a reporting effort with item and programmer details.
+        Optimized to minimize N+1 queries by joining related data.
+        """
+        from app.models.reporting_effort_item import ReportingEffortItem
+        from app.models.user import User
+        from sqlalchemy.orm import aliased
+        
+        # Create aliases for users to handle production and QC programmers
+        prod_user = aliased(User)
+        qc_user = aliased(User)
+        
+        # Single query to get all trackers with related data
+        query = select(
+            ReportingEffortItemTracker,
+            ReportingEffortItem.id.label('item_id'),
+            ReportingEffortItem.item_code.label('item_code'),
+            ReportingEffortItem.item_type.label('item_type'),
+            ReportingEffortItem.item_subtype.label('item_subtype'),
+            prod_user.username.label('prod_programmer_username'),
+            qc_user.username.label('qc_programmer_username')
+        ).select_from(
+            ReportingEffortItemTracker
+        ).join(
+            ReportingEffortItem,
+            ReportingEffortItemTracker.reporting_effort_item_id == ReportingEffortItem.id
+        ).outerjoin(
+            prod_user,
+            ReportingEffortItemTracker.production_programmer_id == prod_user.id
+        ).outerjoin(
+            qc_user,  
+            ReportingEffortItemTracker.qc_programmer_id == qc_user.id
+        ).where(
+            ReportingEffortItem.reporting_effort_id == reporting_effort_id
+        )
+        
+        result = await db.execute(query)
+        rows = result.all()
+        
+        # Convert to list of dictionaries with combined data
+        trackers = []
+        for row in rows:
+            tracker_dict = {
+                'id': row.ReportingEffortItemTracker.id,
+                'reporting_effort_item_id': row.ReportingEffortItemTracker.reporting_effort_item_id,
+                'production_status': row.ReportingEffortItemTracker.production_status,
+                'qc_status': row.ReportingEffortItemTracker.qc_status,
+                'priority': row.ReportingEffortItemTracker.priority,
+                'qc_level': row.ReportingEffortItemTracker.qc_level,
+                'due_date': row.ReportingEffortItemTracker.due_date,
+                'qc_completion_date': row.ReportingEffortItemTracker.qc_completion_date,
+                'production_programmer_id': row.ReportingEffortItemTracker.production_programmer_id,
+                'qc_programmer_id': row.ReportingEffortItemTracker.qc_programmer_id,
+                'created_at': row.ReportingEffortItemTracker.created_at,
+                'updated_at': row.ReportingEffortItemTracker.updated_at,
+                # Item details
+                'item_id': row.item_id,
+                'item_code': row.item_code,
+                'item_type': row.item_type,
+                'item_subtype': row.item_subtype,
+                # Programmer usernames
+                'prod_programmer_username': row.prod_programmer_username,
+                'qc_programmer_username': row.qc_programmer_username
+            }
+            trackers.append(tracker_dict)
+        
+        return trackers
+
 
 # Create singleton instance
 reporting_effort_item_tracker = ReportingEffortItemTrackerCRUD()

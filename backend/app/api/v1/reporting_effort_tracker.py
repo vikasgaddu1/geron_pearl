@@ -1076,3 +1076,32 @@ async def import_trackers(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to import trackers: {str(e)}"
         )
+
+
+@router.get("/bulk/{reporting_effort_id}", response_model=List[Dict[str, Any]])
+async def get_trackers_bulk(
+    *,
+    db: AsyncSession = Depends(get_db),
+    reporting_effort_id: int,
+) -> List[Dict[str, Any]]:
+    """
+    Get all trackers for a reporting effort with optimized bulk loading.
+    
+    This endpoint replaces multiple individual API calls with a single
+    optimized query that includes item details and programmer usernames.
+    Designed to improve frontend performance by eliminating N+1 queries.
+    """
+    try:
+        trackers = await reporting_effort_item_tracker.get_trackers_by_effort_bulk(
+            db, reporting_effort_id=reporting_effort_id
+        )
+        
+        logger.info(f"Retrieved {len(trackers)} trackers for effort {reporting_effort_id}")
+        return trackers
+        
+    except Exception as e:
+        logger.error(f"Error getting bulk trackers for effort {reporting_effort_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve trackers: {str(e)}"
+        )
