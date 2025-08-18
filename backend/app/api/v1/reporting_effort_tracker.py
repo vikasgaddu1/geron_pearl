@@ -359,6 +359,33 @@ async def delete_tracker(
         # Store tracker data for audit logging and broadcasting before deletion
         tracker_data = sqlalchemy_to_dict(db_tracker)
         
+        # Get item details for enhanced WebSocket context
+        item_info = None
+        try:
+            db_item = await reporting_effort_item.get(db, id=db_tracker.reporting_effort_item_id)
+            if db_item:
+                item_info = {
+                    "item_code": db_item.item_code,
+                    "item_type": db_item.item_type,
+                    "effort_id": db_item.reporting_effort_id
+                }
+        except Exception as e:
+            print(f"Error getting item info: {e}")
+        
+        # Get user context for enhanced WebSocket messaging
+        user_info = None
+        user_id = getattr(request.state, 'user_id', None)
+        if user_id:
+            try:
+                db_user = await user.get(db, id=user_id)
+                if db_user:
+                    user_info = {
+                        "user_id": db_user.id,
+                        "username": db_user.username
+                    }
+            except Exception as e:
+                print(f"Error getting user info: {e}")
+        
         # Delete the tracker
         await reporting_effort_item_tracker.delete(db, id=tracker_id)
         print(f"Tracker deleted successfully: ID {tracker_id}")
@@ -370,7 +397,7 @@ async def delete_tracker(
                 table_name="reporting_effort_item_tracker",
                 record_id=tracker_id,
                 action="DELETE",
-                user_id=getattr(request.state, 'user_id', None),
+                user_id=user_id,
                 changes={"deleted": tracker_data},
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
@@ -378,9 +405,13 @@ async def delete_tracker(
         except Exception as audit_error:
             print(f"Audit logging error: {audit_error}")
         
-        # Broadcast WebSocket event
+        # Broadcast WebSocket event with enhanced context
         try:
-            await broadcast_reporting_effort_tracker_deleted(tracker_data)
+            await broadcast_reporting_effort_tracker_deleted(
+                tracker_data, 
+                user_info=user_info, 
+                item_info=item_info
+            )
         except Exception as ws_error:
             print(f"WebSocket broadcast error: {ws_error}")
         

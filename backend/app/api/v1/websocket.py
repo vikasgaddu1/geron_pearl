@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+from datetime import datetime
 from typing import Dict, List, Set
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -492,10 +493,37 @@ async def broadcast_tracker_comment_deleted(comment_data):
     logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
-async def broadcast_reporting_effort_tracker_deleted(tracker_data):
-    """Broadcast that a reporting effort tracker was deleted."""
-    logger.info(f"Broadcasting reporting_effort_tracker_deleted: ID {tracker_data.id}")
-    message = broadcast_message("reporting_effort_tracker_deleted", sqlalchemy_to_dict(tracker_data))
+async def broadcast_reporting_effort_tracker_deleted(tracker_data, user_info=None, item_info=None):
+    """
+    Broadcast that a reporting effort tracker was deleted with enhanced context.
+    
+    Args:
+        tracker_data: The tracker that was deleted (SQLAlchemy model or dict)
+        user_info: Optional dict with user context {'user_id': int, 'username': str}
+        item_info: Optional dict with item context {'item_code': str, 'effort_id': int}
+    """
+    # Convert tracker data if it's a SQLAlchemy model
+    if hasattr(tracker_data, '__dict__'):
+        tracker_dict = sqlalchemy_to_dict(tracker_data)
+    else:
+        tracker_dict = tracker_data
+    
+    # Build enhanced message data
+    message_data = {
+        "tracker": tracker_dict,
+        "deleted_at": datetime.utcnow().isoformat(),
+    }
+    
+    # Add user context if provided
+    if user_info:
+        message_data["deleted_by"] = user_info
+    
+    # Add item context if provided
+    if item_info:
+        message_data["item"] = item_info
+    
+    logger.info(f"Broadcasting reporting_effort_tracker_deleted: ID {tracker_dict.get('id')} by user {user_info.get('username', 'unknown') if user_info else 'unknown'}")
+    message = broadcast_message("reporting_effort_tracker_deleted", message_data)
     await manager.broadcast(message)
     logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 

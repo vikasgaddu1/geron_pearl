@@ -42,7 +42,9 @@ uv run python -m app.db.init_db           # Initialize database
 # Testing
 ./test_crud_simple.sh                     # Run functional CRUD tests
 ./test_packages_crud.sh                   # Test packages system
+./test_reporting_effort_tracker_crud.sh   # Test tracker CRUD operations
 ./test_study_deletion_protection_fixed.sh # Test deletion protection
+./test_tracker_delete_simple.sh           # Test tracker deletion functionality
 uv run python tests/integration/test_websocket_broadcast.py  # Test WebSocket
 
 # Code Quality
@@ -53,6 +55,10 @@ make typecheck                            # Type checking only
 # Database
 uv run alembic upgrade head               # Apply migrations
 uv run alembic revision --autogenerate -m "Description"  # Create migration
+
+# Cascade Migration (for orphaned records fix)
+uv run python execute_cascade_migration.py  # Execute CASCADE DELETE migration
+uv run python analyze_orphaned_records.py   # Analyze orphaned records
 ```
 
 ### Frontend Commands
@@ -86,6 +92,11 @@ powershell -Command "Stop-Process -Id <PID> -Force"
 # Alternative: Kill all Python/R processes
 powershell -Command "Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force"
 powershell -Command "Get-Process Rscript -ErrorAction SilentlyContinue | Stop-Process -Force"
+
+# Quick utility scripts (from scripts/ directory)
+./scripts/kill_backend.bat                # Kill backend only
+./scripts/kill3838.bat                    # Kill frontend only  
+./scripts/kill_all_services.bat           # Kill both services
 ```
 
 ## Critical System Constraints
@@ -96,6 +107,14 @@ powershell -Command "Get-Process Rscript -ErrorAction SilentlyContinue | Stop-Pr
 - ❌ Batch test execution frequently fails  
 - 📋 **MANDATORY**: Read `backend/tests/README.md` before creating ANY tests
 - 🎯 **Success Metric**: Individual test reliability, not batch pass rates
+
+### Database Integrity & Orphaned Records
+**🛡️ CASCADE DELETE MIGRATION AVAILABLE**: The system has comprehensive migration scripts ready to implement CASCADE DELETE constraints to prevent orphaned records.
+- **Current State**: 31 foreign key constraints lack proper CASCADE behavior
+- **Migration Ready**: `execute_cascade_migration.py` script provides complete solution
+- **Analysis Available**: `analyze_orphaned_records.py` identifies current orphaned data
+- **Risk Mitigation**: Automatic backup creation and rollback procedures included
+- **Documentation**: See `CASCADE_DELETE_MIGRATION_PLAN.md` for complete migration strategy
 
 ### WebSocket Real-time Implementation
 **📡 CRITICAL**: WebSocket integration requires specific data conversion patterns.
@@ -310,9 +329,10 @@ make typecheck  # Type checking only
 ### Database Schema Overview
 **Hierarchical Entity Relationships**:
 ```
-Study (1) ←→ (N) DatabaseRelease (1) ←→ (N) ReportingEffort
-  ↑                                              ↓
-  └────────────── (1) ←→ (N) ──────────────────┘
+Study (1) ←→ (N) DatabaseRelease (1) ←→ (N) ReportingEffort (1) ←→ (N) ReportingEffortItem
+  ↑                                              ↓                          ↓
+  └────────────── (1) ←→ (N) ──────────────────┘                   ReportingEffortItemTracker
+                                                                     (with TrackerComment support)
 
 Package (1) ←→ (N) PackageItem (polymorphic: TLF/Dataset)
   ↑                     ↓
@@ -320,7 +340,7 @@ Package (1) ←→ (N) PackageItem (polymorphic: TLF/Dataset)
 
 TextElement (standalone: title, footnote, population_set, acronyms_set)
 User (authentication: admin, analyst, viewer roles)
-TrackerComment (workflow comments with threading)
+TrackerComment (workflow comments with threading and resolution status)
 ```
 
 ## For More Details
@@ -328,5 +348,31 @@ TrackerComment (workflow comments with threading)
 - **Backend**: See [backend/CLAUDE.md](backend/CLAUDE.md) and [backend/README.md](backend/README.md)
 - **Frontend**: See [admin-frontend/CLAUDE.md](admin-frontend/CLAUDE.md) and [admin-frontend/README.md](admin-frontend/README.md)
 - **Testing**: See [backend/tests/README.md](backend/tests/README.md)
+- **Utility Scripts**: See [scripts/README.md](scripts/README.md) for service management
+- **Database Migration**: See [backend/CASCADE_DELETE_MIGRATION_PLAN.md](backend/CASCADE_DELETE_MIGRATION_PLAN.md) for orphaned records solution
+- **Tracker Delete Testing**: See [backend/TRACKER_DELETE_ENDPOINT_TESTING_RESULTS.md](backend/TRACKER_DELETE_ENDPOINT_TESTING_RESULTS.md) for delete endpoint validation
 - **MCP Integration**: fastapi-mcp running at http://localhost:8000/mcp
-- remember to kill backend or frontend there are bat files in scripts folder
+
+## Recent Important Updates (August 2025)
+
+### Tracker Delete Functionality
+**✅ PRODUCTION READY**: DELETE endpoint for reporting effort tracker has been thoroughly tested
+- **Endpoint**: `DELETE /api/v1/reporting-effort-tracker/{tracker_id}`
+- **Features**: Comprehensive error handling, WebSocket broadcasting, audit logging
+- **Testing**: Complete test coverage with `test_tracker_delete_simple.sh`
+- **Status Codes**: 204 (success), 404 (not found), 422 (validation error)
+
+### CASCADE DELETE Migration System
+**🛠️ MIGRATION AVAILABLE**: Comprehensive solution for database referential integrity
+- **Scripts Ready**: Complete migration with automatic backup and rollback
+- **Analysis Complete**: No orphaned records currently exist in database
+- **Constraints Updated**: 31 foreign key constraints need CASCADE DELETE implementation
+- **Safety Features**: Pre-migration validation, post-migration testing, automated backups
+
+### Enhanced Testing Infrastructure  
+**📋 EXPANDED TEST COVERAGE**: Multiple specialized test scripts available
+- **Core CRUD**: `test_crud_simple.sh` for basic functionality
+- **Packages**: `test_packages_crud.sh` for package management
+- **Tracker Operations**: `test_reporting_effort_tracker_crud.sh` and `test_tracker_delete_simple.sh`
+- **Deletion Protection**: `test_study_deletion_protection_fixed.sh`
+- **Individual Testing**: All scripts designed for individual execution due to async session constraints
