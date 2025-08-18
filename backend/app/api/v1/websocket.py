@@ -492,6 +492,14 @@ async def broadcast_tracker_comment_deleted(comment_data):
     logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
+async def broadcast_reporting_effort_tracker_deleted(tracker_data):
+    """Broadcast that a reporting effort tracker was deleted."""
+    logger.info(f"Broadcasting reporting_effort_tracker_deleted: ID {tracker_data.id}")
+    message = broadcast_message("reporting_effort_tracker_deleted", sqlalchemy_to_dict(tracker_data))
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
 # Simplified comment system WebSocket functions
 async def broadcast_comment_created(tracker_id: int, comment_data, unresolved_count: int):
     """Broadcast that a new comment was created (parent comment)."""

@@ -310,14 +310,29 @@ reporting_effort_tracker_server <- function(id) {
       sdtm_rows <- list()
       adam_rows <- list()
       for (it in items) {
-        if (it$item_type == "TLF") {
-          tlf_rows[[length(tlf_rows) + 1]] <- build_row(it)
-        } else if (it$item_type == "Dataset") {
-          # Map dataset subtypes SDTM/ADaM from item_subtype
-          if (tolower(it$item_subtype) == "sdtm") {
-            sdtm_rows[[length(sdtm_rows) + 1]] <- build_row(it)
+        # Check if item has a tracker before building row
+        tracker_check <- tryCatch({
+          result <- get_tracker_by_item(it$id)
+          if ("error" %in% names(result) || length(result) == 0) {
+            NULL  # No tracker exists
           } else {
-            adam_rows[[length(adam_rows) + 1]] <- build_row(it)
+            result  # Tracker exists
+          }
+        }, error = function(e) {
+          NULL  # Error means no tracker
+        })
+        
+        # Only build row if tracker exists
+        if (!is.null(tracker_check)) {
+          if (it$item_type == "TLF") {
+            tlf_rows[[length(tlf_rows) + 1]] <- build_row(it)
+          } else if (it$item_type == "Dataset") {
+            # Map dataset subtypes SDTM/ADaM from item_subtype
+            if (tolower(it$item_subtype) == "sdtm") {
+              sdtm_rows[[length(sdtm_rows) + 1]] <- build_row(it)
+            } else {
+              adam_rows[[length(adam_rows) + 1]] <- build_row(it)
+            }
           }
         }
       }
@@ -1125,11 +1140,20 @@ reporting_effort_tracker_server <- function(id) {
     observeEvent(input$delete_tracker_id, {
       tracker_id <- input$delete_tracker_id
       
-      # For now, we'll just mark it as deleted or remove from display
-      # The API doesn't have a delete endpoint yet
-      showNotification("Tracker deleted", type = "message")
-      removeModal()
-      load_tracker_tables()  # Reload tables
+      if (!is.null(tracker_id) && nchar(tracker_id) > 0 && tracker_id != "") {
+        # Call the API to delete the tracker
+        result <- delete_reporting_effort_tracker(tracker_id)
+        
+        if ("error" %in% names(result)) {
+          showNotification(paste("Failed to delete tracker:", result$error), type = "error")
+        } else {
+          showNotification("Tracker deleted successfully", type = "message")
+          removeModal()
+          load_tracker_tables()  # Reload tables
+        }
+      } else {
+        showNotification("Invalid tracker ID", type = "error")
+      }
     })
     
 
@@ -1178,6 +1202,22 @@ reporting_effort_tracker_server <- function(id) {
         
         cat("DEBUG: R WebSocket event received - type:", event_data$type, "\n")
         cat("DEBUG: Event data structure:", str(event_data), "\n")
+        
+        # Handle tracker events (created, updated, deleted)
+        if (startsWith(event_data$type, "reporting_effort_tracker_")) {
+          cat("DEBUG: Tracker WebSocket event received:", event_data$type, "\n")
+          
+          if (event_data$type == "reporting_effort_tracker_deleted") {
+            cat("DEBUG: Tracker deleted event - refreshing tables\n")
+            # Refresh tables when a tracker is deleted
+            load_tracker_tables()
+            showNotification("Tracker deleted (real-time update)", type = "message", duration = 3)
+          } else if (event_data$type %in% c("reporting_effort_tracker_updated", "reporting_effort_tracker_created")) {
+            cat("DEBUG: Tracker updated/created event - refreshing tables\n")
+            # Refresh tables for updates and creates
+            load_tracker_tables()
+          }
+        }
         
         # Handle comment events that should trigger badge updates
         if (startsWith(event_data$type, "comment_")) {

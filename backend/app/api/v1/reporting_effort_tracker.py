@@ -21,7 +21,7 @@ from app.schemas.reporting_effort_item_tracker import (
 from app.models.reporting_effort_item_tracker import ProductionStatus, QCStatus
 from app.models.user import UserRole
 from app.utils import sqlalchemy_to_dict
-from app.api.v1.websocket import manager
+from app.api.v1.websocket import manager, broadcast_reporting_effort_tracker_deleted
 
 # WebSocket broadcasting functions
 async def broadcast_tracker_updated(tracker_data):
@@ -335,6 +335,64 @@ async def update_tracker(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update tracker"
+        )
+
+@router.delete("/{tracker_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_tracker(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    tracker_id: int,
+) -> None:
+    """
+    Delete a tracker entry.
+    """
+    try:
+        # Verify tracker exists
+        db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
+        if not db_tracker:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tracker not found"
+            )
+        
+        # Store tracker data for audit logging and broadcasting before deletion
+        tracker_data = sqlalchemy_to_dict(db_tracker)
+        
+        # Delete the tracker
+        await reporting_effort_item_tracker.delete(db, id=tracker_id)
+        print(f"Tracker deleted successfully: ID {tracker_id}")
+        
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="reporting_effort_item_tracker",
+                record_id=tracker_id,
+                action="DELETE",
+                user_id=getattr(request.state, 'user_id', None),
+                changes={"deleted": tracker_data},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            print(f"Audit logging error: {audit_error}")
+        
+        # Broadcast WebSocket event
+        try:
+            await broadcast_reporting_effort_tracker_deleted(tracker_data)
+        except Exception as ws_error:
+            print(f"WebSocket broadcast error: {ws_error}")
+        
+        # Return 204 No Content (no response body)
+        return
+        
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete tracker: {str(e)}"
         )
 
 # Programmer Assignment Endpoints

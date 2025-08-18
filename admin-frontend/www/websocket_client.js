@@ -125,6 +125,9 @@ class PearlWebSocketClient {
             } else if (data.type.startsWith('user_')) {
                 data.module = 'users';
                 console.log('👤 USER EVENT RECEIVED:', data.type, data.data?.username || 'unknown');
+            } else if (data.type.startsWith('reporting_effort_tracker_')) {
+                data.module = 'reporting_effort_tracker';
+                console.log('📊 TRACKER EVENT RECEIVED:', data.type, data.data?.id || 'unknown');
             } else if (data.type.startsWith('comment_')) {
                 // Route comment events to reporting effort tracker module for real-time badge updates
                 data.module = 'reporting_effort_tracker';

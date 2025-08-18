@@ -1030,6 +1030,25 @@ update_reporting_effort_tracker <- function(tracker_id, tracker_data) {
   })
 }
 
+# Delete tracker entry
+delete_reporting_effort_tracker <- function(tracker_id) {
+  tryCatch({
+    response <- httr2::request(paste0(get_reporting_effort_tracker_endpoint(), "/", tracker_id)) |>
+      httr2::req_method("DELETE") |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 204) {
+      list(success = TRUE, message = "Tracker deleted successfully")
+    } else if (httr2::resp_status(response) == 404) {
+      list(error = "Tracker not found")
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
 # Create or update a tracker (convenience function)
 create_or_update_tracker <- function(tracker_data) {
   if (!is.null(tracker_data$id)) {
