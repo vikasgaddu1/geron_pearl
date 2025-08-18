@@ -81,22 +81,20 @@ function syncTrackerDeletionHandler(message) {
     if (trackerId && eventType === 'reporting_effort_tracker_deleted') {
       console.log(`🔄 Syncing tracker deletion across browsers for tracker ${trackerId}`);
       
-      // First try surgical removal (if function exists)
-      if (typeof window.removeTrackerRowSurgically === 'function') {
-        const surgicalSuccess = window.removeTrackerRowSurgically(trackerId, deletionData);
-        if (surgicalSuccess) {
-          console.log('✅ Cross-browser surgical removal successful for tracker:', trackerId);
-          
-          // Show brief notification
-          if (typeof Shiny !== 'undefined') {
-            Shiny.notifications.show({
-              html: `Tracker ${trackerId} was deleted in another session`,
-              type: 'message',
-              duration: 3000
-            });
-          }
-          return;
+      // Enhanced cross-browser surgical removal
+      const success = removeCrossBrowserTrackerRow(trackerId, deletionData);
+      if (success) {
+        console.log('✅ Cross-browser surgical removal successful for tracker:', trackerId);
+        
+        // Show brief notification
+        if (typeof Shiny !== 'undefined') {
+          Shiny.notifications.show({
+            html: `Tracker ${trackerId} was deleted in another session`,
+            type: 'message',
+            duration: 3000
+          });
         }
+        return;
       }
       
       // Fallback to table refresh trigger
@@ -117,6 +115,83 @@ function syncTrackerDeletionHandler(message) {
   } catch (e) {
     console.error('❌ Error handling cross-browser tracker deletion sync:', e);
   }
+}
+
+// Enhanced cross-browser surgical removal function
+function removeCrossBrowserTrackerRow(trackerId, deletionData) {
+  console.log('🔪 Cross-browser surgical removal for tracker:', trackerId);
+  
+  // Find and remove from all DataTable instances
+  const tableSelectors = [
+    '#reporting_effort_tracker-tracker_table_tlf',
+    '#reporting_effort_tracker-tracker_table_sdtm', 
+    '#reporting_effort_tracker-tracker_table_adam'
+  ];
+  
+  let removedCount = 0;
+  
+  tableSelectors.forEach(selector => {
+    try {
+      const $table = $(selector);
+      if ($table.length && $.fn.DataTable.isDataTable($table[0])) {
+        const dataTable = $table.DataTable();
+        
+        // Find and remove rows by tracker ID
+        dataTable.rows().every(function(rowIdx) {
+          const rowNode = this.node();
+          const $row = $(rowNode);
+          
+          // Look for delete button with matching data-id
+          const $deleteBtn = $row.find('button[data-action="delete"][data-id="' + trackerId + '"]');
+          
+          if ($deleteBtn.length > 0) {
+            console.log(`✂️ Found tracker ${trackerId} in table ${selector}, removing...`);
+            
+            // Smooth animation for cross-browser removal
+            $row.addClass('table-warning').fadeOut(600, () => {
+              // Remove from DataTable
+              this.remove();
+              dataTable.draw(false); // Redraw without resetting pagination
+              removedCount++;
+              console.log(`✅ Removed tracker ${trackerId} from ${selector}`);
+            });
+            
+            return false; // Break out of loop
+          }
+        });
+      }
+    } catch (error) {
+      console.error(`❌ Error processing table ${selector}:`, error);
+    }
+  });
+  
+  // Also try simpler row removal by item code if DataTable approach failed
+  if (removedCount === 0 && deletionData?.tracker?.item_code) {
+    const itemCode = deletionData.tracker.item_code;
+    console.log('🔍 Trying alternative removal by item code:', itemCode);
+    
+    $('tr').each(function() {
+      const $row = $(this);
+      const firstCell = $row.find('td:first-child').text().trim();
+      
+      if (firstCell === itemCode) {
+        console.log(`✂️ Found tracker by item code ${itemCode}, removing...`);
+        $row.addClass('table-warning').fadeOut(600, () => {
+          $row.remove();
+          removedCount++;
+        });
+        return false; // Break out of each
+      }
+    });
+  }
+  
+  if (removedCount === 0) {
+    console.log('⚠️ No tracker rows found to remove for ID:', trackerId);
+    return false;
+  }
+  
+  console.log(`✅ Cross-browser removal completed: ${removedCount} row(s) removed`);
+  return true;
 }
 
 // Register tracker deletion sync handler
