@@ -267,17 +267,16 @@ reporting_effort_tracker_server <- function(id) {
             }
           }
         }
-        # Create separate comments column with + button and badges
+        # Create simplified comments column with modal trigger button (+ green, +N yellow)
         comments_column <- if (!is.null(tracker_id) && !is.na(tracker_id) && tracker_id != "") {
-          # Will be filled by get_comment_summaries() API call - placeholder for now
           sprintf('<div class="comment-column" data-tracker-id="%s">
-                     <button class="btn btn-success btn-sm comment-add-btn" data-tracker-id="%s" title="Add Comment">
+                     <button class="btn btn-success btn-sm comment-btn" data-tracker-id="%s" 
+                             onclick="showSimplifiedCommentModal(%s)" 
+                             title="Comments">
                        <i class="fa fa-plus"></i>
+                       <span class="comment-badge badge bg-warning text-dark ms-1" style="display: none;"></span>
                      </button>
-                     <span class="comment-badges ms-2" id="badges-%s" data-tracker-id="%s">
-                       <!-- Badges will be populated by API call -->
-                     </span>
-                   </div>', tracker_id, tracker_id, tracker_id, tracker_id)
+                   </div>', tracker_id, tracker_id, tracker_id)
         } else {
           '<div class="comment-column">
              <button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first">
@@ -598,38 +597,6 @@ reporting_effort_tracker_server <- function(id) {
                   var itemId = $(this).attr('data-item-id');
                   Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
                 });
-                
-                // Comment add button handlers
-                tbl.find('.comment-add-btn').off('click').on('click', function(){
-                  var trackerId = $(this).attr('data-tracker-id');
-                  var tr = $(this).closest('tr');
-                  var row = api.row(tr);
-                  
-                  // Check if row is already expanded using DataTables' child API
-                  if (row.child.isShown()) {
-                    // Collapse - hide the child row
-                    row.child.hide();
-                    tr.removeClass('shown');
-                    $(this).removeClass('active');
-                  } else {
-                    // Expand - show the child row with comment expansion
-                    var expansionHtml = createCommentExpansion(trackerId);
-                    row.child(expansionHtml).show();
-                    tr.addClass('shown');
-                    $(this).addClass('active');
-                    
-                    // Initialize comment functionality for this row
-                    initializeCommentHandlers(trackerId);
-                    loadCommentsForTracker(trackerId);
-                    
-                    // Handle close button in the expansion area
-                    row.child().find('.comment-close-btn').off('click').on('click', function(){
-                      row.child.hide();
-                      tr.removeClass('shown');
-                      tbl.find('.comment-add-btn[data-tracker-id=\"' + trackerId + '\"]').removeClass('active');
-                    });
-                  }
-                });
               }",
               ns("tracker_action"), ns("tracker_action")))
           ),
@@ -745,47 +712,12 @@ reporting_effort_tracker_server <- function(id) {
                 Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
               });
               
-              // Comment add button handlers
-              tbl.find('.comment-add-btn').off('click').on('click', function(){
+              // Comment modal button handlers
+              tbl.find('.comment-btn').off('click').on('click', function(){
                 var trackerId = $(this).attr('data-tracker-id');
-                var tr = $(this).closest('tr');
-                var row = api.row(tr);
-                var commentColumn = $(this).closest('.comment-column');
-                
-                // Check if row is already expanded using DataTables' child API
-                if (row.child.isShown()) {
-                  // Collapse - hide the child row
-                  row.child.hide();
-                  tr.removeClass('shown');
-                  $(this).removeClass('active');
-                  commentColumn.find('.comment-close-btn').hide();
-                } else {
-                  // Expand - show the child row with comment expansion
-                  var expansionHtml = createCommentExpansion(trackerId);
-                  row.child(expansionHtml).show();
-                  tr.addClass('shown');
-                  $(this).addClass('active');
-                  commentColumn.find('.comment-close-btn').show();
-                  
-                  // Initialize comment functionality for this row
-                  initializeCommentHandlers(trackerId);
-                  loadCommentsForTracker(trackerId);
-                }
+                showSimplifiedCommentModal(trackerId);
               });
               
-              // Comment close button handlers
-              tbl.find('.comment-close-btn').off('click').on('click', function(){
-                var trackerId = $(this).attr('data-tracker-id');
-                var tr = $(this).closest('tr');
-                var row = api.row(tr);
-                var commentColumn = $(this).closest('.comment-column');
-                
-                // Collapse the comment expansion
-                row.child.hide();
-                tr.removeClass('shown');
-                commentColumn.find('.comment-add-btn').removeClass('active');
-                $(this).hide();
-              });
             }",
             ns("tracker_action"), ns("tracker_action")))
         ),
@@ -900,47 +832,12 @@ reporting_effort_tracker_server <- function(id) {
                 Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
               });
               
-              // Comment add button handlers
-              tbl.find('.comment-add-btn').off('click').on('click', function(){
+              // Comment modal button handlers
+              tbl.find('.comment-btn').off('click').on('click', function(){
                 var trackerId = $(this).attr('data-tracker-id');
-                var tr = $(this).closest('tr');
-                var row = api.row(tr);
-                var commentColumn = $(this).closest('.comment-column');
-                
-                // Check if row is already expanded using DataTables' child API
-                if (row.child.isShown()) {
-                  // Collapse - hide the child row
-                  row.child.hide();
-                  tr.removeClass('shown');
-                  $(this).removeClass('active');
-                  commentColumn.find('.comment-close-btn').hide();
-                } else {
-                  // Expand - show the child row with comment expansion
-                  var expansionHtml = createCommentExpansion(trackerId);
-                  row.child(expansionHtml).show();
-                  tr.addClass('shown');
-                  $(this).addClass('active');
-                  commentColumn.find('.comment-close-btn').show();
-                  
-                  // Initialize comment functionality for this row
-                  initializeCommentHandlers(trackerId);
-                  loadCommentsForTracker(trackerId);
-                }
+                showSimplifiedCommentModal(trackerId);
               });
               
-              // Comment close button handlers
-              tbl.find('.comment-close-btn').off('click').on('click', function(){
-                var trackerId = $(this).attr('data-tracker-id');
-                var tr = $(this).closest('tr');
-                var row = api.row(tr);
-                var commentColumn = $(this).closest('.comment-column');
-                
-                // Collapse the comment expansion
-                row.child.hide();
-                tr.removeClass('shown');
-                commentColumn.find('.comment-add-btn').removeClass('active');
-                $(this).hide();
-              });
             }",
             ns("tracker_action"), ns("tracker_action")))
         ),
@@ -951,6 +848,118 @@ reporting_effort_tracker_server <- function(id) {
     # Reactive values to store modal data
     modal_tracker_id <- reactiveVal(NULL)
     modal_item_id <- reactiveVal(NULL)
+    
+    # Comment modal observer - triggered by JavaScript
+    observeEvent(input$comment_modal_trigger, {
+      if (!is.null(input$comment_modal_trigger)) {
+        tracker_id <- input$comment_modal_trigger$tracker_id
+        cat("DEBUG: Comment modal triggered for tracker ID:", tracker_id, "\n")
+        
+        # Show the simplified comment modal
+        showModal(modalDialog(
+          title = tagList(
+            tags$i(class = "fa fa-comments me-2"),
+            "Comments"
+          ),
+          size = "xl",
+          easyClose = TRUE,
+          
+          # Modal content
+          tags$div(
+            class = "container-fluid",
+            
+            # Comments display area
+            tags$div(
+              id = "modal-comments-list",
+              class = "mb-4",
+              style = "max-height: 400px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 1rem;",
+              tags$div(
+                class = "text-center p-3",
+                tags$div(class = "spinner-border text-primary", role = "status"),
+                tags$div(class = "mt-2 text-muted", "Loading comments...")
+              )
+            ),
+            
+            # Comment form
+            tags$div(
+              class = "border-top pt-3",
+              tags$h6(
+                id = "comment-form-title",
+                class = "mb-3",
+                tags$i(class = "fa fa-plus me-2"),
+                "Add New Comment"
+              ),
+              
+              # Comment text input
+              tags$div(
+                class = "mb-3",
+                tags$textarea(
+                  id = "comment-text-input",
+                  class = "form-control",
+                  placeholder = "Write your comment here...",
+                  rows = "3",
+                  style = "resize: vertical;"
+                )
+              ),
+              
+              # Action buttons
+              tags$div(
+                class = "d-flex gap-2",
+                tags$button(
+                  id = "comment-submit-btn",
+                  class = "btn btn-primary",
+                  onclick = "submitComment()",
+                  tags$i(class = "fa fa-plus me-1"),
+                  "Add Comment"
+                ),
+                tags$button(
+                  id = "comment-cancel-reply-btn",
+                  class = "btn btn-outline-secondary",
+                  onclick = "cancelReply()",
+                  style = "display: none;",
+                  tags$i(class = "fa fa-times me-1"),
+                  "Cancel Reply"
+                )
+              )
+            )
+          ),
+          
+          footer = tagList(
+            modalButton("Close")
+          )
+        ))
+        
+        # Load comments after modal is shown using JavaScript
+        shinyjs::delay(200, {
+          session$sendCustomMessage("loadCommentsForModal", list(
+            tracker_id = tracker_id
+          ))
+        })
+      }
+    })
+    
+    # Comment added event observer - for updating badges
+    observeEvent(input$comment_added_event, {
+      if (!is.null(input$comment_added_event)) {
+        tracker_id <- input$comment_added_event$tracker_id
+        cat("DEBUG: Comment added event for tracker ID:", tracker_id, "\n")
+        
+        # Update badge for this tracker
+        update_single_tracker_badges(tracker_id)
+      }
+    })
+    
+    # Comment resolved event observer - for updating badges  
+    observeEvent(input$comment_resolved_event, {
+      if (!is.null(input$comment_resolved_event)) {
+        tracker_id <- input$comment_resolved_event$tracker_id
+        comment_id <- input$comment_resolved_event$comment_id
+        cat("DEBUG: Comment resolved event for tracker ID:", tracker_id, "comment ID:", comment_id, "\n")
+        
+        # Update badge for this tracker
+        update_single_tracker_badges(tracker_id)
+      }
+    })
     
 
     

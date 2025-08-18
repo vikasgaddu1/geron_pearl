@@ -27,7 +27,7 @@ from app.schemas.audit_log import (
 )
 from app.schemas.tracker_comment import (
     TrackerComment, TrackerCommentCreate, TrackerCommentInDB, 
-    TrackerCommentUpdate, CommentSummary, CommentFilter
+    TrackerCommentUpdate, TrackerCommentSummary, CommentWithUserInfo
 )
 
 __all__ = [
@@ -60,5 +60,5 @@ __all__ = [
     "AuditLog", "AuditLogCreate", "AuditLogInDB", "AuditLogWithDetails",
     # TrackerComment schemas
     "TrackerComment", "TrackerCommentCreate", "TrackerCommentInDB", 
-    "TrackerCommentUpdate", "CommentSummary", "CommentFilter"
+    "TrackerCommentUpdate", "TrackerCommentSummary", "CommentWithUserInfo"
 ]

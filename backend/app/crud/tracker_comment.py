@@ -1,314 +1,408 @@
 """
-CRUD operations for TrackerComment model
+Simplified CRUD operations for TrackerComment model
+Blog-style comment system with automatic unresolved comment count management.
 """
 
 from typing import List, Optional, Dict, Any
-from sqlalchemy import and_, desc, func, or_, case
+from datetime import datetime
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, joinedload
-from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
-from app.models.tracker_comment import TrackerComment, CommentType
+from app.models.tracker_comment import TrackerComment
 from app.models.user import User
-from app.schemas.tracker_comment import (
-    TrackerCommentCreate, 
-    TrackerCommentUpdate,
-    CommentFilter,
-    CommentSummary
-)
+from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker
+from app.schemas.tracker_comment import TrackerCommentCreate, CommentWithUserInfo
 
 
 class TrackerCommentCRUD:
-    """CRUD operations for tracker comments"""
+    """Simplified CRUD operations for tracker comments with automatic count management."""
 
-    async def get(self, db: AsyncSession, *, id: int) -> Optional[TrackerComment]:
-        """Get a comment by ID"""
-        query = select(TrackerComment).options(
-            selectinload(TrackerComment.user),
-            selectinload(TrackerComment.resolved_by_user),
-            selectinload(TrackerComment.replies).selectinload(TrackerComment.user)
-        ).where(TrackerComment.id == id)
-        
-        result = await db.execute(query)
-        return result.scalar_one_or_none()
-
-    async def update(
-        self, 
-        db: AsyncSession, 
-        *, 
-        db_obj: TrackerComment, 
-        obj_in: TrackerCommentUpdate
-    ) -> TrackerComment:
-        """Update a comment"""
-        update_data = obj_in.model_dump(exclude_unset=True)
-        
-        for field, value in update_data.items():
-            setattr(db_obj, field, value)
-        
-        await db.flush()
-        await db.refresh(db_obj)
-        return db_obj
-
-    async def remove(self, db: AsyncSession, *, id: int) -> Optional[TrackerComment]:
-        """Hard delete a comment"""
-        db_obj = await self.get(db, id=id)
-        if db_obj:
-            await db.delete(db_obj)
-            await db.flush()
-        return db_obj
-
-    async def create_with_user(
+    async def create(
         self, 
         db: AsyncSession, 
         *, 
         obj_in: TrackerCommentCreate, 
         user_id: int
     ) -> TrackerComment:
-        """Create a comment with user association"""
-        obj_data = obj_in.model_dump()
-        obj_data["user_id"] = user_id
-        
-        db_obj = TrackerComment(**obj_data)
-        db.add(db_obj)
-        await db.flush()
-        await db.refresh(db_obj)
-        return db_obj
+        """
+        Create new comment and automatically update unresolved_comment_count on tracker.
+        Only increment count if it's a parent comment (parent_comment_id is None).
+        """
+        try:
+            # Create the comment
+            obj_data = obj_in.model_dump()
+            obj_data["user_id"] = user_id
+            
+            db_obj = TrackerComment(**obj_data)
+            db.add(db_obj)
+            await db.flush()  # Get the ID without committing
+            
+            # Update unresolved comment count if this is a parent comment
+            if obj_data.get("parent_comment_id") is None:  # Parent comment only
+                tracker = await db.execute(
+                    select(ReportingEffortItemTracker)
+                    .where(ReportingEffortItemTracker.id == obj_data["tracker_id"])
+                )
+                tracker_obj = tracker.scalar_one_or_none()
+                
+                if tracker_obj:
+                    tracker_obj.unresolved_comment_count = tracker_obj.unresolved_comment_count + 1
+                    db.add(tracker_obj)
+            
+            await db.commit()
+            await db.refresh(db_obj)
+            return db_obj
+            
+        except Exception as e:
+            await db.rollback()
+            raise e
 
     async def get_by_tracker_id(
         self, 
         db: AsyncSession, 
         *, 
-        tracker_id: int,
-        include_deleted: bool = False
-    ) -> List[TrackerComment]:
-        """Get all comments for a specific tracker item"""
-        query = select(TrackerComment).options(
-            selectinload(TrackerComment.user),
-            selectinload(TrackerComment.resolved_by_user),
-            selectinload(TrackerComment.replies).selectinload(TrackerComment.user)
-        ).where(TrackerComment.tracker_id == tracker_id)
-        
-        if not include_deleted:
-            query = query.where(TrackerComment.is_deleted == False)
-            
-        # Order by pinned status (pinned first), then creation date (newest first)
-        query = query.order_by(
-            desc(TrackerComment.is_pinned),
-            desc(TrackerComment.created_at)
-        )
-        
-        result = await db.execute(query)
-        return list(result.scalars().all())
-
-    async def get_thread_comments(
-        self, 
-        db: AsyncSession, 
-        *, 
-        parent_comment_id: int
-    ) -> List[TrackerComment]:
-        """Get all replies in a comment thread"""
-        query = select(TrackerComment).options(
-            selectinload(TrackerComment.user),
-            selectinload(TrackerComment.resolved_by_user)
-        ).where(
-            TrackerComment.parent_comment_id == parent_comment_id,
-            TrackerComment.is_deleted == False
-        ).order_by(TrackerComment.created_at)
-        
-        result = await db.execute(query)
-        return list(result.scalars().all())
-
-    async def get_comments_summary(
-        self, 
-        db: AsyncSession, 
-        *, 
-        tracker_ids: List[int]
-    ) -> Dict[int, CommentSummary]:
-        """Get comment summaries for multiple tracker items"""
-        if not tracker_ids:
-            return {}
-            
-        # Build query for comment statistics
+        tracker_id: int
+    ) -> List[CommentWithUserInfo]:
+        """
+        Get all comments for a tracker with username information (JOIN with Users table).
+        Return in chronological order with all necessary fields for blog-style display.
+        """
         query = select(
+            TrackerComment.id,
             TrackerComment.tracker_id,
-            func.count(TrackerComment.id).label('total_comments'),
-            func.sum(case((TrackerComment.is_resolved == False, 1), else_=0)).label('unresolved_comments'),
-            func.sum(case((TrackerComment.is_pinned == True, 1), else_=0)).label('pinned_comments'),
-            func.max(TrackerComment.created_at).label('last_comment_at')
+            TrackerComment.user_id,
+            User.username,
+            TrackerComment.parent_comment_id,
+            TrackerComment.comment_text,
+            TrackerComment.is_resolved,
+            TrackerComment.resolved_by_user_id,
+            User.username.label("resolved_by_username"),  # Will be overridden by join
+            TrackerComment.resolved_at,
+            TrackerComment.created_at,
+            TrackerComment.updated_at
+        ).select_from(
+            TrackerComment.__table__.join(
+                User.__table__, 
+                TrackerComment.user_id == User.id
+            ).outerjoin(
+                User.__table__.alias("resolved_user"),
+                TrackerComment.resolved_by_user_id == User.id
+            )
         ).where(
-            TrackerComment.tracker_id.in_(tracker_ids),
-            TrackerComment.is_deleted == False
-        ).group_by(TrackerComment.tracker_id)
+            TrackerComment.tracker_id == tracker_id
+        ).order_by(TrackerComment.created_at.asc())
         
         result = await db.execute(query)
-        stats = {row.tracker_id: row for row in result.all()}
+        rows = result.all()
         
-        # Get last comment details for each tracker
-        last_comment_query = select(
-            TrackerComment.tracker_id,
-            TrackerComment.comment_type,
-            User.username
-        ).join(User, TrackerComment.user_id == User.id).where(
-            TrackerComment.tracker_id.in_(tracker_ids),
-            TrackerComment.is_deleted == False
-        ).order_by(desc(TrackerComment.created_at)).limit(len(tracker_ids))
-        
-        last_result = await db.execute(last_comment_query)
-        last_comments = {row.tracker_id: row for row in last_result.all()}
-        
-        # Build summary objects
-        summaries = {}
-        for tracker_id in tracker_ids:
-            stat = stats.get(tracker_id)
-            last = last_comments.get(tracker_id)
+        # Convert to CommentWithUserInfo objects
+        comments = []
+        for row in rows:
+            # Get resolved_by_username if exists
+            resolved_by_username = None
+            if row.resolved_by_user_id:
+                resolved_user_result = await db.execute(
+                    select(User.username).where(User.id == row.resolved_by_user_id)
+                )
+                resolved_user = resolved_user_result.scalar_one_or_none()
+                if resolved_user:
+                    resolved_by_username = resolved_user
             
-            summaries[tracker_id] = CommentSummary(
-                tracker_id=tracker_id,
-                total_comments=stat.total_comments if stat else 0,
-                unresolved_comments=stat.unresolved_comments if stat else 0,
-                pinned_comments=stat.pinned_comments if stat else 0,
-                last_comment_at=stat.last_comment_at if stat else None,
-                last_comment_type=last.comment_type if last else None,
-                last_comment_user=last.username if last else None
+            comment_data = CommentWithUserInfo(
+                id=row.id,
+                tracker_id=row.tracker_id,
+                user_id=row.user_id,
+                username=row.username,
+                parent_comment_id=row.parent_comment_id,
+                comment_text=row.comment_text,
+                is_resolved=row.is_resolved,
+                resolved_by_user_id=row.resolved_by_user_id,
+                resolved_by_username=resolved_by_username,
+                resolved_at=row.resolved_at,
+                created_at=row.created_at,
+                updated_at=row.updated_at,
+                is_parent_comment=(row.parent_comment_id is None)
             )
+            comments.append(comment_data)
             
-        return summaries
+        return comments
 
-    async def mark_resolved(
+    async def resolve_comment(
         self, 
         db: AsyncSession, 
         *, 
         comment_id: int, 
-        user_id: int,
-        is_resolved: bool = True
+        resolved_by_user_id: int
     ) -> Optional[TrackerComment]:
-        """Mark a comment as resolved or unresolved"""
-        db_obj = await self.get(db, id=comment_id)
-        if not db_obj:
-            return None
+        """
+        Only allow resolving parent comments (parent_comment_id = NULL).
+        Update unresolved_comment_count on tracker when resolved.
+        Set resolved_at timestamp.
+        """
+        try:
+            # Get the comment with tracker relationship
+            comment_result = await db.execute(
+                select(TrackerComment)
+                .options(selectinload(TrackerComment.tracker))
+                .where(TrackerComment.id == comment_id)
+            )
+            comment = comment_result.scalar_one_or_none()
             
-        db_obj.is_resolved = is_resolved
-        if is_resolved:
-            db_obj.resolved_by_user_id = user_id
-            db_obj.resolved_at = func.now()
-        else:
-            db_obj.resolved_by_user_id = None
-            db_obj.resolved_at = None
+            if not comment:
+                return None
             
-        await db.flush()
-        await db.refresh(db_obj)
-        return db_obj
+            # Only allow resolving parent comments
+            if comment.parent_comment_id is not None:
+                raise ValueError("Only parent comments can be resolved")
+            
+            # Don't resolve if already resolved
+            if comment.is_resolved:
+                return comment
+            
+            # Update comment resolution
+            comment.is_resolved = True
+            comment.resolved_by_user_id = resolved_by_user_id
+            comment.resolved_at = func.now()
+            
+            # Update tracker unresolved count
+            tracker = await db.execute(
+                select(ReportingEffortItemTracker)
+                .where(ReportingEffortItemTracker.id == comment.tracker_id)
+            )
+            tracker_obj = tracker.scalar_one_or_none()
+            
+            if tracker_obj and tracker_obj.unresolved_comment_count > 0:
+                tracker_obj.unresolved_comment_count = tracker_obj.unresolved_comment_count - 1
+                db.add(tracker_obj)
+            
+            db.add(comment)
+            await db.commit()
+            await db.refresh(comment)
+            return comment
+            
+        except Exception as e:
+            await db.rollback()
+            raise e
 
-    async def toggle_pin(
+    async def get_unresolved_count(
         self, 
         db: AsyncSession, 
         *, 
-        comment_id: int
-    ) -> Optional[TrackerComment]:
-        """Toggle pin status of a comment"""
-        db_obj = await self.get(db, id=comment_id)
-        if not db_obj:
-            return None
-            
-        db_obj.is_pinned = not db_obj.is_pinned
-        await db.flush()
-        await db.refresh(db_obj)
-        return db_obj
+        tracker_id: int
+    ) -> int:
+        """
+        Get count of unresolved parent comments only (for button badge).
+        """
+        result = await db.execute(
+            select(func.count(TrackerComment.id))
+            .where(
+                and_(
+                    TrackerComment.tracker_id == tracker_id,
+                    TrackerComment.parent_comment_id.is_(None),  # Parent comments only
+                    TrackerComment.is_resolved == False
+                )
+            )
+        )
+        return result.scalar() or 0
 
-    async def soft_delete(
+    async def get_comments_with_users(
         self, 
         db: AsyncSession, 
         *, 
-        comment_id: int
-    ) -> Optional[TrackerComment]:
-        """Soft delete a comment (mark as deleted)"""
-        db_obj = await self.get(db, id=comment_id)
-        if not db_obj:
-            return None
-            
-        db_obj.is_deleted = True
-        await db.flush()
-        await db.refresh(db_obj)
-        return db_obj
-
-    async def search_comments(
-        self, 
-        db: AsyncSession, 
-        *, 
-        filter_params: CommentFilter,
-        skip: int = 0,
-        limit: int = 100
-    ) -> List[TrackerComment]:
-        """Search comments with filters"""
+        tracker_id: int
+    ) -> List[Dict[str, Any]]:
+        """
+        Enhanced version with full user details.
+        Include nested structure for blog-style threading.
+        """
+        # Get all comments for the tracker with user information
         query = select(TrackerComment).options(
             selectinload(TrackerComment.user),
             selectinload(TrackerComment.resolved_by_user)
-        )
-        
-        # Apply filters
-        conditions = [TrackerComment.is_deleted == False]
-        
-        if filter_params.tracker_ids:
-            conditions.append(TrackerComment.tracker_id.in_(filter_params.tracker_ids))
-            
-        if filter_params.comment_types:
-            conditions.append(TrackerComment.comment_type.in_(filter_params.comment_types))
-            
-        if filter_params.is_resolved is not None:
-            conditions.append(TrackerComment.is_resolved == filter_params.is_resolved)
-            
-        if filter_params.is_pinned is not None:
-            conditions.append(TrackerComment.is_pinned == filter_params.is_pinned)
-            
-        if filter_params.user_ids:
-            conditions.append(TrackerComment.user_id.in_(filter_params.user_ids))
-            
-        if filter_params.date_from:
-            conditions.append(TrackerComment.created_at >= filter_params.date_from)
-            
-        if filter_params.date_to:
-            conditions.append(TrackerComment.created_at <= filter_params.date_to)
-            
-        if filter_params.search_text:
-            search_term = f"%{filter_params.search_text}%"
-            conditions.append(TrackerComment.comment_text.ilike(search_term))
-        
-        query = query.where(and_(*conditions))
-        query = query.order_by(desc(TrackerComment.created_at))
-        query = query.offset(skip).limit(limit)
-        
-        result = await db.execute(query)
-        return list(result.scalars().all())
-
-    async def get_user_stats(
-        self, 
-        db: AsyncSession, 
-        *, 
-        user_id: int
-    ) -> Dict[str, Any]:
-        """Get comment statistics for a user"""
-        query = select(
-            func.count(TrackerComment.id).label('total_comments'),
-            func.sum(case((TrackerComment.is_resolved == False, 1), else_=0)).label('unresolved_comments'),
-            func.sum(case((TrackerComment.comment_type == CommentType.qc_comment, 1), else_=0)).label('qc_comments'),
-            func.sum(case((TrackerComment.comment_type == CommentType.prod_comment, 1), else_=0)).label('prod_comments'),
-            func.sum(case((TrackerComment.comment_type == CommentType.biostat_comment, 1), else_=0)).label('biostat_comments')
         ).where(
-            TrackerComment.user_id == user_id,
-            TrackerComment.is_deleted == False
-        )
+            TrackerComment.tracker_id == tracker_id
+        ).order_by(TrackerComment.created_at.asc())
         
         result = await db.execute(query)
-        row = result.first()
+        all_comments = list(result.scalars().all())
         
-        return {
-            'total_comments': row.total_comments or 0,
-            'unresolved_comments': row.unresolved_comments or 0,
-            'qc_comments': row.qc_comments or 0,
-            'prod_comments': row.prod_comments or 0,
-            'biostat_comments': row.biostat_comments or 0
-        }
+        # Build comment dictionary for easy lookup
+        comment_dict = {comment.id: comment for comment in all_comments}
+        
+        # Separate parent comments and replies
+        parent_comments = [c for c in all_comments if c.parent_comment_id is None]
+        
+        # Build nested structure
+        structured_comments = []
+        for parent in parent_comments:
+            parent_data = {
+                "id": parent.id,
+                "tracker_id": parent.tracker_id,
+                "user_id": parent.user_id,
+                "username": parent.user.username if parent.user else "Unknown",
+                "parent_comment_id": parent.parent_comment_id,
+                "comment_text": parent.comment_text,
+                "is_resolved": parent.is_resolved,
+                "resolved_by_user_id": parent.resolved_by_user_id,
+                "resolved_by_username": parent.resolved_by_user.username if parent.resolved_by_user else None,
+                "resolved_at": parent.resolved_at,
+                "created_at": parent.created_at,
+                "updated_at": parent.updated_at,
+                "is_parent_comment": True,
+                "replies": []
+            }
+            
+            # Find and add replies recursively
+            def add_replies(comment_id: int, replies_list: List[Dict[str, Any]]):
+                for comment in all_comments:
+                    if comment.parent_comment_id == comment_id:
+                        reply_data = {
+                            "id": comment.id,
+                            "tracker_id": comment.tracker_id,
+                            "user_id": comment.user_id,
+                            "username": comment.user.username if comment.user else "Unknown",
+                            "parent_comment_id": comment.parent_comment_id,
+                            "comment_text": comment.comment_text,
+                            "is_resolved": comment.is_resolved,
+                            "resolved_by_user_id": comment.resolved_by_user_id,
+                            "resolved_by_username": comment.resolved_by_user.username if comment.resolved_by_user else None,
+                            "resolved_at": comment.resolved_at,
+                            "created_at": comment.created_at,
+                            "updated_at": comment.updated_at,
+                            "is_parent_comment": False,
+                            "replies": []
+                        }
+                        replies_list.append(reply_data)
+                        # Recursively add nested replies
+                        add_replies(comment.id, reply_data["replies"])
+            
+            add_replies(parent.id, parent_data["replies"])
+            structured_comments.append(parent_data)
+        
+        return structured_comments
+
+    async def get(self, db: AsyncSession, *, id: int) -> Optional[TrackerComment]:
+        """Get a single comment by ID with relationships loaded."""
+        query = select(TrackerComment).options(
+            selectinload(TrackerComment.user),
+            selectinload(TrackerComment.resolved_by_user)
+        ).where(TrackerComment.id == id)
+        
+        result = await db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def update_comment_text(
+        self,
+        db: AsyncSession,
+        *,
+        comment_id: int,
+        new_text: str
+    ) -> Optional[TrackerComment]:
+        """Update comment text (for editing functionality)."""
+        try:
+            comment = await self.get(db, id=comment_id)
+            if not comment:
+                return None
+            
+            comment.comment_text = new_text
+            comment.updated_at = func.now()
+            
+            db.add(comment)
+            await db.commit()
+            await db.refresh(comment)
+            return comment
+            
+        except Exception as e:
+            await db.rollback()
+            raise e
+
+    async def unresolve_comment(
+        self,
+        db: AsyncSession,
+        *,
+        comment_id: int
+    ) -> Optional[TrackerComment]:
+        """
+        Unresolve a parent comment and update tracker count.
+        """
+        try:
+            comment = await self.get(db, id=comment_id)
+            if not comment:
+                return None
+            
+            # Only allow unresolving parent comments that are currently resolved
+            if comment.parent_comment_id is not None:
+                raise ValueError("Only parent comments can be unresolved")
+            
+            if not comment.is_resolved:
+                return comment  # Already unresolved
+            
+            # Update comment
+            comment.is_resolved = False
+            comment.resolved_by_user_id = None
+            comment.resolved_at = None
+            
+            # Update tracker count
+            tracker = await db.execute(
+                select(ReportingEffortItemTracker)
+                .where(ReportingEffortItemTracker.id == comment.tracker_id)
+            )
+            tracker_obj = tracker.scalar_one_or_none()
+            
+            if tracker_obj:
+                tracker_obj.unresolved_comment_count = tracker_obj.unresolved_comment_count + 1
+                db.add(tracker_obj)
+            
+            db.add(comment)
+            await db.commit()
+            await db.refresh(comment)
+            return comment
+            
+        except Exception as e:
+            await db.rollback()
+            raise e
+
+    async def delete_comment(
+        self,
+        db: AsyncSession,
+        *,
+        comment_id: int
+    ) -> Optional[TrackerComment]:
+        """
+        Delete a comment and update tracker count if it was an unresolved parent comment.
+        Note: This will cascade delete all replies due to the relationship configuration.
+        """
+        try:
+            comment = await self.get(db, id=comment_id)
+            if not comment:
+                return None
+            
+            # If deleting an unresolved parent comment, update tracker count
+            was_unresolved_parent = (
+                comment.parent_comment_id is None and 
+                not comment.is_resolved
+            )
+            
+            if was_unresolved_parent:
+                tracker = await db.execute(
+                    select(ReportingEffortItemTracker)
+                    .where(ReportingEffortItemTracker.id == comment.tracker_id)
+                )
+                tracker_obj = tracker.scalar_one_or_none()
+                
+                if tracker_obj and tracker_obj.unresolved_comment_count > 0:
+                    tracker_obj.unresolved_comment_count = tracker_obj.unresolved_comment_count - 1
+                    db.add(tracker_obj)
+            
+            await db.delete(comment)
+            await db.commit()
+            return comment
+            
+        except Exception as e:
+            await db.rollback()
+            raise e
 
 
-# Create instance
+# Create singleton instance
 tracker_comment = TrackerCommentCRUD()

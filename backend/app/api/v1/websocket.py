@@ -490,3 +490,55 @@ async def broadcast_tracker_comment_deleted(comment_data):
     message = broadcast_message("tracker_comment_deleted", sqlalchemy_to_dict(comment_data))
     await manager.broadcast(message)
     logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
+# Simplified comment system WebSocket functions
+async def broadcast_comment_created(tracker_id: int, comment_data, unresolved_count: int):
+    """Broadcast that a new comment was created (parent comment)."""
+    logger.info(f"Broadcasting comment_created: tracker_id={tracker_id}, unresolved_count={unresolved_count}")
+    
+    # Convert CommentWithUserInfo to dict for broadcasting
+    if hasattr(comment_data, 'model_dump'):
+        comment_dict = comment_data.model_dump(mode='json')
+    else:
+        comment_dict = comment_data if isinstance(comment_data, dict) else sqlalchemy_to_dict(comment_data)
+    
+    message = broadcast_message("comment_created", {
+        "tracker_id": tracker_id,
+        "comment": comment_dict,
+        "unresolved_count": unresolved_count
+    })
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_comment_replied(tracker_id: int, parent_comment_id: int, comment_data, unresolved_count: int):
+    """Broadcast that a reply was added to a comment."""
+    logger.info(f"Broadcasting comment_replied: tracker_id={tracker_id}, parent_comment_id={parent_comment_id}")
+    
+    # Convert CommentWithUserInfo to dict for broadcasting
+    if hasattr(comment_data, 'model_dump'):
+        comment_dict = comment_data.model_dump(mode='json')
+    else:
+        comment_dict = comment_data if isinstance(comment_data, dict) else sqlalchemy_to_dict(comment_data)
+    
+    message = broadcast_message("comment_replied", {
+        "tracker_id": tracker_id,
+        "parent_comment_id": parent_comment_id,
+        "reply": comment_dict,
+        "unresolved_count": unresolved_count
+    })
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_comment_resolved(tracker_id: int, comment_id: int, unresolved_count: int):
+    """Broadcast that a comment was resolved."""
+    logger.info(f"Broadcasting comment_resolved: tracker_id={tracker_id}, comment_id={comment_id}, unresolved_count={unresolved_count}")
+    message = broadcast_message("comment_resolved", {
+        "tracker_id": tracker_id,
+        "comment_id": comment_id,
+        "unresolved_count": unresolved_count
+    })
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")

@@ -1,30 +1,21 @@
 """
-Tracker Comment Model
-Simplified comment system for reporting effort tracker items.
+Simplified Tracker Comment Model
+Blog-style comment system for reporting effort tracker items.
 """
 
-from enum import Enum
-from typing import Optional
-from sqlalchemy import Boolean, Column, DateTime, Enum as SQLEnum, ForeignKey, Integer, String, Text
+from typing import Optional, List
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.db.base import Base
 
 
-class CommentType(str, Enum):
-    """Comment type enumeration"""
-    qc_comment = "qc_comment"
-    prod_comment = "prod_comment"
-    biostat_comment = "biostat_comment"
-
-
 class TrackerComment(Base):
     """
-    Tracker Comment Model
+    Simplified Tracker Comment Model
     
-    Stores comments for reporting effort tracker items with threading support
-    and status tracking.
+    Blog-style threading system with username display and simple resolved status.
     """
     __tablename__ = "tracker_comments"
 
@@ -52,18 +43,9 @@ class TrackerComment(Base):
     
     # Comment content
     comment_text = Column(Text, nullable=False)
-    comment_type = Column(
-        SQLEnum(CommentType), 
-        nullable=False, 
-        default=CommentType.qc_comment,
-        index=True
-    )
     
-    # Status fields
-    is_resolved = Column(Boolean, default=False, nullable=False)
-    is_pinned = Column(Boolean, default=False, nullable=False)
-    is_tracked = Column(Boolean, default=False, nullable=False)
-    is_deleted = Column(Boolean, default=False, nullable=False)
+    # Simple status tracking
+    is_resolved = Column(Boolean, default=False, nullable=False, index=True)
     
     # Resolution tracking
     resolved_by_user_id = Column(
@@ -77,7 +59,8 @@ class TrackerComment(Base):
     created_at = Column(
         DateTime(timezone=True), 
         server_default=func.now(), 
-        nullable=False
+        nullable=False,
+        index=True
     )
     updated_at = Column(
         DateTime(timezone=True), 
@@ -102,7 +85,7 @@ class TrackerComment(Base):
         back_populates="resolved_comments"
     )
     
-    # Self-referential relationship for threading
+    # Self-referential relationship for blog-style threading
     parent_comment = relationship(
         "TrackerComment", 
         remote_side=[id],
@@ -116,6 +99,22 @@ class TrackerComment(Base):
 
     def __repr__(self):
         try:
-            return f"<TrackerComment(id={self.id}, tracker_id={self.tracker_id}, type={self.comment_type})>"
+            return f"<TrackerComment(id={self.id}, tracker_id={self.tracker_id}, is_resolved={self.is_resolved})>"
         except Exception:
             return f"<TrackerComment(detached)>"
+    
+    @property
+    def is_parent_comment(self) -> bool:
+        """Check if this is a parent comment (not a reply)."""
+        return self.parent_comment_id is None
+    
+    def get_all_replies(self) -> List["TrackerComment"]:
+        """Get all replies in chronological order (for blog-style display)."""
+        def collect_replies(comment):
+            replies = []
+            for reply in sorted(comment.replies, key=lambda x: x.created_at):
+                replies.append(reply)
+                replies.extend(collect_replies(reply))  # Recursive for nested replies
+            return replies
+        
+        return collect_replies(self)

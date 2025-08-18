@@ -18,7 +18,7 @@ from app.models.reporting_effort_dataset_details import ReportingEffortDatasetDe
 from app.models.reporting_effort_item_footnote import ReportingEffortItemFootnote
 from app.models.reporting_effort_item_acronym import ReportingEffortItemAcronym
 from app.models.audit_log import AuditLog
-from app.models.tracker_comment import TrackerComment, CommentType
+from app.models.tracker_comment import TrackerComment
 
 __all__ = [
     "Study", 
@@ -46,6 +46,5 @@ __all__ = [
     "ReportingEffortItemFootnote",
     "ReportingEffortItemAcronym",
     "AuditLog",
-    "TrackerComment",
-    "CommentType"
+    "TrackerComment"
 ]

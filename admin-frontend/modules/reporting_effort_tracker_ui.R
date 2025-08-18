@@ -12,6 +12,8 @@ reporting_effort_tracker_ui <- function(id) {
   
   # Fluid page as container
   page_fluid(
+    # Include simplified comments JavaScript
+    tags$script(src = "simplified_comments.js"),
     # Center content using d-flex
     div(
       style = "display: flex; justify-content: center; padding: 20px;",
@@ -142,6 +144,13 @@ reporting_effort_tracker_ui <- function(id) {
     # JavaScript for dropdown clicks and row actions
     tags$script(HTML(sprintf("
       document.addEventListener('DOMContentLoaded', function() {
+        
+        // Custom message handler for loading comments in modal
+        Shiny.addCustomMessageHandler('loadCommentsForModal', function(data) {
+          if (typeof loadCommentsForModal === 'function') {
+            loadCommentsForModal(data.tracker_id);
+          }
+        });
         document.getElementById('%s').addEventListener('click', function(e) {
           e.preventDefault();
           Shiny.setInputValue('%s', Math.random(), {priority: 'event'});

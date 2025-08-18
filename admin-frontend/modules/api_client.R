@@ -1357,7 +1357,7 @@ import_tracker_data_json <- function(reporting_effort_id, trackers, update_exist
 }
 
 # ===============================================================================
-# TRACKER COMMENTS API FUNCTIONS
+# SIMPLIFIED TRACKER COMMENTS API FUNCTIONS
 # ===============================================================================
 
 # Get tracker comments endpoint
@@ -1366,12 +1366,11 @@ get_tracker_comments_endpoint <- function() {
   return(paste0(api_base, "/api/v1/tracker-comments"))
 }
 
-# Get comments for a specific tracker
-get_tracker_comments <- function(tracker_id, include_deleted = FALSE) {
+# Get comments for a specific tracker (blog-style threading)
+get_tracker_comments <- function(tracker_id) {
   tryCatch({
     url <- paste0(get_tracker_comments_endpoint(), "/tracker/", tracker_id)
     response <- httr2::request(url) |>
-      httr2::req_url_query(include_deleted = tolower(as.character(include_deleted))) |>
       httr2::req_perform()
     if (httr2::resp_status(response) == 200) {
       httr2::resp_body_json(response)
@@ -1383,18 +1382,38 @@ get_tracker_comments <- function(tracker_id, include_deleted = FALSE) {
   })
 }
 
-# Create a new comment
-create_tracker_comment <- function(tracker_id, comment_text, comment_type = "qc_comment", user_id = 1, user_role = "USER") {
+# Get threaded comments for display (blog-style nested structure)
+get_tracker_comments_threaded <- function(tracker_id) {
+  tryCatch({
+    url <- paste0(get_tracker_comments_endpoint(), "/tracker/", tracker_id, "/threaded")
+    response <- httr2::request(url) |>
+      httr2::req_perform()
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response)))
+    }
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# Create a new comment (parent or reply)
+create_tracker_comment <- function(tracker_id, comment_text, parent_comment_id = NULL, user_id = 1) {
   tryCatch({
     comment_data <- list(
       tracker_id = as.integer(tracker_id),
-      comment_text = comment_text,
-      comment_type = comment_type
+      comment_text = comment_text
     )
+    
+    # Add parent_comment_id if this is a reply
+    if (!is.null(parent_comment_id)) {
+      comment_data$parent_comment_id <- as.integer(parent_comment_id)
+    }
     
     response <- httr2::request(get_tracker_comments_endpoint()) |>
       httr2::req_method("POST") |>
-      httr2::req_headers("X-User-Id" = as.character(user_id), "X-User-Role" = user_role) |>
+      httr2::req_headers("X-User-Id" = as.character(user_id)) |>
       httr2::req_body_json(comment_data) |>
       httr2::req_error(is_error = ~ FALSE) |>
       httr2::req_perform()
@@ -1409,16 +1428,11 @@ create_tracker_comment <- function(tracker_id, comment_text, comment_type = "qc_
   })
 }
 
-# Get comment summaries for multiple trackers  
-get_tracker_comments_summary <- function(tracker_ids) {
+# Get unresolved comment count for a tracker (for button badges)
+get_tracker_unresolved_count <- function(tracker_id) {
   tryCatch({
-    if (length(tracker_ids) == 0) {
-      return(list())
-    }
-    
-    url <- paste0(get_tracker_comments_endpoint(), "/summary")
+    url <- paste0(get_tracker_comments_endpoint(), "/tracker/", tracker_id, "/unresolved-count")
     response <- httr2::request(url) |>
-      httr2::req_url_query(!!!setNames(tracker_ids, rep("tracker_ids", length(tracker_ids)))) |>
       httr2::req_perform()
     
     if (httr2::resp_status(response) == 200) {
@@ -1431,16 +1445,13 @@ get_tracker_comments_summary <- function(tracker_ids) {
   })
 }
 
-# Resolve/unresolve a comment
-resolve_tracker_comment <- function(comment_id, is_resolved = TRUE, user_id = 1, user_role = "USER") {
+# Resolve a parent comment (only parent comments can be resolved)
+resolve_tracker_comment <- function(comment_id, user_id = 1) {
   tryCatch({
-    resolve_data <- list(is_resolved = is_resolved)
-    
     url <- paste0(get_tracker_comments_endpoint(), "/", comment_id, "/resolve")
     response <- httr2::request(url) |>
       httr2::req_method("POST") |>
-      httr2::req_headers("X-User-Id" = as.character(user_id), "X-User-Role" = user_role) |>
-      httr2::req_body_json(resolve_data) |>
+      httr2::req_headers("X-User-Id" = as.character(user_id)) |>
       httr2::req_error(is_error = ~ FALSE) |>
       httr2::req_perform()
     
@@ -1454,41 +1465,43 @@ resolve_tracker_comment <- function(comment_id, is_resolved = TRUE, user_id = 1,
   })
 }
 
-# Pin tracker comment
-pin_tracker_comment <- function(comment_id, user_id = 1, user_role = "USER") {
+# Get comment summary for a tracker (statistics)
+get_tracker_comment_summary <- function(tracker_id) {
   tryCatch({
-    url <- paste0(get_tracker_comments_endpoint(), "/", comment_id, "/pin")
+    url <- paste0(get_tracker_comments_endpoint(), "/tracker/", tracker_id, "/summary")
     response <- httr2::request(url) |>
-      httr2::req_method("POST") |>
-      httr2::req_headers("X-User-Id" = as.character(user_id), "X-User-Role" = user_role) |>
-      httr2::req_error(is_error = ~ FALSE) |>
       httr2::req_perform()
     
     if (httr2::resp_status(response) == 200) {
       httr2::resp_body_json(response)
     } else {
-      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+      list(error = paste("HTTP", httr2::resp_status(response)))
     }
   }, error = function(e) {
     list(error = e$message)
   })
 }
 
-# Unpin tracker comment
-unpin_tracker_comment <- function(comment_id, user_id = 1, user_role = "USER") {
+# Get comment summaries for multiple trackers (bulk operation)
+get_tracker_comments_summary <- function(tracker_ids) {
+  if (length(tracker_ids) == 0) {
+    return(list())
+  }
+  
   tryCatch({
-    url <- paste0(get_tracker_comments_endpoint(), "/", comment_id, "/unpin")
-    response <- httr2::request(url) |>
-      httr2::req_method("POST") |>
-      httr2::req_headers("X-User-Id" = as.character(user_id), "X-User-Role" = user_role) |>
-      httr2::req_error(is_error = ~ FALSE) |>
-      httr2::req_perform()
+    # Make individual API calls for each tracker ID
+    summaries <- list()
     
-    if (httr2::resp_status(response) == 200) {
-      httr2::resp_body_json(response)
-    } else {
-      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    for (tracker_id in tracker_ids) {
+      summary <- get_tracker_comment_summary(tracker_id)
+      if (!"error" %in% names(summary)) {
+        # Add tracker_id to the summary for identification
+        summary$tracker_id <- tracker_id
+        summaries[[length(summaries) + 1]] <- summary
+      }
     }
+    
+    return(summaries)
   }, error = function(e) {
     list(error = e$message)
   })
