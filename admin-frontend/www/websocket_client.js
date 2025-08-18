@@ -157,12 +157,21 @@ class PearlWebSocketClient {
                     } else {
                         console.log('⚠️ No tracker ID in delete message - using full refresh');
                     }
-                    // Always route delete events to ensure cross-browser synchronization
+                    
+                    // GLOBAL CROSS-BROWSER ROUTING for tracker deletion
+                    // Send to global observer for cross-browser synchronization (similar to comments)
+                    console.log('🌐 Routing tracker deletion to global observer for cross-browser sync');
+                    this.notifyShinyGlobal(data.type, data.data, 'tracker_deletion');
                 }
             } else if (data.type.startsWith('comment_')) {
                 // Route comment events to reporting effort tracker module for real-time badge updates
                 data.module = 'reporting_effort_tracker';
                 console.log('💬 COMMENT EVENT RECEIVED (routing to reporting_effort_tracker):', data.type, `tracker_id=${data.data?.tracker_id}`, `unresolved_count=${data.data?.unresolved_count}`);
+                
+                // GLOBAL CROSS-BROWSER ROUTING for comment events
+                // Send to global observer for cross-browser badge synchronization
+                console.log('🌐 Routing comment event to global observer for cross-browser sync');
+                this.notifyShinyGlobal(data.type, data.data, 'tracker_comments');
             }
         }
         
@@ -324,6 +333,21 @@ class PearlWebSocketClient {
             }, {priority: 'event'});
         } else {
             console.log('⚠️ Shiny not available for event:', eventType);
+        }
+    }
+    
+    // Notify Shiny global observer with specific event type and data (for cross-browser sync)
+    notifyShinyGlobal(eventType, data, globalHandler) {
+        if (typeof Shiny !== 'undefined') {
+            const inputId = `${globalHandler}-websocket_event`;
+            console.log(`🌍 Sending GLOBAL event to Shiny: ${eventType} with data:`, data, `-> ${inputId}`);
+            Shiny.setInputValue(inputId, {
+                type: eventType,
+                data: data,
+                timestamp: Date.now()
+            }, {priority: 'event'});
+        } else {
+            console.log('⚠️ Shiny not available for global event:', eventType);
         }
     }
     

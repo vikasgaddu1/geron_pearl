@@ -287,6 +287,59 @@ server <- function(input, output, session) {
   ws_ok <- reactive({ websocket_status() == "Connected" })
   api_ok <- reactive({ !is.na(api_health_reactive()$status) && api_health_reactive()$status == 200 })
 
+  # GLOBAL WebSocket observer for cross-browser synchronization
+  # Handles both comment events and tracker deletion events that need global coordination
+  observeEvent(input$`tracker_comments-websocket_event`, {
+    if (!is.null(input$`tracker_comments-websocket_event`)) {
+      event_data <- input$`tracker_comments-websocket_event`
+      
+      cat("🌍 GLOBAL WebSocket observer triggered!\n")
+      cat("🔄 GLOBAL CROSS-BROWSER WebSocket event received:", event_data$type, "\n")
+      
+      # Handle comment events for cross-browser badge synchronization
+      if (startsWith(event_data$type, "comment_")) {
+        tracker_id <- event_data$data$tracker_id
+        
+        if (!is.null(tracker_id)) {
+          cat("🚀 Sending GLOBAL CROSS-BROWSER real-time badge update for tracker", tracker_id, "\n")
+          
+          # Send updateCommentBadgeRealtime message for cross-browser sync
+          session$sendCustomMessage("updateCommentBadgeRealtime", list(
+            tracker_id = tracker_id,
+            event_type = event_data$type,
+            comment_data = event_data$data
+          ))
+        }
+      }
+    }
+  })
+  
+  # GLOBAL WebSocket observer for tracker deletion cross-browser synchronization
+  observeEvent(input$`tracker_deletion-websocket_event`, {
+    if (!is.null(input$`tracker_deletion-websocket_event`)) {
+      event_data <- input$`tracker_deletion-websocket_event`
+      
+      cat("🌍 GLOBAL TRACKER DELETION observer triggered!\n")
+      cat("🔄 GLOBAL CROSS-BROWSER tracker deletion event received:", event_data$type, "\n")
+      
+      # Handle tracker deletion events for cross-browser synchronization
+      if (event_data$type == "reporting_effort_tracker_deleted") {
+        tracker_id <- event_data$data$tracker$id
+        
+        if (!is.null(tracker_id)) {
+          cat("🚀 Sending GLOBAL CROSS-BROWSER tracker deletion update for tracker", tracker_id, "\n")
+          
+          # Send custom message for cross-browser deletion sync
+          session$sendCustomMessage("syncTrackerDeletion", list(
+            tracker_id = tracker_id,
+            event_type = event_data$type,
+            deletion_data = event_data$data
+          ))
+        }
+      }
+    }
+  })
+
   # Bell dropdown UI
   output$status_dropdown <- renderUI({
     ok <- ws_ok() && api_ok()

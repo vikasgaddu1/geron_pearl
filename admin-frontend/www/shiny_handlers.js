@@ -69,6 +69,58 @@ function refreshCommentsHandler(message) {
 
 // Register both as Shiny message handler and global function
 Shiny.addCustomMessageHandler('refreshComments', refreshCommentsHandler);
+
+// Handle cross-browser tracker deletion synchronization
+function syncTrackerDeletionHandler(message) {
+  try {
+    console.log('🌍 Cross-browser tracker deletion sync received:', message);
+    const trackerId = message.tracker_id;
+    const eventType = message.event_type;
+    const deletionData = message.deletion_data;
+    
+    if (trackerId && eventType === 'reporting_effort_tracker_deleted') {
+      console.log(`🔄 Syncing tracker deletion across browsers for tracker ${trackerId}`);
+      
+      // First try surgical removal (if function exists)
+      if (typeof window.removeTrackerRowSurgically === 'function') {
+        const surgicalSuccess = window.removeTrackerRowSurgically(trackerId, deletionData);
+        if (surgicalSuccess) {
+          console.log('✅ Cross-browser surgical removal successful for tracker:', trackerId);
+          
+          // Show brief notification
+          if (typeof Shiny !== 'undefined') {
+            Shiny.notifications.show({
+              html: `Tracker ${trackerId} was deleted in another session`,
+              type: 'message',
+              duration: 3000
+            });
+          }
+          return;
+        }
+      }
+      
+      // Fallback to table refresh trigger
+      console.log('⚠️ Cross-browser surgical removal failed, triggering table refresh');
+      if (typeof Shiny !== 'undefined') {
+        // Trigger module refresh
+        Shiny.setInputValue('reporting_effort_tracker-force_refresh', Date.now(), {priority: 'event'});
+        
+        // Show notification
+        Shiny.notifications.show({
+          html: `Tracker deleted in another session - refreshing view`,
+          type: 'message',
+          duration: 3000
+        });
+      }
+    }
+    
+  } catch (e) {
+    console.error('❌ Error handling cross-browser tracker deletion sync:', e);
+  }
+}
+
+// Register tracker deletion sync handler
+Shiny.addCustomMessageHandler('syncTrackerDeletion', syncTrackerDeletionHandler);
 window.refreshCommentsHandler = refreshCommentsHandler;
 
 // Debug: Add WebSocket connection status indicator

@@ -1316,6 +1316,13 @@ reporting_effort_tracker_server <- function(id) {
       }
     })
     
+    # Cross-browser force refresh handler (triggered by global observer)
+    observeEvent(input$force_refresh, {
+      cat("DEBUG: Cross-browser force refresh triggered\n")
+      load_tracker_tables()
+      showNotification("Data refreshed due to changes in another session", type = "message", duration = 3)
+    })
+    
     # Handle enhanced delete notifications from JavaScript
     observeEvent(input$delete_notification, {
       if (!is.null(input$delete_notification)) {
