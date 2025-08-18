@@ -13,7 +13,7 @@ class Study(Base, TimestampMixin):
     __tablename__ = "studies"
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    study_label: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    study_label: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
     
     # Relationships
     database_releases = relationship("DatabaseRelease", back_populates="study")
