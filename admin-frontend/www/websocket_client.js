@@ -108,24 +108,8 @@ class PearlWebSocketClient {
                 data.type.startsWith('study_')) {
                 data.module = 'studies';
                 console.log('📚 Studies update received:', Array.isArray(data.data) ? data.data.length : 0, 'studies');
-            } else if (data.type.startsWith('reporting_effort_')) {
-                data.module = 'reporting_efforts';
-                console.log('🔴 REPORTING EFFORT UPDATED EVENT RECEIVED:', data.data?.database_release_label || 'unknown');
-            } else if (data.type.startsWith('database_release_')) {
-                data.module = 'database_releases';
-            } else if (data.type.startsWith('text_element_')) {
-                data.module = 'tnfp';
-                console.log('📝 TNFP EVENT RECEIVED:', data.type, data.data?.label || 'unknown');
-            } else if (data.type.startsWith('package_')) {
-                data.module = 'packages';
-                console.log('📦 PACKAGE EVENT RECEIVED:', data.type, data.data?.package_name || 'unknown');
-            } else if (data.type.startsWith('package_item_')) {
-                data.module = 'packages';
-                console.log('📦 PACKAGE ITEM EVENT RECEIVED:', data.type, data.data?.item_code || 'unknown');
-            } else if (data.type.startsWith('user_')) {
-                data.module = 'users';
-                console.log('👤 USER EVENT RECEIVED:', data.type, data.data?.username || 'unknown');
             } else if (data.type.startsWith('reporting_effort_tracker_')) {
+                // IMPORTANT: This must come BEFORE 'reporting_effort_' to avoid incorrect routing
                 data.module = 'reporting_effort_tracker';
                 console.log('📊 TRACKER EVENT RECEIVED:', data.type, data.data?.tracker?.id || data.data?.id || 'unknown');
                 
@@ -163,6 +147,23 @@ class PearlWebSocketClient {
                     console.log('🌐 Routing tracker deletion to global observer for cross-browser sync');
                     this.notifyShinyGlobal(data.type, data.data, 'tracker_deletion');
                 }
+            } else if (data.type.startsWith('reporting_effort_')) {
+                data.module = 'reporting_efforts';
+                console.log('🔴 REPORTING EFFORT UPDATED EVENT RECEIVED:', data.data?.database_release_label || 'unknown');
+            } else if (data.type.startsWith('database_release_')) {
+                data.module = 'database_releases';
+            } else if (data.type.startsWith('text_element_')) {
+                data.module = 'tnfp';
+                console.log('📝 TNFP EVENT RECEIVED:', data.type, data.data?.label || 'unknown');
+            } else if (data.type.startsWith('package_')) {
+                data.module = 'packages';
+                console.log('📦 PACKAGE EVENT RECEIVED:', data.type, data.data?.package_name || 'unknown');
+            } else if (data.type.startsWith('package_item_')) {
+                data.module = 'packages';
+                console.log('📦 PACKAGE ITEM EVENT RECEIVED:', data.type, data.data?.item_code || 'unknown');
+            } else if (data.type.startsWith('user_')) {
+                data.module = 'users';
+                console.log('👤 USER EVENT RECEIVED:', data.type, data.data?.username || 'unknown');
             } else if (data.type.startsWith('comment_')) {
                 // Route comment events to reporting effort tracker module for real-time badge updates
                 data.module = 'reporting_effort_tracker';
