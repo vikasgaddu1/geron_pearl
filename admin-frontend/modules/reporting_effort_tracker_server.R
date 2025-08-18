@@ -1178,8 +1178,13 @@ reporting_effort_tracker_server <- function(id) {
         
         # Handle comment events that should trigger badge updates
         if (startsWith(event_data$type, "comment_")) {
+          cat("DEBUG: R WebSocket event received - type:", event_data$type, "\n")
+          cat("DEBUG: Event data structure:", str(event_data), "\n")
+          
           tracker_id <- event_data$data$tracker_id
           unresolved_count <- event_data$data$unresolved_count
+          
+          cat("DEBUG: Extracted - tracker_id:", tracker_id, "unresolved_count:", unresolved_count, "\n")
           
           # Update badge with new comment count
           if (!is.null(tracker_id) && !is.null(unresolved_count)) {

@@ -171,7 +171,7 @@ Shiny.addCustomMessageHandler('updateSmartCommentButtons', function(message) {
     // Update each smart comment button with the actual unresolved count
     summaries.forEach(summary => {
       const trackerId = summary.tracker_id ?? summary.trackerId ?? summary.id;
-      const unresolvedCount = summary.unresolved_count ?? summary.unresolved_parent_comments ?? summary.unresolved_comments ?? 0;
+      const unresolvedCount = summary.unresolved_count ?? 0;
 
       console.log(`🔧 Updating smart button for tracker ${trackerId} with count ${unresolvedCount}`);
 
