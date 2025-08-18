@@ -99,6 +99,20 @@ class PearlWebSocketClient {
     handleMessage(data) {
         console.log('📨 WebSocket message received:', data.type, 'Data:', data);
         
+        // **PHASE 2**: Route through Universal CRUD Manager if available
+        if (typeof window.crudManager !== 'undefined') {
+            console.log('🎯 Routing through Universal CRUD Manager:', data.type);
+            
+            // Convert WebSocket message to standardized CRUD event format
+            const crudEvent = this.convertToCRUDEvent(data);
+            
+            // Let the Universal CRUD Manager handle the event
+            window.crudManager.handleCRUDEvent(crudEvent);
+            
+            // Continue with legacy routing for backward compatibility during transition
+            console.log('🔄 Also processing via legacy routing for compatibility');
+        }
+        
         // Determine module based on message type if not provided
         if (!data.module && data.type) {
             console.log('🔍 DEBUG: Processing message type:', JSON.stringify(data.type));
@@ -195,6 +209,87 @@ class PearlWebSocketClient {
                     console.log('❓ Received message without a module for routing:', data);
                 }
         }
+    }
+    
+    // **PHASE 2**: Convert WebSocket message to standardized CRUD event format
+    convertToCRUDEvent(wsMessage) {
+        // Extract operation from message type (e.g., 'study_created' -> 'create')
+        let operation = 'read'; // default
+        let entityType = 'unknown';
+        
+        // Parse message type to extract entity and operation
+        if (wsMessage.type) {
+            const parts = wsMessage.type.split('_');
+            if (parts.length >= 2) {
+                // Handle compound entity types (e.g., 'reporting_effort_tracker')
+                if (parts[0] === 'reporting' && parts[1] === 'effort' && parts[2] === 'tracker') {
+                    entityType = 'tracker';
+                    operation = this.mapOperation(parts[3] || 'update');
+                } else if (parts[0] === 'reporting' && parts[1] === 'effort') {
+                    entityType = 'reporting_effort';
+                    operation = this.mapOperation(parts[2] || 'update');
+                } else if (parts[0] === 'database' && parts[1] === 'release') {
+                    entityType = 'database_release';
+                    operation = this.mapOperation(parts[2] || 'update');
+                } else if (parts[0] === 'text' && parts[1] === 'element') {
+                    entityType = 'text_element';
+                    operation = this.mapOperation(parts[2] || 'update');
+                } else if (parts[0] === 'package' && parts[1] === 'item') {
+                    entityType = 'package_item';
+                    operation = this.mapOperation(parts[2] || 'update');
+                } else {
+                    // Simple entity types
+                    entityType = parts[0];
+                    operation = this.mapOperation(parts[1] || 'update');
+                }
+            }
+        }
+        
+        // Handle special cases
+        if (wsMessage.type === 'studies_update') {
+            entityType = 'study';
+            operation = 'read'; // bulk read operation
+        }
+        
+        return {
+            type: wsMessage.type,
+            operation: operation,
+            entity: {
+                type: entityType,
+                id: this.extractEntityId(wsMessage),
+                data: wsMessage.data
+            },
+            context: {
+                timestamp: Date.now(),
+                source: 'websocket',
+                originalType: wsMessage.type
+            }
+        };
+    }
+    
+    // Map WebSocket operation suffixes to standard CRUD operations
+    mapOperation(suffix) {
+        const operationMap = {
+            'created': 'create',
+            'updated': 'update', 
+            'deleted': 'delete',
+            'update': 'read',  // bulk updates are read operations
+            'read': 'read'
+        };
+        return operationMap[suffix] || 'read';
+    }
+    
+    // Extract entity ID from WebSocket message data
+    extractEntityId(wsMessage) {
+        if (!wsMessage.data) return null;
+        
+        // Try different ID fields based on entity type
+        return wsMessage.data.id || 
+               wsMessage.data.tracker_id ||
+               wsMessage.data.study_id ||
+               wsMessage.data.user_id ||
+               wsMessage.data.package_id ||
+               null;
     }
     
     // Send message to WebSocket server

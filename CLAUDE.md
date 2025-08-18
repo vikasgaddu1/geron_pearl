@@ -350,7 +350,7 @@ TrackerComment (workflow comments with threading and resolution status)
 - **Testing**: See [backend/tests/README.md](backend/tests/README.md)
 - **Utility Scripts**: See [scripts/README.md](scripts/README.md) for service management
 - **Database Migration**: See [backend/CASCADE_DELETE_MIGRATION_PLAN.md](backend/CASCADE_DELETE_MIGRATION_PLAN.md) for orphaned records solution
-- **Tracker Delete Testing**: See [backend/TRACKER_DELETE_ENDPOINT_TESTING_RESULTS.md](backend/TRACKER_DELETE_ENDPOINT_TESTING_RESULTS.md) for delete endpoint validation
+- **Tracker Delete Testing**: DELETE endpoint for reporting effort tracker is production-ready and tested
 - **MCP Integration**: fastapi-mcp running at http://localhost:8000/mcp
 
 ## Recent Important Updates (August 2025)
