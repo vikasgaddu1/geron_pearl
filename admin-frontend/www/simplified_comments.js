@@ -416,3 +416,45 @@ function showCommentNotification(message, type = 'info') {
 document.addEventListener('DOMContentLoaded', function() {
   console.log('Simplified comment system loaded');
 });
+
+// Handle custom message from R Shiny for updating comment badges
+if (typeof Shiny !== 'undefined') {
+  Shiny.addCustomMessageHandler('updateCommentBadges', function(data) {
+    console.log('Received updateCommentBadges message:', data);
+    
+    if (data && data.summaries) {
+      console.log('Processing summaries:', data.summaries);
+      
+      // Handle both array and object formats
+      let summaries;
+      if (Array.isArray(data.summaries)) {
+        summaries = data.summaries;
+      } else {
+        summaries = Object.values(data.summaries);
+      }
+      
+      console.log('Processing', summaries.length, 'summaries');
+      
+      summaries.forEach(function(summary, index) {
+        console.log(`Processing summary ${index}:`, summary);
+        
+        if (summary && typeof summary === 'object') {
+          const trackerId = summary.tracker_id;
+          // Support both field names: unresolved_count (expected) and unresolved_parent_comments (actual from R)
+          const unresolvedCount = summary.unresolved_count !== undefined ? summary.unresolved_count : summary.unresolved_parent_comments;
+          
+          if (trackerId !== undefined && unresolvedCount !== undefined) {
+            console.log(`Updating button for tracker ${trackerId} with count ${unresolvedCount}`);
+            updateCommentButtonBadge(trackerId, unresolvedCount);
+          } else {
+            console.warn('Missing tracker_id or unresolved_count/unresolved_parent_comments in summary:', summary);
+          }
+        } else {
+          console.warn('Invalid summary format:', summary);
+        }
+      });
+    } else {
+      console.warn('No summaries found in updateCommentBadges data:', data);
+    }
+  });
+}

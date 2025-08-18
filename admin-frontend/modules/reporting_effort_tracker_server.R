@@ -1171,108 +1171,28 @@ reporting_effort_tracker_server <- function(id) {
       }
     })
 
-    # WebSocket event handling for comments - ENHANCED for cross-browser sync with DEBUG
-    # CRITICAL: This observer must be GLOBAL, not module-scoped, to receive WebSocket events
-    observeEvent(input$`tracker_comments-websocket_event`, {
-      cat("🌐 NAMESPACED WebSocket event observer triggered!\n")
-      cat("🌐 Input value:", class(input$`tracker_comments-websocket_event`), "\n")
-      cat("🌐 Input content:", jsonlite::toJSON(input$`tracker_comments-websocket_event`, auto_unbox = TRUE), "\n")
-      
-      if (!is.null(input$`tracker_comments-websocket_event`)) {
-        event_data <- input$`tracker_comments-websocket_event`
-        cat("🔄 NAMESPACED CROSS-BROWSER WebSocket comment event received:", event_data$type, "\n")
-        cat("🔄 Module namespace: reporting_effort_tracker\n")
-      }
-    })
-    
-    # ADDITIONAL: Try observing the global (non-namespaced) event as well
-    # Use session$userData to access global inputs if available
-    if (exists("session") && !is.null(session$userData)) {
-      observe({
-        # Try to observe global WebSocket events
-        tryCatch({
-          global_input <- session$input$`tracker_comments-websocket_event`
-          if (!is.null(global_input)) {
-            cat("🌍 GLOBAL WebSocket event detected in module!\n")
-            cat("🌍 Input content:", jsonlite::toJSON(global_input, auto_unbox = TRUE), "\n")
-          }
-        }, error = function(e) {
-          # Silently ignore if global input doesn't exist
-        })
-      })
-    }
-    
-    # FALLBACK: Original observer with debugging
-    observeEvent(input$`tracker_comments-websocket_event`, {
-      cat("🌐 ORIGINAL WebSocket event observer triggered!\n")
-      cat("🌐 Input value:", class(input$`tracker_comments-websocket_event`), "\n")
-      cat("🌐 Input content:", jsonlite::toJSON(input$`tracker_comments-websocket_event`, auto_unbox = TRUE), "\n")
-      
-      if (!is.null(input$`tracker_comments-websocket_event`)) {
-        event_data <- input$`tracker_comments-websocket_event`
-        cat("🔄 CROSS-BROWSER WebSocket comment event received:", event_data$type, "\n")
-        cat("🔄 Event timestamp:", event_data$timestamp %||% "unknown", "\n")
+    # WebSocket event handling - Clean implementation following established patterns
+    observeEvent(input$`reporting_effort_tracker-websocket_event`, {
+      if (!is.null(input$`reporting_effort_tracker-websocket_event`)) {
+        event_data <- input$`reporting_effort_tracker-websocket_event`
         
-        # Handle different comment event types
+        # Handle comment events that should trigger badge updates
         if (startsWith(event_data$type, "comment_")) {
-          # Process comment events from OTHER browsers (cross-browser sync)
-          if (!is.null(event_data$data$tracker_id)) {
-            tracker_id <- event_data$data$tracker_id
-            cat("🌐 Processing CROSS-BROWSER comment event for tracker ID:", tracker_id, "\n")
-            
-            # Send JavaScript message to refresh comments for this tracker
-            session$sendCustomMessage("refreshComments", list(
-              tracker_id = tracker_id,
-              event_type = event_data$type,
-              is_cross_browser = TRUE  # Flag to indicate this came from another browser
-            ))
-            
-            # IMMEDIATE badge update for cross-browser synchronization
-            tryCatch({
-              cat("🚀 Sending CROSS-BROWSER real-time badge update for tracker", tracker_id, "\n")
-              session$sendCustomMessage("updateCommentBadgeRealtime", list(
+          tracker_id <- event_data$data$tracker_id
+          unresolved_count <- event_data$data$unresolved_count
+          
+          # Update badge with new comment count
+          if (!is.null(tracker_id) && !is.null(unresolved_count)) {
+            session$sendCustomMessage("updateCommentBadges", list(
+              summaries = list(list(
                 tracker_id = tracker_id,
-                event_type = event_data$type,
-                comment_data = event_data$data,
-                is_cross_browser = TRUE,
-                source = "websocket_cross_browser"
-              ))
-            }, error = function(e) {
-              cat("❌ ERROR: Failed to send cross-browser badge update:", e$message, "\n")
-            })
-            
-            # Also force a badge refresh using API to ensure accuracy
-            later::later(function() {
-              tryCatch({
-                cat("🔄 Background API badge refresh for cross-browser sync, tracker:", tracker_id, "\n")
-                update_single_tracker_badges(tracker_id)
-              }, error = function(e) {
-                cat("ERROR: Failed background cross-browser badge refresh:", e$message, "\n")
-              })
-            }, delay = 1.0)  # Faster refresh for cross-browser updates
+                unresolved_parent_comments = unresolved_count
+              )),
+              source = "websocket_realtime"
+            ))
           }
         }
       }
-    })
-    
-    # DEBUG: Force badge refresh handler
-    observeEvent(input$force_badge_refresh, {
-      cat("🔧 MANUAL badge refresh triggered!\n")
-      cat("🔧 Data:", jsonlite::toJSON(input$force_badge_refresh, auto_unbox = TRUE), "\n")
-      
-      # Trigger badge update for all visible trackers
-      tryCatch({
-        load_tracker_tables()
-        cat("🔧 Manual badge refresh completed\n")
-      }, error = function(e) {
-        cat("🔧 ERROR in manual badge refresh:", e$message, "\n")
-      })
-    })
-    
-    # DEBUG: Test any Shiny input events
-    observe({
-      cat("🔍 R Server is alive and processing reactive expressions\n")
-      invalidateLater(30000, session)  # Every 30 seconds
     })
 
     # Comment action handlers (pin, unpin, etc.)

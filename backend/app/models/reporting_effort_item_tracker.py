@@ -104,6 +104,13 @@ class ReportingEffortItemTracker(Base, TimestampMixin):
         nullable=False,
         doc="Whether item is currently in production"
     )
+    unresolved_comment_count: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        index=True,
+        doc="Count of unresolved parent comments (for badge display)"
+    )
     
     # Relationships
     item: Mapped["ReportingEffortItem"] = relationship(
