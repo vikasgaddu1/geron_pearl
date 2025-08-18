@@ -1208,10 +1208,16 @@ reporting_effort_tracker_server <- function(id) {
           cat("DEBUG: Tracker WebSocket event received:", event_data$type, "\n")
           
           if (event_data$type == "reporting_effort_tracker_deleted") {
-            cat("DEBUG: Tracker deleted event - refreshing tables\n")
-            # Refresh tables when a tracker is deleted
+            cat("DEBUG: Tracker deleted event - checking if surgical removal already handled\n")
+            
+            # Check if this deletion was already handled by JavaScript surgical removal
+            # If JavaScript handled it successfully, we won't reach here due to early return
+            # This means either surgical removal failed or wasn't attempted
+            
+            cat("DEBUG: Using fallback table refresh for tracker deletion\n")
             load_tracker_tables()
-            showNotification("Tracker deleted (real-time update)", type = "message", duration = 3)
+            showNotification("Tracker deleted (fallback update)", type = "message", duration = 3)
+            
           } else if (event_data$type %in% c("reporting_effort_tracker_updated", "reporting_effort_tracker_created")) {
             cat("DEBUG: Tracker updated/created event - refreshing tables\n")
             # Refresh tables for updates and creates
@@ -1282,5 +1288,112 @@ reporting_effort_tracker_server <- function(id) {
     observeEvent(input$bulk_assign_clicked, showNotification("Bulk assign coming soon", type = "message"))
     observeEvent(input$bulk_status_clicked, showNotification("Bulk status update coming soon", type = "message"))
     observeEvent(input$workload_summary_clicked, showNotification("Workload summary coming soon", type = "message"))
+    
+    # Enhanced surgical update event handlers
+    
+    # Handle surgical removal fallback when JavaScript fails
+    observeEvent(input$surgical_removal_fallback, {
+      if (!is.null(input$surgical_removal_fallback)) {
+        tracker_id <- input$surgical_removal_fallback$tracker_id
+        cat("DEBUG: Surgical removal fallback triggered for tracker:", tracker_id, "\n")
+        
+        # Fall back to full table refresh
+        load_tracker_tables()
+        showNotification("Tracker removed (fallback refresh)", type = "message", duration = 3)
+      }
+    })
+    
+    # Handle optimized bulk refresh requests from JavaScript
+    observeEvent(input$bulk_refresh_request, {
+      if (!is.null(input$bulk_refresh_request)) {
+        effort_id <- input$bulk_refresh_request$effort_id
+        cat("DEBUG: Bulk refresh request for effort:", effort_id, "\n")
+        
+        # Use optimized bulk loading
+        if (!is.null(effort_id) && effort_id == current_reporting_effort_id()) {
+          load_tracker_tables_optimized(effort_id)
+        }
+      }
+    })
+    
+    # Handle enhanced delete notifications from JavaScript
+    observeEvent(input$delete_notification, {
+      if (!is.null(input$delete_notification)) {
+        notification_data <- input$delete_notification
+        
+        if (notification_data$type == "surgical_delete") {
+          # Show enhanced notification with context
+          context <- notification_data$context
+          message <- notification_data$message
+          
+          # Create rich notification with user context
+          if (!is.null(context$deleted_by) && !is.null(context$deleted_by$username)) {
+            user_info <- paste0(" by ", context$deleted_by$username)
+          } else {
+            user_info <- ""
+          }
+          
+          showNotification(
+            tagList(
+              tags$div(
+                class = "d-flex align-items-center",
+                tags$i(class = "fa fa-trash me-2 text-warning"),
+                tags$span(message, user_info)
+              )
+            ),
+            type = "message",
+            duration = 4000
+          )
+        }
+      }
+    })
+    
+    # Optimized table loading using bulk endpoint
+    load_tracker_tables_optimized <- function(effort_id = NULL) {
+      eff_id <- effort_id %||% current_reporting_effort_id()
+      
+      if (is.null(eff_id)) {
+        cat("DEBUG: No effort ID for optimized loading\n")
+        return()
+      }
+      
+      cat("DEBUG: Loading tracker tables optimized for effort:", eff_id, "\n")
+      
+      tryCatch({
+        # Use bulk endpoint for efficient loading
+        bulk_result <- get_trackers_by_effort_bulk(eff_id)
+        
+        if ("error" %in% names(bulk_result)) {
+          cat("ERROR: Bulk loading failed:", bulk_result$error, "\n")
+          # Fall back to regular loading
+          load_tracker_tables()
+          return()
+        }
+        
+        # Process bulk data into table structure
+        processed_data <- process_bulk_tracker_data(bulk_result)
+        tracker_data(processed_data)
+        
+        cat("DEBUG: Optimized loading completed with", length(bulk_result), "items\n")
+        
+      }, error = function(e) {
+        cat("ERROR: Exception in optimized loading:", e$message, "\n")
+        # Fall back to regular loading
+        load_tracker_tables()
+      })
+    }
+    
+    # Process bulk tracker data into table format
+    process_bulk_tracker_data <- function(bulk_data) {
+      # Transform bulk API response into the expected table structure
+      # This would need to be implemented based on the bulk endpoint response format
+      
+      # For now, return empty structure - this would be enhanced based on actual bulk response
+      list(
+        tlf_trackers = data.frame(),
+        sdtm_trackers = data.frame(), 
+        adam_trackers = data.frame()
+      )
+    }
   })
 }

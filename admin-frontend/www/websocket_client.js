@@ -127,7 +127,39 @@ class PearlWebSocketClient {
                 console.log('👤 USER EVENT RECEIVED:', data.type, data.data?.username || 'unknown');
             } else if (data.type.startsWith('reporting_effort_tracker_')) {
                 data.module = 'reporting_effort_tracker';
-                console.log('📊 TRACKER EVENT RECEIVED:', data.type, data.data?.id || 'unknown');
+                console.log('📊 TRACKER EVENT RECEIVED:', data.type, data.data?.tracker?.id || data.data?.id || 'unknown');
+                
+                // Handle optimized surgical delete operations
+                if (data.type === 'reporting_effort_tracker_deleted') {
+                    console.log('🔪 Processing optimized tracker deletion');
+                    
+                    // Extract tracker ID and context from enhanced message
+                    const trackerId = data.data?.tracker?.id;
+                    const deleteContext = {
+                        deleted_by: data.data?.deleted_by,
+                        item: data.data?.item,
+                        tracker: data.data?.tracker,
+                        deleted_at: data.data?.deleted_at
+                    };
+                    
+                    if (trackerId) {
+                        console.log('✂️ Attempting surgical row removal for tracker:', trackerId);
+                        
+                        // Try surgical removal first
+                        const surgicalSuccess = window.removeTrackerRowSurgically(trackerId, deleteContext);
+                        
+                        if (surgicalSuccess) {
+                            console.log('✅ Surgical removal successful - skipping full table refresh');
+                            // Don't route to Shiny module for full refresh since surgical removal worked
+                            return;
+                        } else {
+                            console.log('⚠️ Surgical removal failed - will fall back to full refresh via Shiny');
+                            // Continue with normal routing for fallback refresh
+                        }
+                    } else {
+                        console.log('⚠️ No tracker ID in delete message - using full refresh');
+                    }
+                }
             } else if (data.type.startsWith('comment_')) {
                 // Route comment events to reporting effort tracker module for real-time badge updates
                 data.module = 'reporting_effort_tracker';
@@ -334,6 +366,366 @@ window.addEventListener('beforeunload', function() {
         pearlWsClient.close();
     }
 });
+
+// =============================================================================
+// SURGICAL UPDATE FUNCTIONS FOR OPTIMIZED DELETE HANDLING
+// =============================================================================
+
+/**
+ * Smoothly removes a row from a DataTable by tracker ID with enhanced context and animations
+ * @param {string} trackerId - The tracker ID to remove
+ * @param {Object} deleteContext - Additional context from delete event
+ */
+window.removeTrackerRowSurgically = function(trackerId, deleteContext = {}) {
+    console.log('🔪 Surgical row removal for tracker ID:', trackerId);
+    console.log('📄 Delete context:', deleteContext);
+    
+    // Find all DataTable instances on the page
+    const dataTableSelectors = [
+        '#reporting_effort_tracker-tracker_table_tlf',
+        '#reporting_effort_tracker-tracker_table_sdtm', 
+        '#reporting_effort_tracker-tracker_table_adam'
+    ];
+    
+    let removedCount = 0;
+    let animationPromises = [];
+    
+    dataTableSelectors.forEach(selector => {
+        const tableElement = $(selector);
+        if (tableElement.length && $.fn.DataTable.isDataTable(tableElement[0])) {
+            const dataTable = tableElement.DataTable();
+            
+            // Find row by tracker ID in data-id attributes
+            const rows = dataTable.rows().nodes();
+            for (let i = 0; i < rows.length; i++) {
+                const row = $(rows[i]);
+                const deleteBtn = row.find('button[data-action="delete"]');
+                
+                if (deleteBtn.length && deleteBtn.attr('data-id') === trackerId) {
+                    console.log(`✂️ Found tracker ${trackerId} in table ${selector}, removing row ${i}`);
+                    
+                    // Enhance delete button with loading state
+                    deleteBtn.addClass('btn-deleting').prop('disabled', true);
+                    
+                    // Add removal animation with enhanced timing
+                    row.addClass('tracker-row-removing');
+                    
+                    // Create animation promise for better timing control
+                    const animationPromise = new Promise((resolve) => {
+                        setTimeout(() => {
+                            row.fadeOut(400, function() {
+                                // Add success indication to nearby rows
+                                row.prev().addClass('tracker-surgical-success');
+                                row.next().addClass('tracker-surgical-success');
+                                
+                                // Remove the row from DataTable
+                                dataTable.row(rows[i]).remove();
+                                dataTable.draw(false); // Redraw without resetting pagination
+                                removedCount++;
+                                
+                                // Clean up success indicators
+                                setTimeout(() => {
+                                    $('.tracker-surgical-success').removeClass('tracker-surgical-success');
+                                }, 1000);
+                                
+                                resolve();
+                            });
+                        }, 200); // Small delay for smoother animation staging
+                    });
+                    
+                    animationPromises.push(animationPromise);
+                    break;
+                }
+            }
+        }
+    });
+    
+    // Wait for all animations to complete before showing notifications
+    Promise.all(animationPromises).then(() => {
+        if (removedCount > 0) {
+            console.log(`✅ Successfully removed ${removedCount} tracker row(s) with enhanced animations`);
+            
+            // Show enhanced user-friendly notification with context
+            if (deleteContext.deleted_by || deleteContext.item) {
+                showDeleteNotification(deleteContext);
+            }
+            
+            // Show subtle success feedback
+            showSurgicalSuccessIndicator(removedCount);
+        }
+    });
+    
+    if (removedCount === 0) {
+        console.log('⚠️ No tracker row found with ID:', trackerId);
+        // Fall back to full table refresh if surgical removal failed
+        console.log('🔄 Falling back to full table refresh');
+        if (window.Shiny) {
+            Shiny.setInputValue('reporting_effort_tracker-surgical_removal_fallback', {
+                tracker_id: trackerId,
+                timestamp: Date.now()
+            }, {priority: 'event'});
+        }
+    }
+    
+    return removedCount > 0;
+};
+
+/**
+ * Show subtle success indicator for surgical updates
+ * @param {number} count - Number of rows successfully removed
+ */
+function showSurgicalSuccessIndicator(count) {
+    // Create temporary success indicator
+    const indicator = document.createElement('div');
+    indicator.className = 'position-fixed';
+    indicator.style.cssText = `
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #4caf50, #66bb6a);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+        z-index: 9999;
+        animation: surgicalSuccess 2s ease-out forwards;
+        opacity: 0;
+        transform: translateX(100%);
+    `;
+    indicator.innerHTML = `
+        <i class="fa fa-check-circle me-2"></i>
+        ${count} tracker${count > 1 ? 's' : ''} updated smoothly
+    `;
+    
+    document.body.appendChild(indicator);
+    
+    // Animate in
+    setTimeout(() => {
+        indicator.style.opacity = '1';
+        indicator.style.transform = 'translateX(0)';
+    }, 10);
+    
+    // Remove after animation
+    setTimeout(() => {
+        if (indicator.parentNode) {
+            indicator.parentNode.removeChild(indicator);
+        }
+    }, 2500);
+}
+
+/**
+ * Show enhanced user notification for tracker deletion with user context
+ * @param {Object} deleteContext - Context from enhanced WebSocket delete message
+ */
+function showDeleteNotification(deleteContext) {
+    const { deleted_by, item, tracker } = deleteContext;
+    
+    let message = 'Tracker deleted';
+    
+    if (item && item.item_code) {
+        message = `Tracker for ${item.item_code} deleted`;
+    }
+    
+    if (deleted_by && deleted_by.username) {
+        if (deleted_by.username !== getCurrentUsername()) {
+            message += ` by ${deleted_by.username}`;
+        }
+    }
+    
+    // Use Shiny notification system with enhanced styling
+    if (typeof Shiny !== 'undefined') {
+        Shiny.setInputValue('reporting_effort_tracker-delete_notification', {
+            message: message,
+            type: 'surgical_delete',
+            context: deleteContext,
+            timestamp: Date.now()
+        }, {priority: 'event'});
+    }
+    
+    console.log('📢 Delete notification:', message);
+}
+
+/**
+ * Get current username (placeholder - would integrate with auth system)
+ * @returns {string} Current user's username
+ */
+function getCurrentUsername() {
+    // This would integrate with your authentication system
+    // For now, return a placeholder
+    return window.currentUser?.username || 'current_user';
+}
+
+/**
+ * Bulk refresh tracker data using optimized bulk endpoint
+ * @param {number} reportingEffortId - The reporting effort ID to refresh
+ */
+window.refreshTrackersOptimized = function(reportingEffortId) {
+    console.log('⚡ Optimized tracker refresh for effort:', reportingEffortId);
+    
+    if (typeof Shiny !== 'undefined') {
+        Shiny.setInputValue('reporting_effort_tracker-bulk_refresh_request', {
+            effort_id: reportingEffortId,
+            timestamp: Date.now()
+        }, {priority: 'event'});
+    }
+};
+
+/**
+ * Add CSS animations for smooth row removal and UX enhancements
+ */
+function addTrackerRowAnimations() {
+    if (!document.getElementById('tracker-row-animations')) {
+        const style = document.createElement('style');
+        style.id = 'tracker-row-animations';
+        style.textContent = `
+            /* Smooth row removal animations */
+            .tracker-row-removing {
+                background: linear-gradient(90deg, #ffebee 0%, #ffcdd2 50%, #ffebee 100%) !important;
+                background-size: 200% 100%;
+                animation: trackerRowRemoving 0.8s ease-in-out;
+                transition: all 0.3s ease-out;
+            }
+            
+            .tracker-row-removing td {
+                border-color: #ffcdd2 !important;
+                color: #d32f2f !important;
+            }
+            
+            /* Notification enhancements */
+            .tracker-delete-notification {
+                border-left: 4px solid #ff7043;
+                background-color: #fff3e0;
+                box-shadow: 0 2px 8px rgba(255, 112, 67, 0.2);
+                border-radius: 4px;
+            }
+            
+            /* Delete action feedback */
+            .tracker-delete-animation {
+                animation: trackerDeletePulse 0.6s ease-in-out;
+            }
+            
+            /* Success indicators for surgical updates */
+            .tracker-surgical-success {
+                animation: surgicalSuccess 1s ease-out;
+            }
+            
+            /* DataTable row hover enhancements */
+            .dataTables_wrapper table.dataTable tbody tr:hover {
+                background-color: #f8f9fa !important;
+                transition: background-color 0.2s ease;
+            }
+            
+            /* Button loading states */
+            .btn-deleting {
+                position: relative;
+                color: transparent !important;
+            }
+            
+            .btn-deleting::after {
+                content: '';
+                position: absolute;
+                width: 16px;
+                height: 16px;
+                top: 50%;
+                left: 50%;
+                margin-left: -8px;
+                margin-top: -8px;
+                border: 2px solid #ffffff;
+                border-radius: 50%;
+                border-top-color: transparent;
+                animation: btnSpin 0.8s linear infinite;
+            }
+            
+            /* Enhanced loading spinner */
+            @keyframes btnSpin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            
+            /* Row removal animation */
+            @keyframes trackerRowRemoving {
+                0% { 
+                    background-position: 0% 50%;
+                    opacity: 1;
+                    transform: scale(1);
+                }
+                50% { 
+                    background-position: 100% 50%;
+                    opacity: 0.8;
+                    transform: scale(0.98);
+                }
+                100% { 
+                    background-position: 200% 50%;
+                    opacity: 0.6;
+                    transform: scale(0.95);
+                }
+            }
+            
+            /* Delete confirmation pulse */
+            @keyframes trackerDeletePulse {
+                0% { opacity: 1; transform: scale(1); }
+                25% { opacity: 0.8; transform: scale(1.02); }
+                50% { opacity: 0.6; transform: scale(0.98); }
+                75% { opacity: 0.8; transform: scale(1.01); }
+                100% { opacity: 1; transform: scale(1); }
+            }
+            
+            /* Success feedback animation */
+            @keyframes surgicalSuccess {
+                0% { 
+                    background-color: #e8f5e8;
+                    transform: scale(1);
+                }
+                50% { 
+                    background-color: #c8e6c9;
+                    transform: scale(1.01);
+                }
+                100% { 
+                    background-color: transparent;
+                    transform: scale(1);
+                }
+            }
+            
+            /* Toast notification enhancements */
+            .shiny-notification {
+                border-radius: 6px !important;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+                animation: notificationSlideIn 0.3s ease-out !important;
+            }
+            
+            @keyframes notificationSlideIn {
+                from {
+                    opacity: 0;
+                    transform: translateX(100%);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+            
+            /* Multi-user context indicators */
+            .delete-by-other-user {
+                border-left: 4px solid #2196f3 !important;
+                background-color: #e3f2fd !important;
+            }
+            
+            .delete-by-current-user {
+                border-left: 4px solid #4caf50 !important;
+                background-color: #e8f5e8 !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
+
+// Add animations when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', addTrackerRowAnimations);
+} else {
+    addTrackerRowAnimations();
+}
 
 // =============================================================================
 // WEBSOCKET DEBUGGING AND TESTING FUNCTIONS
