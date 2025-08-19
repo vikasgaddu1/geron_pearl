@@ -2287,10 +2287,20 @@ package_items_server <- function(id) {
       })
     })
     
-    # WebSocket event handling
+    # Universal CRUD Manager integration (Phase 4)
+    # Replaces entity-specific WebSocket observer with standardized refresh trigger
+    observeEvent(input$`package_items-crud_refresh`, {
+      if (!is.null(input$`package_items-crud_refresh`)) {
+        cat("📦 Universal CRUD refresh triggered for package items\n")
+        load_package_items()
+      }
+    })
+    
+    # Legacy WebSocket observer (kept for backward compatibility during transition)
     observeEvent(input$`package-items-websocket_event`, {
       if (!is.null(input$`package-items-websocket_event`)) {
         event_data <- input$`package-items-websocket_event`
+        cat("📦 Legacy WebSocket event received:", event_data$type, "\n")
         if (startsWith(event_data$type, "package_item_")) {
           load_package_items()
         }

@@ -143,8 +143,8 @@ class PearlWebSocketClient {
                     if (trackerId) {
                         console.log('✂️ Attempting surgical row removal for tracker:', trackerId);
                         
-                        // Try surgical removal first (local optimization)
-                        const surgicalSuccess = window.removeTrackerRowSurgically(trackerId, deleteContext);
+                        // Note: Surgical removal now handled by Universal CRUD Manager
+                        const surgicalSuccess = false; // Disabled legacy function
                         
                         if (surgicalSuccess) {
                             console.log('✅ Surgical removal successful locally');
@@ -160,6 +160,11 @@ class PearlWebSocketClient {
                     // Send to global observer for cross-browser synchronization (similar to comments)
                     console.log('🌐 Routing tracker deletion to global observer for cross-browser sync');
                     this.notifyShinyGlobal(data.type, data.data, 'tracker_deletion');
+                } else if (data.type === 'reporting_effort_tracker_updated' || data.type === 'reporting_effort_tracker_created') {
+                    // GLOBAL CROSS-BROWSER ROUTING for tracker updates/creates
+                    // Fix: Add missing cross-browser synchronization for edit operations
+                    console.log('🌐 Routing tracker update/create to global observer for cross-browser sync:', data.type);
+                    this.notifyShinyGlobal(data.type, data.data, 'tracker_update');
                 }
             } else if (data.type.startsWith('reporting_effort_')) {
                 data.module = 'reporting_efforts';
@@ -487,193 +492,10 @@ window.addEventListener('beforeunload', function() {
 });
 
 // =============================================================================
-// SURGICAL UPDATE FUNCTIONS FOR OPTIMIZED DELETE HANDLING
+// SURGICAL UPDATE FUNCTIONS (Moved to Universal CRUD Manager in Phase 3)
 // =============================================================================
-
-/**
- * Smoothly removes a row from a DataTable by tracker ID with enhanced context and animations
- * @param {string} trackerId - The tracker ID to remove
- * @param {Object} deleteContext - Additional context from delete event
- */
-window.removeTrackerRowSurgically = function(trackerId, deleteContext = {}) {
-    console.log('🔪 Surgical row removal for tracker ID:', trackerId);
-    console.log('📄 Delete context:', deleteContext);
-    
-    // Find all DataTable instances on the page
-    const dataTableSelectors = [
-        '#reporting_effort_tracker-tracker_table_tlf',
-        '#reporting_effort_tracker-tracker_table_sdtm', 
-        '#reporting_effort_tracker-tracker_table_adam'
-    ];
-    
-    let removedCount = 0;
-    let animationPromises = [];
-    
-    dataTableSelectors.forEach(selector => {
-        const tableElement = $(selector);
-        if (tableElement.length && $.fn.DataTable.isDataTable(tableElement[0])) {
-            const dataTable = tableElement.DataTable();
-            
-            // Find row by tracker ID in data-id attributes
-            const rows = dataTable.rows().nodes();
-            for (let i = 0; i < rows.length; i++) {
-                const row = $(rows[i]);
-                const deleteBtn = row.find('button[data-action="delete"]');
-                
-                if (deleteBtn.length && deleteBtn.attr('data-id') === trackerId) {
-                    console.log(`✂️ Found tracker ${trackerId} in table ${selector}, removing row ${i}`);
-                    
-                    // Enhance delete button with loading state
-                    deleteBtn.addClass('btn-deleting').prop('disabled', true);
-                    
-                    // Add removal animation with enhanced timing
-                    row.addClass('tracker-row-removing');
-                    
-                    // Create animation promise for better timing control
-                    const animationPromise = new Promise((resolve) => {
-                        setTimeout(() => {
-                            row.fadeOut(400, function() {
-                                // Add success indication to nearby rows
-                                row.prev().addClass('tracker-surgical-success');
-                                row.next().addClass('tracker-surgical-success');
-                                
-                                // Remove the row from DataTable
-                                dataTable.row(rows[i]).remove();
-                                dataTable.draw(false); // Redraw without resetting pagination
-                                removedCount++;
-                                
-                                // Clean up success indicators
-                                setTimeout(() => {
-                                    $('.tracker-surgical-success').removeClass('tracker-surgical-success');
-                                }, 1000);
-                                
-                                resolve();
-                            });
-                        }, 200); // Small delay for smoother animation staging
-                    });
-                    
-                    animationPromises.push(animationPromise);
-                    break;
-                }
-            }
-        }
-    });
-    
-    // Wait for all animations to complete before showing notifications
-    Promise.all(animationPromises).then(() => {
-        if (removedCount > 0) {
-            console.log(`✅ Successfully removed ${removedCount} tracker row(s) with enhanced animations`);
-            
-            // Show enhanced user-friendly notification with context
-            if (deleteContext.deleted_by || deleteContext.item) {
-                showDeleteNotification(deleteContext);
-            }
-            
-            // Show subtle success feedback
-            showSurgicalSuccessIndicator(removedCount);
-        }
-    });
-    
-    if (removedCount === 0) {
-        console.log('⚠️ No tracker row found with ID:', trackerId);
-        // Fall back to full table refresh if surgical removal failed
-        console.log('🔄 Falling back to full table refresh');
-        if (window.Shiny) {
-            Shiny.setInputValue('reporting_effort_tracker-surgical_removal_fallback', {
-                tracker_id: trackerId,
-                timestamp: Date.now()
-            }, {priority: 'event'});
-        }
-    }
-    
-    return removedCount > 0;
-};
-
-/**
- * Show subtle success indicator for surgical updates
- * @param {number} count - Number of rows successfully removed
- */
-function showSurgicalSuccessIndicator(count) {
-    // Create temporary success indicator
-    const indicator = document.createElement('div');
-    indicator.className = 'position-fixed';
-    indicator.style.cssText = `
-        top: 20px;
-        right: 20px;
-        background: linear-gradient(135deg, #4caf50, #66bb6a);
-        color: white;
-        padding: 8px 16px;
-        border-radius: 20px;
-        font-size: 14px;
-        font-weight: 500;
-        box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
-        z-index: 9999;
-        animation: surgicalSuccess 2s ease-out forwards;
-        opacity: 0;
-        transform: translateX(100%);
-    `;
-    indicator.innerHTML = `
-        <i class="fa fa-check-circle me-2"></i>
-        ${count} tracker${count > 1 ? 's' : ''} updated smoothly
-    `;
-    
-    document.body.appendChild(indicator);
-    
-    // Animate in
-    setTimeout(() => {
-        indicator.style.opacity = '1';
-        indicator.style.transform = 'translateX(0)';
-    }, 10);
-    
-    // Remove after animation
-    setTimeout(() => {
-        if (indicator.parentNode) {
-            indicator.parentNode.removeChild(indicator);
-        }
-    }, 2500);
-}
-
-/**
- * Show enhanced user notification for tracker deletion with user context
- * @param {Object} deleteContext - Context from enhanced WebSocket delete message
- */
-function showDeleteNotification(deleteContext) {
-    const { deleted_by, item, tracker } = deleteContext;
-    
-    let message = 'Tracker deleted';
-    
-    if (item && item.item_code) {
-        message = `Tracker for ${item.item_code} deleted`;
-    }
-    
-    if (deleted_by && deleted_by.username) {
-        if (deleted_by.username !== getCurrentUsername()) {
-            message += ` by ${deleted_by.username}`;
-        }
-    }
-    
-    // Use Shiny notification system with enhanced styling
-    if (typeof Shiny !== 'undefined') {
-        Shiny.setInputValue('reporting_effort_tracker-delete_notification', {
-            message: message,
-            type: 'surgical_delete',
-            context: deleteContext,
-            timestamp: Date.now()
-        }, {priority: 'event'});
-    }
-    
-    console.log('📢 Delete notification:', message);
-}
-
-/**
- * Get current username (placeholder - would integrate with auth system)
- * @returns {string} Current user's username
- */
-function getCurrentUsername() {
-    // This would integrate with your authentication system
-    // For now, return a placeholder
-    return window.currentUser?.username || 'current_user';
-}
+// Note: Surgical updates now handled by Universal CRUD Manager
+// Legacy functions removed for code consolidation
 
 /**
  * Bulk refresh tracker data using optimized bulk endpoint

@@ -588,7 +588,16 @@ admin_dashboard_server <- function(id) {
       })
     }
     
-    # WebSocket event handler for real-time updates
+    # Universal CRUD Manager integration (Phase 4)
+    # Replaces entity-specific WebSocket observer with standardized refresh trigger
+    observeEvent(input$`admin_dashboard-crud_refresh`, {
+      if (!is.null(input$`admin_dashboard-crud_refresh`)) {
+        cat("📊 Universal CRUD refresh triggered for admin dashboard\n")
+        load_dashboard_data()
+      }
+    })
+    
+    # Legacy WebSocket observer (kept for backward compatibility during transition)
     observeEvent(input$`admin-dashboard-websocket_event`, {
       # Reload data when we receive any WebSocket event
       load_dashboard_data()

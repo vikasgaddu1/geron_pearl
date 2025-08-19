@@ -499,7 +499,49 @@ audit_trail_server <- function(id) {
       }
     })
     
-    # WebSocket integration for real-time updates
+    # Universal CRUD Manager integration (Phase 4)
+    # Replaces entity-specific WebSocket observer with standardized refresh trigger
+    observeEvent(input$`audit_trail-crud_refresh`, {
+      if (!is.null(input$`audit_trail-crud_refresh`)) {
+        cat("📋 Universal CRUD refresh triggered for audit trail\n")
+        # Apply current filters and refresh
+        isolate({
+          filters <- list()
+          
+          if (input$filter_table != "") {
+            filters$table_name <- input$filter_table
+          }
+          
+          if (input$filter_action != "") {
+            filters$action <- input$filter_action
+          }
+          
+          if (input$filter_user != "") {
+            filters$user_id <- input$filter_user
+          }
+          
+          if (input$filter_time_range != "" && input$filter_time_range != "custom") {
+            if (input$filter_time_range == "1h") {
+              filters$start_date <- Sys.time() - hours(1)
+            } else if (input$filter_time_range == "24h") {
+              filters$start_date <- Sys.time() - days(1)
+            } else if (input$filter_time_range == "7d") {
+              filters$start_date <- Sys.Date() - days(7)
+            } else if (input$filter_time_range == "30d") {
+              filters$start_date <- Sys.Date() - days(30)
+            }
+            filters$end_date <- Sys.Date()
+          } else if (input$filter_time_range == "custom") {
+            filters$start_date <- input$start_date
+            filters$end_date <- input$end_date
+          }
+          
+          fetch_audit_logs(filters)
+        })
+      }
+    })
+    
+    # Legacy WebSocket observer (kept for backward compatibility during transition)
     observe({
       # Listen for audit log WebSocket events
       audit_event <- input$`audit-trail-websocket_event`

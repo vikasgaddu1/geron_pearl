@@ -1195,7 +1195,16 @@ reporting_effort_tracker_server <- function(id) {
       }
     })
 
-    # WebSocket event handling - Following packages/package_items pattern
+    # Universal CRUD Manager integration (Phase 4)
+    # Replaces entity-specific WebSocket observer with standardized refresh trigger
+    observeEvent(input$`reporting_effort_tracker-crud_refresh`, {
+      if (!is.null(input$`reporting_effort_tracker-crud_refresh`)) {
+        cat("📊 Universal CRUD refresh triggered for reporting effort tracker\n")
+        load_tracker_tables()
+      }
+    })
+    
+    # Legacy WebSocket observer (kept for backward compatibility during transition)
     observeEvent(input$websocket_event, {
       if (!is.null(input$websocket_event)) {
         event_data <- input$websocket_event

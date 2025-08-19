@@ -135,14 +135,21 @@ tnfp_server <- function(id) {
       load_text_elements_data()
     })
     
-    # WebSocket event handling for Text Elements
+    # Universal CRUD Manager integration (Phase 4)
+    # Replaces entity-specific WebSocket observer with standardized refresh trigger
+    observeEvent(input$`tnfp-crud_refresh`, {
+      if (!is.null(input$`tnfp-crud_refresh`)) {
+        cat("📝 Universal CRUD refresh triggered for TNFP\n")
+        load_text_elements_data()
+      }
+    })
+    
+    # Legacy WebSocket observer (kept for backward compatibility during transition)
     observeEvent(input$websocket_event, {
       if (!is.null(input$websocket_event)) {
         event_data <- input$websocket_event
-        cat("TNFP WebSocket event received:", event_data$type, "\n")
-        
+        cat("📝 Legacy WebSocket event received:", event_data$type, "\n")
         if (startsWith(event_data$type, "text_element_")) {
-          cat("Text element event detected, refreshing data\n")
           load_text_elements_data()
         }
       }

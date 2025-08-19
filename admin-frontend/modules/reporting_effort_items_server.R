@@ -1445,7 +1445,16 @@ reporting_effort_items_server <- function(id) {
       showNotification("Import functionality will be implemented in a future release", type = "info")
     })
     
-    # WebSocket event handling
+    # Universal CRUD Manager integration (Phase 4)
+    # Replaces entity-specific WebSocket observer with standardized refresh trigger
+    observeEvent(input$`reporting_effort_items-crud_refresh`, {
+      if (!is.null(input$`reporting_effort_items-crud_refresh`)) {
+        cat("📋 Universal CRUD refresh triggered for reporting effort items\n")
+        load_items_data()
+      }
+    })
+    
+    # Legacy WebSocket observer (kept for backward compatibility during transition)
     observeEvent(input$`reporting_effort_items-websocket_event`, {
       if (!is.null(input$`reporting_effort_items-websocket_event`)) {
         event_data <- input$`reporting_effort_items-websocket_event`

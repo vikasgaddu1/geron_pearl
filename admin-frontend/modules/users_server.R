@@ -83,14 +83,21 @@ users_server <- function(id) {
       load_users_data()
     })
     
-    # WebSocket event handling for Users
+    # Universal CRUD Manager integration (Phase 4)
+    # Replaces entity-specific WebSocket observer with standardized refresh trigger
+    observeEvent(input$`users-crud_refresh`, {
+      if (!is.null(input$`users-crud_refresh`)) {
+        cat("👤 Universal CRUD refresh triggered for users\n")
+        load_users_data()
+      }
+    })
+    
+    # Legacy WebSocket observer (kept for backward compatibility during transition)
     observeEvent(input$websocket_event, {
       if (!is.null(input$websocket_event)) {
         event_data <- input$websocket_event
-        cat("Users WebSocket event received:", event_data$type, "\n")
-        
+        cat("👤 Legacy WebSocket event received:", event_data$type, "\n")
         if (startsWith(event_data$type, "user_")) {
-          cat("User event detected, refreshing data\n")
           load_users_data()
         }
       }

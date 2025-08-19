@@ -13,6 +13,47 @@ Shiny.addCustomMessageHandler('websocket_refresh', function (message) {
   }
 });
 
+// ============================================================================
+// UNIVERSAL CRUD EVENT HANDLER (Phase 3)
+// ============================================================================
+
+/**
+ * Universal handler for all CRUD events from R server modules
+ * Replaces entity-specific WebSocket observers with unified pattern
+ */
+Shiny.addCustomMessageHandler('universal_crud_refresh', function(message) {
+  console.log('🌍 Universal CRUD refresh received:', message);
+  
+  if (!message || !message.entity_type) {
+    console.warn('⚠️ Invalid universal CRUD message:', message);
+    return;
+  }
+  
+  // Route to appropriate Universal CRUD Manager if available
+  if (window.crudManager) {
+    const crudEvent = {
+      type: `${message.entity_type}_refresh`,
+      operation: 'refresh',
+      entity: {
+        type: message.entity_type,
+        id: message.entity_id || null,
+        data: message.data || null
+      },
+      source: 'shiny_server',
+      timestamp: Date.now()
+    };
+    
+    console.log('📤 Routing to Universal CRUD Manager:', crudEvent);
+    window.crudManager.handleCRUDEvent(crudEvent);
+  } else {
+    console.warn('⚠️ Universal CRUD Manager not available, falling back to legacy');
+    // Fallback to direct Shiny refresh if CRUD manager not available
+    if (window.Shiny && message.refresh_input) {
+      Shiny.setInputValue(message.refresh_input, Date.now(), {priority: 'event'});
+    }
+  }
+});
+
 // Toggle selection highlight for reporting effort selector wrappers
 Shiny.addCustomMessageHandler('toggleEffortSelection', function (message) {
   try {
@@ -25,394 +66,20 @@ Shiny.addCustomMessageHandler('toggleEffortSelection', function (message) {
   }
 });
 
-// Handle real-time comment updates from WebSocket - Enhanced for new simplified system
-function refreshCommentsHandler(message) {
-  try {
-    console.log('📬 Received refresh comments message from WebSocket:', message);
-    const trackerId = message.tracker_id;
-    const eventType = message.event_type;
-    const unresolvedCount = message.unresolved_count || 0;
-    
-    // Always update smart comment button (non-disruptive)
-    if (typeof updateSmartCommentButton === 'function') {
-      updateSmartCommentButton(trackerId, unresolvedCount);
-    }
-    
-    // Check if this tracker's comments are currently displayed and refresh them
-    const commentsContainer = $(`#comments-list-${trackerId}`);
-    if (commentsContainer.length > 0) {
-      // SMART REFRESH: Check if user is actively working in comments
-      if (isUserActivelyWorking()) {
-        console.log(`🚫 User is actively working - deferring comment refresh for tracker ${trackerId}`);
-        queueDeferredUpdate('comment_refresh', {trackerId, eventType});
-        
-        // Show subtle notification
-        if (typeof Shiny !== 'undefined') {
-          Shiny.notifications.show({
-            html: `Comments updated for tracker ${trackerId}. <small>Will refresh when you're idle.</small>`,
-            type: 'info',
-            duration: 4000
-          });
-        }
-      } else {
-        console.log(`🔄 Safe to refresh comments for tracker ${trackerId} due to ${eventType}`);
-        if (typeof loadCommentsForTracker === 'function') {
-          loadCommentsForTracker(trackerId);
-        }
-      }
-    }
-    
-    // Show brief notification for real-time updates
-    if (eventType === 'comment_created') {
-      if (typeof showCommentNotification === 'function') {
-        showCommentNotification(`New comment added to tracker ${trackerId}`, 'success');
-      }
-    } else if (eventType === 'comment_updated') {
-      if (typeof showCommentNotification === 'function') {
-        showCommentNotification(`Comment updated in tracker ${trackerId}`, 'info');
-      }
-    } else if (eventType === 'comment_resolved') {
-      if (typeof showCommentNotification === 'function') {
-        showCommentNotification(`Comment resolved in tracker ${trackerId}`, 'success');
-      }
-    }
-    
-  } catch (e) {
-    console.error('❌ Error handling real-time comment refresh:', e);
-  }
-}
+// ============================================================================
+// LEGACY COMMENT HANDLERS (Replaced by Universal CRUD Manager in Phase 3)
+// ============================================================================
+// Note: Comment handling now routed through Universal CRUD Manager
+// Legacy handlers kept for backward compatibility during transition
 
-// Register both as Shiny message handler and global function
-Shiny.addCustomMessageHandler('refreshComments', refreshCommentsHandler);
-
-// Handle cross-browser tracker deletion synchronization
-function syncTrackerDeletionHandler(message) {
-  try {
-    console.log('🌍 Cross-browser tracker deletion sync received:', message);
-    const trackerId = message.tracker_id;
-    const eventType = message.event_type;
-    const deletionData = message.deletion_data;
-    
-    if (trackerId && eventType === 'reporting_effort_tracker_deleted') {
-      console.log(`🔄 Syncing tracker deletion across browsers for tracker ${trackerId}`);
-      
-      // Enhanced cross-browser surgical removal
-      const success = removeCrossBrowserTrackerRow(trackerId, deletionData);
-      if (success) {
-        console.log('✅ Cross-browser surgical removal successful for tracker:', trackerId);
-        
-        // Show brief notification
-        if (typeof Shiny !== 'undefined') {
-          Shiny.notifications.show({
-            html: `Tracker ${trackerId} was deleted in another session`,
-            type: 'message',
-            duration: 3000
-          });
-        }
-        return;
-      }
-      
-      // Fallback to table refresh trigger - BUT CHECK FOR USER ACTIVITY FIRST
-      console.log('⚠️ Cross-browser surgical removal failed, checking if safe to refresh...');
-      
-      if (isUserActivelyWorking()) {
-        console.log('🚫 User is actively working - deferring table refresh');
-        queueDeferredUpdate('tracker_deleted', {trackerId, deletionData});
-        
-        // Show non-intrusive notification
-        if (typeof Shiny !== 'undefined') {
-          Shiny.notifications.show({
-            html: `Tracker ${trackerId} was deleted. <button onclick="applyDeferredUpdates()" class="btn btn-sm btn-outline-primary">Refresh now</button> or it will auto-refresh when you're idle.`,
-            type: 'warning',
-            duration: 8000
-          });
-        }
-      } else {
-        console.log('✅ User is idle - safe to refresh table');
-        if (typeof Shiny !== 'undefined') {
-          // Trigger module refresh
-          Shiny.setInputValue('reporting_effort_tracker-force_refresh', Date.now(), {priority: 'event'});
-          
-          // Show notification
-          Shiny.notifications.show({
-            html: `Tracker deleted in another session - refreshing view`,
-            type: 'message',
-            duration: 3000
-          });
-        }
-      }
-    }
-    
-  } catch (e) {
-    console.error('❌ Error handling cross-browser tracker deletion sync:', e);
-  }
-}
-
-// Enhanced cross-browser surgical removal function
-function removeCrossBrowserTrackerRow(trackerId, deletionData) {
-  console.log('🔪 Cross-browser surgical removal for tracker:', trackerId);
-  
-  // Find and remove from all DataTable instances
-  const tableSelectors = [
-    '#reporting_effort_tracker-tracker_table_tlf',
-    '#reporting_effort_tracker-tracker_table_sdtm', 
-    '#reporting_effort_tracker-tracker_table_adam'
-  ];
-  
-  let removedCount = 0;
-  
-  tableSelectors.forEach(selector => {
-    try {
-      const $table = $(selector);
-      if ($table.length && $.fn.DataTable.isDataTable($table[0])) {
-        const dataTable = $table.DataTable();
-        
-        // Find and remove rows by tracker ID
-        dataTable.rows().every(function(rowIdx) {
-          const rowNode = this.node();
-          const $row = $(rowNode);
-          
-          // Look for delete button with matching data-id
-          const $deleteBtn = $row.find('button[data-action="delete"][data-id="' + trackerId + '"]');
-          
-          if ($deleteBtn.length > 0) {
-            console.log(`✂️ Found tracker ${trackerId} in table ${selector}, removing...`);
-            
-            // Smooth animation for cross-browser removal
-            $row.addClass('table-warning').fadeOut(600, () => {
-              // Remove from DataTable
-              this.remove();
-              dataTable.draw(false); // Redraw without resetting pagination
-              removedCount++;
-              console.log(`✅ Removed tracker ${trackerId} from ${selector}`);
-            });
-            
-            return false; // Break out of loop
-          }
-        });
-      }
-    } catch (error) {
-      console.error(`❌ Error processing table ${selector}:`, error);
-    }
-  });
-  
-  // Also try simpler row removal by item code if DataTable approach failed
-  if (removedCount === 0 && deletionData?.tracker?.item_code) {
-    const itemCode = deletionData.tracker.item_code;
-    console.log('🔍 Trying alternative removal by item code:', itemCode);
-    
-    $('tr').each(function() {
-      const $row = $(this);
-      const firstCell = $row.find('td:first-child').text().trim();
-      
-      if (firstCell === itemCode) {
-        console.log(`✂️ Found tracker by item code ${itemCode}, removing...`);
-        $row.addClass('table-warning').fadeOut(600, () => {
-          $row.remove();
-          removedCount++;
-        });
-        return false; // Break out of each
-      }
-    });
-  }
-  
-  if (removedCount === 0) {
-    console.log('⚠️ No tracker rows found to remove for ID:', trackerId);
-    return false;
-  }
-  
-  console.log(`✅ Cross-browser removal completed: ${removedCount} row(s) removed`);
-  return true;
-}
-
-// Register tracker deletion sync handler
-Shiny.addCustomMessageHandler('syncTrackerDeletion', syncTrackerDeletionHandler);
-window.refreshCommentsHandler = refreshCommentsHandler;
+// Legacy tracker deletion handlers moved to Universal CRUD Manager
+// These functions are now handled by the context-aware system
 
 // =============================================================================
-// SMART USER ACTIVITY DETECTION & DEFERRED UPDATES
+// ACTIVITY TRACKING (Moved to Universal CRUD Manager in Phase 3)
 // =============================================================================
-
-let deferredUpdates = [];
-let lastUserActivity = Date.now();
-let userActivityTimer = null;
-
-// Track user activity to prevent disruptive updates
-function trackUserActivity() {
-  lastUserActivity = Date.now();
-  
-  // Clear existing timer
-  if (userActivityTimer) {
-    clearTimeout(userActivityTimer);
-  }
-  
-  // Set timer to apply deferred updates after 10 seconds of inactivity
-  userActivityTimer = setTimeout(() => {
-    if (deferredUpdates.length > 0) {
-      console.log('⏰ User idle detected - applying deferred updates');
-      applyDeferredUpdates();
-    }
-  }, 10000); // 10 seconds of inactivity
-}
-
-// Detect if user is actively working (typing, modal open, etc.)
-function isUserActivelyWorking() {
-  try {
-    // Check if any text inputs/textareas are focused
-    const activeElement = document.activeElement;
-    if (activeElement && (
-      activeElement.tagName === 'INPUT' || 
-      activeElement.tagName === 'TEXTAREA' || 
-      activeElement.contentEditable === 'true'
-    )) {
-      console.log('🖊️ User is typing in:', activeElement.tagName, activeElement.id || activeElement.className);
-      return true;
-    }
-    
-    // Check if any modals or dialogs are open
-    const openModals = document.querySelectorAll('.modal.show, .swal2-container, [role="dialog"]:not([hidden])');
-    if (openModals.length > 0) {
-      console.log('📋 User has open modal/dialog');
-      return true;
-    }
-    
-    // Check if user has typed/clicked recently (within 5 seconds)
-    const timeSinceActivity = Date.now() - lastUserActivity;
-    if (timeSinceActivity < 5000) {
-      console.log('⚡ Recent user activity detected:', timeSinceActivity, 'ms ago');
-      return true;
-    }
-    
-    // Check if comment expansion is open
-    const openComments = document.querySelectorAll('#comments-modal.show, .comment-form:not([style*="display: none"])');
-    if (openComments.length > 0) {
-      console.log('💬 User has comment interface open');
-      return true;
-    }
-    
-    return false;
-    
-  } catch (e) {
-    console.error('❌ Error checking user activity:', e);
-    return true; // Err on the side of caution
-  }
-}
-
-// Queue updates for later application
-function queueDeferredUpdate(updateType, updateData) {
-  deferredUpdates.push({
-    type: updateType,
-    data: updateData,
-    timestamp: Date.now()
-  });
-  
-  console.log(`📥 Queued deferred update: ${updateType}`, updateData);
-  console.log(`📊 Total deferred updates: ${deferredUpdates.length}`);
-  
-  // Add subtle visual indicator for pending updates
-  updateDeferredUpdatesIndicator();
-}
-
-// Show/hide visual indicator for deferred updates
-function updateDeferredUpdatesIndicator() {
-  const count = deferredUpdates.length;
-  
-  // Remove existing indicator
-  $('.deferred-updates-indicator').remove();
-  
-  if (count > 0) {
-    // Add small indicator near the actions button
-    const indicator = $(`
-      <span class="deferred-updates-indicator badge bg-warning text-dark ms-2" 
-            title="${count} update${count > 1 ? 's' : ''} pending - will apply when you're idle">
-        ${count} pending
-      </span>
-    `);
-    
-    // Find a good place to show it (near the Actions button)
-    const actionsButton = $('button:contains("Actions")').first();
-    if (actionsButton.length > 0) {
-      actionsButton.parent().append(indicator);
-    } else {
-      // Fallback: add to page somewhere visible
-      $('body').append($(`
-        <div class="deferred-updates-indicator position-fixed top-0 end-0 m-3 alert alert-warning alert-dismissible" 
-             style="z-index: 9999; max-width: 300px;">
-          <strong>${count} update${count > 1 ? 's' : ''} pending</strong><br>
-          <small>Changes from other users will apply when you're idle</small>
-          <button type="button" class="btn btn-sm btn-outline-dark mt-1" onclick="applyDeferredUpdates()">
-            Apply now
-          </button>
-        </div>
-      `));
-    }
-  }
-}
-
-// Apply all deferred updates
-function applyDeferredUpdates() {
-  if (deferredUpdates.length === 0) {
-    console.log('📭 No deferred updates to apply');
-    return;
-  }
-  
-  console.log(`🔄 Applying ${deferredUpdates.length} deferred updates`);
-  
-  const updateCount = deferredUpdates.length;
-  deferredUpdates.forEach(update => {
-    if (update.type === 'tracker_deleted') {
-      const {trackerId, deletionData} = update.data;
-      console.log('🔄 Applying deferred tracker deletion:', trackerId);
-      
-      // Force table refresh as final fallback
-      if (typeof Shiny !== 'undefined') {
-        Shiny.setInputValue('reporting_effort_tracker-force_refresh', Date.now(), {priority: 'event'});
-      }
-    } else if (update.type === 'comment_refresh') {
-      const {trackerId, eventType} = update.data;
-      console.log('🔄 Applying deferred comment refresh:', trackerId);
-      
-      // Refresh comments for this tracker
-      if (typeof loadCommentsForTracker === 'function') {
-        loadCommentsForTracker(trackerId);
-      }
-    }
-  });
-  
-  // Clear the queue
-  deferredUpdates = [];
-  
-  // Remove visual indicator
-  updateDeferredUpdatesIndicator();
-  
-  // Show completion notification
-  if (typeof Shiny !== 'undefined') {
-    Shiny.notifications.show({
-      html: `Applied ${updateCount} deferred update${updateCount > 1 ? 's' : ''} - view refreshed`,
-      type: 'success',
-      duration: 3000
-    });
-  }
-}
-
-// Set up activity tracking - initialize when DOM is ready
-$(document).ready(function() {
-  document.addEventListener('keydown', trackUserActivity);
-  document.addEventListener('mousedown', trackUserActivity);
-  document.addEventListener('focus', trackUserActivity, true);
-  document.addEventListener('input', trackUserActivity);
-  
-  // Track activity in comment modals specifically
-  $(document).on('focus', 'textarea, input[type="text"], input[type="email"]', trackUserActivity);
-  $(document).on('input', 'textarea, input[type="text"], input[type="email"]', trackUserActivity);
-  
-  console.log('🎯 Smart activity tracking initialized - user work will be protected');
-});
-
-// Make functions globally available
-window.applyDeferredUpdates = applyDeferredUpdates;
-window.isUserActivelyWorking = isUserActivelyWorking;
-window.deferredUpdatesCount = () => deferredUpdates.length;
+// Note: Activity detection and deferred updates now handled by Universal CRUD Manager
+// Legacy functions kept for backward compatibility only
 
 // Debug: Add WebSocket connection status indicator
 Shiny.addCustomMessageHandler('websocket_debug_info', function(message) {

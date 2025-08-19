@@ -561,7 +561,17 @@ database_backup_server <- function(id, api_client, user_info) {
       }
     })
     
-    # WebSocket event handler for real-time updates
+    # Universal CRUD Manager integration (Phase 4)
+    # Replaces entity-specific WebSocket observer with standardized refresh trigger
+    observeEvent(input$`database_backup-crud_refresh`, {
+      if (!is.null(input$`database_backup-crud_refresh`)) {
+        cat("💾 Universal CRUD refresh triggered for database backup\n")
+        load_backups()
+        load_status()
+      }
+    })
+    
+    # Legacy WebSocket observer (kept for backward compatibility during transition)
     observeEvent(input$`database-backup-websocket_event`, {
       # Reload backups when we receive a WebSocket event
       load_backups()
