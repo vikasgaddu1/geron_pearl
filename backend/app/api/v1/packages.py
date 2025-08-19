@@ -349,6 +349,8 @@ async def update_package_item(
     Update an existing package item.
     """
     try:
+        print(f"Updating package item {item_id} with data: {item_in.model_dump(exclude_unset=True)}")
+        
         db_item = await package_item.get(db, id=item_id)
         if not db_item:
             raise HTTPException(
@@ -367,11 +369,14 @@ async def update_package_item(
         
         return updated_item
     except Exception as e:
+        print(f"Error updating package item {item_id}: {e}")
         if isinstance(e, HTTPException):
             raise
+        # Return more detailed error information
+        error_detail = f"Failed to update package item: {str(e)}"
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update package item"
+            detail=error_detail
         )
 
 

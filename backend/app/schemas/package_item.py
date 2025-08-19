@@ -47,8 +47,43 @@ class PackageItemCreate(PackageItemBase):
 class PackageItemUpdate(BaseModel):
     """Schema for updating an existing package item."""
     
+    item_type: Optional[ItemTypeEnum] = Field(None, description="Item type: TLF or Dataset")
     item_subtype: Optional[str] = Field(None, min_length=1, max_length=50, description="Subtype")
     item_code: Optional[str] = Field(None, min_length=1, max_length=255, description="Item code")
+    tlf_details: Optional["PackageTlfDetailsCreate"] = None
+    dataset_details: Optional["PackageDatasetDetailsCreate"] = None
+    footnotes: Optional[List["PackageItemFootnoteCreate"]] = Field(default=None)
+    acronyms: Optional[List["PackageItemAcronymCreate"]] = Field(default=None)
+    
+    @field_validator('item_subtype')
+    @classmethod
+    def validate_subtype(cls, v: Optional[str], info) -> Optional[str]:
+        """Validate item_subtype based on item_type."""
+        if v is not None and 'item_type' in info.data and info.data['item_type'] is not None:
+            item_type = info.data['item_type']
+            if item_type == ItemTypeEnum.TLF:
+                valid_subtypes = ['Table', 'Listing', 'Figure']
+                if v not in valid_subtypes:
+                    raise ValueError(f"For TLF items, subtype must be one of: {', '.join(valid_subtypes)}")
+            elif item_type == ItemTypeEnum.Dataset:
+                valid_subtypes = ['SDTM', 'ADaM']
+                if v not in valid_subtypes:
+                    raise ValueError(f"For Dataset items, subtype must be one of: {', '.join(valid_subtypes)}")
+        return v
+    
+    @field_validator('tlf_details', 'dataset_details')
+    @classmethod
+    def validate_details(cls, v, info):
+        """Ensure only appropriate details are provided based on item_type."""
+        if 'item_type' in info.data and info.data['item_type'] is not None:
+            item_type = info.data['item_type']
+            field_name = info.field_name
+            
+            if field_name == 'tlf_details' and item_type == ItemTypeEnum.Dataset and v is not None:
+                raise ValueError("TLF details cannot be provided for Dataset items")
+            elif field_name == 'dataset_details' and item_type == ItemTypeEnum.TLF and v is not None:
+                raise ValueError("Dataset details cannot be provided for TLF items")
+        return v
 
 
 # TLF Details schemas

@@ -355,6 +355,80 @@ TrackerComment (workflow comments with threading and resolution status)
 
 ## Recent Important Updates (August 2025)
 
+### Cross-Browser WebSocket Synchronization Pattern
+**✅ COMPLETE SOLUTION**: Implemented for packages, package items, reporting effort trackers, and comments
+- **Problem**: Shiny module namespace isolation prevents direct cross-session communication
+- **Solution**: Universal CRUD Manager with proper namespace handling
+
+#### Two Working Approaches for Cross-Browser Sync:
+
+### **Approach A: Universal CRUD Manager (Recommended)**
+**✅ Used by**: Package Items, Trackers (newer implementation)
+- **Advantage**: Automatic, no extra configuration needed
+- **How it works**: WebSocket → Universal CRUD Manager → Module input
+
+1. **Backend broadcasts**: Standard WebSocket events (`package_item_updated`, etc.)
+2. **Universal CRUD Manager**: Automatically routes to correct module
+3. **Module Observer**: Listens for `input$crud_refresh` (note: module prefix stripped!)
+
+```r
+# In module server (e.g., package_items_server.R)
+observeEvent(input$crud_refresh, {  # ⚠️ NO module prefix!
+  if (!is.null(input$crud_refresh)) {
+    load_data()  # Refresh the data
+  }
+})
+```
+
+### **Approach B: Global Observer + Custom Messages**
+**✅ Used by**: Packages, Studies (legacy implementation)
+
+1. **WebSocket Client Routes to Global** (`websocket_client.js`):
+```javascript
+// Route to global observer for cross-browser sync
+if (data.type.startsWith('package_')) {
+    this.notifyShinyGlobal(data.type, data.data, 'package_update');
+}
+```
+
+2. **Global Observer in app.R**:
+```r
+observeEvent(input$`package_update-websocket_event`, {
+  if (!is.null(input$`package_update-websocket_event`)) {
+    session$sendCustomMessage("triggerPackageRefresh", list(
+      timestamp = as.numeric(Sys.time()),
+      event_type = event_data$type
+    ))
+  }
+})
+```
+
+3. **JavaScript Handler** (`shiny_handlers.js`):
+```javascript
+Shiny.addCustomMessageHandler('triggerPackageRefresh', function(message) {
+  if (window.Shiny && window.Shiny.setInputValue) {  // ⚠️ Check availability!
+    Shiny.setInputValue('packages_simple-crud_refresh', Math.random(), {priority: 'event'});
+  }
+});
+```
+
+4. **Module Observer**:
+```r
+observeEvent(input$`packages_simple-crud_refresh`, {  # ⚠️ FULL name in observer!
+  if (!is.null(input$`packages_simple-crud_refresh`)) {
+    load_packages_data()
+  }
+})
+```
+
+#### Critical Implementation Rules:
+1. **Namespace Stripping**: Shiny automatically removes module prefix from input names within modules
+   - JavaScript sets: `package_items-crud_refresh`
+   - Module receives: `crud_refresh` (prefix stripped)
+2. **JavaScript Timing**: Always check `window.Shiny && window.Shiny.setInputValue` before use
+3. **Avoid Duplicates**: Don't use both approaches for the same entity type (causes race conditions)
+4. **Universal CRUD Manager**: Preferred for new implementations (simpler, more reliable)
+
 ### Tracker Delete Functionality
 **✅ PRODUCTION READY**: DELETE endpoint for reporting effort tracker has been thoroughly tested
 - **Endpoint**: `DELETE /api/v1/reporting-effort-tracker/{tracker_id}`
@@ -369,10 +443,54 @@ TrackerComment (workflow comments with threading and resolution status)
 - **Constraints Updated**: 31 foreign key constraints need CASCADE DELETE implementation
 - **Safety Features**: Pre-migration validation, post-migration testing, automated backups
 
+### Cross-Browser Sync Debugging Guide
+**🔍 SYSTEMATIC DEBUGGING**: When cross-browser sync doesn't work
+
+#### Step 1: Check Backend WebSocket Broadcasting
+```bash
+# Check backend logs for broadcast messages
+cd backend
+uv run python run.py  # Look for: "Broadcasting [entity]_[action]" messages
+```
+
+#### Step 2: Check JavaScript Chain
+**Open Browser Console (F12) and look for:**
+```javascript
+📨 WebSocket message received: [entity]_[action]
+📤 Triggering Shiny refresh: [module]-crud_refresh with value: [timestamp]
+```
+
+#### Step 3: Check R Module Input Reception
+**Add temporary debug observer in module:**
+```r
+# Temporary debugging observer
+observe({
+  all_inputs <- reactiveValuesToList(input)
+  crud_inputs <- names(all_inputs)[grepl("crud_refresh", names(all_inputs))]
+  if (length(crud_inputs) > 0) {
+    cat("🔍 DEBUG: CRUD inputs:", paste(crud_inputs, collapse=", "), "\n")
+  }
+})
+```
+
+#### Step 4: Common Issues and Solutions
+1. **JavaScript Timing Errors**: `Shiny.setInputValue is not a function`
+   - **Fix**: Always check `window.Shiny && window.Shiny.setInputValue`
+   
+2. **Module Observer Not Triggering**: Input name mismatch
+   - **Check**: Shiny strips module prefix! Use `input$crud_refresh`, not `input$module-crud_refresh`
+   
+3. **Race Conditions**: Multiple systems setting same input
+   - **Fix**: Use either Universal CRUD Manager OR Global Observer, never both
+   
+4. **Module Not Loading**: Syntax errors prevent observer registration
+   - **Check**: `Rscript -e "source('modules/[module]_server.R')"`
+
 ### Enhanced Testing Infrastructure  
 **📋 EXPANDED TEST COVERAGE**: Multiple specialized test scripts available
 - **Core CRUD**: `test_crud_simple.sh` for basic functionality
 - **Packages**: `test_packages_crud.sh` for package management
 - **Tracker Operations**: `test_reporting_effort_tracker_crud.sh` and `test_tracker_delete_simple.sh`
 - **Deletion Protection**: `test_study_deletion_protection_fixed.sh`
+- **Cross-Browser Sync**: Open multiple browser tabs and test create/update/delete operations
 - **Individual Testing**: All scripts designed for individual execution due to async session constraints

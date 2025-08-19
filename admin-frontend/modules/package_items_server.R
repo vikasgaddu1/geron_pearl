@@ -4,6 +4,8 @@ package_items_server <- function(id) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     
+
+    
     # Helper function for null coalescing
     `%||%` <- function(x, y) {
       if (is.null(x) || length(x) == 0) y else x
@@ -1372,6 +1374,7 @@ package_items_server <- function(id) {
           editing_item_id(NULL)
           
           removeModal()
+          load_text_elements()
           load_package_items()
         }
       }
@@ -1424,6 +1427,7 @@ package_items_server <- function(id) {
           editing_item_id(NULL)
           
           removeModal()
+          load_text_elements()
           load_package_items()
         }
       }
@@ -2287,11 +2291,14 @@ package_items_server <- function(id) {
       })
     })
     
-    # Universal CRUD Manager integration (Phase 4)
-    # Replaces entity-specific WebSocket observer with standardized refresh trigger
-    observeEvent(input$`package_items-crud_refresh`, {
-      if (!is.null(input$`package_items-crud_refresh`)) {
-        cat("📦 Universal CRUD refresh triggered for package items\n")
+
+    
+    # Universal CRUD Manager integration
+    # Cross-browser synchronization via Universal CRUD Manager
+    observeEvent(input$crud_refresh, {
+      if (!is.null(input$crud_refresh)) {
+        cat("📦 Package items cross-browser refresh triggered\n")
+        load_text_elements()
         load_package_items()
       }
     })
@@ -2302,8 +2309,27 @@ package_items_server <- function(id) {
         event_data <- input$`package-items-websocket_event`
         cat("📦 Legacy WebSocket event received:", event_data$type, "\n")
         if (startsWith(event_data$type, "package_item_")) {
+          load_text_elements()
           load_package_items()
         }
+      }
+    })
+    
+    # Enhanced text elements refresh handler for direct cache bypass
+    observeEvent(input$`package_items-force_text_elements_refresh`, {
+      if (!is.null(input$`package_items-force_text_elements_refresh`)) {
+        cat("🔄 ENHANCED: Force text elements cache refresh triggered from JavaScript\n")
+        
+        # Force a complete reload of text elements by invalidating the cache
+        load_text_elements()
+        
+        # Small delay to ensure text elements are loaded before package items refresh
+        Sys.sleep(0.1)
+        
+        # Force package items refresh with fresh text elements  
+        load_package_items()
+        
+        cat("✅ ENHANCED: Text elements cache invalidated and package items refreshed\n")
       }
     })
     

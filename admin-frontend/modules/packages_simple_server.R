@@ -703,19 +703,35 @@ packages_simple_server <- function(id) {
       })
     })
     
-    # Universal CRUD Manager integration (Phase 3)
+    # Universal CRUD Manager integration (Phase 4)
     # Replaces entity-specific WebSocket observer with standardized refresh trigger
-    observeEvent(input$`packages-crud_refresh`, {
-      if (!is.null(input$`packages-crud_refresh`)) {
-        cat("📦 Universal CRUD refresh triggered for packages\n")
+    observeEvent(input$`packages_simple-crud_refresh`, {
+      if (!is.null(input$`packages_simple-crud_refresh`)) {
+        cat("📦 Universal CRUD refresh triggered for packages_simple\n")
         load_packages_data()
       }
     })
     
+    # Global cross-browser WebSocket observer for package updates
+    # Access the parent session's input to get global non-namespaced inputs
+    # This allows cross-browser synchronization to work properly
+    parent_session <- .subset2(session, "parent")
+    if (!is.null(parent_session)) {
+      observeEvent(parent_session$input$`package_update-websocket_event`, {
+        if (!is.null(parent_session$input$`package_update-websocket_event`)) {
+          event_data <- parent_session$input$`package_update-websocket_event`
+          cat("🌐 Global package update received (cross-browser sync):", event_data$type, "\n")
+          if (startsWith(event_data$type, "package_")) {
+            load_packages_data()
+          }
+        }
+      })
+    }
+    
     # Legacy WebSocket observer (kept for backward compatibility during transition)
-    observeEvent(input$`packages-websocket_event`, {
-      if (!is.null(input$`packages-websocket_event`)) {
-        event_data <- input$`packages-websocket_event`
+    observeEvent(input$`packages_simple-websocket_event`, {
+      if (!is.null(input$`packages_simple-websocket_event`)) {
+        event_data <- input$`packages_simple-websocket_event`
         cat("📦 Legacy WebSocket event received:", event_data$type, "\n")
         if (startsWith(event_data$type, "package_")) {
           load_packages_data()

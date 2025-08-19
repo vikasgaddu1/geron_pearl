@@ -100,7 +100,7 @@ class PearlWebSocketClient {
         console.log('📨 WebSocket message received:', data.type, 'Data:', data);
         
         // **PHASE 2**: Route through Universal CRUD Manager if available
-        if (typeof window.crudManager !== 'undefined') {
+        if (typeof window.crudManager !== 'undefined' && window.crudManager !== null) {
             console.log('🎯 Routing through Universal CRUD Manager:', data.type);
             
             // Convert WebSocket message to standardized CRUD event format
@@ -111,6 +111,8 @@ class PearlWebSocketClient {
             
             // Continue with legacy routing for backward compatibility during transition
             console.log('🔄 Also processing via legacy routing for compatibility');
+        } else {
+            console.log('⚠️ CRUD Manager not yet initialized, using legacy routing only');
         }
         
         // Determine module based on message type if not provided
@@ -120,8 +122,15 @@ class PearlWebSocketClient {
             // Route messages to appropriate module based on type
             if (data.type === 'studies_update' || 
                 data.type.startsWith('study_')) {
-                data.module = 'studies';
+                data.module = 'study_tree';  // Route to study_tree module (not studies)
                 console.log('📚 Studies update received:', Array.isArray(data.data) ? data.data.length : 0, 'studies');
+                
+                // GLOBAL CROSS-BROWSER ROUTING for study events
+                // Add missing cross-browser synchronization for study operations
+                if (data.type.startsWith('study_')) {
+                    console.log('🌐 Routing study event to global observer for cross-browser sync:', data.type);
+                    this.notifyShinyGlobal(data.type, data.data, 'study_update');
+                }
             } else if (data.type.startsWith('reporting_effort_tracker_')) {
                 // IMPORTANT: This must come BEFORE 'reporting_effort_' to avoid incorrect routing
                 data.module = 'reporting_effort_tracker';
@@ -169,17 +178,36 @@ class PearlWebSocketClient {
             } else if (data.type.startsWith('reporting_effort_')) {
                 data.module = 'reporting_efforts';
                 console.log('🔴 REPORTING EFFORT UPDATED EVENT RECEIVED:', data.data?.database_release_label || 'unknown');
+                
+                // ADDITIONAL ROUTING: Also route to study_tree since reporting efforts affect the tree
+                console.log('🌐 Also routing reporting effort event to study_tree for tree updates');
+                this.notifyShinyModule(data.type, data.data, 'study_tree');
             } else if (data.type.startsWith('database_release_')) {
                 data.module = 'database_releases';
+                
+                // ADDITIONAL ROUTING: Also route to study_tree since database releases affect the tree
+                console.log('🌐 Also routing database release event to study_tree for tree updates');
+                this.notifyShinyModule(data.type, data.data, 'study_tree');
             } else if (data.type.startsWith('text_element_')) {
                 data.module = 'tnfp';
                 console.log('📝 TNFP EVENT RECEIVED:', data.type, data.data?.label || 'unknown');
-            } else if (data.type.startsWith('package_')) {
-                data.module = 'packages';
-                console.log('📦 PACKAGE EVENT RECEIVED:', data.type, data.data?.package_name || 'unknown');
             } else if (data.type.startsWith('package_item_')) {
-                data.module = 'packages';
+                // IMPORTANT: package_item_ must come BEFORE package_ to avoid incorrect routing
+                data.module = 'package_items';
                 console.log('📦 PACKAGE ITEM EVENT RECEIVED:', data.type, data.data?.item_code || 'unknown');
+                
+                // DISABLED: Universal CRUD Manager already handles this
+                // Disable duplicate input setting to prevent race conditions
+                console.log('🌐 SKIPPED: Universal CRUD Manager already handles cross-browser sync for:', data.type);
+                // this.notifyShinyGlobal(data.type, data.data, 'package_item_update');
+            } else if (data.type.startsWith('package_')) {
+                data.module = 'packages_simple';  // Fixed: should match app.R module ID
+                console.log('📦 PACKAGE EVENT RECEIVED:', data.type, data.data?.package_name || 'unknown');
+                
+                // GLOBAL CROSS-BROWSER ROUTING for package events
+                // Add missing cross-browser synchronization for package operations
+                console.log('🌐 Routing package event to global observer for cross-browser sync:', data.type);
+                this.notifyShinyGlobal(data.type, data.data, 'package_update');
             } else if (data.type.startsWith('user_')) {
                 data.module = 'users';
                 console.log('👤 USER EVENT RECEIVED:', data.type, data.data?.username || 'unknown');
@@ -387,11 +415,11 @@ class PearlWebSocketClient {
     
     // Update Shiny with WebSocket status
     updateShinyStatus(status) {
-        if (typeof Shiny !== 'undefined') {
+        if (typeof Shiny !== 'undefined' && Shiny.setInputValue) {
             console.log('🔄 Updating Shiny status:', status);
             Shiny.setInputValue('websocket_status', status, {priority: 'event'});
         } else {
-            console.log('⚠️ Shiny not available for status update');
+            console.log('⚠️ Shiny.setInputValue not available yet - status update deferred');
         }
     }
     
@@ -424,7 +452,7 @@ class PearlWebSocketClient {
     
     // Notify Shiny module with specific event type and data
     notifyShinyModule(eventType, data, module) {
-        if (typeof Shiny !== 'undefined') {
+        if (typeof Shiny !== 'undefined' && Shiny.setInputValue) {
             const inputId = `${module}-websocket_event`;
             console.log(`📨 Sending event to Shiny: ${eventType} with data:`, data);
             Shiny.setInputValue(inputId, {
@@ -433,13 +461,13 @@ class PearlWebSocketClient {
                 timestamp: Date.now()
             }, {priority: 'event'});
         } else {
-            console.log('⚠️ Shiny not available for event:', eventType);
+            console.log('⚠️ Shiny.setInputValue not available yet - event deferred:', eventType);
         }
     }
     
     // Notify Shiny global observer with specific event type and data (for cross-browser sync)
     notifyShinyGlobal(eventType, data, globalHandler) {
-        if (typeof Shiny !== 'undefined') {
+        if (typeof Shiny !== 'undefined' && Shiny.setInputValue) {
             const inputId = `${globalHandler}-websocket_event`;
             console.log(`🌍 Sending GLOBAL event to Shiny: ${eventType} with data:`, data, `-> ${inputId}`);
             Shiny.setInputValue(inputId, {
@@ -448,7 +476,7 @@ class PearlWebSocketClient {
                 timestamp: Date.now()
             }, {priority: 'event'});
         } else {
-            console.log('⚠️ Shiny not available for global event:', eventType);
+            console.log('⚠️ Shiny.setInputValue not available yet - global event deferred:', eventType);
         }
     }
     

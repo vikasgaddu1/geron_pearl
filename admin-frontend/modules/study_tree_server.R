@@ -219,6 +219,30 @@ study_tree_server <- function(id) {
       return(error_string)
     }
 
+    # Universal CRUD Manager integration (Phase 4)
+    # Replaces entity-specific WebSocket observer with standardized refresh trigger
+    observeEvent(input$`study_tree-crud_refresh`, {
+      if (!is.null(input$`study_tree-crud_refresh`)) {
+        cat("📚 Universal CRUD refresh triggered for study tree\n")
+        output$tree_display <- shinyTree::renderTree({ build_tree_data() })
+        last_update(Sys.time())
+      }
+    })
+    
+    # Legacy WebSocket observer (kept for backward compatibility during transition)
+    observeEvent(input$`study_tree-websocket_event`, {
+      if (!is.null(input$`study_tree-websocket_event`)) {
+        event_data <- input$`study_tree-websocket_event`
+        cat("📚 Legacy WebSocket event received:", event_data$type, "\n")
+        if (startsWith(event_data$type, "study_") || 
+            startsWith(event_data$type, "database_release_") ||
+            startsWith(event_data$type, "reporting_effort_")) {
+          output$tree_display <- shinyTree::renderTree({ build_tree_data() })
+          last_update(Sys.time())
+        }
+      }
+    })
+
     # Render tree (collapsed by default)
     # NOTE: shinyTree automatically creates both input and output bindings with the same ID
     # The "Shared input/output ID" warnings in browser console are EXPECTED and NOT an error

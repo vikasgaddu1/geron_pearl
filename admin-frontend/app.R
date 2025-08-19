@@ -341,6 +341,90 @@ server <- function(input, output, session) {
     }
   })
 
+  # GLOBAL WebSocket observer for package cross-browser synchronization
+  observeEvent(input$`package_update-websocket_event`, {
+    if (!is.null(input$`package_update-websocket_event`)) {
+      event_data <- input$`package_update-websocket_event`
+      
+      cat("🌍 GLOBAL Package WebSocket observer triggered!\n")
+      cat("📦 GLOBAL CROSS-BROWSER Package event received:", event_data$type, "\n")
+      
+      # Trigger refresh in the packages_simple module for cross-browser sync
+      if (startsWith(event_data$type, "package_")) {
+        cat("🚀 Triggering GLOBAL package refresh for cross-browser sync\n")
+        
+        # Use sendCustomMessage to trigger a JavaScript function that will set the Shiny input
+        session$sendCustomMessage("triggerPackageRefresh", list(
+          timestamp = as.numeric(Sys.time()),
+          event_type = event_data$type
+        ))
+      }
+    }
+  })
+
+  # GLOBAL WebSocket observer for study cross-browser synchronization
+  observeEvent(input$`study_update-websocket_event`, {
+    if (!is.null(input$`study_update-websocket_event`)) {
+      event_data <- input$`study_update-websocket_event`
+      
+      cat("🌍 GLOBAL Study WebSocket observer triggered!\n")
+      cat("📚 GLOBAL CROSS-BROWSER Study event received:", event_data$type, "\n")
+      
+      # Trigger refresh in the study_tree module for cross-browser sync
+      if (startsWith(event_data$type, "study_")) {
+        cat("🚀 Triggering GLOBAL study refresh for cross-browser sync\n")
+        
+        # Use sendCustomMessage to trigger a JavaScript function that will set the Shiny input
+        session$sendCustomMessage("triggerStudyRefresh", list(
+          timestamp = as.numeric(Sys.time()),
+          event_type = event_data$type
+        ))
+      }
+    }
+  })
+
+  # GLOBAL WebSocket observer for package item cross-browser synchronization
+  observeEvent(input$`package_item_update-websocket_event`, {
+    if (!is.null(input$`package_item_update-websocket_event`)) {
+      event_data <- input$`package_item_update-websocket_event`
+      
+      cat("🌍 GLOBAL Package Item WebSocket observer triggered!\n")
+      cat("📦 GLOBAL CROSS-BROWSER Package Item event received:", event_data$type, "\n")
+      
+      # Trigger refresh in the package_items module for cross-browser sync
+      if (startsWith(event_data$type, "package_item_")) {
+        cat("🚀 Triggering GLOBAL package item refresh for cross-browser sync\n")
+        
+        # Use sendCustomMessage to trigger a JavaScript function that will set the Shiny input
+        session$sendCustomMessage("triggerPackageItemRefresh", list(
+          timestamp = as.numeric(Sys.time()),
+          event_type = event_data$type
+        ))
+      }
+    }
+  })
+
+  # GLOBAL WebSocket observer for tracker update cross-browser synchronization
+  observeEvent(input$`tracker_update-websocket_event`, {
+    if (!is.null(input$`tracker_update-websocket_event`)) {
+      event_data <- input$`tracker_update-websocket_event`
+      
+      cat("🌍 GLOBAL Tracker Update WebSocket observer triggered!\n")
+      cat("📊 GLOBAL CROSS-BROWSER Tracker Update event received:", event_data$type, "\n")
+      
+      # Trigger refresh in the reporting_effort_tracker module for cross-browser sync
+      if (startsWith(event_data$type, "reporting_effort_tracker_")) {
+        cat("🚀 Triggering GLOBAL tracker refresh for cross-browser sync\n")
+        
+        # Use sendCustomMessage to trigger a JavaScript function that will set the Shiny input
+        session$sendCustomMessage("triggerTrackerRefresh", list(
+          timestamp = as.numeric(Sys.time()),
+          event_type = event_data$type
+        ))
+      }
+    }
+  })
+
   # Bell dropdown UI
   output$status_dropdown <- renderUI({
     ok <- ws_ok() && api_ok()

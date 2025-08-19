@@ -21,19 +21,11 @@ from app.schemas.reporting_effort_item_tracker import (
 from app.models.reporting_effort_item_tracker import ProductionStatus, QCStatus
 from app.models.user import UserRole
 from app.utils import sqlalchemy_to_dict
-from app.api.v1.websocket import manager, broadcast_reporting_effort_tracker_deleted
-
-# WebSocket broadcasting functions
-async def broadcast_tracker_updated(tracker_data):
-    """Broadcast that a tracker was updated."""
-    try:
-        message_data = {
-            "type": "reporting_effort_tracker_updated",
-            "data": sqlalchemy_to_dict(tracker_data)
-        }
-        await manager.broadcast(str(message_data).replace("'", '"'))
-    except Exception as e:
-        print(f"WebSocket broadcast error: {e}")
+from app.api.v1.websocket import (
+    manager, 
+    broadcast_reporting_effort_tracker_deleted,
+    broadcast_reporting_effort_tracker_updated as broadcast_tracker_updated
+)
 
 async def broadcast_tracker_assignment_updated(tracker_data, assignment_type: str, programmer_id: Optional[int]):
     """Broadcast programmer assignment updates."""

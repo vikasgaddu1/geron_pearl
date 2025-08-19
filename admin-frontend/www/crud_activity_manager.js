@@ -465,12 +465,14 @@ class UniversalCRUDManager {
         console.log('🔄 Handling legacy event:', event.type);
         
         // Send to Shiny as before for backward compatibility
-        if (typeof Shiny !== 'undefined') {
+        if (typeof Shiny !== 'undefined' && Shiny.setInputValue) {
             Shiny.setInputValue('universal_crud_event', {
                 type: event.type,
                 data: event.data || event.entity?.data,
                 timestamp: Date.now()
             }, {priority: 'event'});
+        } else {
+            console.log('⚠️ Shiny.setInputValue not available yet - legacy event deferred:', event.type);
         }
     }
     
@@ -478,27 +480,32 @@ class UniversalCRUDManager {
      * Trigger Shiny module refresh
      */
     triggerShinyRefresh(entityType) {
-        if (typeof Shiny === 'undefined') return;
+        if (typeof Shiny === 'undefined' || !Shiny.setInputValue) {
+            console.log('⚠️ Shiny.setInputValue not available yet - refresh deferred for:', entityType);
+            return;
+        }
         
-        // Map entity types to module names
+        // Map entity types to module names (must match app.R module IDs)
         const moduleMap = {
-            'study': 'studies',
-            'database_release': 'database_releases',
-            'reporting_effort': 'reporting_efforts',
+            'study': 'study_tree',  // maps to study_tree module in app.R
+            'database_release': 'study_tree',  // database releases are handled by study_tree module
+            'reporting_effort': 'study_tree',  // reporting efforts are handled by study_tree module
             'reporting_effort_item': 'reporting_effort_items',
             'tracker': 'reporting_effort_tracker',
             'comment': 'reporting_effort_tracker',
             'text_element': 'tnfp',
-            'package': 'packages',
-            'package_item': 'packages',
+            'package': 'packages_simple',  // Fixed: should match app.R module ID "packages_simple"
+            'package_item': 'package_items',
             'user': 'users'
         };
         
         const moduleName = moduleMap[entityType];
         if (moduleName) {
             const inputId = `${moduleName}-crud_refresh`;
-            console.log('📤 Triggering Shiny refresh:', inputId);
-            Shiny.setInputValue(inputId, Date.now(), {priority: 'event'});
+            // Use a random value to ensure Shiny always sees this as a change
+            const refreshValue = Math.random() + Date.now();
+            console.log('📤 Triggering Shiny refresh:', inputId, 'with value:', refreshValue);
+            Shiny.setInputValue(inputId, refreshValue, {priority: 'event'});
         }
     }
     
@@ -648,11 +655,15 @@ function initializeCRUDManager() {
     console.log('💡 Debug: window.pearlCRUD available for testing');
 }
 
-// Initialize when DOM is ready
+// Initialize IMMEDIATELY when script loads to ensure it's available for WebSocket messages
+// This prevents race conditions where WebSocket messages arrive before DOMContentLoaded
+initializeCRUDManager();
+
+// Also set up DOM-dependent features when DOM is ready
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeCRUDManager);
-} else {
-    initializeCRUDManager();
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('📄 DOM ready - CRUD Manager already initialized');
+    });
 }
 
 // Clean up on page unload

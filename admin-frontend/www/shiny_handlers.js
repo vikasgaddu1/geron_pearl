@@ -48,8 +48,10 @@ Shiny.addCustomMessageHandler('universal_crud_refresh', function(message) {
   } else {
     console.warn('⚠️ Universal CRUD Manager not available, falling back to legacy');
     // Fallback to direct Shiny refresh if CRUD manager not available
-    if (window.Shiny && message.refresh_input) {
+    if (window.Shiny && window.Shiny.setInputValue && message.refresh_input) {
       Shiny.setInputValue(message.refresh_input, Date.now(), {priority: 'event'});
+    } else if (!window.Shiny.setInputValue) {
+      console.log('⚠️ Shiny.setInputValue not available yet - fallback refresh deferred');
     }
   }
 });
@@ -299,6 +301,79 @@ Shiny.addCustomMessageHandler('toggleDashboardCard', function(message) {
     
   } catch (e) {
     console.error('❌ Error toggling dashboard card:', e);
+  }
+});
+
+// Custom handler for package cross-browser synchronization
+Shiny.addCustomMessageHandler('triggerPackageRefresh', function(message) {
+  try {
+    console.log('📦 Package refresh triggered from global observer:', message);
+    
+    // Trigger the packages_simple module's CRUD refresh input
+    // This simulates the Universal CRUD Manager triggering a refresh
+    if (window.Shiny && window.Shiny.setInputValue) {
+      Shiny.setInputValue('packages_simple-crud_refresh', Math.random(), {priority: 'event'});
+      console.log('✅ Package module refresh triggered for cross-browser sync');
+    } else {
+      console.log('⚠️ Shiny.setInputValue not available yet - package refresh deferred');
+    }
+    
+  } catch (e) {
+    console.error('❌ Error triggering package refresh:', e);
+  }
+});
+
+// Custom handler for study cross-browser synchronization
+Shiny.addCustomMessageHandler('triggerStudyRefresh', function(message) {
+  try {
+    console.log('📚 Study refresh triggered from global observer:', message);
+    
+    // Trigger the study_tree module's CRUD refresh input
+    if (window.Shiny && window.Shiny.setInputValue) {
+      Shiny.setInputValue('study_tree-crud_refresh', Math.random(), {priority: 'event'});
+      console.log('✅ Study Tree module refresh triggered for cross-browser sync');
+    } else {
+      console.log('⚠️ Shiny.setInputValue not available yet - study refresh deferred');
+    }
+    
+  } catch (e) {
+    console.error('❌ Error triggering study refresh:', e);
+  }
+});
+
+// Custom handler for package item cross-browser synchronization
+Shiny.addCustomMessageHandler('triggerPackageItemRefresh', function(message) {
+  try {
+    console.log('📦 Package Item refresh triggered from global observer:', message);
+    
+    // Simple approach matching the working tracker pattern
+    if (window.Shiny && window.Shiny.setInputValue) {
+      Shiny.setInputValue('package_items-crud_refresh', Math.random(), {priority: 'event'});
+      console.log('✅ Package Items module refresh triggered for cross-browser sync');
+    } else {
+      console.log('⚠️ Shiny.setInputValue not available yet - package items refresh deferred');
+    }
+    
+  } catch (e) {
+    console.error('❌ Error triggering package item refresh:', e);
+  }
+});
+
+// Custom handler for tracker update cross-browser synchronization
+Shiny.addCustomMessageHandler('triggerTrackerRefresh', function(message) {
+  try {
+    console.log('📊 Tracker refresh triggered from global observer:', message);
+    
+    // Trigger the reporting_effort_tracker module's CRUD refresh input
+    if (window.Shiny && window.Shiny.setInputValue) {
+      Shiny.setInputValue('reporting_effort_tracker-crud_refresh', Math.random(), {priority: 'event'});
+      console.log('✅ Tracker module refresh triggered for cross-browser sync');
+    } else {
+      console.log('⚠️ Shiny.setInputValue not available yet - tracker refresh deferred');
+    }
+    
+  } catch (e) {
+    console.error('❌ Error triggering tracker refresh:', e);
   }
 });
 
