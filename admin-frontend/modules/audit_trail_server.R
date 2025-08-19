@@ -318,20 +318,17 @@ audit_trail_server <- function(id) {
           
           saveWorkbook(wb, filename, overwrite = TRUE)
           
-          showNotification(
-            paste("Audit log exported to", filename),
-            type = "success"
+          show_success_notification(
+            paste("Audit log exported to", filename)
           )
         }, error = function(e) {
-          showNotification(
-            paste("Failed to export:", e$message),
-            type = "error"
+          show_error_notification(
+            paste("Failed to export:", e$message)
           )
         })
       } else {
-        showNotification(
-          "No data to export",
-          type = "warning"
+        show_warning_notification(
+          "No data to export"
         )
       }
     })
@@ -450,59 +447,61 @@ audit_trail_server <- function(id) {
           })
         }
         
-        showModal(
-          modalDialog(
-            title = paste("Audit Log Details - ID:", log_entry$id),
-            size = "l",
-            div(
-              class = "container-fluid",
-              div(
-                class = "row mb-3",
-                div(class = "col-md-6",
-                    strong("Table:"), log_entry$table_display),
-                div(class = "col-md-6",
-                    strong("Record ID:"), log_entry$record_id)
-              ),
-              div(
-                class = "row mb-3",
-                div(class = "col-md-6",
-                    strong("Action:"), HTML(log_entry$action_display)),
-                div(class = "col-md-6",
-                    strong("Timestamp:"), log_entry$created_at_formatted)
-              ),
-              div(
-                class = "row mb-3",
-                div(class = "col-md-6",
-                    strong("User:"), log_entry$user_name),
-                div(class = "col-md-6",
-                    strong("Email:"), log_entry$user_email)
-              ),
-              div(
-                class = "row mb-3",
-                div(class = "col-md-6",
-                    strong("IP Address:"), log_entry$ip_address),
-                div(class = "col-md-6",
-                    strong("User Agent:"), 
-                    div(
-                      style = "word-break: break-all;",
-                      log_entry$user_agent
-                    )
+        # Create details content
+        details_content <- div(
+          class = "container-fluid",
+          div(
+            class = "row mb-3",
+            div(class = "col-md-6",
+                strong("Table:"), log_entry$table_display),
+            div(class = "col-md-6",
+                strong("Record ID:"), log_entry$record_id)
+          ),
+          div(
+            class = "row mb-3",
+            div(class = "col-md-6",
+                strong("Action:"), HTML(log_entry$action_display)),
+            div(class = "col-md-6",
+                strong("Timestamp:"), log_entry$created_at_formatted)
+          ),
+          div(
+            class = "row mb-3",
+            div(class = "col-md-6",
+                strong("User:"), log_entry$user_name),
+            div(class = "col-md-6",
+                strong("Email:"), log_entry$user_email)
+          ),
+          div(
+            class = "row mb-3",
+            div(class = "col-md-6",
+                strong("IP Address:"), log_entry$ip_address),
+            div(class = "col-md-6",
+                strong("User Agent:"), 
+                div(
+                  style = "word-break: break-all;",
+                  log_entry$user_agent
                 )
-              ),
-              if (changes_html != "") {
-                HTML(changes_html)
-              }
-            ),
-            footer = modalButton("Close")
+            )
+          ),
+          if (changes_html != "") {
+            HTML(changes_html)
+          }
+        )
+        
+        showModal(
+          create_view_modal(
+            title = paste("Audit Log Details - ID:", log_entry$id),
+            content = details_content,
+            size = "l"
           )
         )
       }
     })
     
-    # Universal CRUD Manager integration (Phase 4)
+    # Universal CRUD Manager integration (Phase 2)
     # Replaces entity-specific WebSocket observer with standardized refresh trigger
-    observeEvent(input$`audit_trail-crud_refresh`, {
-      if (!is.null(input$`audit_trail-crud_refresh`)) {
+    observeEvent(input$crud_refresh, {
+      if (!is.null(input$crud_refresh)) {
         cat("📋 Universal CRUD refresh triggered for audit trail\n")
         # Apply current filters and refresh
         isolate({
@@ -588,10 +587,9 @@ audit_trail_server <- function(id) {
     # Error handling
     observe({
       if (!is.null(values$error_message)) {
-        showNotification(
+        show_error_notification(
           values$error_message,
-          type = "error",
-          duration = 5
+          duration = 5000
         )
         values$error_message <- NULL
       }
@@ -600,11 +598,9 @@ audit_trail_server <- function(id) {
     # Loading indicator
     observe({
       if (values$loading) {
-        showNotification(
+        show_success_notification(
           "Loading audit logs...",
-          id = "loading_notification",
-          duration = NULL,
-          closeButton = FALSE
+          duration = NULL
         )
       } else {
         removeNotification("loading_notification")
