@@ -10,11 +10,11 @@ cat("1. Your app.R loads these package modules:\n")
 cat(paste("  ", packages_module_line[grepl("packages", packages_module_line)], collapse = "\n"), "\n\n")
 
 # Check if Export button is in the CORRECT UI file
-ui_file <- "modules/packages_simple_ui.R"
+ui_file <- "modules/packages_ui.R"
 ui_content <- readLines(ui_file)
 export_button_found <- any(grepl("export_excel", ui_content))
 
-cat("2. Export button in packages_simple_ui.R: ")
+cat("2. Export button in packages_ui.R: ")
 if (export_button_found) {
   cat("✅ FOUND\n")
   line_num <- which(grepl("export_excel", ui_content))[1]
@@ -24,11 +24,11 @@ if (export_button_found) {
 }
 
 # Check if Export handler is in the CORRECT server file
-server_file <- "modules/packages_simple_server.R"
+server_file <- "modules/packages_server.R"
 server_content <- readLines(server_file)
 export_handler_found <- any(grepl("observeEvent.*export_excel", server_content))
 
-cat("\n3. Export handler in packages_simple_server.R: ")
+cat("\n3. Export handler in packages_server.R: ")
 if (export_handler_found) {
   cat("✅ FOUND\n")
   line_num <- which(grepl("observeEvent.*export_excel", server_content))[1]

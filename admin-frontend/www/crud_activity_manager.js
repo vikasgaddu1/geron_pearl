@@ -494,7 +494,7 @@ class UniversalCRUDManager {
             'tracker': 'reporting_effort_tracker',
             'comment': 'reporting_effort_tracker',
             'text_element': 'tnfp',
-            'package': 'packages_simple',  // Fixed: should match app.R module ID "packages_simple"
+            'package': 'packages',  // Fixed: should match app.R module ID "packages"
             'package_item': 'package_items',
             'user': 'users'
         };

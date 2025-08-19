@@ -1,6 +1,6 @@
 # Simple Packages UI Module - CRUD for package names only
 
-packages_simple_ui <- function(id) {
+packages_ui <- function(id) {
   ns <- NS(id)
   
   # Helper function for hidden elements (if not already loaded)

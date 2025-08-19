@@ -201,7 +201,7 @@ class PearlWebSocketClient {
                 console.log('🌐 SKIPPED: Universal CRUD Manager already handles cross-browser sync for:', data.type);
                 // this.notifyShinyGlobal(data.type, data.data, 'package_item_update');
             } else if (data.type.startsWith('package_')) {
-                data.module = 'packages_simple';  // Fixed: should match app.R module ID
+                data.module = 'packages';  // Fixed: should match app.R module ID
                 console.log('📦 PACKAGE EVENT RECEIVED:', data.type, data.data?.package_name || 'unknown');
                 
                 // GLOBAL CROSS-BROWSER ROUTING for package events
