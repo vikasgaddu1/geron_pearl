@@ -76,19 +76,10 @@ packages_server <- function(id) {
           stringsAsFactors = FALSE, check.names = FALSE
         )
         
-        datatable(
+        create_standard_datatable(
           empty_df,
-          options = list(
-            dom = 'rtip',
-            pageLength = 25,
-            language = list(emptyTable = "No packages found"),
-            columnDefs = list(
-              list(targets = 1, searchable = FALSE, orderable = FALSE, width = '100px')
-            )
-          ),
-          escape = FALSE,
-          selection = 'none',
-          rownames = FALSE
+          actions_column = TRUE,
+          empty_message = "No packages found. Click 'Create Package' to add your first package."
         )
       } else {
         # Add action buttons
@@ -103,42 +94,23 @@ packages_server <- function(id) {
         # Remove ID column for display
         display_df <- data[, c("Package Name", "Actions")]
         
-        datatable(
+        create_standard_datatable(
           display_df,
-          filter = 'top',
-          options = list(
-            dom = 'frtip',
-            search = list(
-              regex = TRUE,
-              caseInsensitive = TRUE,
-              search = "",
-              placeholder = "Search (regex supported):"
-            ),
-            pageLength = 25,
-            columnDefs = list(
-              list(targets = 1, searchable = FALSE, orderable = FALSE, width = '100px')
-            ),
-            language = list(
-              search = "",
-              searchPlaceholder = "Search (regex supported):"
-            ),
-            drawCallback = JS(sprintf(
-              "function(){
-                var tbl = $('#%s');
-                tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
-                  var id = $(this).attr('data-id');
-                  Shiny.setInputValue('%s', {action: 'edit', id: id}, {priority: 'event'});
-                });
-                tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(){
-                  var id = $(this).attr('data-id');
-                  Shiny.setInputValue('%s', {action: 'delete', id: id}, {priority: 'event'});
-                });
-              }",
-              ns("packages_table"), ns("package_action_click"), ns("package_action_click")))
-          ),
-          escape = FALSE,
-          selection = 'none',
-          rownames = FALSE
+          actions_column = TRUE,
+          draw_callback = JS(sprintf(
+            "function(){
+              var tbl = $('#%s');
+              tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
+                var id = $(this).attr('data-id');
+                Shiny.setInputValue('%s', {action: 'edit', id: id}, {priority: 'event'});
+              });
+              tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(){
+                var id = $(this).attr('data-id');
+                Shiny.setInputValue('%s', {action: 'delete', id: id}, {priority: 'event'});
+              });
+            }",
+            ns("packages_table"), ns("package_action_click"), ns("package_action_click"))
+          )
         ) %>%
           DT::formatStyle(
             columns = 1:2,

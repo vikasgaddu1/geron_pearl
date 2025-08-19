@@ -25,6 +25,9 @@ STUDIES_ENDPOINT <- paste0(API_BASE_URL, API_STUDIES_PATH)
 WEBSOCKET_URL <- paste0(gsub("^http", "ws", API_BASE_URL), API_WEBSOCKET_PATH)
 
 # Source modules (order matters - api_client needs STUDIES_ENDPOINT)
+# Load utility modules first
+source("modules/utils/crud_base.R")
+source("modules/utils/api_utils.R")
 source("modules/websocket_client.R")
 source("modules/api_client.R")
 # Studies, Database Releases, and Reporting Efforts functionality 

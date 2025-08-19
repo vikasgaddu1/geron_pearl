@@ -8,22 +8,92 @@ library(DT)
 create_standard_datatable <- function(data, 
                                       actions_column = TRUE, 
                                       search_placeholder = "Search (regex supported):",
-                                      page_length = 25) {
+                                      page_length = 25,
+                                      empty_message = "No data available",
+                                      show_entries = TRUE,
+                                      show_pagination = TRUE,
+                                      draw_callback = NULL,
+                                      extra_options = list()) {
   
-  # Add Actions column if requested
+  # Handle empty data case
+  if (is.null(data) || nrow(data) == 0) {
+    # Create empty dataframe with proper structure
+    if (actions_column && (is.null(data) || !"Actions" %in% names(data))) {
+      if (is.null(data)) {
+        data <- data.frame(Actions = character(0))
+      } else {
+        data$Actions <- character(0)
+      }
+    }
+    
+    # Return empty table with consistent styling
+    return(DT::datatable(
+      data,
+      filter = 'top',
+      options = list(
+        dom = if (show_entries && show_pagination) 'frtip' else if (!show_entries && show_pagination) 'frtip' else 'frt',
+        pageLength = page_length,
+        searching = TRUE,
+        language = list(
+          search = "",
+          searchPlaceholder = search_placeholder,
+          emptyTable = empty_message
+        ),
+        columnDefs = if (actions_column && "Actions" %in% names(data)) {
+          list(list(
+            targets = which(names(data) == "Actions") - 1,
+            searchable = FALSE,
+            orderable = FALSE,
+            width = "120px"
+          ))
+        } else {
+          list()
+        }
+      ),
+      escape = FALSE,
+      rownames = FALSE,
+      selection = 'none'
+    ))
+  }
+  
+  # Add Actions column if requested and not present
   if (actions_column && !"Actions" %in% names(data)) {
     data$Actions <- ""  # Will be populated by JavaScript drawCallback
   }
   
-  # Standard options
+  # Standard options for non-empty tables
+  dom_config <- if (show_entries && show_pagination) 'frtip' else if (!show_entries && show_pagination) 'frtip' else 'frt'
+  
   options <- list(
-    dom = 'frtip',  # Show filter, processing, table, info, pagination
-    search = list(regex = TRUE, caseInsensitive = TRUE),
+    dom = dom_config,  # Show filter, processing, table, info, pagination
     pageLength = page_length,
     searching = TRUE,
-    language = list(search = search_placeholder),
+    autoWidth = FALSE,
+    language = list(
+      search = "",
+      searchPlaceholder = search_placeholder,
+      emptyTable = empty_message,
+      info = paste("Showing _START_ to _END_ of _TOTAL_ entries"),
+      infoEmpty = "Showing 0 to 0 of 0 entries",
+      infoFiltered = "(filtered from _MAX_ total entries)"
+    ),
+    search = list(
+      regex = TRUE,
+      caseInsensitive = TRUE,
+      search = ""
+    ),
     columnDefs = list()
   )
+  
+  # Add drawCallback if provided
+  if (!is.null(draw_callback)) {
+    options$drawCallback <- draw_callback
+  }
+  
+  # Merge any extra options
+  if (length(extra_options) > 0) {
+    options <- modifyList(options, extra_options)
+  }
   
   # Configure Actions column if present
   if (actions_column && "Actions" %in% names(data)) {
@@ -32,7 +102,8 @@ create_standard_datatable <- function(data,
       targets = actions_col_index,
       searchable = FALSE,
       orderable = FALSE,
-      width = "120px"
+      width = "120px",
+      className = "text-center"
     )))
   }
   
@@ -41,7 +112,8 @@ create_standard_datatable <- function(data,
     filter = 'top',
     options = options,
     escape = FALSE,  # Allow HTML in Actions column
-    rownames = FALSE
+    rownames = FALSE,
+    selection = 'none'
   )
 }
 

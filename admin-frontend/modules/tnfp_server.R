@@ -167,16 +167,11 @@ tnfp_server <- function(id) {
           stringsAsFactors = FALSE, check.names = FALSE
         )
         
-        DT::datatable(empty_df, 
-          filter = 'top',
-          options = list(
-            dom = 'frtip',
-            search = list(regex = TRUE, caseInsensitive = TRUE),
-            searching = TRUE,
-            pageLength = 10,
-            language = list(emptyTable = "No text elements found. Click 'Add Text Element' to create your first text element.")
-          ),
-          escape = FALSE, rownames = FALSE, selection = 'none'
+        create_standard_datatable(
+          empty_df,
+          actions_column = TRUE,
+          page_length = 10,
+          empty_message = "No text elements found. Click 'Add Text Element' to create your first text element."
         )
       } else {
         # Add action buttons
@@ -190,43 +185,38 @@ tnfp_server <- function(id) {
           ))
         })
         
-        DT::datatable(display_df,
-          filter = 'top',
-          options = list(
-            dom = 'frtip',
-            search = list(regex = TRUE, caseInsensitive = TRUE),
-            searching = TRUE,
-            pageLength = 10,
-            autoWidth = FALSE,
-            language = list(search = "", searchPlaceholder = "Search (regex supported):"),
+        create_standard_datatable(
+          display_df,
+          actions_column = TRUE,
+          page_length = 10,
+          draw_callback = JS(sprintf("
+            function() {
+              var table = this;
+              console.log('Text elements table drawCallback triggered');
+              var editButtons = $('#%s button[data-action=\"edit\"]');
+              var deleteButtons = $('#%s button[data-action=\"delete\"]');
+              console.log('Found edit buttons:', editButtons.length);
+              console.log('Found delete buttons:', deleteButtons.length);
+              editButtons.off('click').on('click', function() {
+                var id = $(this).attr('data-id');
+                console.log('Edit text element button clicked for ID:', id);
+                Shiny.setInputValue('%s', id, {priority: 'event'});
+              });
+              deleteButtons.off('click').on('click', function() {
+                var id = $(this).attr('data-id');
+                console.log('Delete text element button clicked for ID:', id);
+                Shiny.setInputValue('%s', id, {priority: 'event'});
+              });
+            }
+          ", ns("text_elements_table"), ns("text_elements_table"), ns("edit_text_element_id"), ns("delete_text_element_id"))),
+          extra_options = list(
             columnDefs = list(
               list(targets = 0, width = "25%"), # Type column
               list(targets = 1, width = "55%"), # Content column
               list(targets = 2, orderable = FALSE, searchable = FALSE, className = "text-center dt-nowrap", width = "1%") # Actions column minimal width
             ),
-            initComplete = JS(sprintf("function(){ $('#%s thead tr:nth-child(2) th:last input, #%s thead tr:nth-child(2) th:last select').prop('disabled', true).attr('placeholder',''); }", ns("text_elements_table"), ns("text_elements_table"))),
-            drawCallback = JS(sprintf("
-              function() {
-                var table = this;
-                console.log('Text elements table drawCallback triggered');
-                var editButtons = $('#%s button[data-action=\"edit\"]');
-                var deleteButtons = $('#%s button[data-action=\"delete\"]');
-                console.log('Found edit buttons:', editButtons.length);
-                console.log('Found delete buttons:', deleteButtons.length);
-                editButtons.off('click').on('click', function() {
-                  var id = $(this).attr('data-id');
-                  console.log('Edit text element button clicked for ID:', id);
-                  Shiny.setInputValue('%s', id, {priority: 'event'});
-                });
-                deleteButtons.off('click').on('click', function() {
-                  var id = $(this).attr('data-id');
-                  console.log('Delete text element button clicked for ID:', id);
-                  Shiny.setInputValue('%s', id, {priority: 'event'});
-                });
-              }
-            ", ns("text_elements_table"), ns("text_elements_table"), ns("edit_text_element_id"), ns("delete_text_element_id")))
-          ),
-          escape = FALSE, rownames = FALSE, selection = 'none'
+            initComplete = JS(sprintf("function(){ $('#%s thead tr:nth-child(2) th:last input, #%s thead tr:nth-child(2) th:last select').prop('disabled', true).attr('placeholder',''); }", ns("text_elements_table"), ns("text_elements_table")))
+          )
         )
       }
     })

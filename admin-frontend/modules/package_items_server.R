@@ -467,42 +467,32 @@ package_items_server <- function(id) {
         })
       }
       
-      DT::datatable(
+      create_standard_datatable(
         data,
-        filter = 'top',
-        escape = FALSE,
-        selection = 'none',
-        options = list(
-          dom = 'frtip',
-          pageLength = 10,
-          searching = TRUE,
-          language = list(
-            search = "Search (regex supported):",
-            emptyTable = "No TLF items found",
-            searchPlaceholder = "Type to search..."
-          ),
+        actions_column = TRUE,
+        page_length = 10,
+        empty_message = "No TLF items found",
+        draw_callback = JS(sprintf(
+          "function(){
+            var tbl = $('#%s');
+            tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
+              var id = $(this).attr('data-id');
+              var type = $(this).attr('data-type');
+              Shiny.setInputValue('%s', {action: 'edit', id: id, type: type}, {priority: 'event'});
+            });
+            tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(){
+              var id = $(this).attr('data-id');
+              var type = $(this).attr('data-type');
+              Shiny.setInputValue('%s', {action: 'delete', id: id, type: type}, {priority: 'event'});
+            });
+          }",
+          ns("tlf_table"), ns("item_action_click"), ns("item_action_click"))),
+        extra_options = list(
           columnDefs = list(
             list(targets = 0, visible = FALSE),  # Hide ID column
             list(targets = 6, searchable = FALSE, sortable = FALSE, width = '100px')  # Actions column
-          ),
-          search = list(regex = TRUE, caseInsensitive = TRUE),
-          drawCallback = JS(sprintf(
-            "function(){
-              var tbl = $('#%s');
-              tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
-                var id = $(this).attr('data-id');
-                var type = $(this).attr('data-type');
-                Shiny.setInputValue('%s', {action: 'edit', id: id, type: type}, {priority: 'event'});
-              });
-              tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(){
-                var id = $(this).attr('data-id');
-                var type = $(this).attr('data-type');
-                Shiny.setInputValue('%s', {action: 'delete', id: id, type: type}, {priority: 'event'});
-              });
-            }",
-            ns("tlf_table"), ns("item_action_click"), ns("item_action_click")))
-        ),
-        rownames = FALSE
+          )
+        )
       )
     })
     
@@ -520,42 +510,32 @@ package_items_server <- function(id) {
         })
       }
       
-      DT::datatable(
+      create_standard_datatable(
         data,
-        filter = 'top',
-        escape = FALSE,
-        selection = 'none',
-        options = list(
-          dom = 'frtip',
-          pageLength = 10,
-          searching = TRUE,
-          language = list(
-            search = "Search (regex supported):",
-            emptyTable = "No dataset items found",
-            searchPlaceholder = "Type to search..."
-          ),
+        actions_column = TRUE,
+        page_length = 10,
+        empty_message = "No dataset items found",
+        draw_callback = JS(sprintf(
+          "function(){
+            var tbl = $('#%s');
+            tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
+              var id = $(this).attr('data-id');
+              var type = $(this).attr('data-type');
+              Shiny.setInputValue('%s', {action: 'edit', id: id, type: type}, {priority: 'event'});
+            });
+            tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(){
+              var id = $(this).attr('data-id');
+              var type = $(this).attr('data-type');
+              Shiny.setInputValue('%s', {action: 'delete', id: id, type: type}, {priority: 'event'});
+            });
+          }",
+          ns("dataset_table"), ns("item_action_click"), ns("item_action_click"))),
+        extra_options = list(
           columnDefs = list(
             list(targets = 0, visible = FALSE),  # Hide ID column
             list(targets = 5, searchable = FALSE, sortable = FALSE, width = '100px')  # Actions column
-          ),
-          search = list(regex = TRUE, caseInsensitive = TRUE),
-          drawCallback = JS(sprintf(
-            "function(){
-              var tbl = $('#%s');
-              tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
-                var id = $(this).attr('data-id');
-                var type = $(this).attr('data-type');
-                Shiny.setInputValue('%s', {action: 'edit', id: id, type: type}, {priority: 'event'});
-              });
-              tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(){
-                var id = $(this).attr('data-id');
-                var type = $(this).attr('data-type');
-                Shiny.setInputValue('%s', {action: 'delete', id: id, type: type}, {priority: 'event'});
-              });
-            }",
-            ns("dataset_table"), ns("item_action_click"), ns("item_action_click")))
-        ),
-        rownames = FALSE
+          )
+        )
       )
     })
     
