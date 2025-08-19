@@ -139,3 +139,131 @@ async def broadcast_text_element_updated(text_element_data: Any) -> None:
 async def broadcast_text_element_deleted(text_element_id: int) -> None:
     """Broadcast text element deletion."""
     await broadcast_entity_change('text_element', 'deleted', {}, text_element_id)
+
+
+# =============================================================================
+# PYDANTIC MODEL CONVERSION PATTERNS (Phase 2B - Medium Priority)
+# =============================================================================
+
+def convert_sqlalchemy_to_pydantic(sqlalchemy_obj: Any, pydantic_model: Any) -> Any:
+    """
+    Convert SQLAlchemy model instance to Pydantic model with error handling.
+    
+    Args:
+        sqlalchemy_obj: SQLAlchemy model instance
+        pydantic_model: Pydantic model class
+        
+    Returns:
+        Pydantic model instance
+    """
+    try:
+        return pydantic_model.model_validate(sqlalchemy_obj)
+    except Exception as e:
+        print(f"Error converting {type(sqlalchemy_obj)} to {pydantic_model}: {str(e)}")
+        raise
+
+
+def serialize_for_websocket(pydantic_obj: Any, exclude_fields: list = None, mode: str = 'json') -> Dict[str, Any]:
+    """
+    Serialize Pydantic model for WebSocket transmission with field exclusion support.
+    
+    Args:
+        pydantic_obj: Pydantic model instance
+        exclude_fields: List of field names to exclude from serialization
+        mode: Serialization mode ('json' handles enums and dates properly)
+        
+    Returns:
+        Dictionary suitable for JSON serialization
+    """
+    try:
+        exclude_set = set(exclude_fields) if exclude_fields else set()
+        return pydantic_obj.model_dump(mode=mode, exclude=exclude_set)
+    except Exception as e:
+        print(f"Error serializing {type(pydantic_obj)} for WebSocket: {str(e)}")
+        # Fallback to basic dict conversion
+        return sqlalchemy_to_dict(pydantic_obj) if hasattr(pydantic_obj, '__table__') else {}
+
+
+def batch_convert_models(sqlalchemy_list: list, pydantic_model: Any, exclude_fields: list = None) -> list:
+    """
+    Convert list of SQLAlchemy models to Pydantic models and serialize for WebSocket.
+    
+    Args:
+        sqlalchemy_list: List of SQLAlchemy model instances
+        pydantic_model: Pydantic model class
+        exclude_fields: Fields to exclude from serialization
+        
+    Returns:
+        List of serialized dictionaries
+    """
+    results = []
+    for item in sqlalchemy_list:
+        try:
+            pydantic_obj = convert_sqlalchemy_to_pydantic(item, pydantic_model)
+            serialized = serialize_for_websocket(pydantic_obj, exclude_fields)
+            results.append(serialized)
+        except Exception as e:
+            print(f"Error in batch conversion for item {getattr(item, 'id', 'unknown')}: {str(e)}")
+            # Continue with other items, don't break the entire batch
+            continue
+    
+    return results
+
+
+def safe_model_conversion(sqlalchemy_obj: Any, pydantic_model: Any, default: Any = None) -> Any:
+    """
+    Safely convert SQLAlchemy to Pydantic model with fallback default.
+    
+    Args:
+        sqlalchemy_obj: SQLAlchemy model instance  
+        pydantic_model: Pydantic model class
+        default: Default value to return on conversion failure
+        
+    Returns:
+        Pydantic model instance or default value
+    """
+    try:
+        return convert_sqlalchemy_to_pydantic(sqlalchemy_obj, pydantic_model)
+    except Exception as e:
+        print(f"Safe conversion failed for {type(sqlalchemy_obj)}: {str(e)}")
+        return default
+
+
+def create_websocket_response(data: Any, message_type: str, pydantic_model: Any = None) -> Dict[str, Any]:
+    """
+    Create standardized WebSocket response with proper model conversion.
+    
+    Args:
+        data: Data to include (SQLAlchemy model, Pydantic model, or dict)
+        message_type: WebSocket message type
+        pydantic_model: Optional Pydantic model for conversion
+        
+    Returns:
+        Dictionary ready for WebSocket broadcasting
+    """
+    try:
+        # Convert to Pydantic if SQLAlchemy model and Pydantic model provided
+        if hasattr(data, '__table__') and pydantic_model:
+            data = convert_sqlalchemy_to_pydantic(data, pydantic_model)
+        
+        # Serialize for WebSocket
+        if hasattr(data, 'model_dump'):
+            serialized_data = serialize_for_websocket(data)
+        elif isinstance(data, dict):
+            serialized_data = data
+        else:
+            serialized_data = json_serializer(data)
+        
+        return {
+            'type': message_type,
+            'data': serialized_data,
+            'timestamp': datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"Error creating WebSocket response for {message_type}: {str(e)}")
+        return {
+            'type': message_type,
+            'data': {},
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }

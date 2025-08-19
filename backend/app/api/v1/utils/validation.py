@@ -119,3 +119,115 @@ def check_duplicate_label(existing_labels: list, new_label: str, entity_type: st
                 f"Duplicate {entity_type}s are not allowed (comparison ignores spaces and case).",
                 "label"
             )
+
+
+# =============================================================================
+# HTTP EXCEPTION PATTERNS (Phase 2A - High Priority)
+# =============================================================================
+
+def raise_not_found_exception(entity_type: str, entity_id: int) -> None:
+    """Raise standardized 404 exception for entity not found."""
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"{entity_type} with ID {entity_id} not found"
+    )
+
+
+def raise_not_found_by_label_exception(entity_type: str, label: str) -> None:
+    """Raise standardized 404 exception for entity not found by label."""
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"{entity_type} with label '{label}' not found"
+    )
+
+
+def raise_permission_denied_exception(operation: str, entity_type: str, reason: str = None) -> None:
+    """Raise standardized 403 exception for permission denied."""
+    detail = f"Permission denied: cannot {operation} {entity_type}"
+    if reason:
+        detail += f" - {reason}"
+    
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=detail
+    )
+
+
+def raise_validation_exception(message: str, field_errors: Dict[str, str] = None) -> None:
+    """Raise standardized 422 exception for validation errors."""
+    if field_errors:
+        detail = {
+            "message": message,
+            "field_errors": field_errors
+        }
+    else:
+        detail = message
+    
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail=detail
+    )
+
+
+def raise_business_logic_exception(message: str, details: Dict[str, Any] = None) -> None:
+    """Raise standardized 400 exception for business logic violations."""
+    if details:
+        detail = {
+            "message": message,
+            "details": details
+        }
+    else:
+        detail = message
+    
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=detail
+    )
+
+
+def raise_conflict_exception(entity_type: str, conflict_reason: str) -> None:
+    """Raise standardized 409 exception for resource conflicts."""
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=f"Cannot modify {entity_type}: {conflict_reason}"
+    )
+
+
+def raise_dependency_conflict_exception(entity_type: str, entity_label: str, 
+                                      dependent_count: int, dependent_type: str, 
+                                      dependent_names: list) -> None:
+    """Raise standardized exception for deletion dependency conflicts."""
+    if len(dependent_names) <= 5:
+        names_text = ", ".join(dependent_names)
+    else:
+        names_text = ", ".join(dependent_names[:5]) + f", and {len(dependent_names) - 5} more"
+    
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=f"Cannot delete {entity_type} '{entity_label}': {dependent_count} associated "
+               f"{dependent_type}(s) exist: {names_text}. Please delete all associated "
+               f"{dependent_type}s first."
+    )
+
+
+def raise_duplicate_exception(entity_type: str, field_name: str, field_value: str, 
+                            existing_label: str = None) -> None:
+    """Raise standardized exception for duplicate entries."""
+    if existing_label:
+        detail = f"A {entity_type} with this {field_name} already exists: '{existing_label}'"
+    else:
+        detail = f"A {entity_type} with {field_name} '{field_value}' already exists"
+    
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=detail
+    )
+
+
+def raise_invalid_state_exception(entity_type: str, entity_id: int, current_state: str, 
+                                operation: str) -> None:
+    """Raise standardized exception for invalid state operations."""
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail=f"Cannot {operation} {entity_type} {entity_id}: current state is '{current_state}'"
+    )

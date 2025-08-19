@@ -120,8 +120,6 @@ users_server <- function(id) {
           empty_df,
           actions_column = TRUE,
           empty_message = "No users found. Click 'Create User' to add your first user."
-          selection = 'none',
-          rownames = FALSE
         )
       } else {
         # Add action buttons

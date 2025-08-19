@@ -117,7 +117,11 @@ create_standard_datatable <- function(data,
   )
 }
 
-# Standard form validation setup
+# =============================================================================
+# FORM VALIDATION PATTERNS (Phase 2C - Low Priority)
+# =============================================================================
+
+# Enhanced form validation setup with common patterns
 setup_form_validation <- function(input_validator, fields) {
   # fields should be a list of lists: list(list(id = "field_id", rules = list(...)))
   
@@ -144,6 +148,113 @@ setup_form_validation <- function(input_validator, fields) {
       for (rule in field$custom_rules) {
         input_validator$add_rule(field_id, rule)
       }
+    }
+  }
+  
+  return(input_validator)
+}
+
+# Standard validation functions for common input types
+validate_required_text_input <- function(input_value, field_name, min_length = 1) {
+  if (is.null(input_value) || nchar(trimws(input_value)) < min_length) {
+    return(paste(field_name, "must be at least", min_length, "characters"))
+  }
+  return(NULL)
+}
+
+validate_numeric_input <- function(input_value, field_name, min_value = 0, max_value = NULL) {
+  if (is.null(input_value) || !is.numeric(input_value)) {
+    return(paste(field_name, "must be a valid number"))
+  }
+  
+  if (input_value < min_value) {
+    return(paste(field_name, "must be at least", min_value))
+  }
+  
+  if (!is.null(max_value) && input_value > max_value) {
+    return(paste(field_name, "must be no more than", max_value))
+  }
+  
+  return(NULL)
+}
+
+validate_email_input <- function(input_value, field_name) {
+  if (is.null(input_value) || trimws(input_value) == "") {
+    return(NULL)  # Allow empty for optional email fields
+  }
+  
+  email_pattern <- "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+  if (!grepl(email_pattern, input_value)) {
+    return(paste(field_name, "must be a valid email address"))
+  }
+  
+  return(NULL)
+}
+
+validate_dropdown_selection <- function(input_value, field_name, valid_choices = NULL) {
+  if (is.null(input_value) || input_value == "") {
+    return(paste(field_name, "must be selected"))
+  }
+  
+  if (!is.null(valid_choices) && !input_value %in% valid_choices) {
+    return(paste(field_name, "must be one of:", paste(valid_choices, collapse = ", ")))
+  }
+  
+  return(NULL)
+}
+
+# Enhanced validation setup with pre-built validators
+setup_enhanced_form_validation <- function(input_validator, validation_config) {
+  # validation_config format:
+  # list(
+  #   field_id = list(type = "text", required = TRUE, min_length = 3),
+  #   email_field = list(type = "email", required = FALSE),
+  #   role_field = list(type = "dropdown", required = TRUE, choices = c("ADMIN", "EDITOR"))
+  # )
+  
+  for (field_id in names(validation_config)) {
+    config <- validation_config[[field_id]]
+    field_type <- config$type
+    
+    if (field_type == "text") {
+      if (config$required %||% FALSE) {
+        input_validator$add_rule(field_id, sv_required())
+      }
+      
+      min_len <- config$min_length %||% 1
+      input_validator$add_rule(field_id, function(value) {
+        validate_required_text_input(value, field_id, min_len)
+      })
+      
+    } else if (field_type == "email") {
+      if (config$required %||% FALSE) {
+        input_validator$add_rule(field_id, sv_required())
+      }
+      
+      input_validator$add_rule(field_id, function(value) {
+        validate_email_input(value, field_id)
+      })
+      
+    } else if (field_type == "dropdown") {
+      if (config$required %||% FALSE) {
+        input_validator$add_rule(field_id, sv_required())
+      }
+      
+      choices <- config$choices
+      input_validator$add_rule(field_id, function(value) {
+        validate_dropdown_selection(value, field_id, choices)
+      })
+      
+    } else if (field_type == "numeric") {
+      if (config$required %||% FALSE) {
+        input_validator$add_rule(field_id, sv_required())
+      }
+      
+      min_val <- config$min_value %||% 0
+      max_val <- config$max_value
+      input_validator$add_rule(field_id, function(value) {
+        validate_numeric_input(value, field_id, min_val, max_val)
+      })
     }
   }
   
@@ -198,29 +309,238 @@ setup_crud_refresh_observer <- function(input, load_data_func, module_prefix = N
   return(refresh_input_name)
 }
 
-# Standard modal creation for CRUD operations
-create_crud_modal <- function(modal_id, title, form_content, size = "m") {
+# =============================================================================
+# MODAL DIALOG STANDARDIZATION (Phase 2A - High Priority)
+# =============================================================================
+
+# Standard edit modal for entity CRUD operations
+create_edit_modal <- function(title, content, size = "m", save_button_id, cancel_button_id = NULL, 
+                             save_button_label = "Update", save_button_icon = "check", 
+                             save_button_class = "btn-warning") {
   modalDialog(
-    title = title,
+    title = tagList(bs_icon("pencil"), " ", title),
     size = size,
-    footer = tagList(
-      modalButton("Cancel"),
-      actionButton(paste0(modal_id, "_save"), "Save", class = "btn-primary")
+    easyClose = FALSE,
+    content,
+    footer = div(
+      class = "d-flex justify-content-end gap-2",
+      if (!is.null(cancel_button_id)) {
+        actionButton(cancel_button_id, "Cancel", class = "btn btn-secondary")
+      } else {
+        modalButton("Cancel")
+      },
+      actionButton(save_button_id, save_button_label,
+                  icon = bs_icon(save_button_icon),
+                  class = paste("btn", save_button_class))
+    )
+  )
+}
+
+# Standard create modal for new entities
+create_create_modal <- function(title, content, size = "m", save_button_id, cancel_button_id = NULL,
+                               save_button_label = "Create", save_button_icon = "plus",
+                               save_button_class = "btn-success") {
+  modalDialog(
+    title = tagList(bs_icon("plus-circle"), " ", title),
+    size = size,
+    easyClose = FALSE,
+    content,
+    footer = div(
+      class = "d-flex justify-content-end gap-2",
+      if (!is.null(cancel_button_id)) {
+        actionButton(cancel_button_id, "Cancel", class = "btn btn-secondary")
+      } else {
+        modalButton("Cancel")
+      },
+      actionButton(save_button_id, save_button_label,
+                  icon = bs_icon(save_button_icon),
+                  class = paste("btn", save_button_class))
+    )
+  )
+}
+
+# Standard delete confirmation modal with enhanced warning
+create_delete_confirmation_modal <- function(entity_type, entity_name, confirm_button_id, 
+                                           additional_info = NULL, warning_message = NULL) {
+  default_warning <- "This action cannot be undone!"
+  warning_text <- if (!is.null(warning_message)) warning_message else default_warning
+  
+  content <- tagList(
+    tags$div(class = "alert alert-danger",
+      tags$strong("Warning: "), warning_text
     ),
-    form_content,
-    easyClose = FALSE
+    tags$p(paste("Are you sure you want to delete this", tolower(entity_type), "?")),
+    tags$hr(),
+    tags$dl(
+      tags$dt(paste(entity_type, "Name:")),
+      tags$dd(tags$strong(entity_name))
+    )
+  )
+  
+  # Add additional info if provided
+  if (!is.null(additional_info)) {
+    content <- tagList(content, additional_info)
+  }
+  
+  modalDialog(
+    title = tagList(bs_icon("exclamation-triangle", class = "text-danger"), " Confirm Deletion"),
+    content,
+    footer = tagList(
+      actionButton(confirm_button_id, paste("Delete", entity_type),
+                  icon = bs_icon("trash"),
+                  class = "btn-danger"),
+      modalButton("Cancel")
+    ),
+    easyClose = FALSE,
+    size = "m"
+  )
+}
+
+# Standard bulk upload modal for Excel/CSV files
+create_bulk_upload_modal <- function(upload_type, file_input_id, template_download_id, 
+                                   process_button_id, allowed_extensions = c("xlsx", "xls"),
+                                   template_filename = NULL) {
+  extension_text <- paste(allowed_extensions, collapse = ", ")
+  
+  modalDialog(
+    title = tagList(bs_icon("upload"), " Bulk Upload ", upload_type),
+    size = "l",
+    easyClose = FALSE,
+    
+    tagList(
+      # Instructions
+      div(class = "alert alert-info",
+        tags$h6("Upload Instructions:", class = "mb-2"),
+        tags$ul(
+          tags$li(paste("File format:", extension_text)),
+          tags$li("Required columns: Username, Role"),
+          tags$li("Optional columns: Department"),
+          tags$li("Download template below for correct format")
+        )
+      ),
+      
+      # Template download
+      if (!is.null(template_download_id)) {
+        div(class = "mb-3",
+          tags$label("1. Download Template", class = "form-label fw-bold"),
+          br(),
+          downloadButton(template_download_id, 
+                        label = if (!is.null(template_filename)) template_filename else paste("Download", upload_type, "Template"),
+                        icon = bs_icon("download"),
+                        class = "btn btn-outline-primary btn-sm")
+        )
+      },
+      
+      # File upload
+      div(class = "mb-3",
+        tags$label("2. Select File to Upload", class = "form-label fw-bold"),
+        fileInput(file_input_id, NULL,
+                 accept = paste0(".", allowed_extensions),
+                 width = "100%")
+      ),
+      
+      # Results area
+      div(id = "upload_results_area",
+        uiOutput("upload_results")
+      )
+    ),
+    
+    footer = div(
+      class = "d-flex justify-content-end gap-2",
+      modalButton("Close"),
+      actionButton(process_button_id, "Process Upload",
+                  icon = bs_icon("upload"),
+                  class = "btn btn-success")
+    )
+  )
+}
+
+# Standard export completion modal
+create_export_modal <- function(filename, download_button_id, entity_type = "data", 
+                               success_message = NULL) {
+  default_message <- paste("Your", entity_type, "export is ready for download.")
+  message_text <- if (!is.null(success_message)) success_message else default_message
+  
+  modalDialog(
+    title = tagList(bs_icon("download"), " Export Complete"),
+    size = "m",
+    easyClose = TRUE,
+    
+    tagList(
+      div(class = "alert alert-success",
+        tags$h6("Export Successful!", class = "mb-2"),
+        tags$p(message_text, class = "mb-0")
+      ),
+      
+      div(class = "text-center mt-3",
+        downloadButton(download_button_id,
+                      label = paste("Download", filename),
+                      icon = bs_icon("download"),
+                      class = "btn btn-primary btn-lg")
+      ),
+      
+      div(class = "text-muted text-center mt-3",
+        tags$small("File will be downloaded to your default Downloads folder")
+      )
+    ),
+    
+    footer = div(
+      class = "d-flex justify-content-center",
+      modalButton("Close", class = "btn btn-secondary")
+    )
   )
 }
 
 # Standard loading state management
-show_loading_state <- function(button_id, loading = TRUE) {
+show_loading_state <- function(button_id, loading = TRUE, loading_text = "Loading...", 
+                              default_text = "Save", default_icon = "check") {
   if (loading) {
     shinyjs::addClass(id = button_id, class = "disabled")
-    shinyjs::html(id = button_id, html = '<i class="fa fa-spinner fa-spin"></i> Loading...')
+    shinyjs::html(id = button_id, html = paste0('<i class="fa fa-spinner fa-spin"></i> ', loading_text))
   } else {
     shinyjs::removeClass(id = button_id, class = "disabled")
-    shinyjs::html(id = button_id, html = 'Save')
+    icon_html <- if (!is.null(default_icon)) paste0('<i class="bi bi-', default_icon, '"></i> ') else ""
+    shinyjs::html(id = button_id, html = paste0(icon_html, default_text))
   }
+}
+
+# Standard modal form field generators
+create_text_input_field <- function(input_id, label, value = "", placeholder = "", required = FALSE) {
+  required_indicator <- if (required) tags$span("*", class = "text-danger") else ""
+  
+  div(class = "mb-3",
+    tags$label(tagList(label, required_indicator), class = "form-label fw-bold"),
+    textInput(input_id, NULL,
+             value = value,
+             placeholder = placeholder,
+             width = "100%")
+  )
+}
+
+create_select_input_field <- function(input_id, label, choices, selected = NULL, required = FALSE) {
+  required_indicator <- if (required) tags$span("*", class = "text-danger") else ""
+  
+  div(class = "mb-3",
+    tags$label(tagList(label, required_indicator), class = "form-label fw-bold"),
+    selectInput(input_id, NULL,
+               choices = choices,
+               selected = selected,
+               width = "100%")
+  )
+}
+
+create_textarea_input_field <- function(input_id, label, value = "", placeholder = "", 
+                                       rows = 3, required = FALSE) {
+  required_indicator <- if (required) tags$span("*", class = "text-danger") else ""
+  
+  div(class = "mb-3",
+    tags$label(tagList(label, required_indicator), class = "form-label fw-bold"),
+    textAreaInput(input_id, NULL,
+                 value = value,
+                 placeholder = placeholder,
+                 rows = rows,
+                 width = "100%")
+  )
 }
 
 # Utility function for generating action buttons HTML
@@ -236,22 +556,37 @@ generate_action_buttons <- function(item_id, edit_label = "Edit", delete_label =
   )
 }
 
-# Standard delete confirmation modal
-create_delete_confirmation_modal <- function(entity_type, entity_name) {
-  modalDialog(
-    title = paste("Delete", entity_type),
-    paste("Are you sure you want to delete", tolower(entity_type), "'", entity_name, "'?"),
-    tags$div(class = "mt-2 text-muted", 
-             "This action cannot be undone."),
-    footer = tagList(
-      modalButton("Cancel"),
-      actionButton("confirm_delete", "Delete", class = "btn-danger")
-    ),
-    easyClose = FALSE
-  )
+# =============================================================================
+# WEBSOCKET OBSERVER CONSOLIDATION (Phase 2B - Medium Priority)
+# =============================================================================
+
+# Enhanced WebSocket observer setup that replaces all legacy patterns
+setup_websocket_observers <- function(input, load_data_func, module_name, event_types = NULL) {
+  # Universal CRUD Manager refresh observer (Primary)
+  observeEvent(input$crud_refresh, {
+    if (!is.null(input$crud_refresh)) {
+      cat("🔄 Universal CRUD refresh triggered for", module_name, "\n")
+      load_data_func()
+    }
+  })
+  
+  # Legacy WebSocket observer (Fallback - will be deprecated)
+  if (!is.null(event_types)) {
+    observeEvent(input$websocket_event, {
+      if (!is.null(input$websocket_event)) {
+        event_data <- input$websocket_event
+        cat("📡 Legacy WebSocket event received for", module_name, ":", event_data$type, "\n")
+        
+        # Check if event type matches this module
+        if (any(sapply(event_types, function(pattern) startsWith(event_data$type, pattern)))) {
+          load_data_func()
+        }
+      }
+    })
+  }
 }
 
-# Standard WebSocket event observer setup
+# Standard WebSocket event observer setup (Deprecated - use setup_websocket_observers instead)
 # Note: This returns the observer code that should be used in modules
 get_websocket_observer_code <- function(module_name, event_types, refresh_function_name = "load_data") {
   sprintf('
@@ -275,6 +610,18 @@ get_websocket_observer_code <- function(module_name, event_types, refresh_functi
   ', module_name, module_name, module_name, module_name,
      paste0('"', event_types, '"', collapse = ", "),
      refresh_function_name, refresh_function_name)
+}
+
+# Simplified WebSocket observer for modules using Universal CRUD Manager only
+setup_universal_crud_observer <- function(input, load_data_func, module_name, debug = TRUE) {
+  observeEvent(input$crud_refresh, {
+    if (!is.null(input$crud_refresh)) {
+      if (debug) {
+        cat("🔄", module_name, "refresh triggered via Universal CRUD Manager\n")
+      }
+      load_data_func()
+    }
+  })
 }
 
 # Environment variable helpers

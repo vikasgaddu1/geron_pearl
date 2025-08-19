@@ -10,6 +10,8 @@ class PearlWebSocketClient {
         this.reconnectTimer = null;
         this.isManualClose = false;
         this.messageHandlers = new Map();
+        this.eventProcessors = new Map();
+        this.debugMode = false;
         
         // WebSocket configuration
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -17,7 +19,153 @@ class PearlWebSocketClient {
         const wsPath = window.pearlWsPath || '/api/v1/ws/studies';
         this.wsUrl = `${wsProtocol}//${wsUrl.host}${wsPath}`;
         
-        console.log('🔌 PearlWebSocketClient initialized');
+        // Initialize standard message processors
+        this.initializeStandardProcessors();
+        
+        console.log('🔌 PearlWebSocketClient initialized with enhanced message handling');
+    }
+    
+    // =============================================================================
+    // WEBSOCKET MESSAGE HANDLING (Phase 2C - Low Priority)
+    // =============================================================================
+    
+    // Initialize standard message processors for common patterns
+    initializeStandardProcessors() {
+        // Standard CRUD operation processor
+        this.registerMessageProcessor('crud', (data, messageType) => {
+            const [entityType, action] = messageType.split('_');
+            this.logWebSocketEvent('CRUD', { entityType, action, data });
+            
+            // Route to appropriate module
+            const moduleMapping = this.getModuleMapping();
+            const moduleName = moduleMapping[entityType];
+            
+            if (moduleName) {
+                this.notifyShinyModule(moduleName, data, messageType);
+            } else {
+                console.warn(`⚠️ No module mapping found for entity type: ${entityType}`);
+            }
+        });
+        
+        // Health check processor
+        this.registerMessageProcessor('health', (data, messageType) => {
+            this.logWebSocketEvent('HEALTH', data);
+            // Update connection status indicators
+            this.updateConnectionStatus(data.status === 'healthy');
+        });
+        
+        // Error processor
+        this.registerMessageProcessor('error', (data, messageType) => {
+            this.logWebSocketEvent('ERROR', data, 'error');
+            console.error('🚨 WebSocket error received:', data);
+        });
+    }
+    
+    // Register custom message processor
+    registerMessageProcessor(messageType, processor) {
+        this.eventProcessors.set(messageType, processor);
+        if (this.debugMode) {
+            console.log(`📝 Registered processor for: ${messageType}`);
+        }
+    }
+    
+    // Enhanced message handling with standard processors
+    handleStandardMessage(data, defaultProcessors = {}) {
+        const messageType = data.type;
+        
+        // Check for custom processor first
+        if (this.eventProcessors.has(messageType)) {
+            this.eventProcessors.get(messageType)(data.data, messageType);
+            return true;
+        }
+        
+        // Check for pattern-based processors
+        for (const [pattern, processor] of this.eventProcessors.entries()) {
+            if (messageType.startsWith(pattern + '_') || messageType.includes(pattern)) {
+                processor(data.data, messageType);
+                return true;
+            }
+        }
+        
+        // Use default processors if provided
+        if (defaultProcessors[messageType]) {
+            defaultProcessors[messageType](data.data, messageType);
+            return true;
+        }
+        
+        // Fallback to legacy handling
+        return false;
+    }
+    
+    // Enhanced logging for WebSocket events
+    logWebSocketEvent(eventType, data, moduleName = null) {
+        if (this.debugMode || eventType === 'ERROR') {
+            const logLevel = eventType === 'ERROR' ? 'error' : 'log';
+            const moduleText = moduleName ? ` [${moduleName}]` : '';
+            console[logLevel](`📡${moduleText} WebSocket ${eventType}:`, data);
+        }
+    }
+    
+    // Get module mapping for entity types
+    getModuleMapping() {
+        return {
+            'study': 'studies',
+            'database_release': 'database_releases', 
+            'reporting_effort': 'reporting_efforts',
+            'text_element': 'tnfp',
+            'package': 'packages',
+            'package_item': 'package_items',
+            'user': 'users',
+            'tracker': 'trackers',
+            'comment': 'comments'
+        };
+    }
+    
+    // Enhanced Shiny module notification with error handling
+    notifyShinyModule(moduleName, data, messageType) {
+        try {
+            if (window.Shiny && window.Shiny.setInputValue) {
+                const inputName = `${moduleName}-websocket_event`;
+                const payload = {
+                    type: messageType,
+                    data: data,
+                    timestamp: Date.now(),
+                    module: moduleName
+                };
+                
+                Shiny.setInputValue(inputName, payload, { priority: 'event' });
+                
+                if (this.debugMode) {
+                    console.log(`📤 Notified Shiny module: ${inputName}`, payload);
+                }
+            } else {
+                console.warn('⚠️ Shiny not available for module notification');
+            }
+        } catch (error) {
+            console.error(`❌ Error notifying Shiny module ${moduleName}:`, error);
+        }
+    }
+    
+    // Update connection status indicators
+    updateConnectionStatus(isHealthy) {
+        // Update any connection status UI elements
+        const statusElements = document.querySelectorAll('[data-websocket-status]');
+        statusElements.forEach(element => {
+            element.textContent = isHealthy ? 'Connected' : 'Disconnected';
+            element.className = isHealthy ? 'badge bg-success' : 'badge bg-danger';
+        });
+    }
+    
+    // Enable debug mode
+    enableDebugMode() {
+        this.debugMode = true;
+        console.log('🐛 WebSocket debug mode enabled');
+    }
+    
+    // Disable debug mode
+    disableDebugMode() {
+        this.debugMode = false;
+        console.log('🔕 WebSocket debug mode disabled');
     }
     
     // Initialize WebSocket connection

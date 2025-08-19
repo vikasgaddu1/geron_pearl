@@ -182,39 +182,101 @@ extract_error_message <- function(api_result) {
   return("Unknown error")
 }
 
-# Helper to show API response notifications
+# =============================================================================
+# NOTIFICATION STANDARDIZATION (Phase 2A - High Priority)
+# =============================================================================
+
+# Standard success notification
+show_success_notification <- function(message, duration = 3000) {
+  showNotification(
+    message,
+    type = "message",  # Shiny's valid success type
+    duration = duration
+  )
+}
+
+# Standard error notification
+show_error_notification <- function(message, duration = 5000) {
+  showNotification(
+    message,
+    type = "error",
+    duration = duration
+  )
+}
+
+# Standard warning notification
+show_warning_notification <- function(message, duration = 4000) {
+  showNotification(
+    message,
+    type = "warning",
+    duration = duration
+  )
+}
+
+# Enhanced validation error notification for API responses
+show_validation_error_notification <- function(api_result, duration = 8000) {
+  error_msg <- extract_error_message(api_result)
+  
+  # Special handling for duplicate validation errors
+  if (grepl("Duplicate.*are not allowed", error_msg)) {
+    showNotification(
+      tagList(
+        tags$strong("Duplicate Content Detected"),
+        tags$br(),
+        error_msg,
+        tags$br(),
+        tags$small("Tip: The system compares content ignoring spaces and letter case.")
+      ),
+      type = "error",
+      duration = duration
+    )
+  } else if (grepl("already exists", error_msg)) {
+    showNotification(
+      tagList(
+        tags$strong("Duplicate Entry"),
+        tags$br(),
+        error_msg
+      ),
+      type = "error",
+      duration = duration
+    )
+  } else {
+    show_error_notification(error_msg, duration)
+  }
+}
+
+# Standard operation notification with entity context
+show_operation_notification <- function(operation, entity, success = TRUE, entity_name = NULL) {
+  if (success) {
+    if (!is.null(entity_name)) {
+      message <- paste(entity, "'", entity_name, "'", operation, "successfully")
+    } else {
+      message <- paste(entity, operation, "successfully")
+    }
+    show_success_notification(message)
+  } else {
+    message <- paste("Failed to", operation, tolower(entity))
+    show_error_notification(message)
+  }
+}
+
+# Standard loading notification
+show_loading_notification <- function(message = "Loading...", duration = 2000) {
+  showNotification(
+    message,
+    type = "message",
+    duration = duration
+  )
+}
+
+# Helper to show API response notifications (enhanced version)
 show_api_notification <- function(api_result, success_message = "Operation completed successfully") {
   if ("error" %in% names(api_result)) {
-    error_msg <- extract_error_message(api_result)
-    
-    # Special handling for duplicate validation errors
-    if (grepl("Duplicate.*are not allowed", error_msg)) {
-      showNotification(
-        tagList(
-          tags$strong("Duplicate Content Detected"),
-          tags$br(),
-          error_msg,
-          tags$br(),
-          tags$small("Tip: The system compares content ignoring spaces and letter case.")
-        ),
-        type = "error",
-        duration = 8000
-      )
-    } else {
-      showNotification(
-        error_msg,
-        type = "error", 
-        duration = 5000
-      )
-    }
+    show_validation_error_notification(api_result)
     return(FALSE)
   } else {
     if (!is.null(success_message)) {
-      showNotification(
-        success_message,
-        type = "message",
-        duration = 3000
-      )
+      show_success_notification(success_message)
     }
     return(TRUE)
   }
