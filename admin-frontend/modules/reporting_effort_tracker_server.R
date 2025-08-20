@@ -34,7 +34,7 @@ reporting_effort_tracker_server <- function(id) {
     load_reporting_efforts <- function() {
       result <- get_reporting_efforts()
       if ("error" %in% names(result)) {
-        showNotification(paste("Error loading reporting efforts:", result$error), type = "error")
+        show_error_notification(paste("Error loading reporting efforts:", result$error))
         reporting_efforts_list(list())
         updateSelectInput(session, "selected_reporting_effort", choices = list("Select a Reporting Effort" = ""))
       } else {
@@ -101,7 +101,7 @@ reporting_effort_tracker_server <- function(id) {
       tryCatch({
         load_tracker_tables()
       }, error = function(e) {
-        showNotification(paste("ERROR in load_tracker_tables():", e$message), type = "error", duration = 10)
+        show_error_notification(paste("ERROR in load_tracker_tables():", e$message), duration = 10000)
       })
       # Note: effort labels are now reactive and will update automatically
     }, ignoreInit = TRUE)
@@ -188,7 +188,7 @@ reporting_effort_tracker_server <- function(id) {
     # Load tracker tables based on items of selected effort
     load_tracker_tables <- function() {
       eff_id <- current_reporting_effort_id()
-      showNotification(paste("Loading tracker data for effort ID:", eff_id), type = "message", duration = 3)
+      show_success_notification(paste("Loading tracker data for effort ID:", eff_id), duration = 3000)
       
       if (is.null(eff_id)) {
         tracker_data(list())  # Clear single reactive value
@@ -198,12 +198,12 @@ reporting_effort_tracker_server <- function(id) {
       items <- get_reporting_effort_items_by_effort(eff_id)
       
       if ("error" %in% names(items)) {
-        showNotification(paste("Error loading items for trackers:", items$error), type = "error")
+        show_error_notification(paste("Error loading items for trackers:", items$error))
         tracker_data(list())  # Clear single reactive value on error
         return()
       }
       
-      showNotification(paste("Found", length(items), "items to process"), type = "message", duration = 3)
+      show_success_notification(paste("Found", length(items), "items to process"), duration = 3000)
 
       # Split items by subtype for Dataset and by type for TLFs
       # We will build simple frames with inline actions
@@ -396,7 +396,7 @@ reporting_effort_tracker_server <- function(id) {
       })
       
       # Show progress notification
-      showNotification(paste("Created tables - TLF:", nrow(tlf_df), "rows, SDTM:", nrow(sdtm_df), "rows, ADaM:", nrow(adam_df), "rows"), type = "message", duration = 5)
+      show_success_notification(paste("Created tables - TLF:", nrow(tlf_df), "rows, SDTM:", nrow(sdtm_df), "rows, ADaM:", nrow(adam_df), "rows"), duration = 5000)
     }
 
     # Function to update badges for a single tracker (efficient WebSocket updates)
@@ -451,13 +451,13 @@ reporting_effort_tracker_server <- function(id) {
             )
           ))
           
-          showNotification(paste("Failed to create comment:", result$error), type = "error")
+          show_error_notification(paste("Failed to create comment:", result$error))
           return(result)
         }
         
         # 3. Success! The WebSocket will handle the authoritative update from other clients
         cat("DEBUG: Comment created successfully, WebSocket will sync across clients\n")
-        showNotification("Comment added successfully", type = "message", duration = 3)
+        show_success_notification("Comment added successfully", duration = 3000)
         
         return(result)
         
@@ -473,7 +473,7 @@ reporting_effort_tracker_server <- function(id) {
           )
         ))
         
-        showNotification(paste("Error creating comment:", e$message), type = "error")
+        show_error_notification(paste("Error creating comment:", e$message))
         return(list(error = e$message))
       })
     }
@@ -871,7 +871,7 @@ reporting_effort_tracker_server <- function(id) {
         cat("DEBUG: Comment modal triggered for tracker ID:", tracker_id, "\n")
         
         # Show the simplified comment modal
-        showModal(modalDialog(
+        showModal(create_view_modal(
           title = tagList(
             tags$i(class = "fa fa-comments me-2"),
             "Comments"
@@ -1007,7 +1007,7 @@ reporting_effort_tracker_server <- function(id) {
         modal_item_id(item_id)
         
         # Show edit modal
-        showModal(modalDialog(
+        showModal(create_edit_modal(
           title = if (!is.na(tracker_id) && tracker_id != "") "Edit Tracker" else "Create Tracker",
           size = "l",
           
@@ -1068,7 +1068,7 @@ reporting_effort_tracker_server <- function(id) {
         ))
       } else if (act == "delete") {
         if (!is.na(tracker_id) && tracker_id != "") {
-          showModal(modalDialog(
+          showModal(create_delete_confirmation_modal(
             title = "Confirm Delete",
             "Are you sure you want to delete this tracker?",
             footer = tagList(
@@ -1078,7 +1078,7 @@ reporting_effort_tracker_server <- function(id) {
             )
           ))
         } else {
-          showNotification("No tracker to delete", type = "warning")
+          show_warning_notification("No tracker to delete")
         }
       }
     })
@@ -1128,9 +1128,9 @@ reporting_effort_tracker_server <- function(id) {
       }
       
       if ("error" %in% names(res)) {
-        showNotification(paste("Failed to save tracker:", res$error), type = "error")
+        show_error_notification(paste("Failed to save tracker:", res$error))
       } else {
-        showNotification("Tracker saved successfully", type = "message")
+        show_success_notification("Tracker saved successfully")
         removeModal()
         load_tracker_tables()  # Reload tables
       }
@@ -1145,14 +1145,14 @@ reporting_effort_tracker_server <- function(id) {
         result <- delete_reporting_effort_tracker(tracker_id)
         
         if ("error" %in% names(result)) {
-          showNotification(paste("Failed to delete tracker:", result$error), type = "error")
+          show_error_notification(paste("Failed to delete tracker:", result$error))
         } else {
-          showNotification("Tracker deleted successfully", type = "message")
+          show_success_notification("Tracker deleted successfully")
           removeModal()
           load_tracker_tables()  # Reload tables
         }
       } else {
-        showNotification("Invalid tracker ID", type = "error")
+        show_error_notification("Invalid tracker ID")
       }
     })
     
@@ -1161,17 +1161,17 @@ reporting_effort_tracker_server <- function(id) {
     # Export/import
     observeEvent(input$export_tracker_clicked, {
       eff_id <- current_reporting_effort_id()
-      if (is.null(eff_id)) return(showNotification("Select a reporting effort first", type = "warning"))
+      if (is.null(eff_id)) return(show_warning_notification("Select a reporting effort first"))
       data <- export_tracker_data(eff_id)
-      if ("error" %in% names(data)) return(showNotification(paste("Export failed:", data$error), type = "error"))
+      if ("error" %in% names(data)) return(show_error_notification(paste("Export failed:", data$error)))
       # The UI will handle file creation through a download handler elsewhere if needed; for now just notify
-      showNotification(paste("Exported", data$total_items %||% 0, "trackers (JSON). CSV/Excel export can be added next)."), type = "message")
+      show_success_notification(paste("Exported", data$total_items %||% 0, "trackers (JSON). CSV/Excel export can be added next)."))
     })
 
     observeEvent(input$import_tracker_clicked, {
       eff_id <- current_reporting_effort_id()
-      if (is.null(eff_id)) return(showNotification("Select a reporting effort first", type = "warning"))
-      showModal(modalDialog(
+      if (is.null(eff_id)) return(show_warning_notification("Select a reporting effort first"))
+      showModal(create_edit_modal(
         title = "Import Tracker Updates",
         size = "m",
         fileInput(ns("import_file"), "Choose CSV file exported from tracker", accept = c(".csv"), width = "100%"),
@@ -1185,12 +1185,12 @@ reporting_effort_tracker_server <- function(id) {
       update_existing <- isTRUE(input$import_update_existing)
       df <- tryCatch(read.csv(input$import_file$datapath, stringsAsFactors = FALSE), error = function(e) NULL)
       removeModal()
-      if (is.null(df)) return(showNotification("Failed to read CSV", type = "error"))
+      if (is.null(df)) return(show_error_notification("Failed to read CSV"))
       # Expected columns: item_code, production_programmer_username, production_status, qc_programmer_username, qc_status, priority, due_date, qc_completion_date
       records <- lapply(seq_len(nrow(df)), function(i) as.list(df[i, ]))
       res <- import_tracker_data_json(current_reporting_effort_id(), records, update_existing = update_existing)
-      if ("error" %in% names(res)) showNotification(paste("Import failed:", res$error), type = "error") else {
-        showNotification(paste("Import completed. Updated:", res$updated %||% 0), type = "message")
+      if ("error" %in% names(res)) show_error_notification(paste("Import failed:", res$error)) else {
+        show_success_notification(paste("Import completed. Updated:", res$updated %||% 0))
         load_tracker_tables()
       }
     })
@@ -1225,7 +1225,7 @@ reporting_effort_tracker_server <- function(id) {
             
             cat("DEBUG: Using fallback table refresh for tracker deletion\n")
             load_tracker_tables()
-            showNotification("Tracker deleted (fallback update)", type = "message", duration = 3)
+            show_success_notification("Tracker deleted (fallback update)", duration = 3000)
             
           } else if (event_data$type %in% c("reporting_effort_tracker_updated", "reporting_effort_tracker_created")) {
             cat("DEBUG: Tracker updated/created event - refreshing tables\n")
@@ -1275,28 +1275,28 @@ reporting_effort_tracker_server <- function(id) {
             result <- resolve_tracker_comment(action_data$comment_id, is_resolved = TRUE, user_id = 1, user_role = "USER")
             action_name <- "marked as addressed"
           } else {
-            showNotification(paste("Unknown action:", action_data$action), type = "error")
+            show_error_notification(paste("Unknown action:", action_data$action))
             return()
           }
           
           if (!is.null(result$error)) {
-            showNotification(paste("Error:", result$error), type = "error")
+            show_error_notification(paste("Error:", result$error))
           } else {
-            showNotification(paste("Comment", action_name, "successfully"), type = "message")
+            show_success_notification(paste("Comment", action_name, "successfully"))
             # The WebSocket event will handle the refresh automatically
           }
           
         }, error = function(e) {
           cat("ERROR: Failed to execute comment action:", e$message, "\n")
-          showNotification(paste("Error executing action:", e$message), type = "error")
+          show_error_notification(paste("Error executing action:", e$message))
         })
       }
     })
 
     # Bulk assign/status placeholders
-    observeEvent(input$bulk_assign_clicked, showNotification("Bulk assign coming soon", type = "message"))
-    observeEvent(input$bulk_status_clicked, showNotification("Bulk status update coming soon", type = "message"))
-    observeEvent(input$workload_summary_clicked, showNotification("Workload summary coming soon", type = "message"))
+    observeEvent(input$bulk_assign_clicked, show_success_notification("Bulk assign coming soon"))
+    observeEvent(input$bulk_status_clicked, show_success_notification("Bulk status update coming soon"))
+    observeEvent(input$workload_summary_clicked, show_success_notification("Workload summary coming soon"))
     
     # Enhanced surgical update event handlers
     
@@ -1308,7 +1308,7 @@ reporting_effort_tracker_server <- function(id) {
         
         # Fall back to full table refresh
         load_tracker_tables()
-        showNotification("Tracker removed (fallback refresh)", type = "message", duration = 3)
+        show_success_notification("Tracker removed (fallback refresh)", duration = 3000)
       }
     })
     
@@ -1329,7 +1329,7 @@ reporting_effort_tracker_server <- function(id) {
     observeEvent(input$force_refresh, {
       cat("DEBUG: Cross-browser force refresh triggered\n")
       load_tracker_tables()
-      showNotification("Data refreshed due to changes in another session", type = "message", duration = 3)
+      show_success_notification("Data refreshed due to changes in another session", duration = 3000)
     })
     
     # Handle enhanced delete notifications from JavaScript
@@ -1349,7 +1349,7 @@ reporting_effort_tracker_server <- function(id) {
             user_info <- ""
           }
           
-          showNotification(
+          show_success_notification(
             tagList(
               tags$div(
                 class = "d-flex align-items-center",
@@ -1357,7 +1357,6 @@ reporting_effort_tracker_server <- function(id) {
                 tags$span(message, user_info)
               )
             ),
-            type = "message",
             duration = 4000
           )
         }
