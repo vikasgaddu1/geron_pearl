@@ -29,7 +29,7 @@ packages_server <- function(id) {
     load_packages_data <- function() {
       result <- get_packages()
       if ("error" %in% names(result)) {
-        showNotification(paste("Error loading packages:", result$error), type = "error")
+        show_error_notification(paste("Error loading packages:", result$error))
         packages_data(data.frame())
       } else {
         df <- convert_packages_to_df(result)
@@ -138,29 +138,28 @@ packages_server <- function(id) {
             editing_package_id(package_id)
             
             # Show edit modal
-            showModal(modalDialog(
-              title = tagList(icon("pencil"), " Edit Package"),
-              size = "m",
-              easyClose = FALSE,
-              
-              div(
-                class = "mb-3",
-                tags$label("Package Name", class = "form-label fw-bold"),
-                textInput(ns("edit_modal_package_name"), NULL, 
-                         value = package_row$`Package Name`[1], 
-                         placeholder = "Enter package name", 
-                         width = "100%")
-              ),
-              
-              footer = div(
-                class = "d-flex justify-content-end gap-2",
-                actionButton(ns("cancel_edit_modal"), "Cancel", 
-                            class = "btn btn-secondary"),
-                actionButton(ns("save_edit_modal"), "Update Package", 
-                            icon = icon("check"),
-                            class = "btn btn-warning")
+            showModal(
+              create_edit_modal(
+                title = "Edit Package",
+                content = div(
+                  class = "mb-3",
+                  tags$label("Package Name", class = "form-label fw-bold"),
+                  textInput(ns("edit_modal_package_name"), NULL, 
+                           value = package_row$`Package Name`[1], 
+                           placeholder = "Enter package name", 
+                           width = "100%")
+                ),
+                size = "m",
+                footer = div(
+                  class = "d-flex justify-content-end gap-2",
+                  actionButton(ns("cancel_edit_modal"), "Cancel", 
+                              class = "btn btn-secondary"),
+                  actionButton(ns("save_edit_modal"), "Update Package", 
+                              icon = icon("check"),
+                              class = "btn btn-warning")
+                )
               )
-            ))
+            )
           }
         } else if (action == "delete") {
           cat("Delete package clicked, ID:", package_id, "\n")
@@ -170,28 +169,29 @@ packages_server <- function(id) {
           package_row <- current_packages[current_packages$ID == package_id, ]
           
           if (nrow(package_row) > 0) {
-            showModal(modalDialog(
-              title = tagList(icon("exclamation-triangle", class = "text-danger"), " Confirm Deletion"),
-              tagList(
-                tags$div(class = "alert alert-danger",
-                  tags$strong("Warning: "), "This action cannot be undone!"
+            showModal(
+              create_delete_confirmation_modal(
+                title = "Confirm Deletion",
+                content = tagList(
+                  tags$div(class = "alert alert-danger",
+                    tags$strong("Warning: "), "This action cannot be undone!"
+                  ),
+                  tags$p("Are you sure you want to delete this package?"),
+                  tags$hr(),
+                  tags$dl(
+                    tags$dt("Package Name:"),
+                    tags$dd(tags$strong(package_row$`Package Name`[1]))
+                  )
                 ),
-                tags$p("Are you sure you want to delete this package?"),
-                tags$hr(),
-                tags$dl(
-                  tags$dt("Package Name:"),
-                  tags$dd(tags$strong(package_row$`Package Name`[1]))
+                size = "m",
+                footer = tagList(
+                  actionButton(ns("confirm_delete_package"), "Delete Package", 
+                              icon = icon("trash"),
+                              class = "btn-danger"),
+                  modalButton("Cancel")
                 )
-              ),
-              footer = tagList(
-                actionButton(ns("confirm_delete_package"), "Delete Package", 
-                            icon = icon("trash"),
-                            class = "btn-danger"),
-                modalButton("Cancel")
-              ),
-              easyClose = FALSE,
-              size = "m"
-            ))
+              )
+            )
             
             # Store the ID for deletion
             editing_package_id(package_id)
@@ -231,9 +231,9 @@ packages_server <- function(id) {
         result <- create_package(package_name)
           
         if (!is.null(result$error)) {
-          showNotification(paste("Error creating package:", result$error), type = "error")
+          show_error_notification(paste("Error creating package:", result$error))
         } else {
-          showNotification("Package created successfully", type = "message")
+          show_success_notification("Package created successfully")
           load_packages_data()
           sidebar_toggle(id = "packages_sidebar")
           iv_package$disable()
@@ -258,7 +258,7 @@ packages_server <- function(id) {
     # Refresh button
     observeEvent(input$refresh_btn, {
       cat("Refresh button clicked\n")
-      showNotification("Refreshing packages data...", type = "message", duration = 2)
+      show_success_notification("Refreshing packages data...", duration = 2000)
       load_packages_data()
     })
     
@@ -266,7 +266,7 @@ packages_server <- function(id) {
     observeEvent(input$export_excel, {
       # Check if openxlsx is available
       if (!requireNamespace("openxlsx", quietly = TRUE)) {
-        showNotification("Please install the 'openxlsx' package to export to Excel", type = "error")
+        show_error_notification("Please install the 'openxlsx' package to export to Excel")
         return()
       }
       
@@ -274,7 +274,7 @@ packages_server <- function(id) {
       packages <- packages_data()
       
       if (nrow(packages) == 0) {
-        showNotification("No packages to export", type = "warning")
+        show_warning_notification("No packages to export")
         return()
       }
       
@@ -326,13 +326,17 @@ packages_server <- function(id) {
       openxlsx::saveWorkbook(wb, filepath, overwrite = TRUE)
       
       # Download the file
-      showModal(modalDialog(
-        title = "Export Complete",
-        paste("Excel file has been generated:", filename),
-        br(),
-        downloadButton(ns("download_excel"), "Download Excel File"),
-        footer = modalButton("Close")
-      ))
+      showModal(
+        create_view_modal(
+          title = "Export Complete",
+          content = tagList(
+            paste("Excel file has been generated:", filename),
+            br(),
+            downloadButton(ns("download_excel"), "Download Excel File")
+          ),
+          footer = modalButton("Close")
+        )
+      )
       
       # Store filepath for download handler
       session$userData$export_filepath <- filepath
@@ -360,12 +364,12 @@ packages_server <- function(id) {
         result <- update_package(package_id, package_name)
         
         if (is.null(result$error)) {
-          showNotification("Package updated successfully", type = "message")
+          show_success_notification("Package updated successfully")
           load_packages_data()
           removeModal()
           editing_package_id(NULL)
         } else {
-          showNotification(paste("Error updating package:", result$error), type = "error")
+          show_error_notification(paste("Error updating package:", result$error))
         }
       }
     })
@@ -384,22 +388,21 @@ packages_server <- function(id) {
         result <- delete_package(package_id)
         
         if (is.null(result$error)) {
-          showNotification("Package deleted successfully", type = "message")
+          show_success_notification("Package deleted successfully")
           load_packages_data()
         } else {
           # Check if error is about associated items
           if (grepl("associated item", result$error, ignore.case = TRUE)) {
-            showNotification(
+            show_error_notification(
               tagList(
                 tags$strong("Cannot delete package"),
                 tags$br(),
                 "This package has associated items. Please delete all items first."
               ),
-              type = "error",
-              duration = 6
+              duration = 6000
             )
           } else {
-            showNotification(paste("Error deleting package:", result$error), type = "error")
+            show_error_notification(paste("Error deleting package:", result$error))
           }
         }
         
@@ -413,10 +416,9 @@ packages_server <- function(id) {
     observeEvent(input$process_bulk_upload, {
       # Check if a file has been selected
       if (is.null(input$bulk_upload_file)) {
-        showNotification(
+        show_warning_notification(
           "Please select an Excel file to upload",
-          type = "warning",
-          duration = 3  # Duration in seconds
+          duration = 3000
         )
         return()
       }
@@ -428,10 +430,9 @@ packages_server <- function(id) {
       
       # Check if readxl is available
       if (!requireNamespace("readxl", quietly = TRUE)) {
-        showNotification(
+        show_error_notification(
           "Excel support not installed. Please install the 'readxl' package.",
-          type = "error",
-          duration = 5  # Duration in seconds
+          duration = 5000
         )
         output$upload_results <- renderUI({
           div(class = "alert alert-danger small", "Excel support not available")
@@ -442,10 +443,9 @@ packages_server <- function(id) {
       # Validate file extension
       file_ext <- tolower(tools::file_ext(input$bulk_upload_file$name))
       if (!file_ext %in% c("xlsx", "xls")) {
-        showNotification(
+        show_error_notification(
           "Please upload an Excel file (.xlsx or .xls)",
-          type = "error",
-          duration = 4  # Duration in seconds
+          duration = 4000
         )
         output$upload_results <- renderUI({
           div(class = "alert alert-danger small", "Invalid file type. Please use .xlsx or .xls files.")
@@ -458,10 +458,9 @@ packages_server <- function(id) {
       
       # Check if file exists and is readable
       if (!file.exists(file_path)) {
-        showNotification(
+        show_error_notification(
           "Unable to read the uploaded file. Please try again.",
-          type = "error",
-          duration = 4  # Duration in seconds
+          duration = 4000
         )
         output$upload_results <- renderUI({
           div(class = "alert alert-danger small", "File upload failed. Please try again.")
@@ -478,10 +477,9 @@ packages_server <- function(id) {
         package_col <- which(col_names_lower == "package name")[1]
         
         if (is.na(package_col)) {
-          showNotification(
+          show_error_notification(
             "Excel file must contain 'Package Name' column",
-            type = "error",
-            duration = 5  # Duration in seconds
+            duration = 5000
           )
           output$upload_results <- renderUI({
             div(class = "alert alert-danger small", 
@@ -579,10 +577,9 @@ packages_server <- function(id) {
             )
           })
           
-          showNotification(
+          show_warning_notification(
             "No new packages imported - all packages already exist in the database",
-            type = "warning",
-            duration = 4  # Duration in seconds
+            duration = 4000
           )
         } else if (results$success == 0) {
           # No packages were imported for other reasons
@@ -609,10 +606,9 @@ packages_server <- function(id) {
             )
           })
           
-          showNotification(
+          show_warning_notification(
             "No packages were imported. Check the details for more information.",
-            type = "warning",
-            duration = 4  # Duration in seconds
+            duration = 4000
           )
         } else {
           # Some packages were successfully imported
@@ -642,10 +638,9 @@ packages_server <- function(id) {
           
           # Refresh the table and show success notification
           load_packages_data()
-          showNotification(
+          show_success_notification(
             paste("Successfully imported", results$success, "packages"),
-            type = "message",
-            duration = 4  # Duration in seconds
+            duration = 4000
           )
         }
         
@@ -658,10 +653,9 @@ packages_server <- function(id) {
         shinyjs::reset("bulk_upload_file")
         
       }, error = function(e) {
-        showNotification(
+        show_error_notification(
           paste("Error reading Excel file:", e$message),
-          type = "error",
-          duration = 5  # Duration in seconds
+          duration = 5000
         )
         output$upload_results <- renderUI({
           div(class = "alert alert-danger small", 
