@@ -576,12 +576,11 @@ package_items_server <- function(id) {
                   
                   if (!is.null(tlf_item)) {
                     # Show edit modal for TLF item
-                    showModal(modalDialog(
-                      title = tagList(icon("pencil"), " Edit TLF Item"),
-                      size = "l",
-                      easyClose = FALSE,
-                      
-                      # TLF edit form
+                    showModal(
+                      create_edit_modal(
+                        title = "Edit TLF Item",
+                        content = div(
+                          # TLF edit form
                       div(
                         class = "container-fluid",
                         
@@ -694,16 +693,19 @@ package_items_server <- function(id) {
                         )
                       ),
                       
-                      footer = tagList(
-                        actionButton(
-                          ns("save_edit_tlf"),
-                          "Update Item",
-                          icon = icon("check"),
-                          class = "btn btn-success"
                         ),
-                        modalButton("Cancel")
+                        size = "l",
+                        footer = tagList(
+                          actionButton(
+                            ns("save_edit_tlf"),
+                            "Update Item",
+                            icon = icon("check"),
+                            class = "btn btn-success"
+                          ),
+                          modalButton("Cancel")
+                        )
                       )
-                    ))
+                    )
                     
                     # Populate the selectize inputs with current values
                     populate_edit_selectize_inputs(tlf_item)
@@ -737,12 +739,11 @@ package_items_server <- function(id) {
                   
                   if (!is.null(dataset_item)) {
                     # Show edit modal for Dataset item
-                    showModal(modalDialog(
-                      title = tagList(icon("pencil"), " Edit Dataset Item"),
-                      size = "m",
-                      easyClose = FALSE,
-                      
-                      # Dataset edit form
+                    showModal(
+                      create_edit_modal(
+                        title = "Edit Dataset Item",
+                        content = div(
+                          # Dataset edit form
                       div(
                         class = "container-fluid",
                         
@@ -797,16 +798,19 @@ package_items_server <- function(id) {
                         )
                       ),
                       
-                      footer = tagList(
-                        actionButton(
-                          ns("save_edit_dataset"),
-                          "Update Item",
-                          icon = icon("check"),
-                          class = "btn btn-success"
                         ),
-                        modalButton("Cancel")
+                        size = "m",
+                        footer = tagList(
+                          actionButton(
+                            ns("save_edit_dataset"),
+                            "Update Item",
+                            icon = icon("check"),
+                            class = "btn btn-success"
+                          ),
+                          modalButton("Cancel")
+                        )
                       )
-                    ))
+                    )
                   }
                 }
               }
@@ -823,36 +827,37 @@ package_items_server <- function(id) {
             item_row <- current_items[current_items$ID == item_id, ]
             
             if (nrow(item_row) > 0) {
-              showModal(modalDialog(
-                title = tagList(icon("exclamation-triangle", class = "text-danger"), " Confirm Deletion"),
-                tagList(
-                  tags$div(class = "alert alert-danger",
-                    tags$strong("Warning: "), "This action cannot be undone!"
+              showModal(
+                create_delete_confirmation_modal(
+                  title = "Confirm Deletion",
+                  content = tagList(
+                    tags$div(class = "alert alert-danger",
+                      tags$strong("Warning: "), "This action cannot be undone!"
+                    ),
+                    tags$p("Are you sure you want to delete this TLF item?"),
+                    tags$hr(),
+                    tags$dl(
+                      tags$dt("Type:"),
+                      tags$dd(tags$strong(item_row$Type[1])),
+                      tags$dt("Title Key:"),
+                      tags$dd(tags$strong(item_row$`Title Key`[1])),
+                      if (!is.na(item_row$Title[1]) && item_row$Title[1] != "") {
+                        tagList(
+                          tags$dt("Title:"),
+                          tags$dd(item_row$Title[1])
+                        )
+                      }
+                    )
                   ),
-                  tags$p("Are you sure you want to delete this TLF item?"),
-                  tags$hr(),
-                  tags$dl(
-                    tags$dt("Type:"),
-                    tags$dd(tags$strong(item_row$Type[1])),
-                    tags$dt("Title Key:"),
-                    tags$dd(tags$strong(item_row$`Title Key`[1])),
-                    if (!is.na(item_row$Title[1]) && item_row$Title[1] != "") {
-                      tagList(
-                        tags$dt("Title:"),
-                        tags$dd(item_row$Title[1])
-                      )
-                    }
+                  size = "m",
+                  footer = tagList(
+                    actionButton(ns("confirm_delete_tlf"), "Delete Item", 
+                                icon = icon("trash"),
+                                class = "btn-danger"),
+                    modalButton("Cancel")
                   )
-                ),
-                footer = tagList(
-                  actionButton(ns("confirm_delete_tlf"), "Delete Item", 
-                              icon = icon("trash"),
-                              class = "btn-danger"),
-                  modalButton("Cancel")
-                ),
-                easyClose = FALSE,
-                size = "m"
-              ))
+                )
+              )
             }
           } else if (item_type == "dataset") {
             # Show delete confirmation for Dataset item
@@ -860,36 +865,37 @@ package_items_server <- function(id) {
             item_row <- current_items[current_items$ID == item_id, ]
             
             if (nrow(item_row) > 0) {
-              showModal(modalDialog(
-                title = tagList(icon("exclamation-triangle", class = "text-danger"), " Confirm Deletion"),
-                tagList(
-                  tags$div(class = "alert alert-danger",
-                    tags$strong("Warning: "), "This action cannot be undone!"
+              showModal(
+                create_delete_confirmation_modal(
+                  title = "Confirm Deletion",
+                  content = tagList(
+                    tags$div(class = "alert alert-danger",
+                      tags$strong("Warning: "), "This action cannot be undone!"
+                    ),
+                    tags$p("Are you sure you want to delete this dataset item?"),
+                    tags$hr(),
+                    tags$dl(
+                      tags$dt("Type:"),
+                      tags$dd(tags$strong(item_row$Type[1])),
+                      tags$dt("Dataset Name:"),
+                      tags$dd(tags$strong(item_row$`Dataset Name`[1])),
+                      if (!is.na(item_row$Label[1]) && item_row$Label[1] != "") {
+                        tagList(
+                          tags$dt("Label:"),
+                          tags$dd(item_row$Label[1])
+                        )
+                      }
+                    )
                   ),
-                  tags$p("Are you sure you want to delete this dataset item?"),
-                  tags$hr(),
-                  tags$dl(
-                    tags$dt("Type:"),
-                    tags$dd(tags$strong(item_row$Type[1])),
-                    tags$dt("Dataset Name:"),
-                    tags$dd(tags$strong(item_row$`Dataset Name`[1])),
-                    if (!is.na(item_row$Label[1]) && item_row$Label[1] != "") {
-                      tagList(
-                        tags$dt("Label:"),
-                        tags$dd(item_row$Label[1])
-                      )
-                    }
+                  size = "m",
+                  footer = tagList(
+                    actionButton(ns("confirm_delete_dataset"), "Delete Item", 
+                                icon = icon("trash"),
+                                class = "btn-danger"),
+                    modalButton("Cancel")
                   )
-                ),
-                footer = tagList(
-                  actionButton(ns("confirm_delete_dataset"), "Delete Item", 
-                              icon = icon("trash"),
-                              class = "btn-danger"),
-                  modalButton("Cancel")
-                ),
-                easyClose = FALSE,
-                size = "m"
-              ))
+                )
+              )
             }
           }
         }
@@ -905,10 +911,10 @@ package_items_server <- function(id) {
         result <- delete_package_item(item_id)
         
         if (is.null(result$error)) {
-          showNotification("TLF item deleted successfully", type = "message", duration = 3)
+          show_success_notification("TLF item deleted successfully", duration = 3000)
           load_package_items()
         } else {
-          showNotification(paste("Error deleting item:", result$error), type = "error", duration = 5)
+          show_error_notification(paste("Error deleting item:", result$error), duration = 5000)
         }
         
         # Clear the reactive values
@@ -928,10 +934,10 @@ package_items_server <- function(id) {
         result <- delete_package_item(item_id)
         
         if (is.null(result$error)) {
-          showNotification("Dataset item deleted successfully", type = "message", duration = 3)
+          show_success_notification("Dataset item deleted successfully", duration = 3000)
           load_package_items()
         } else {
-          showNotification(paste("Error deleting item:", result$error), type = "error", duration = 5)
+          show_error_notification(paste("Error deleting item:", result$error), duration = 5000)
         }
         
         # Clear the reactive values
@@ -945,10 +951,9 @@ package_items_server <- function(id) {
     # Toggle add item sidebar
     observeEvent(input$toggle_add_item, {
       if (is.null(input$selected_package) || input$selected_package == "") {
-        showNotification(
+        show_warning_notification(
           "Please select a package first",
-          type = "warning",
-          duration = 3
+          duration = 3000
         )
       } else {
         # Reset form for new item
@@ -1284,10 +1289,9 @@ package_items_server <- function(id) {
         duplicate_error <- check_tlf_duplicate(as.integer(pkg_id), input$edit_tlf_type, input$edit_tlf_code, input$edit_tlf_title, exclude_id = item_id)
         
         if (!is.null(duplicate_error)) {
-          showNotification(
+          show_error_notification(
             paste("Duplicate TLF item:", duplicate_error),
-            type = "error",
-            duration = 6
+            duration = 6000
           )
           return()
         }
@@ -1337,16 +1341,14 @@ package_items_server <- function(id) {
         )
         
         if ("error" %in% names(result)) {
-          showNotification(
+          show_error_notification(
             paste("Failed to update TLF item:", result$error),
-            type = "error",
-            duration = 5
+            duration = 5000
           )
         } else {
-          showNotification(
+          show_success_notification(
             "TLF item updated successfully",
-            type = "message",
-            duration = 3
+            duration = 3000
           )
           
           # Clear editing state
@@ -1369,10 +1371,9 @@ package_items_server <- function(id) {
         duplicate_error <- check_dataset_duplicate(as.integer(pkg_id), input$edit_dataset_type, input$edit_dataset_code, exclude_id = item_id)
         
         if (!is.null(duplicate_error)) {
-          showNotification(
+          show_error_notification(
             paste("Duplicate Dataset item:", duplicate_error),
-            type = "error",
-            duration = 6
+            duration = 6000
           )
           return()
         }
@@ -1390,16 +1391,14 @@ package_items_server <- function(id) {
         )
         
         if ("error" %in% names(result)) {
-          showNotification(
+          show_error_notification(
             paste("Failed to update dataset item:", result$error),
-            type = "error",
-            duration = 5
+            duration = 5000
           )
         } else {
-          showNotification(
+          show_success_notification(
             "Dataset item updated successfully",
-            type = "message",
-            duration = 3
+            duration = 3000
           )
           
           # Clear editing state
@@ -1421,10 +1420,9 @@ package_items_server <- function(id) {
         duplicate_error <- check_tlf_duplicate(as.integer(pkg_id), input$new_tlf_type, input$new_tlf_code, input$new_tlf_title)
         
         if (!is.null(duplicate_error)) {
-          showNotification(
+          show_error_notification(
             paste("Duplicate TLF item:", duplicate_error),
-            type = "error",
-            duration = 6
+            duration = 6000
           )
           return()
         }
@@ -1474,15 +1472,13 @@ package_items_server <- function(id) {
         )
         
         if ("error" %in% names(result)) {
-          showNotification(
+          show_error_notification(
             paste("Failed to create TLF item:", result$error),
-            type = "error",
             duration = 5000
           )
         } else {
-          showNotification(
+          show_success_notification(
             "TLF item created successfully",
-            type = "message",
             duration = 3000
           )
           sidebar_toggle(id = "items_sidebar", open = FALSE)
@@ -1512,10 +1508,9 @@ package_items_server <- function(id) {
         duplicate_error <- check_dataset_duplicate(as.integer(pkg_id), input$new_dataset_type, input$new_dataset_code)
         
         if (!is.null(duplicate_error)) {
-          showNotification(
+          show_error_notification(
             paste("Duplicate Dataset item:", duplicate_error),
-            type = "error",
-            duration = 6
+            duration = 6000
           )
           return()
         }
@@ -1532,15 +1527,13 @@ package_items_server <- function(id) {
         )
         
         if ("error" %in% names(result)) {
-          showNotification(
+          show_error_notification(
             paste("Failed to create dataset item:", result$error),
-            type = "error",
             duration = 5000
           )
         } else {
-          showNotification(
+          show_success_notification(
             "Dataset item created successfully",
-            type = "message",
             duration = 3000
           )
           sidebar_toggle(id = "items_sidebar", open = FALSE)
@@ -1721,27 +1714,25 @@ package_items_server <- function(id) {
       load_packages()
       load_text_elements()
       load_package_items()
-      showNotification("Refreshing items data...", type = "message", duration = 2)
+      show_success_notification("Refreshing items data...", duration = 2000)
     })
     
     # Bulk Upload Handler
     observeEvent(input$process_bulk_upload, {
       # Check if a package is selected
       if (is.null(input$selected_package) || input$selected_package == "") {
-        showNotification(
+        show_warning_notification(
           "Please select a package first",
-          type = "warning",
-          duration = 3
+          duration = 3000
         )
         return()
       }
       
       # Check if a file has been selected
       if (is.null(input$bulk_upload_file)) {
-        showNotification(
+        show_warning_notification(
           "Please select an Excel file to upload",
-          type = "warning",
-          duration = 3
+          duration = 3000
         )
         return()
       }
@@ -1762,10 +1753,9 @@ package_items_server <- function(id) {
       
       # Check if readxl is available
       if (!requireNamespace("readxl", quietly = TRUE)) {
-        showNotification(
+        show_error_notification(
           "Excel support not installed. Please install the 'readxl' package.",
-          type = "error",
-          duration = 5
+          duration = 5000
         )
         output$upload_results <- renderUI({
           div(class = "alert alert-danger small", "Excel support not available")
@@ -1776,10 +1766,9 @@ package_items_server <- function(id) {
       # Validate file extension
       file_ext <- tolower(tools::file_ext(input$bulk_upload_file$name))
       if (!file_ext %in% c("xlsx", "xls")) {
-        showNotification(
+        show_error_notification(
           "Please upload an Excel file (.xlsx or .xls)",
-          type = "error",
-          duration = 4
+          duration = 4000
         )
         output$upload_results <- renderUI({
           div(class = "alert alert-danger small", "Invalid file type. Please use .xlsx or .xls files.")
@@ -1845,10 +1834,9 @@ package_items_server <- function(id) {
           title_key_col <- which(col_names_lower == "title key")[1]
           
           if (is.na(title_key_col)) {
-            showNotification(
+            show_error_notification(
               "Excel file must contain 'Title Key' column for TLF items",
-              type = "error",
-              duration = 5
+              duration = 5000
             )
             output$upload_results <- renderUI({
               div(class = "alert alert-danger small", 
@@ -1862,10 +1850,9 @@ package_items_server <- function(id) {
           run_order_col <- which(col_names_lower == "run order")[1]
           
           if (is.na(dataset_name_col) || is.na(run_order_col)) {
-            showNotification(
+            show_error_notification(
               "Excel file must contain 'Dataset Name' and 'Run Order' columns for Dataset items",
-              type = "error",
-              duration = 5
+              duration = 5000
             )
             output$upload_results <- renderUI({
               div(class = "alert alert-danger small", 
@@ -2161,11 +2148,10 @@ package_items_server <- function(id) {
           load_text_elements()  # Refresh text elements first
           load_package_items()  # Then refresh package items
           
-          showNotification(
+          show_success_notification(
             HTML(paste0("Successfully imported ", results$success, " items<br>",
                        "<small>Download log file from the sidebar for details</small>")),
-            type = "message",
-            duration = 6
+            duration = 6000
           )
           
           # Ensure sidebar stays open to show results
@@ -2234,10 +2220,9 @@ package_items_server <- function(id) {
             )
           })
           
-          showNotification(
+          show_warning_notification(
             HTML("No items were imported. Check the details for more information.<br><small>Download log file from the sidebar for details</small>"),
-            type = "warning",
-            duration = 6
+            duration = 6000
           )
           
           # Ensure sidebar stays open to show results  
@@ -2254,10 +2239,9 @@ package_items_server <- function(id) {
         # shinyjs::delay(500, shinyjs::reset("bulk_upload_file"))
         
       }, error = function(e) {
-        showNotification(
+        show_error_notification(
           paste("Error reading Excel file:", e$message),
-          type = "error",
-          duration = 5
+          duration = 5000
         )
         output$upload_results <- renderUI({
           div(class = "alert alert-danger small", 
