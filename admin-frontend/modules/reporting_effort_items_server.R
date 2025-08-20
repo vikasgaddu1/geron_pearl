@@ -46,7 +46,7 @@ reporting_effort_items_server <- function(id) {
     load_reporting_efforts <- function() {
       result <- get_reporting_efforts()
       if ("error" %in% names(result)) {
-        showNotification(paste("Error loading reporting efforts:", result$error), type = "error")
+        show_error_notification(paste("Error loading reporting efforts:", result$error))
         reporting_efforts_list(list())
       } else {
         reporting_efforts_list(result)
@@ -92,7 +92,7 @@ reporting_effort_items_server <- function(id) {
     load_packages <- function() {
       result <- get_packages()
       if ("error" %in% names(result)) {
-        showNotification(paste("Error loading packages:", result$error), type = "error")
+        show_error_notification(paste("Error loading packages:", result$error))
         packages_list(list())
       } else {
         packages_list(result)
@@ -115,7 +115,7 @@ reporting_effort_items_server <- function(id) {
       
       if ("error" %in% names(result)) {
         cat("DEBUG: API returned error:", result$error, "\n")
-        showNotification(paste("Error loading items:", result$error), type = "error")
+        show_error_notification(paste("Error loading items:", result$error))
         items_data(data.frame())
       } else {
         cat("DEBUG: API call successful, result length:", length(result), "\n")
@@ -586,7 +586,7 @@ reporting_effort_items_server <- function(id) {
           # Get item details
           result <- get_reporting_effort_item(item_id)
           if ("error" %in% names(result)) {
-            showNotification(paste("Error loading item:", result$error), type = "error")
+            show_error_notification(paste("Error loading item:", result$error))
             return()
           }
           
@@ -650,32 +650,33 @@ reporting_effort_items_server <- function(id) {
           }
           
           if (nrow(item_row) > 0) {
-            showModal(modalDialog(
-              title = tagList(icon("exclamation-triangle", class = "text-danger"), " Confirm Deletion"),
-              tagList(
-                tags$div(class = "alert alert-danger",
-                  tags$strong("Warning: "), "This action cannot be undone!"
+            showModal(
+              create_delete_confirmation_modal(
+                title = "Confirm Deletion",
+                content = tagList(
+                  tags$div(class = "alert alert-danger",
+                    tags$strong("Warning: "), "This action cannot be undone!"
+                  ),
+                  tags$p("Are you sure you want to delete this item?"),
+                  tags$hr(),
+                  tags$dl(
+                    tags$dt("Type:"),
+                    tags$dd(tags$strong(item_row$Type[1])),
+                    tags$dt("Code:"),
+                    tags$dd(tags$strong(item_row$Code[1])),
+                    tags$dt("Title:"),
+                    tags$dd(tags$strong(item_row$Title[1]))
+                  )
                 ),
-                tags$p("Are you sure you want to delete this item?"),
-                tags$hr(),
-                tags$dl(
-                  tags$dt("Type:"),
-                  tags$dd(tags$strong(item_row$Type[1])),
-                  tags$dt("Code:"),
-                  tags$dd(tags$strong(item_row$Code[1])),
-                  tags$dt("Title:"),
-                  tags$dd(tags$strong(item_row$Title[1]))
+                size = "m",
+                footer = tagList(
+                  actionButton(ns("confirm_delete_item"), "Delete Item", 
+                              icon = icon("trash"),
+                              class = "btn-danger"),
+                  modalButton("Cancel")
                 )
-              ),
-              footer = tagList(
-                actionButton(ns("confirm_delete_item"), "Delete Item", 
-                            icon = icon("trash"),
-                            class = "btn-danger"),
-                modalButton("Cancel")
-              ),
-              easyClose = FALSE,
-              size = "m"
-            ))
+              )
+            )
             
             # Store the ID for deletion
             editing_item_id(item_id)
@@ -687,7 +688,7 @@ reporting_effort_items_server <- function(id) {
     # Toggle add item sidebar
     observeEvent(input$toggle_add_item, {
       if (is.null(current_reporting_effort_id()) || current_reporting_effort_id() == "") {
-        showNotification("Please select a reporting effort first", type = "warning")
+        show_warning_notification("Please select a reporting effort first")
         return()
       }
       
@@ -836,7 +837,7 @@ reporting_effort_items_server <- function(id) {
         cat("Save item clicked\n")
         effort_id <- current_reporting_effort_id()
         if (is.null(effort_id) || effort_id == "") {
-          showNotification("Please select a reporting effort first", type = "error")
+          show_error_notification("Please select a reporting effort first")
           return()
         }
         item_code <- trimws(input$item_code)
@@ -889,9 +890,9 @@ reporting_effort_items_server <- function(id) {
         # Create via API
         result <- create_reporting_effort_item_with_details(as.integer(effort_id), item_data)
         if (!is.null(result$error)) {
-          showNotification(paste("Error saving item:", result$error), type = "error")
+          show_error_notification(paste("Error saving item:", result$error))
         } else {
-          showNotification("Item created successfully", type = "message")
+          show_success_notification("Item created successfully")
           load_items_data()
           sidebar_toggle(id = "items_sidebar")
           iv_item$disable()
@@ -917,10 +918,10 @@ reporting_effort_items_server <- function(id) {
         result <- delete_reporting_effort_item(item_id)
         
         if (is.null(result$error)) {
-          showNotification("Item deleted successfully", type = "message")
+          show_success_notification("Item deleted successfully")
           load_items_data()
         } else {
-          showNotification(paste("Error deleting item:", result$error), type = "error")
+          show_error_notification(paste("Error deleting item:", result$error))
         }
         
         removeModal()
@@ -931,7 +932,7 @@ reporting_effort_items_server <- function(id) {
     # Refresh button
     observeEvent(input$refresh_btn, {
       cat("Refresh button clicked\n")
-      showNotification("Refreshing items data...", type = "message", duration = 2)
+      show_success_notification("Refreshing items data...", duration = 2000)
       load_items_data()
     })
     
@@ -939,54 +940,53 @@ reporting_effort_items_server <- function(id) {
     observeEvent(input$bulk_tlf_clicked, {
       effort_id <- current_reporting_effort_id()
       if (is.null(effort_id) || effort_id == "") {
-        showNotification("Please select a reporting effort first", type = "warning")
+        show_warning_notification("Please select a reporting effort first")
         return()
       }
       
-      showModal(modalDialog(
-        title = tagList(icon("upload"), " Bulk Upload TLF Items"),
-        size = "m",
-        easyClose = FALSE,
-        
-        div(
-          class = "mb-3",
-          tags$p("Upload an Excel file containing TLF items to add multiple items at once."),
-          
-          tags$div(
-            class = "alert alert-info small",
-            tags$strong("File Requirements:"),
-            tags$ul(
-              class = "mb-0 mt-2",
-              tags$li("Excel file (.xlsx or .xls)"),
-              tags$li("Required columns: item_code, item_subtype, title"),
-              tags$li("Optional columns: description, population, mock_available, asr_ready")
+      showModal(
+        create_edit_modal(
+          title = "Bulk Upload TLF Items",
+          content = div(
+            class = "mb-3",
+            tags$p("Upload an Excel file containing TLF items to add multiple items at once."),
+            
+            tags$div(
+              class = "alert alert-info small",
+              tags$strong("File Requirements:"),
+              tags$ul(
+                class = "mb-0 mt-2",
+                tags$li("Excel file (.xlsx or .xls)"),
+                tags$li("Required columns: item_code, item_subtype, title"),
+                tags$li("Optional columns: description, population, mock_available, asr_ready")
+              )
+            ),
+            
+            fileInput(
+              ns("bulk_tlf_file"),
+              label = "Select Excel File",
+              accept = c(".xlsx", ".xls"),
+              buttonLabel = "Choose File",
+              placeholder = "No file selected"
             )
           ),
-          
-          fileInput(
-            ns("bulk_tlf_file"),
-            label = "Select Excel File",
-            accept = c(".xlsx", ".xls"),
-            buttonLabel = "Choose File",
-            placeholder = "No file selected"
+          size = "m",
+          footer = div(
+            class = "d-flex justify-content-end gap-2",
+            actionButton(ns("cancel_bulk_tlf"), "Cancel", 
+                        class = "btn btn-secondary"),
+            actionButton(ns("process_bulk_tlf"), "Upload TLFs", 
+                        icon = icon("upload"),
+                        class = "btn btn-primary")
           )
-        ),
-        
-        footer = div(
-          class = "d-flex justify-content-end gap-2",
-          actionButton(ns("cancel_bulk_tlf"), "Cancel", 
-                      class = "btn btn-secondary"),
-          actionButton(ns("process_bulk_tlf"), "Upload TLFs", 
-                      icon = icon("upload"),
-                      class = "btn btn-primary")
         )
-      ))
+      )
     })
     
     # Process bulk TLF upload
     observeEvent(input$process_bulk_tlf, {
       if (is.null(input$bulk_tlf_file)) {
-        showNotification("Please select a file", type = "warning")
+        show_warning_notification("Please select a file")
         return()
       }
       
@@ -994,9 +994,9 @@ reporting_effort_items_server <- function(id) {
       result <- bulk_upload_tlf_items(effort_id, input$bulk_tlf_file$datapath)
       
       if (!is.null(result$error)) {
-        showNotification(paste("Bulk upload failed:", result$error), type = "error")
+        show_error_notification(paste("Bulk upload failed:", result$error))
       } else {
-        showNotification(paste("Successfully uploaded", result$created_count, "TLF items"), type = "message")
+        show_success_notification(paste("Successfully uploaded", result$created_count, "TLF items"))
         load_items_data()
         removeModal()
       }
@@ -1011,54 +1011,53 @@ reporting_effort_items_server <- function(id) {
     observeEvent(input$bulk_dataset_clicked, {
       effort_id <- current_reporting_effort_id()
       if (is.null(effort_id) || effort_id == "") {
-        showNotification("Please select a reporting effort first", type = "warning")
+        show_warning_notification("Please select a reporting effort first")
         return()
       }
       
-      showModal(modalDialog(
-        title = tagList(icon("upload"), " Bulk Upload Dataset Items"),
-        size = "m",
-        easyClose = FALSE,
-        
-        div(
-          class = "mb-3",
-          tags$p("Upload an Excel file containing Dataset items to add multiple items at once."),
-          
-          tags$div(
-            class = "alert alert-info small",
-            tags$strong("File Requirements:"),
-            tags$ul(
-              class = "mb-0 mt-2",
-              tags$li("Excel file (.xlsx or .xls)"),
-              tags$li("Required columns: item_code, item_subtype, dataset_name"),
-              tags$li("Optional columns: description, location, locked")
+      showModal(
+        create_edit_modal(
+          title = "Bulk Upload Dataset Items",
+          content = div(
+            class = "mb-3",
+            tags$p("Upload an Excel file containing Dataset items to add multiple items at once."),
+            
+            tags$div(
+              class = "alert alert-info small",
+              tags$strong("File Requirements:"),
+              tags$ul(
+                class = "mb-0 mt-2",
+                tags$li("Excel file (.xlsx or .xls)"),
+                tags$li("Required columns: item_code, item_subtype, dataset_name"),
+                tags$li("Optional columns: description, location, locked")
+              )
+            ),
+            
+            fileInput(
+              ns("bulk_dataset_file"),
+              label = "Select Excel File",
+              accept = c(".xlsx", ".xls"),
+              buttonLabel = "Choose File",
+              placeholder = "No file selected"
             )
           ),
-          
-          fileInput(
-            ns("bulk_dataset_file"),
-            label = "Select Excel File",
-            accept = c(".xlsx", ".xls"),
-            buttonLabel = "Choose File",
-            placeholder = "No file selected"
+          size = "m",
+          footer = div(
+            class = "d-flex justify-content-end gap-2",
+            actionButton(ns("cancel_bulk_dataset"), "Cancel", 
+                        class = "btn btn-secondary"),
+            actionButton(ns("process_bulk_dataset"), "Upload Datasets", 
+                        icon = icon("upload"),
+                        class = "btn btn-primary")
           )
-        ),
-        
-        footer = div(
-          class = "d-flex justify-content-end gap-2",
-          actionButton(ns("cancel_bulk_dataset"), "Cancel", 
-                      class = "btn btn-secondary"),
-          actionButton(ns("process_bulk_dataset"), "Upload Datasets", 
-                      icon = icon("upload"),
-                      class = "btn btn-primary")
         )
-      ))
+      )
     })
     
     # Process bulk Dataset upload
     observeEvent(input$process_bulk_dataset, {
       if (is.null(input$bulk_dataset_file)) {
-        showNotification("Please select a file", type = "warning")
+        show_warning_notification("Please select a file")
         return()
       }
       
@@ -1066,9 +1065,9 @@ reporting_effort_items_server <- function(id) {
       result <- bulk_upload_dataset_items(effort_id, input$bulk_dataset_file$datapath)
       
       if (!is.null(result$error)) {
-        showNotification(paste("Bulk upload failed:", result$error), type = "error")
+        show_error_notification(paste("Bulk upload failed:", result$error))
       } else {
-        showNotification(paste("Successfully uploaded", result$created_count, "Dataset items"), type = "message")
+        show_success_notification(paste("Successfully uploaded", result$created_count, "Dataset items"))
         load_items_data()
         removeModal()
       }
@@ -1083,13 +1082,13 @@ reporting_effort_items_server <- function(id) {
     observeEvent(input$copy_tlf_from_package_clicked, {
       effort_id <- current_reporting_effort_id()
       if (is.null(effort_id) || effort_id == "") {
-        showNotification("Please select a reporting effort first", type = "warning")
+        show_warning_notification("Please select a reporting effort first")
         return()
       }
       
       packages <- packages_list()
       if (length(packages) == 0) {
-        showNotification("No packages available", type = "warning")
+        show_warning_notification("No packages available")
         return()
       }
       
@@ -1099,43 +1098,42 @@ reporting_effort_items_server <- function(id) {
         sapply(packages, function(x) x$package_name)
       )
       
-      showModal(modalDialog(
-        title = tagList(icon("copy"), " Copy TLF Items from Package"),
-        size = "m",
-        easyClose = FALSE,
-        
-        div(
-          class = "mb-3",
-          tags$p("Select a package to copy only TLF items to this reporting effort."),
-          
-          selectInput(
-            ns("copy_tlf_package_id"),
-            "Select Package",
-            choices = package_choices,
-            width = "100%"
+      showModal(
+        create_edit_modal(
+          title = "Copy TLF Items from Package",
+          content = div(
+            class = "mb-3",
+            tags$p("Select a package to copy only TLF items to this reporting effort."),
+            
+            selectInput(
+              ns("copy_tlf_package_id"),
+              "Select Package",
+              choices = package_choices,
+              width = "100%"
+            ),
+            
+            tags$div(
+              class = "alert alert-info small",
+              tags$strong("Note: "), "This will copy only TLF items from the selected package. Duplicate item codes will be skipped."
+            )
           ),
-          
-          tags$div(
-            class = "alert alert-info small",
-            tags$strong("Note: "), "This will copy only TLF items from the selected package. Duplicate item codes will be skipped."
+          size = "m",
+          footer = div(
+            class = "d-flex justify-content-end gap-2",
+            actionButton(ns("cancel_copy_tlf_package"), "Cancel", 
+                        class = "btn btn-secondary"),
+            actionButton(ns("process_copy_tlf_package"), "Copy TLF Items", 
+                        icon = icon("copy"),
+                        class = "btn btn-primary")
           )
-        ),
-        
-        footer = div(
-          class = "d-flex justify-content-end gap-2",
-          actionButton(ns("cancel_copy_tlf_package"), "Cancel", 
-                      class = "btn btn-secondary"),
-          actionButton(ns("process_copy_tlf_package"), "Copy TLF Items", 
-                      icon = icon("copy"),
-                      class = "btn btn-primary")
         )
-      ))
+      )
     })
     
     # Process copy TLF items from package
     observeEvent(input$process_copy_tlf_package, {
       if (is.null(input$copy_tlf_package_id) || input$copy_tlf_package_id == "") {
-        showNotification("Please select a package", type = "warning")
+        show_warning_notification("Please select a package")
         return()
       }
       
@@ -1143,9 +1141,9 @@ reporting_effort_items_server <- function(id) {
       result <- copy_tlf_items_from_package(effort_id, input$copy_tlf_package_id)
       
       if (!is.null(result$error)) {
-        showNotification(paste("Copy failed:", result$error), type = "error")
+        show_error_notification(paste("Copy failed:", result$error))
       } else {
-        showNotification(paste("Successfully copied", result$copied_count, "TLF items"), type = "message")
+        show_success_notification(paste("Successfully copied", result$copied_count, "TLF items"))
         load_items_data()
         removeModal()
       }
@@ -1160,20 +1158,20 @@ reporting_effort_items_server <- function(id) {
     observeEvent(input$copy_tlf_from_effort_clicked, {
       effort_id <- current_reporting_effort_id()
       if (is.null(effort_id) || effort_id == "") {
-        showNotification("Please select a reporting effort first", type = "warning")
+        show_warning_notification("Please select a reporting effort first")
         return()
       }
       
       efforts <- reporting_efforts_list()
       if (length(efforts) == 0) {
-        showNotification("No reporting efforts available", type = "warning")
+        show_warning_notification("No reporting efforts available")
         return()
       }
       
       # Filter out current effort and create choices
       other_efforts <- efforts[sapply(efforts, function(x) x$id != effort_id)]
       if (length(other_efforts) == 0) {
-        showNotification("No other reporting efforts available to copy from", type = "warning")
+        show_warning_notification("No other reporting efforts available to copy from")
         return()
       }
       
@@ -1194,43 +1192,42 @@ reporting_effort_items_server <- function(id) {
         })
       )
       
-      showModal(modalDialog(
-        title = tagList(icon("copy"), " Copy TLF Items from Reporting Effort"),
-        size = "m",
-        easyClose = FALSE,
-        
-        div(
-          class = "mb-3",
-          tags$p("Select a reporting effort to copy only TLF items to the current reporting effort."),
-          
-          selectInput(
-            ns("copy_tlf_effort_id"),
-            "Select Source Reporting Effort",
-            choices = effort_choices,
-            width = "100%"
+      showModal(
+        create_edit_modal(
+          title = "Copy TLF Items from Reporting Effort",
+          content = div(
+            class = "mb-3",
+            tags$p("Select a reporting effort to copy only TLF items to the current reporting effort."),
+            
+            selectInput(
+              ns("copy_tlf_effort_id"),
+              "Select Source Reporting Effort",
+              choices = effort_choices,
+              width = "100%"
+            ),
+            
+            tags$div(
+              class = "alert alert-info small",
+              tags$strong("Note: "), "This will copy only TLF items from the selected reporting effort. Duplicate item codes will be skipped."
+            )
           ),
-          
-          tags$div(
-            class = "alert alert-info small",
-            tags$strong("Note: "), "This will copy only TLF items from the selected reporting effort. Duplicate item codes will be skipped."
+          size = "m",
+          footer = div(
+            class = "d-flex justify-content-end gap-2",
+            actionButton(ns("cancel_copy_tlf_effort"), "Cancel", 
+                        class = "btn btn-secondary"),
+            actionButton(ns("process_copy_tlf_effort"), "Copy TLF Items", 
+                        icon = icon("copy"),
+                        class = "btn btn-primary")
           )
-        ),
-        
-        footer = div(
-          class = "d-flex justify-content-end gap-2",
-          actionButton(ns("cancel_copy_tlf_effort"), "Cancel", 
-                      class = "btn btn-secondary"),
-          actionButton(ns("process_copy_tlf_effort"), "Copy TLF Items", 
-                      icon = icon("copy"),
-                      class = "btn btn-primary")
         )
-      ))
+      )
     })
     
     # Process copy TLF items from reporting effort
     observeEvent(input$process_copy_tlf_effort, {
       if (is.null(input$copy_tlf_effort_id) || input$copy_tlf_effort_id == "") {
-        showNotification("Please select a reporting effort", type = "warning")
+        show_warning_notification("Please select a reporting effort")
         return()
       }
       
@@ -1238,9 +1235,9 @@ reporting_effort_items_server <- function(id) {
       result <- copy_tlf_items_from_reporting_effort(effort_id, input$copy_tlf_effort_id)
       
       if (!is.null(result$error)) {
-        showNotification(paste("Copy failed:", result$error), type = "error")
+        show_error_notification(paste("Copy failed:", result$error))
       } else {
-        showNotification(paste("Successfully copied", result$copied_count, "TLF items"), type = "message")
+        show_success_notification(paste("Successfully copied", result$copied_count, "TLF items"))
         load_items_data()
         removeModal()
       }
@@ -1255,13 +1252,13 @@ reporting_effort_items_server <- function(id) {
     observeEvent(input$copy_dataset_from_package_clicked, {
       effort_id <- current_reporting_effort_id()
       if (is.null(effort_id) || effort_id == "") {
-        showNotification("Please select a reporting effort first", type = "warning")
+        show_warning_notification("Please select a reporting effort first")
         return()
       }
       
       packages <- packages_list()
       if (length(packages) == 0) {
-        showNotification("No packages available", type = "warning")
+        show_warning_notification("No packages available")
         return()
       }
       
@@ -1271,43 +1268,42 @@ reporting_effort_items_server <- function(id) {
         sapply(packages, function(x) x$package_name)
       )
       
-      showModal(modalDialog(
-        title = tagList(icon("copy"), " Copy Dataset Items from Package"),
-        size = "m",
-        easyClose = FALSE,
-        
-        div(
-          class = "mb-3",
-          tags$p("Select a package to copy only Dataset items to this reporting effort."),
-          
-          selectInput(
-            ns("copy_dataset_package_id"),
-            "Select Package",
-            choices = package_choices,
-            width = "100%"
+      showModal(
+        create_edit_modal(
+          title = "Copy Dataset Items from Package",
+          content = div(
+            class = "mb-3",
+            tags$p("Select a package to copy only Dataset items to this reporting effort."),
+            
+            selectInput(
+              ns("copy_dataset_package_id"),
+              "Select Package",
+              choices = package_choices,
+              width = "100%"
+            ),
+            
+            tags$div(
+              class = "alert alert-info small",
+              tags$strong("Note: "), "This will copy only Dataset items from the selected package. Duplicate item codes will be skipped."
+            )
           ),
-          
-          tags$div(
-            class = "alert alert-info small",
-            tags$strong("Note: "), "This will copy only Dataset items from the selected package. Duplicate item codes will be skipped."
+          size = "m",
+          footer = div(
+            class = "d-flex justify-content-end gap-2",
+            actionButton(ns("cancel_copy_dataset_package"), "Cancel", 
+                        class = "btn btn-secondary"),
+            actionButton(ns("process_copy_dataset_package"), "Copy Dataset Items", 
+                        icon = icon("copy"),
+                        class = "btn btn-primary")
           )
-        ),
-        
-        footer = div(
-          class = "d-flex justify-content-end gap-2",
-          actionButton(ns("cancel_copy_dataset_package"), "Cancel", 
-                      class = "btn btn-secondary"),
-          actionButton(ns("process_copy_dataset_package"), "Copy Dataset Items", 
-                      icon = icon("copy"),
-                      class = "btn btn-primary")
         )
-      ))
+      )
     })
     
     # Process copy Dataset items from package
     observeEvent(input$process_copy_dataset_package, {
       if (is.null(input$copy_dataset_package_id) || input$copy_dataset_package_id == "") {
-        showNotification("Please select a package", type = "warning")
+        show_warning_notification("Please select a package")
         return()
       }
       
@@ -1315,9 +1311,9 @@ reporting_effort_items_server <- function(id) {
       result <- copy_dataset_items_from_package(effort_id, input$copy_dataset_package_id)
       
       if (!is.null(result$error)) {
-        showNotification(paste("Copy failed:", result$error), type = "error")
+        show_error_notification(paste("Copy failed:", result$error))
       } else {
-        showNotification(paste("Successfully copied", result$copied_count, "Dataset items"), type = "message")
+        show_success_notification(paste("Successfully copied", result$copied_count, "Dataset items"))
         load_items_data()
         removeModal()
       }
@@ -1332,20 +1328,20 @@ reporting_effort_items_server <- function(id) {
     observeEvent(input$copy_dataset_from_effort_clicked, {
       effort_id <- current_reporting_effort_id()
       if (is.null(effort_id) || effort_id == "") {
-        showNotification("Please select a reporting effort first", type = "warning")
+        show_warning_notification("Please select a reporting effort first")
         return()
       }
       
       efforts <- reporting_efforts_list()
       if (length(efforts) == 0) {
-        showNotification("No reporting efforts available", type = "warning")
+        show_warning_notification("No reporting efforts available")
         return()
       }
       
       # Filter out current effort and create choices
       other_efforts <- efforts[sapply(efforts, function(x) x$id != effort_id)]
       if (length(other_efforts) == 0) {
-        showNotification("No other reporting efforts available to copy from", type = "warning")
+        show_warning_notification("No other reporting efforts available to copy from")
         return()
       }
       
@@ -1366,43 +1362,42 @@ reporting_effort_items_server <- function(id) {
         })
       )
       
-      showModal(modalDialog(
-        title = tagList(icon("copy"), " Copy Dataset Items from Reporting Effort"),
-        size = "m",
-        easyClose = FALSE,
-        
-        div(
-          class = "mb-3",
-          tags$p("Select a reporting effort to copy only Dataset items to the current reporting effort."),
-          
-          selectInput(
-            ns("copy_dataset_effort_id"),
-            "Select Source Reporting Effort",
-            choices = effort_choices,
-            width = "100%"
+      showModal(
+        create_edit_modal(
+          title = "Copy Dataset Items from Reporting Effort",
+          content = div(
+            class = "mb-3",
+            tags$p("Select a reporting effort to copy only Dataset items to the current reporting effort."),
+            
+            selectInput(
+              ns("copy_dataset_effort_id"),
+              "Select Source Reporting Effort",
+              choices = effort_choices,
+              width = "100%"
+            ),
+            
+            tags$div(
+              class = "alert alert-info small",
+              tags$strong("Note: "), "This will copy only Dataset items from the selected reporting effort. Duplicate item codes will be skipped."
+            )
           ),
-          
-          tags$div(
-            class = "alert alert-info small",
-            tags$strong("Note: "), "This will copy only Dataset items from the selected reporting effort. Duplicate item codes will be skipped."
+          size = "m",
+          footer = div(
+            class = "d-flex justify-content-end gap-2",
+            actionButton(ns("cancel_copy_dataset_effort"), "Cancel", 
+                        class = "btn btn-secondary"),
+            actionButton(ns("process_copy_dataset_effort"), "Copy Dataset Items", 
+                        icon = icon("copy"),
+                        class = "btn btn-primary")
           )
-        ),
-        
-        footer = div(
-          class = "d-flex justify-content-end gap-2",
-          actionButton(ns("cancel_copy_dataset_effort"), "Cancel", 
-                      class = "btn btn-secondary"),
-          actionButton(ns("process_copy_dataset_effort"), "Copy Dataset Items", 
-                      icon = icon("copy"),
-                      class = "btn btn-primary")
         )
-      ))
+      )
     })
     
     # Process copy Dataset items from reporting effort
     observeEvent(input$process_copy_dataset_effort, {
       if (is.null(input$copy_dataset_effort_id) || input$copy_dataset_effort_id == "") {
-        showNotification("Please select a reporting effort", type = "warning")
+        show_warning_notification("Please select a reporting effort")
         return()
       }
       
@@ -1410,9 +1405,9 @@ reporting_effort_items_server <- function(id) {
       result <- copy_dataset_items_from_reporting_effort(effort_id, input$copy_dataset_effort_id)
       
       if (!is.null(result$error)) {
-        showNotification(paste("Copy failed:", result$error), type = "error")
+        show_error_notification(paste("Copy failed:", result$error))
       } else {
-        showNotification(paste("Successfully copied", result$copied_count, "Dataset items"), type = "message")
+        show_success_notification(paste("Successfully copied", result$copied_count, "Dataset items"))
         load_items_data()
         removeModal()
       }
@@ -1427,22 +1422,22 @@ reporting_effort_items_server <- function(id) {
     observeEvent(input$export_tracker_clicked, {
       effort_id <- current_reporting_effort_id()
       if (is.null(effort_id) || effort_id == "") {
-        showNotification("Please select a reporting effort first", type = "warning")
+        show_warning_notification("Please select a reporting effort first")
         return()
       }
       
-      showNotification("Export functionality will be implemented in a future release", type = "info")
+      show_warning_notification("Export functionality will be implemented in a future release")
     })
     
     # Import tracker data
     observeEvent(input$import_tracker_clicked, {
       effort_id <- current_reporting_effort_id()
       if (is.null(effort_id) || effort_id == "") {
-        showNotification("Please select a reporting effort first", type = "warning")
+        show_warning_notification("Please select a reporting effort first")
         return()
       }
       
-      showNotification("Import functionality will be implemented in a future release", type = "info")
+      show_warning_notification("Import functionality will be implemented in a future release")
     })
     
     # Universal CRUD Manager integration (Phase 4)
