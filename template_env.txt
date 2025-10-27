@@ -1,0 +1,152 @@
+# ============================================================================
+# PEARL Environment Configuration Template
+# ============================================================================
+# This template shows all required environment variables for PEARL
+# Copy this file and create your actual .env files with real values
+#
+# Backend: backend/.env
+# Frontend: admin-frontend/.env
+# Testing: backend/.env.test
+# ============================================================================
+
+# ============================================================================
+# BACKEND CONFIGURATION (backend/.env)
+# ============================================================================
+
+# ───────── Deployment Mode ─────────
+# Options: development | staging | production
+ENV=development
+
+# ───────── PostgreSQL Database (async) ─────────
+# Connection string format: postgresql+asyncpg://USERNAME:PASSWORD@HOST:PORT/DATABASE
+DATABASE_URL=postgresql+asyncpg://postgres:admin123@localhost:5432/pearl-dev-db
+
+# Optional: Override SQLAlchemy connection pool size (default: 10)
+DB_POOL_SIZE=10
+
+# ───────── Security Settings ─────────
+# IMPORTANT: Change this in production! Use a strong random string
+# Generate with: python -c "import secrets; print(secrets.token_urlsafe(32))"
+JWT_SECRET=dev-secret-key-change-in-production
+
+# ───────── API Configuration (Optional) ─────────
+# API version prefix (default: /api/v1)
+API_V1_PREFIX=/api/v1
+
+# Project name for documentation
+PROJECT_NAME=PEARL Backend
+
+# ───────── CORS Settings (Optional) ─────────
+# Comma-separated list of allowed origins for CORS
+# Default: ["http://localhost:3838", "http://localhost:3000"]
+ALLOWED_ORIGINS=["http://localhost:3838","http://localhost:3000","http://localhost:5173"]
+
+
+# ============================================================================
+# FRONTEND CONFIGURATION (admin-frontend/.env)
+# ============================================================================
+
+# ───────── API Base URL ─────────
+# Backend API server URL (without trailing slash)
+PEARL_API_URL=http://localhost:8000
+
+# ───────── API Endpoint Paths ─────────
+# Health check endpoint
+PEARL_API_HEALTH_PATH=/health
+
+# Studies endpoint
+PEARL_API_STUDIES_PATH=/api/v1/studies
+
+# WebSocket endpoint for real-time updates
+PEARL_API_WEBSOCKET_PATH=/api/v1/ws/studies
+
+# ───────── Additional API Endpoints (Optional) ─────────
+# Add more endpoint paths as needed:
+# PEARL_API_DATABASE_RELEASES_PATH=/api/v1/database-releases
+# PEARL_API_REPORTING_EFFORTS_PATH=/api/v1/reporting-efforts
+# PEARL_API_TEXT_ELEMENTS_PATH=/api/v1/text-elements
+# PEARL_API_PACKAGES_PATH=/api/v1/packages
+
+
+# ============================================================================
+# TESTING CONFIGURATION (backend/.env.test)
+# ============================================================================
+
+# ───────── Test Environment Mode ─────────
+ENV=testing
+
+# ───────── Test Project Name ─────────
+PROJECT_NAME="PEARL Backend Test"
+
+# ───────── Test Database ─────────
+# Will be overridden by testcontainers during test execution
+DATABASE_URL=postgresql+asyncpg://test:test@localhost:5432/test_pearl
+DB_POOL_SIZE=5
+
+# ───────── Test API Configuration ─────────
+API_V1_PREFIX=/api/v1
+
+# ───────── Test CORS Settings ─────────
+ALLOWED_ORIGINS=["http://localhost:3000","http://localhost:5173"]
+
+
+# ============================================================================
+# PRODUCTION CONFIGURATION NOTES
+# ============================================================================
+#
+# When deploying to production, ensure you:
+#
+# 1. DATABASE_URL:
+#    - Use strong, unique database password
+#    - Consider using connection pooling service (e.g., pgBouncer)
+#    - Enable SSL/TLS for database connections
+#    - Example: postgresql+asyncpg://user:strong_password@prod-db.example.com:5432/pearl_prod?ssl=require
+#
+# 2. JWT_SECRET:
+#    - Generate cryptographically secure random string
+#    - Never use default or development secrets
+#    - Store securely (e.g., AWS Secrets Manager, Azure Key Vault)
+#    - Rotate periodically for enhanced security
+#
+# 3. PEARL_API_URL:
+#    - Use HTTPS in production (https://api.example.com)
+#    - Configure proper SSL certificates
+#    - Consider CDN/load balancer if needed
+#
+# 4. ALLOWED_ORIGINS:
+#    - List only trusted frontend domains
+#    - Use exact URLs (no wildcards in production)
+#    - Example: ["https://app.example.com","https://www.example.com"]
+#
+# 5. ENV:
+#    - Set to "production" for production deployment
+#    - Different environments may have different logging/error handling
+#
+# 6. Security Best Practices:
+#    - Never commit .env files to version control (add to .gitignore)
+#    - Use environment-specific configuration management
+#    - Implement secrets rotation policies
+#    - Enable database backups and point-in-time recovery
+#    - Configure proper firewall rules and network security groups
+#    - Use environment variables injection in CI/CD pipelines
+#
+# ============================================================================
+# DOCKER DEPLOYMENT EXAMPLE
+# ============================================================================
+#
+# When using Docker Compose, you can reference these in docker-compose.yml:
+#
+# services:
+#   backend:
+#     environment:
+#       - DATABASE_URL=${DATABASE_URL}
+#       - JWT_SECRET=${JWT_SECRET}
+#       - ENV=${ENV}
+#
+#   frontend:
+#     environment:
+#       - PEARL_API_URL=${PEARL_API_URL}
+#
+# Then use: docker-compose --env-file .env up
+#
+# ============================================================================
