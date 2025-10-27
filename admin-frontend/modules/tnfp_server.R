@@ -122,7 +122,7 @@ tnfp_server <- function(id) {
       result <- get_text_elements()
       if (!is.null(result$error)) {
         cat("Error loading text elements:", result$error, "\n")
-        showNotification("Error loading text elements", type = "error")
+        show_error_notification("Error loading text elements")
         text_elements_data(data.frame())
       } else {
         text_elements_data(convert_text_elements_to_df(result))
@@ -167,16 +167,11 @@ tnfp_server <- function(id) {
           stringsAsFactors = FALSE, check.names = FALSE
         )
         
-        DT::datatable(empty_df, 
-          filter = 'top',
-          options = list(
-            dom = 'frtip',
-            search = list(regex = TRUE, caseInsensitive = TRUE),
-            searching = TRUE,
-            pageLength = 10,
-            language = list(emptyTable = "No text elements found. Click 'Add Text Element' to create your first text element.")
-          ),
-          escape = FALSE, rownames = FALSE, selection = 'none'
+        create_standard_datatable(
+          empty_df,
+          actions_column = TRUE,
+          page_length = 10,
+          empty_message = "No text elements found. Click 'Add Text Element' to create your first text element."
         )
       } else {
         # Add action buttons
@@ -190,43 +185,38 @@ tnfp_server <- function(id) {
           ))
         })
         
-        DT::datatable(display_df,
-          filter = 'top',
-          options = list(
-            dom = 'frtip',
-            search = list(regex = TRUE, caseInsensitive = TRUE),
-            searching = TRUE,
-            pageLength = 10,
-            autoWidth = FALSE,
-            language = list(search = "", searchPlaceholder = "Search (regex supported):"),
+        create_standard_datatable(
+          display_df,
+          actions_column = TRUE,
+          page_length = 10,
+          draw_callback = JS(sprintf("
+            function() {
+              var table = this;
+              console.log('Text elements table drawCallback triggered');
+              var editButtons = $('#%s button[data-action=\"edit\"]');
+              var deleteButtons = $('#%s button[data-action=\"delete\"]');
+              console.log('Found edit buttons:', editButtons.length);
+              console.log('Found delete buttons:', deleteButtons.length);
+              editButtons.off('click').on('click', function() {
+                var id = $(this).attr('data-id');
+                console.log('Edit text element button clicked for ID:', id);
+                Shiny.setInputValue('%s', id, {priority: 'event'});
+              });
+              deleteButtons.off('click').on('click', function() {
+                var id = $(this).attr('data-id');
+                console.log('Delete text element button clicked for ID:', id);
+                Shiny.setInputValue('%s', id, {priority: 'event'});
+              });
+            }
+          ", ns("text_elements_table"), ns("text_elements_table"), ns("edit_text_element_id"), ns("delete_text_element_id"))),
+          extra_options = list(
             columnDefs = list(
               list(targets = 0, width = "25%"), # Type column
               list(targets = 1, width = "55%"), # Content column
               list(targets = 2, orderable = FALSE, searchable = FALSE, className = "text-center dt-nowrap", width = "1%") # Actions column minimal width
             ),
-            initComplete = JS(sprintf("function(){ $('#%s thead tr:nth-child(2) th:last input, #%s thead tr:nth-child(2) th:last select').prop('disabled', true).attr('placeholder',''); }", ns("text_elements_table"), ns("text_elements_table"))),
-            drawCallback = JS(sprintf("
-              function() {
-                var table = this;
-                console.log('Text elements table drawCallback triggered');
-                var editButtons = $('#%s button[data-action=\"edit\"]');
-                var deleteButtons = $('#%s button[data-action=\"delete\"]');
-                console.log('Found edit buttons:', editButtons.length);
-                console.log('Found delete buttons:', deleteButtons.length);
-                editButtons.off('click').on('click', function() {
-                  var id = $(this).attr('data-id');
-                  console.log('Edit text element button clicked for ID:', id);
-                  Shiny.setInputValue('%s', id, {priority: 'event'});
-                });
-                deleteButtons.off('click').on('click', function() {
-                  var id = $(this).attr('data-id');
-                  console.log('Delete text element button clicked for ID:', id);
-                  Shiny.setInputValue('%s', id, {priority: 'event'});
-                });
-              }
-            ", ns("text_elements_table"), ns("text_elements_table"), ns("edit_text_element_id"), ns("delete_text_element_id")))
-          ),
-          escape = FALSE, rownames = FALSE, selection = 'none'
+            initComplete = JS(sprintf("function(){ $('#%s thead tr:nth-child(2) th:last input, #%s thead tr:nth-child(2) th:last select').prop('disabled', true).attr('placeholder',''); }", ns("text_elements_table"), ns("text_elements_table")))
+          )
         )
       }
     })
@@ -429,53 +419,40 @@ tnfp_server <- function(id) {
         editing_text_element_id(element_id)
         editing_text_element_type(element_result$type)
         
-        # Show edit modal
-        showModal(modalDialog(
-          title = tagList(bs_icon("pencil"), "Edit Text Element"),
-          size = "m",
-          easyClose = FALSE,
+        # Show edit modal using Phase 2 utility
+        modal_content <- tagList(
+          create_text_input_field(
+            input_id = ns("edit_text_element_type_display"),
+            label = "Type",
+            value = tools::toTitleCase(gsub("_", " ", element_result$type)),
+            required = FALSE
+          ) %>% 
+            tagAppendAttributes(disabled = TRUE),
           
-          div(
-            class = "mb-3",
-            tags$label("Type", class = "form-label fw-bold"),
-            tags$input(
-              id = ns("edit_text_element_type_display"),
-              class = "form-control",
-              value = tools::toTitleCase(gsub("_", " ", element_result$type)),
-              disabled = TRUE
-            )
+          create_textarea_input_field(
+            input_id = ns("edit_text_element_label"),
+            label = "Content",
+            value = element_result$label,
+            placeholder = "Enter text content...",
+            rows = 4,
+            required = TRUE
           ),
           
-          div(
-            class = "mb-3",
-            tags$label("Content", class = "form-label fw-bold"),
-            div(
-              textAreaInput(
-                ns("edit_text_element_label"),
-                NULL,
-                value = element_result$label,
-                placeholder = "Enter text content...",
-                rows = 4,
-                width = "100%"
-              ),
-              tags$small(
-                class = "text-muted form-text",
-                tagList(
-                  bs_icon("info-circle", size = "0.8em"),
-                  " Duplicate content is not allowed (comparison ignores spaces and letter case)"
-                )
-              )
-            )
-          ),
-          
-          footer = tagList(
-            modalButton("Cancel"),
-            actionButton(
-              ns("save_edit_text_element"),
-              tagList(bs_icon("check"), "Save Changes"),
-              class = "btn btn-success"
+          tags$small(
+            class = "text-muted form-text",
+            tagList(
+              bs_icon("info-circle", size = "0.8em"),
+              " Duplicate content is not allowed (comparison ignores spaces and letter case)"
             )
           )
+        )
+        
+        showModal(create_edit_modal(
+          title = "Edit Text Element",
+          content = modal_content,
+          save_button_id = ns("save_edit_text_element"),
+          save_button_label = "Save Changes",
+          save_button_class = "btn-success"
         ))
       }
     })
@@ -490,14 +467,10 @@ tnfp_server <- function(id) {
       element_to_delete <- current_elements[current_elements$ID == element_id, ]
       
       if (nrow(element_to_delete) > 0) {
-        showModal(modalDialog(
-          title = "Confirm Deletion",
-          paste("Are you sure you want to delete the text element:", element_to_delete$Content[1], "?"),
-          footer = tagList(
-            modalButton("Cancel"),
-            actionButton(ns("confirm_delete_text_element"), "Delete", class = "btn btn-danger")
-          ),
-          easyClose = TRUE
+        showModal(create_delete_confirmation_modal(
+          entity_type = "Text Element",
+          entity_name = element_to_delete$Content[1],
+          confirm_button_id = ns("confirm_delete_text_element")
         ))
         
         # Store ID for confirmation handler

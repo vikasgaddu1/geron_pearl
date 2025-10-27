@@ -73,10 +73,9 @@ database_backup_server <- function(id, api_client, user_info) {
         rv$backups <- result$data
         rv$last_refresh <- Sys.time()
       } else {
-        showNotification(
+        show_error_notification(
           paste("Failed to load backups:", result$error),
-          type = "error",
-          duration = 5
+          duration = 5000
         )
       }
     }
@@ -100,10 +99,9 @@ database_backup_server <- function(id, api_client, user_info) {
     observeEvent(input$refresh_list, {
       load_backups()
       load_status()
-      showNotification(
+      show_success_notification(
         "Backup list refreshed",
-        type = "message",
-        duration = 2
+        duration = 2000
       )
     })
     
@@ -274,9 +272,29 @@ database_backup_server <- function(id, api_client, user_info) {
     
     # Create backup
     observeEvent(input$create_backup, {
+      # Modal content
+      content <- div(
+        div(
+          class = "mb-3",
+          tags$label("Backup Description", class = "form-label"),
+          textInput(
+            ns("backup_description"),
+            label = NULL,
+            placeholder = "e.g., Before major update, Weekly backup, etc.",
+            width = "100%"
+          )
+        ),
+        div(
+          class = "alert alert-info",
+          icon("info-circle"),
+          "The backup will be created in the background. You can continue working while it processes."
+        )
+      )
+      
       showModal(
-        modalDialog(
+        create_create_modal(
           title = "Create Database Backup",
+          content = content,
           size = "m",
           footer = tagList(
             actionButton(
@@ -290,23 +308,6 @@ database_backup_server <- function(id, api_client, user_info) {
               class = "btn-primary",
               icon = icon("save")
             )
-          ),
-          
-          # Modal content
-          div(
-            class = "mb-3",
-            tags$label("Backup Description", class = "form-label"),
-            textInput(
-              ns("backup_description"),
-              label = NULL,
-              placeholder = "e.g., Before major update, Weekly backup, etc.",
-              width = "100%"
-            )
-          ),
-          div(
-            class = "alert alert-info",
-            icon("info-circle"),
-            "The backup will be created in the background. You can continue working while it processes."
           )
         )
       )
@@ -326,10 +327,9 @@ database_backup_server <- function(id, api_client, user_info) {
       result <- create_database_backup(description = description)
       
       if (result$success) {
-        showNotification(
+        show_success_notification(
           "Backup creation initiated. It will run in the background.",
-          type = "message",
-          duration = 5
+          duration = 5000
         )
         removeModal()
         
@@ -339,10 +339,9 @@ database_backup_server <- function(id, api_client, user_info) {
           load_status()
         })
       } else {
-        showNotification(
+        show_error_notification(
           paste("Failed to create backup:", result$error),
-          type = "error",
-          duration = 5
+          duration = 5000
         )
       }
     })
@@ -369,9 +368,28 @@ database_backup_server <- function(id, api_client, user_info) {
     # Delete backup
     show_delete_dialog <- function(backup) {
       rv$selected_for_delete <- backup
+      
+      # Modal content
+      content <- div(
+        class = "alert alert-warning",
+        icon("exclamation-triangle"),
+        "Are you sure you want to delete this backup?",
+        br(),
+        br(),
+        tags$strong("Filename: "),
+        backup$filename,
+        br(),
+        tags$strong("Created: "),
+        format_date(backup$created_at),
+        br(),
+        br(),
+        "This action cannot be undone."
+      )
+      
       showModal(
-        modalDialog(
+        create_delete_confirmation_modal(
           title = "Confirm Deletion",
+          content = content,
           size = "m",
           footer = tagList(
             actionButton(
@@ -385,23 +403,6 @@ database_backup_server <- function(id, api_client, user_info) {
               class = "btn-danger",
               icon = icon("trash")
             )
-          ),
-          
-          # Modal content
-          div(
-            class = "alert alert-warning",
-            icon("exclamation-triangle"),
-            "Are you sure you want to delete this backup?",
-            br(),
-            br(),
-            tags$strong("Filename: "),
-            backup$filename,
-            br(),
-            tags$strong("Created: "),
-            format_date(backup$created_at),
-            br(),
-            br(),
-            "This action cannot be undone."
           )
         )
       )
@@ -434,20 +435,18 @@ database_backup_server <- function(id, api_client, user_info) {
       result <- delete_database_backup(rv$selected_for_delete$filename)
       
       if (result$success) {
-        showNotification(
+        show_success_notification(
           "Backup deleted successfully",
-          type = "message",
-          duration = 3
+          duration = 3000
         )
         removeModal()
         rv$selected_for_delete <- NULL
         load_backups()
         load_status()
       } else {
-        showNotification(
+        show_error_notification(
           paste("Failed to delete backup:", result$error),
-          type = "error",
-          duration = 5
+          duration = 5000
         )
       }
     })
@@ -455,9 +454,41 @@ database_backup_server <- function(id, api_client, user_info) {
     # Restore backup
     show_restore_dialog <- function(backup) {
       rv$selected_for_restore <- backup
+      
+      # Modal content
+      content <- div(
+        div(
+          class = "alert alert-danger",
+          icon("exclamation-triangle"),
+          tags$strong("CRITICAL WARNING:"),
+          br(),
+          "Restoring a backup will COMPLETELY REPLACE the current database!",
+          br(),
+          br(),
+          "All current data will be lost and replaced with the backup data."
+        ),
+        div(
+          class = "mb-3",
+          tags$strong("Backup to restore: "),
+          backup$filename,
+          br(),
+          tags$strong("Created: "),
+          format_date(backup$created_at)
+        ),
+        div(
+          class = "form-check mb-3",
+          checkboxInput(
+            ns("confirm_understand"),
+            "I understand that this will permanently replace all current data",
+            value = FALSE
+          )
+        )
+      )
+      
       showModal(
-        modalDialog(
+        create_delete_confirmation_modal(
           title = "Restore Database - CRITICAL WARNING",
+          content = content,
           size = "m",
           footer = tagList(
             actionButton(
@@ -470,34 +501,6 @@ database_backup_server <- function(id, api_client, user_info) {
               "Restore Database",
               class = "btn-danger",
               icon = icon("database")
-            )
-          ),
-          
-          # Modal content
-          div(
-            class = "alert alert-danger",
-            icon("exclamation-triangle"),
-            tags$strong("CRITICAL WARNING:"),
-            br(),
-            "Restoring a backup will COMPLETELY REPLACE the current database!",
-            br(),
-            br(),
-            "All current data will be lost and replaced with the backup data."
-          ),
-          div(
-            class = "mb-3",
-            tags$strong("Backup to restore: "),
-            backup$filename,
-            br(),
-            tags$strong("Created: "),
-            format_date(backup$created_at)
-          ),
-          div(
-            class = "form-check mb-3",
-            checkboxInput(
-              ns("confirm_understand"),
-              "I understand that this will permanently replace all current data",
-              value = FALSE
             )
           )
         )
@@ -530,10 +533,9 @@ database_backup_server <- function(id, api_client, user_info) {
       
       # Check if user confirmed understanding
       if (!input$confirm_understand) {
-        showNotification(
+        show_warning_notification(
           "Please confirm that you understand the consequences",
-          type = "warning",
-          duration = 3
+          duration = 3000
         )
         return()
       }
@@ -541,30 +543,28 @@ database_backup_server <- function(id, api_client, user_info) {
       result <- restore_database_backup(rv$selected_for_restore$filename)
       
       if (result$success) {
-        showNotification(
+        show_warning_notification(
           HTML(paste(
             "<strong>Database restore initiated!</strong><br>",
             "The application may be unavailable during the restore process.<br>",
             "This may take several minutes depending on the backup size."
           )),
-          type = "warning",
-          duration = 10
+          duration = 10000
         )
         removeModal()
         rv$selected_for_restore <- NULL
       } else {
-        showNotification(
+        show_error_notification(
           paste("Failed to initiate restore:", result$error),
-          type = "error",
-          duration = 5
+          duration = 5000
         )
       }
     })
     
-    # Universal CRUD Manager integration (Phase 4)
+    # Universal CRUD Manager integration (Phase 2)
     # Replaces entity-specific WebSocket observer with standardized refresh trigger
-    observeEvent(input$`database_backup-crud_refresh`, {
-      if (!is.null(input$`database_backup-crud_refresh`)) {
+    observeEvent(input$crud_refresh, {
+      if (!is.null(input$crud_refresh)) {
         cat("💾 Universal CRUD refresh triggered for database backup\n")
         load_backups()
         load_status()

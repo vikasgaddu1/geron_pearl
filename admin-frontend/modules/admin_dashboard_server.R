@@ -225,10 +225,9 @@ admin_dashboard_server <- function(id) {
     # Manual refresh
     observeEvent(input$refresh_dashboard, {
       load_dashboard_data()
-      showNotification(
+      show_success_notification(
         "Dashboard refreshed",
-        type = "message",
-        duration = 2
+        duration = 2000
       )
     })
     
@@ -541,26 +540,23 @@ admin_dashboard_server <- function(id) {
     
     # Export handlers
     observeEvent(input$export_pdf, {
-      showNotification(
+      show_success_notification(
         "PDF export will be available in a future release",
-        type = "message",
-        duration = 3
+        duration = 3000
       )
     })
     
     observeEvent(input$export_excel, {
-      showNotification(
+      show_success_notification(
         "Excel export will be available in a future release",
-        type = "message",
-        duration = 3
+        duration = 3000
       )
     })
     
     observeEvent(input$export_csv, {
-      showNotification(
+      show_success_notification(
         "CSV export will be available in a future release",
-        type = "message",
-        duration = 3
+        duration = 3000
       )
     })
     
@@ -588,19 +584,21 @@ admin_dashboard_server <- function(id) {
       })
     }
     
-    # Universal CRUD Manager integration (Phase 4)
+    # Universal CRUD Manager integration (Phase 2)
     # Replaces entity-specific WebSocket observer with standardized refresh trigger
-    observeEvent(input$`admin_dashboard-crud_refresh`, {
-      if (!is.null(input$`admin_dashboard-crud_refresh`)) {
+    observeEvent(input$crud_refresh, {
+      if (!is.null(input$crud_refresh)) {
         cat("📊 Universal CRUD refresh triggered for admin dashboard\n")
         load_dashboard_data()
       }
     })
     
     # Legacy WebSocket observer (kept for backward compatibility during transition)
-    observeEvent(input$`admin-dashboard-websocket_event`, {
-      # Reload data when we receive any WebSocket event
-      load_dashboard_data()
+    observeEvent(input$websocket_event, {
+      if (!is.null(input$websocket_event)) {
+        # Reload data when we receive any WebSocket event
+        load_dashboard_data()
+      }
     })
     
     # Return module interface

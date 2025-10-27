@@ -309,10 +309,10 @@ Shiny.addCustomMessageHandler('triggerPackageRefresh', function(message) {
   try {
     console.log('📦 Package refresh triggered from global observer:', message);
     
-    // Trigger the packages_simple module's CRUD refresh input
+    // Trigger the packages module's CRUD refresh input
     // This simulates the Universal CRUD Manager triggering a refresh
     if (window.Shiny && window.Shiny.setInputValue) {
-      Shiny.setInputValue('packages_simple-crud_refresh', Math.random(), {priority: 'event'});
+      Shiny.setInputValue('packages-crud_refresh', Math.random(), {priority: 'event'});
       console.log('✅ Package module refresh triggered for cross-browser sync');
     } else {
       console.log('⚠️ Shiny.setInputValue not available yet - package refresh deferred');

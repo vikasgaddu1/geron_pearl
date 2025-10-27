@@ -6,7 +6,7 @@ from app.models.user import User, UserRole
 from app.schemas.user import UserCreate, UserUpdate
 
 
-class CRUDUser:
+class UserCRUD:
     async def get(self, db: AsyncSession, id: int) -> Optional[User]:
         result = await db.execute(select(User).filter(User.id == id))
         return result.scalar_one_or_none()
@@ -73,4 +73,4 @@ class CRUDUser:
         return obj
 
 
-user = CRUDUser()
+user = UserCRUD()

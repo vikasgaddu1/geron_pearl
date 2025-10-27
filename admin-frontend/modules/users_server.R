@@ -70,7 +70,7 @@ users_server <- function(id) {
       result <- get_users()
       if (!is.null(result$error)) {
         cat("Error loading users:", result$error, "\n")
-        showNotification("Error loading users", type = "error")
+        show_error_notification("Error loading users")
         users_data(data.frame())
       } else {
         users_data(convert_users_to_df(result))
@@ -83,10 +83,10 @@ users_server <- function(id) {
       load_users_data()
     })
     
-    # Universal CRUD Manager integration (Phase 4)
+    # Universal CRUD Manager integration (Phase 2)
     # Replaces entity-specific WebSocket observer with standardized refresh trigger
-    observeEvent(input$`users-crud_refresh`, {
-      if (!is.null(input$`users-crud_refresh`)) {
+    observeEvent(input$crud_refresh, {
+      if (!is.null(input$crud_refresh)) {
         cat("👤 Universal CRUD refresh triggered for users\n")
         load_users_data()
       }
@@ -116,19 +116,10 @@ users_server <- function(id) {
           stringsAsFactors = FALSE, check.names = FALSE
         )
         
-        datatable(
+        create_standard_datatable(
           empty_df,
-          options = list(
-            dom = 'rtip',
-            pageLength = 25,
-            language = list(emptyTable = "No users found"),
-            columnDefs = list(
-              list(targets = 3, searchable = FALSE, orderable = FALSE, width = '100px')
-            )
-          ),
-          escape = FALSE,
-          selection = 'none',
-          rownames = FALSE
+          actions_column = TRUE,
+          empty_message = "No users found. Click 'Create User' to add your first user."
         )
       } else {
         # Add action buttons
@@ -143,42 +134,23 @@ users_server <- function(id) {
         # Remove ID column for display
         display_df <- current_users[, c("Username", "Role", "Department", "Actions")]
         
-        datatable(
+        create_standard_datatable(
           display_df,
-          filter = 'top',
-          options = list(
-            dom = 'frtip',
-            search = list(
-              regex = TRUE,
-              caseInsensitive = TRUE,
-              search = "",
-              placeholder = "Search (regex supported):"
-            ),
-            pageLength = 25,
-            columnDefs = list(
-              list(targets = 3, searchable = FALSE, orderable = FALSE, width = '100px')
-            ),
-            language = list(
-              search = "",
-              searchPlaceholder = "Search (regex supported):"
-            ),
-            drawCallback = JS(sprintf(
-              "function(){
-                var tbl = $('#%s');
-                tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
-                  var id = $(this).attr('data-id');
-                  Shiny.setInputValue('%s', {action: 'edit', id: id}, {priority: 'event'});
-                });
-                tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(){
-                  var id = $(this).attr('data-id');
-                  Shiny.setInputValue('%s', {action: 'delete', id: id}, {priority: 'event'});
-                });
-              }",
-              ns("users_table"), ns("user_action_click"), ns("user_action_click")))
-          ),
-          escape = FALSE,
-          selection = 'none',
-          rownames = FALSE
+          actions_column = TRUE,
+          draw_callback = JS(sprintf(
+            "function(){
+              var tbl = $('#%s');
+              tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
+                var id = $(this).attr('data-id');
+                Shiny.setInputValue('%s', {action: 'edit', id: id}, {priority: 'event'});
+              });
+              tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(){
+                var id = $(this).attr('data-id');
+                Shiny.setInputValue('%s', {action: 'delete', id: id}, {priority: 'event'});
+              });
+            }",
+            ns("users_table"), ns("user_action_click"), ns("user_action_click"))
+          )
         ) %>%
           DT::formatStyle(
             columns = 1:4,
@@ -208,12 +180,8 @@ users_server <- function(id) {
               # Set editing mode
               editing_user_id(user_id)
               
-              # Show edit modal
-              showModal(modalDialog(
-                title = tagList(icon("pencil"), " Edit User"),
-                size = "m",
-                easyClose = FALSE,
-                
+              # Show edit modal using Phase 2 utility
+              modal_content <- tagList(
                 div(
                   class = "mb-3",
                   tags$label("Username", class = "form-label fw-bold"),
@@ -248,16 +216,16 @@ users_server <- function(id) {
                              ),
                              selected = if(is.null(result$department) || result$department == "") "" else result$department,
                              width = "100%")
-                ),
-                
-                footer = div(
-                  class = "d-flex justify-content-end gap-2",
-                  actionButton(ns("cancel_edit_modal"), "Cancel", 
-                              class = "btn btn-secondary"),
-                  actionButton(ns("save_edit_modal"), "Update User", 
-                              icon = icon("check"),
-                              class = "btn btn-warning")
                 )
+              )
+              
+              showModal(create_edit_modal(
+                title = "Edit User",
+                content = modal_content,
+                save_button_id = ns("save_edit_modal"),
+                cancel_button_id = ns("cancel_edit_modal"),
+                save_button_label = "Update User",
+                save_button_class = "btn-warning"
               ))
             }
           }
@@ -269,31 +237,19 @@ users_server <- function(id) {
           user_row <- current_users[current_users$ID == user_id, ]
           
           if (nrow(user_row) > 0) {
-            showModal(modalDialog(
-              title = tagList(icon("exclamation-triangle", class = "text-danger"), " Confirm Deletion"),
-              tagList(
-                tags$div(class = "alert alert-danger",
-                  tags$strong("Warning: "), "This action cannot be undone!"
-                ),
-                tags$p("Are you sure you want to delete this user?"),
-                tags$hr(),
-                tags$dl(
-                  tags$dt("Username:"),
-                  tags$dd(tags$strong(user_row$Username[1])),
-                  tags$dt("Role:"),
-                  tags$dd(user_row$Role[1]),
-                  tags$dt("Department:"),
-                  tags$dd(user_row$Department[1])
-                )
-              ),
-              footer = tagList(
-                actionButton(ns("confirm_delete_user"), "Delete User", 
-                            icon = icon("trash"),
-                            class = "btn-danger"),
-                modalButton("Cancel")
-              ),
-              easyClose = FALSE,
-              size = "m"
+            # Additional user info for delete confirmation
+            additional_info <- tags$dl(
+              tags$dt("Role:"),
+              tags$dd(user_row$Role[1]),
+              tags$dt("Department:"),
+              tags$dd(user_row$Department[1])
+            )
+            
+            showModal(create_delete_confirmation_modal(
+              entity_type = "User",
+              entity_name = user_row$Username[1],
+              confirm_button_id = ns("confirm_delete_user"),
+              additional_info = additional_info
             ))
             
             # Store the ID for deletion
@@ -311,10 +267,10 @@ users_server <- function(id) {
         result <- delete_user(user_id)
         
         if (is.null(result$error)) {
-          showNotification("User deleted successfully", type = "message")
+          show_success_notification("User deleted successfully")
           load_users_data()
         } else {
-          showNotification(paste("Error deleting user:", result$error), type = "error")
+          show_error_notification(paste("Error deleting user:", result$error))
         }
         
         removeModal()
@@ -368,24 +324,23 @@ users_server <- function(id) {
         result <- update_user(user_id, username, role, department)
         
         if (is.null(result$error)) {
-          showNotification("User updated successfully", type = "message")
+          show_success_notification("User updated successfully")
           load_users_data()
           removeModal()
           editing_user_id(NULL)
         } else {
           formatted_error <- format_error_message(result$error)
           if (grepl("already exists", formatted_error)) {
-            showNotification(
+            show_error_notification(
               tagList(
                 tags$strong("Duplicate Username"),
                 tags$br(),
                 formatted_error
               ),
-              type = "error",
               duration = 6000
             )
           } else {
-            showNotification(paste("Error updating user:", formatted_error), type = "error")
+            show_error_notification(paste("Error updating user:", formatted_error))
           }
         }
       }
@@ -413,7 +368,7 @@ users_server <- function(id) {
         result <- create_user(username, role, department)
           
         if (is.null(result$error)) {
-          showNotification("User created successfully", type = "message")
+          show_success_notification("User created successfully")
           load_users_data()
           sidebar_toggle(id = "users_sidebar")
           iv_user$disable()
@@ -425,17 +380,16 @@ users_server <- function(id) {
         } else {
           formatted_error <- format_error_message(result$error)
           if (grepl("already exists", formatted_error)) {
-            showNotification(
+            show_error_notification(
               tagList(
                 tags$strong("Duplicate Username"),
                 tags$br(),
                 formatted_error
               ),
-              type = "error",
               duration = 6000
             )
           } else {
-            showNotification(paste("Error creating user:", formatted_error), type = "error")
+            show_error_notification(paste("Error creating user:", formatted_error))
           }
         }
       }
@@ -457,7 +411,7 @@ users_server <- function(id) {
     # Refresh button
     observeEvent(input$refresh_btn, {
       cat("Refresh button clicked\n")
-      showNotification("Refreshing users data...", type = "message", duration = 2)
+      show_success_notification("Refreshing users data...", duration = 2000)
       load_users_data()
     })
     
@@ -465,10 +419,9 @@ users_server <- function(id) {
     observeEvent(input$process_bulk_upload, {
       # Check if a file has been selected
       if (is.null(input$bulk_upload_file)) {
-        showNotification(
+        show_warning_notification(
           "Please select an Excel file to upload",
-          type = "warning",
-          duration = 3  # Duration in seconds
+          duration = 3000
         )
         return()
       }
@@ -480,10 +433,9 @@ users_server <- function(id) {
       
       # Check if readxl is available
       if (!requireNamespace("readxl", quietly = TRUE)) {
-        showNotification(
+        show_error_notification(
           "Excel support not installed. Please install the 'readxl' package.",
-          type = "error",
-          duration = 5  # Duration in seconds
+          duration = 5000
         )
         output$upload_results <- renderUI({
           div(class = "alert alert-danger small", "Excel support not available")
@@ -494,10 +446,9 @@ users_server <- function(id) {
       # Validate file extension
       file_ext <- tolower(tools::file_ext(input$bulk_upload_file$name))
       if (!file_ext %in% c("xlsx", "xls")) {
-        showNotification(
+        show_error_notification(
           "Please upload an Excel file (.xlsx or .xls)",
-          type = "error",
-          duration = 4  # Duration in seconds
+          duration = 4000
         )
         output$upload_results <- renderUI({
           div(class = "alert alert-danger small", "Invalid file type. Please use .xlsx or .xls files.")
@@ -510,10 +461,9 @@ users_server <- function(id) {
       
       # Check if file exists and is readable
       if (!file.exists(file_path)) {
-        showNotification(
+        show_error_notification(
           "Unable to read the uploaded file. Please try again.",
-          type = "error",
-          duration = 4  # Duration in seconds
+          duration = 4000
         )
         output$upload_results <- renderUI({
           div(class = "alert alert-danger small", "File upload failed. Please try again.")
@@ -532,10 +482,9 @@ users_server <- function(id) {
         department_col <- which(col_names_lower == "department")[1]
         
         if (is.na(username_col) || is.na(role_col)) {
-          showNotification(
+          show_error_notification(
             "Excel file must contain 'Username' and 'Role' columns",
-            type = "error",
-            duration = 5  # Duration in seconds
+            duration = 5000
           )
           output$upload_results <- renderUI({
             div(class = "alert alert-danger small", 
@@ -681,10 +630,9 @@ users_server <- function(id) {
             )
           })
           
-          showNotification(
+          show_warning_notification(
             "No new users imported - all users already exist in the database",
-            type = "warning",
-            duration = 4  # Duration in seconds
+            duration = 4000
           )
         } else if (results$success == 0) {
           # No users were imported for other reasons
@@ -712,10 +660,9 @@ users_server <- function(id) {
             )
           })
           
-          showNotification(
+          show_warning_notification(
             "No users were imported. Check the details for more information.",
-            type = "warning",
-            duration = 4  # Duration in seconds
+            duration = 4000
           )
         } else {
           # Some users were successfully imported
@@ -746,10 +693,9 @@ users_server <- function(id) {
           
           # Refresh the table and show success notification
           load_users_data()
-          showNotification(
+          show_success_notification(
             paste("Successfully imported", results$success, "users"),
-            type = "message",
-            duration = 4  # Duration in seconds
+            duration = 4000
           )
         }
         
@@ -762,10 +708,9 @@ users_server <- function(id) {
         shinyjs::reset("bulk_upload_file")
         
       }, error = function(e) {
-        showNotification(
+        show_error_notification(
           paste("Error reading Excel file:", e$message),
-          type = "error",
-          duration = 5  # Duration in seconds
+          duration = 5000
         )
         output$upload_results <- renderUI({
           div(class = "alert alert-danger small", 

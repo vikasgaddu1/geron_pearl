@@ -38,8 +38,9 @@ cd backend
 # Development
 uv run python run.py                      # Start development server
 uv run python -m app.db.init_db           # Initialize database
+make run                                  # Alternative: Start via Makefile
 
-# Testing
+# Testing (Individual execution only due to async session conflicts)
 ./test_crud_simple.sh                     # Run functional CRUD tests
 ./test_packages_crud.sh                   # Test packages system
 ./test_reporting_effort_tracker_crud.sh   # Test tracker CRUD operations
@@ -47,14 +48,28 @@ uv run python -m app.db.init_db           # Initialize database
 ./test_tracker_delete_simple.sh           # Test tracker deletion functionality
 uv run python tests/integration/test_websocket_broadcast.py  # Test WebSocket
 
+# Make-based testing (comprehensive test suites)
+make test-fast                            # Run fast tests (excludes slow performance)
+make test-unit                            # Unit tests only
+make test-integration                     # Integration tests only
+make test-security                        # Security tests only
+make test-coverage                        # Tests with coverage report
+
 # Code Quality
 make format                               # Format with black + isort
 make lint                                 # Run flake8 + mypy
 make typecheck                            # Type checking only
+make check-all                            # Lint + typecheck + fast tests
+make validate                             # Full validation pipeline
 
 # Database
 uv run alembic upgrade head               # Apply migrations
 uv run alembic revision --autogenerate -m "Description"  # Create migration
+make migrate                              # Apply migrations via Makefile
+
+# Utilities
+make clean                                # Clean up generated files and cache
+make help                                 # Show all available make commands
 
 # Cascade Migration (for orphaned records fix)
 uv run python execute_cascade_migration.py  # Execute CASCADE DELETE migration
@@ -304,18 +319,26 @@ await broadcast_entity_created(created_entity)  # Required for real-time sync
 make format     # Auto-format with black + isort (required)
 make lint       # Check with flake8 + mypy (required)
 make typecheck  # Type checking only
+
+# Additional make commands available
+make help       # Show all available make commands
+make check-all  # Run lint, typecheck, and fast tests
+make validate   # Full validation: format + lint + typecheck + coverage
+make clean      # Clean up generated files and cache
 ```
 
 ## Technology Stack Summary
 
 ### Backend (FastAPI)
-- **Python**: 3.11+ with UV package manager
-- **Framework**: FastAPI + uvicorn with async/await patterns
-- **Database**: PostgreSQL with SQLAlchemy 2.0 async
+- **Python**: 3.11+ with UV package manager (preferred) or pip
+- **Framework**: FastAPI 0.111+ + uvicorn with async/await patterns
+- **Database**: PostgreSQL with SQLAlchemy 2.0 async + asyncpg driver
 - **Migrations**: Alembic for schema changes
 - **Real-time**: WebSocket broadcasting via ConnectionManager
 - **Validation**: Pydantic v2 for request/response schemas
-- **Testing**: pytest with individual test execution only
+- **Testing**: pytest 8.0+ with individual test execution only
+- **Code Quality**: Black + isort + flake8 + mypy (strict mode)
+- **Development**: Comprehensive Makefile with test suites (unit/integration/security/performance)
 
 ### Frontend (R Shiny)
 - **R Version**: 4.2.2 with renv for reproducible packages
@@ -407,15 +430,15 @@ observeEvent(input$`package_update-websocket_event`, {
 ```javascript
 Shiny.addCustomMessageHandler('triggerPackageRefresh', function(message) {
   if (window.Shiny && window.Shiny.setInputValue) {  // ⚠️ Check availability!
-    Shiny.setInputValue('packages_simple-crud_refresh', Math.random(), {priority: 'event'});
+    Shiny.setInputValue('packages-crud_refresh', Math.random(), {priority: 'event'});
   }
 });
 ```
 
 4. **Module Observer**:
 ```r
-observeEvent(input$`packages_simple-crud_refresh`, {  # ⚠️ FULL name in observer!
-  if (!is.null(input$`packages_simple-crud_refresh`)) {
+observeEvent(input$`packages-crud_refresh`, {  # ⚠️ FULL name in observer!
+  if (!is.null(input$`packages-crud_refresh`)) {
     load_packages_data()
   }
 })
