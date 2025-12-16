@@ -454,10 +454,12 @@ function resolveComment(commentId) {
 }
 
 // Update comment button badge with separate counts for programming and biostat
-window.updateCommentButtonBadge = function(trackerId, unresolvedCount, programmingCount, biostatCount) {
+// totalComments: total number of comments (to distinguish "no comments" from "all resolved")
+window.updateCommentButtonBadge = function(trackerId, unresolvedCount, programmingCount, biostatCount, totalComments) {
   const button = document.querySelector(`button.comment-btn[data-tracker-id="${trackerId}"]`);
   if (!button) return;
   
+  const icon = button.querySelector('i');
   const progBadge = button.querySelector('.comment-badge-prog');
   const biostatBadge = button.querySelector('.comment-badge-biostat');
   
@@ -468,23 +470,39 @@ window.updateCommentButtonBadge = function(trackerId, unresolvedCount, programmi
   }
   
   const totalUnresolved = (programmingCount || 0) + (biostatCount || 0);
+  const hasAnyComments = (totalComments !== undefined) ? totalComments > 0 : totalUnresolved > 0;
   
-  if (totalUnresolved === 0) {
-    // Green button, no badges
+  if (!hasAnyComments) {
+    // NO COMMENTS AT ALL - Gray outline, empty comment icon
+    button.className = 'btn btn-outline-secondary btn-sm comment-btn';
+    button.title = 'No comments yet';
+    if (icon) icon.className = 'fa fa-comment-o';
+    if (progBadge) progBadge.style.display = 'none';
+    if (biostatBadge) biostatBadge.style.display = 'none';
+  } else if (totalUnresolved === 0) {
+    // ALL COMMENTS RESOLVED - Green button, filled comment icon
     button.className = 'btn btn-success btn-sm comment-btn';
+    button.title = 'All comments resolved';
+    if (icon) icon.className = 'fa fa-comments';
     if (progBadge) progBadge.style.display = 'none';
     if (biostatBadge) biostatBadge.style.display = 'none';
   } else {
-    // Show button with appropriate color based on which types have comments
+    // HAS UNRESOLVED COMMENTS - Show badges with counts
+    if (icon) icon.className = 'fa fa-comments';
+    
+    // Color based on which types have unresolved comments
     if (programmingCount > 0 && biostatCount > 0) {
-      // Both types - use gradient/mixed style
-      button.className = 'btn btn-outline-secondary btn-sm comment-btn';
+      // Both types - use mixed style
+      button.className = 'btn btn-outline-dark btn-sm comment-btn has-comments';
+      button.title = `${programmingCount} Programming + ${biostatCount} Biostat unresolved`;
     } else if (programmingCount > 0) {
-      // Only programming comments
-      button.className = 'btn btn-warning btn-sm comment-btn';
+      // Only programming comments - yellow
+      button.className = 'btn btn-warning btn-sm comment-btn has-comments';
+      button.title = `${programmingCount} Programming comment(s) unresolved`;
     } else {
-      // Only biostat comments
-      button.className = 'btn btn-info btn-sm comment-btn';
+      // Only biostat comments - blue
+      button.className = 'btn btn-info btn-sm comment-btn has-comments';
+      button.title = `${biostatCount} Biostat comment(s) unresolved`;
     }
     
     // Update programming badge
@@ -592,10 +610,11 @@ if (typeof Shiny !== 'undefined') {
           const unresolvedCount = summary.unresolved_count || 0;
           const programmingCount = summary.programming_unresolved_count || 0;
           const biostatCount = summary.biostat_unresolved_count || 0;
+          const totalComments = summary.total_comments || 0;
           
           if (trackerId !== undefined) {
-            console.log(`Updating button for tracker ${trackerId}: prog=${programmingCount}, biostat=${biostatCount}`);
-            updateCommentButtonBadge(trackerId, unresolvedCount, programmingCount, biostatCount);
+            console.log(`Updating button for tracker ${trackerId}: total=${totalComments}, prog=${programmingCount}, biostat=${biostatCount}`);
+            updateCommentButtonBadge(trackerId, unresolvedCount, programmingCount, biostatCount, totalComments);
           } else {
             console.warn('Missing tracker_id in summary:', summary);
           }

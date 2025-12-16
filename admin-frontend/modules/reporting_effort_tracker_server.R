@@ -268,13 +268,14 @@ reporting_effort_tracker_server <- function(id) {
           }
         }
         # Create simplified comments column with modal trigger button
-        # Shows separate badges for Programming (yellow) and Biostat (blue) comments
+        # Default: gray outline (no comments), then colored based on comment types
+        # Shows separate badges for Programming (P:N yellow) and Biostat (B:N blue) comments
         comments_column <- if (!is.null(tracker_id) && !is.na(tracker_id) && tracker_id != "") {
           sprintf('<div class="comment-column" data-tracker-id="%s">
-                     <button class="btn btn-success btn-sm comment-btn" data-tracker-id="%s" 
+                     <button class="btn btn-outline-secondary btn-sm comment-btn" data-tracker-id="%s" 
                              onclick="showSimplifiedCommentModal(%s)" 
-                             title="Comments">
-                       <i class="fa fa-comments"></i>
+                             title="No comments yet">
+                       <i class="fa fa-comment-o"></i>
                        <span class="comment-badge-prog badge bg-warning text-dark ms-1" style="display: none;"></span>
                        <span class="comment-badge-biostat badge bg-info text-white ms-1" style="display: none;"></span>
                      </button>
