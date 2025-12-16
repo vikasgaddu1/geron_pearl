@@ -381,6 +381,25 @@ create_create_modal <- function(title, content = NULL, size = "m", save_button_i
   )
 }
 
+# Standard view modal for displaying read-only information
+# Used for info dialogs, warnings, export confirmations, comments, etc.
+create_view_modal <- function(title, content = NULL, size = "m", footer = NULL, easyClose = TRUE, ...) {
+  modal_footer <- if (!is.null(footer)) {
+    footer
+  } else {
+    modalButton("Close")
+  }
+  
+  modalDialog(
+    title = title,
+    size = size,
+    easyClose = easyClose,
+    content,
+    ...,
+    footer = modal_footer
+  )
+}
+
 # Standard delete confirmation modal with enhanced warning
 # Supports two calling conventions:
 # 1. Standard: create_delete_confirmation_modal(entity_type, entity_name, confirm_button_id, ...)
