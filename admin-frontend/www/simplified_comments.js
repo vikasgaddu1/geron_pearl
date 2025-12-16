@@ -178,8 +178,15 @@ function displayCommentsInModal(comments) {
     return;
   }
   
+  // Sort comments by created_at descending (newest first)
+  const sortedComments = [...filteredComments].sort((a, b) => {
+    const dateA = new Date(a.created_at);
+    const dateB = new Date(b.created_at);
+    return dateB - dateA;  // Descending order
+  });
+  
   let html = '';
-  filteredComments.forEach(comment => {
+  sortedComments.forEach(comment => {
     html += renderCommentThread(comment, 0, comment.is_resolved);
   });
   
