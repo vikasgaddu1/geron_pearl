@@ -270,8 +270,32 @@ reporting_effort_tracker_server <- function(id) {
         # Create simplified comments column with modal trigger button
         # Default: gray outline (no comments), then colored based on comment types
         # Shows separate badges for Programming (P:N yellow) and Biostat (B:N blue) comments
+        
+        # Get comment summary for filtering - default to "None"
+        comment_filter <- "None"
+        if (!is.null(tracker_id) && !is.na(tracker_id) && tracker_id != "") {
+          comment_summary <- tryCatch({
+            get_tracker_comment_summary(tracker_id)
+          }, error = function(e) list())
+          
+          prog_count <- comment_summary$programming_unresolved_count %||% 0
+          biostat_count <- comment_summary$biostat_unresolved_count %||% 0
+          
+          if (prog_count > 0 && biostat_count > 0) {
+            comment_filter <- "Both"
+          } else if (prog_count > 0) {
+            comment_filter <- "Prog"
+          } else if (biostat_count > 0) {
+            comment_filter <- "Biostat"
+          } else if ((comment_summary$total_comments %||% 0) > 0) {
+            comment_filter <- "Resolved"
+          }
+        }
+        
+        # Include hidden filter text for DataTable searching
         comments_column <- if (!is.null(tracker_id) && !is.na(tracker_id) && tracker_id != "") {
           sprintf('<div class="comment-column" data-tracker-id="%s">
+                     <span style="display:none;">%s</span>
                      <button class="btn btn-outline-secondary btn-sm comment-btn" data-tracker-id="%s" 
                              onclick="showSimplifiedCommentModal(%s)" 
                              title="No comments yet">
@@ -279,9 +303,10 @@ reporting_effort_tracker_server <- function(id) {
                        <span class="comment-badge-prog badge bg-warning text-dark ms-1" style="display: none;"></span>
                        <span class="comment-badge-biostat badge bg-info text-white ms-1" style="display: none;"></span>
                      </button>
-                   </div>', tracker_id, tracker_id, tracker_id)
+                   </div>', tracker_id, comment_filter, tracker_id, tracker_id)
         } else {
           '<div class="comment-column">
+             <span style="display:none;">None</span>
              <button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first">
                <i class="fa fa-plus"></i>
              </button>
@@ -596,7 +621,7 @@ reporting_effort_tracker_server <- function(id) {
             autoWidth = TRUE,
             search = list(regex = TRUE, caseInsensitive = TRUE),
             columnDefs = list(
-              list(targets = ncol(tlf_data) - 2, searchable = FALSE, orderable = FALSE, width = "120px"),  # Comments column
+              list(targets = ncol(tlf_data) - 2, searchable = TRUE, orderable = FALSE, width = "120px"),  # Comments column - searchable for filter values
               list(targets = ncol(tlf_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
             ),
             drawCallback = JS(sprintf(
@@ -710,7 +735,7 @@ reporting_effort_tracker_server <- function(id) {
           ordering = TRUE,
           autoWidth = TRUE,
           columnDefs = list(
-            list(targets = ncol(sdtm_data) - 2, searchable = FALSE, orderable = FALSE, width = "120px"),  # Comments column
+            list(targets = ncol(sdtm_data) - 2, searchable = TRUE, orderable = FALSE, width = "120px"),  # Comments column - searchable for filter values
             list(targets = ncol(sdtm_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
           ),
           drawCallback = JS(sprintf(
@@ -830,7 +855,7 @@ reporting_effort_tracker_server <- function(id) {
           ordering = TRUE,
           autoWidth = TRUE,
           columnDefs = list(
-            list(targets = ncol(adam_data) - 2, searchable = FALSE, orderable = FALSE, width = "120px"),  # Comments column
+            list(targets = ncol(adam_data) - 2, searchable = TRUE, orderable = FALSE, width = "120px"),  # Comments column - searchable for filter values
             list(targets = ncol(adam_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
           ),
           drawCallback = JS(sprintf(
