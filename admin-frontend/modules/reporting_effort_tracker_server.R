@@ -4,6 +4,31 @@ reporting_effort_tracker_server <- function(id) {
 
     # Helpers
     `%||%` <- function(x, y) if (is.null(x) || length(x) == 0) y else x
+    
+    # Helper function to filter data by comment status
+    filter_by_comments <- function(df) {
+      if (nrow(df) == 0) return(df)
+      
+      filter_value <- input$comment_filter %||% "all"
+      
+      if (filter_value == "all") {
+        return(df)
+      } else if (filter_value == "has_comments") {
+        # Any comments (prog, biostat, both, or resolved)
+        return(df[df$Comment_Status != "none", ])
+      } else if (filter_value == "prog") {
+        # Programming comments (prog or both)
+        return(df[df$Comment_Status %in% c("prog", "both"), ])
+      } else if (filter_value == "biostat") {
+        # Biostat comments (biostat or both)
+        return(df[df$Comment_Status %in% c("biostat", "both"), ])
+      } else if (filter_value == "none") {
+        # No comments
+        return(df[df$Comment_Status == "none", ])
+      }
+      
+      return(df)
+    }
 
     # Reactive values
     current_reporting_effort_id <- reactiveVal(NULL)
@@ -370,31 +395,6 @@ reporting_effort_tracker_server <- function(id) {
         } else {
           data.frame(Item=character(0), Category=character(0), Prod_Programmer=character(0), Prod_Status=character(0), Priority=character(0), Due_Date=character(0), QC_Programmer=character(0), QC_Status=character(0), QC_Level=character(0), QC_Completion=character(0), Comments=character(0), Actions=character(0), Comment_Status=character(0), stringsAsFactors = FALSE)
         }
-      }
-      
-      # Helper function to filter data by comment status
-      filter_by_comments <- function(df) {
-        if (nrow(df) == 0) return(df)
-        
-        filter_value <- input$comment_filter %||% "all"
-        
-        if (filter_value == "all") {
-          return(df)
-        } else if (filter_value == "has_comments") {
-          # Any comments (prog, biostat, both, or resolved)
-          return(df[df$Comment_Status != "none", ])
-        } else if (filter_value == "prog") {
-          # Programming comments (prog or both)
-          return(df[df$Comment_Status %in% c("prog", "both"), ])
-        } else if (filter_value == "biostat") {
-          # Biostat comments (biostat or both)
-          return(df[df$Comment_Status %in% c("biostat", "both"), ])
-        } else if (filter_value == "none") {
-          # No comments
-          return(df[df$Comment_Status == "none", ])
-        }
-        
-        return(df)
       }
       
       tlf_df <- to_df(tlf_rows)
