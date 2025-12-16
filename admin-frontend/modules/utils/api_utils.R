@@ -204,52 +204,111 @@ show_success_notification <- function(message, duration = 3) {
   )
 }
 
-# Standard error notification
+# Standard error notification - uses SweetAlert modal for visibility
 show_error_notification <- function(message, duration = 5) {
-  showNotification(
-    message,
-    type = "error",
-    duration = convert_duration(duration)
-  )
+  session <- shiny::getDefaultReactiveDomain()
+  if (!is.null(session)) {
+    shinyWidgets::sendSweetAlert(
+      session = session,
+      title = "Error",
+      text = message,
+      type = "error",
+      btn_labels = "OK",
+      closeOnClickOutside = TRUE,
+      showCloseButton = TRUE
+    )
+  } else {
+    # Fallback to showNotification if no reactive domain
+    showNotification(
+      message,
+      type = "error",
+      duration = convert_duration(duration)
+    )
+  }
 }
 
-# Standard warning notification
+# Standard warning notification - uses SweetAlert modal for visibility
 show_warning_notification <- function(message, duration = 4) {
-  showNotification(
-    message,
-    type = "warning",
-    duration = convert_duration(duration)
-  )
+  session <- shiny::getDefaultReactiveDomain()
+  if (!is.null(session)) {
+    shinyWidgets::sendSweetAlert(
+      session = session,
+      title = "Warning",
+      text = message,
+      type = "warning",
+      btn_labels = "OK",
+      closeOnClickOutside = TRUE,
+      showCloseButton = TRUE
+    )
+  } else {
+    # Fallback to showNotification if no reactive domain
+    showNotification(
+      message,
+      type = "warning",
+      duration = convert_duration(duration)
+    )
+  }
 }
 
-# Enhanced validation error notification for API responses
+# Enhanced validation error notification for API responses - uses SweetAlert modal
 show_validation_error_notification <- function(api_result, duration = 8) {
   error_msg <- extract_error_message(api_result)
-  actual_duration <- convert_duration(duration)
-  
+  session <- shiny::getDefaultReactiveDomain()
+
   # Special handling for duplicate validation errors
   if (grepl("Duplicate.*are not allowed", error_msg)) {
-    showNotification(
-      tagList(
-        tags$strong("Duplicate Content Detected"),
-        tags$br(),
-        error_msg,
-        tags$br(),
-        tags$small("Tip: The system compares content ignoring spaces and letter case.")
-      ),
-      type = "error",
-      duration = actual_duration
-    )
+    if (!is.null(session)) {
+      shinyWidgets::sendSweetAlert(
+        session = session,
+        title = "Duplicate Content Detected",
+        text = tags$div(
+          tags$p(error_msg),
+          tags$small(
+            class = "text-muted",
+            "Tip: The system compares content ignoring spaces and letter case."
+          )
+        ),
+        type = "error",
+        html = TRUE,
+        btn_labels = "OK",
+        closeOnClickOutside = TRUE,
+        showCloseButton = TRUE
+      )
+    } else {
+      showNotification(
+        tagList(
+          tags$strong("Duplicate Content Detected"),
+          tags$br(),
+          error_msg,
+          tags$br(),
+          tags$small("Tip: The system compares content ignoring spaces and letter case.")
+        ),
+        type = "error",
+        duration = convert_duration(duration)
+      )
+    }
   } else if (grepl("already exists", error_msg)) {
-    showNotification(
-      tagList(
-        tags$strong("Duplicate Entry"),
-        tags$br(),
-        error_msg
-      ),
-      type = "error",
-      duration = actual_duration
-    )
+    if (!is.null(session)) {
+      shinyWidgets::sendSweetAlert(
+        session = session,
+        title = "Duplicate Entry",
+        text = error_msg,
+        type = "error",
+        btn_labels = "OK",
+        closeOnClickOutside = TRUE,
+        showCloseButton = TRUE
+      )
+    } else {
+      showNotification(
+        tagList(
+          tags$strong("Duplicate Entry"),
+          tags$br(),
+          error_msg
+        ),
+        type = "error",
+        duration = convert_duration(duration)
+      )
+    }
   } else {
     show_error_notification(error_msg, duration)
   }
