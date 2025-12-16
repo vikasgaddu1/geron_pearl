@@ -663,19 +663,24 @@ reporting_effort_tracker_server <- function(id) {
               "function(settings){
                 var api = this.api();
                 var tbl = $(api.table().node()).closest('.dataTables_wrapper').find('table');
-                
-                // Edit/Delete button handlers
-                tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
+
+                // Edit/Delete button handlers - use event.stopPropagation to prevent comment modal from opening
+                tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(e){
+                  e.stopPropagation();
+                  e.preventDefault();
                   var id = $(this).attr('data-id');
                   var itemId = $(this).attr('data-item-id');
+                  console.log('TLF Edit clicked: tracker_id=' + id + ', item_id=' + itemId);
                   Shiny.setInputValue('%s', {action: 'edit', id: id, itemId: itemId}, {priority: 'event'});
                 });
-                tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(){
+                tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(e){
+                  e.stopPropagation();
+                  e.preventDefault();
                   var id = $(this).attr('data-id');
                   var itemId = $(this).attr('data-item-id');
                   Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
                 });
-                
+
                 // Refresh comment badges after table draw
                 if (typeof refreshAllCommentBadges === 'function') {
                   setTimeout(refreshAllCommentBadges, 100);
@@ -793,25 +798,30 @@ reporting_effort_tracker_server <- function(id) {
             "function(settings){
               var api = this.api();
               var tbl = $(api.table().node()).closest('.dataTables_wrapper').find('table');
-              
-              // Edit/Delete button handlers
-              tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
+
+              // Edit/Delete button handlers - use event.stopPropagation to prevent comment modal from opening
+              tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(e){
+                e.stopPropagation();
+                e.preventDefault();
                 var id = $(this).attr('data-id');
                 var itemId = $(this).attr('data-item-id');
+                console.log('SDTM Edit clicked: tracker_id=' + id + ', item_id=' + itemId);
                 Shiny.setInputValue('%s', {action: 'edit', id: id, itemId: itemId}, {priority: 'event'});
               });
-              tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(){
+              tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(e){
+                e.stopPropagation();
+                e.preventDefault();
                 var id = $(this).attr('data-id');
                 var itemId = $(this).attr('data-item-id');
                 Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
               });
-              
+
               // Comment modal button handlers
               tbl.find('.comment-btn').off('click').on('click', function(){
                 var trackerId = $(this).attr('data-tracker-id');
                 showSimplifiedCommentModal(trackerId);
               });
-              
+
               // Refresh comment badges after table draw
               if (typeof refreshAllCommentBadges === 'function') {
                 setTimeout(refreshAllCommentBadges, 100);
@@ -822,7 +832,7 @@ reporting_effort_tracker_server <- function(id) {
         escape = FALSE, selection = 'none', rownames = FALSE
       )
     })
-    
+
     # Render ADaM Tracker Table
     output$tracker_table_adam <- DT::renderDataTable({
       eff_id <- current_reporting_effort_id()
@@ -928,25 +938,30 @@ reporting_effort_tracker_server <- function(id) {
             "function(settings){
               var api = this.api();
               var tbl = $(api.table().node()).closest('.dataTables_wrapper').find('table');
-              
-              // Edit/Delete button handlers
-              tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(){
+
+              // Edit/Delete button handlers - use event.stopPropagation to prevent comment modal from opening
+              tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(e){
+                e.stopPropagation();
+                e.preventDefault();
                 var id = $(this).attr('data-id');
                 var itemId = $(this).attr('data-item-id');
+                console.log('ADaM Edit clicked: tracker_id=' + id + ', item_id=' + itemId);
                 Shiny.setInputValue('%s', {action: 'edit', id: id, itemId: itemId}, {priority: 'event'});
               });
-              tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(){
+              tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(e){
+                e.stopPropagation();
+                e.preventDefault();
                 var id = $(this).attr('data-id');
                 var itemId = $(this).attr('data-item-id');
                 Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
               });
-              
+
               // Comment modal button handlers
               tbl.find('.comment-btn').off('click').on('click', function(){
                 var trackerId = $(this).attr('data-tracker-id');
                 showSimplifiedCommentModal(trackerId);
               });
-              
+
               // Refresh comment badges after table draw
               if (typeof refreshAllCommentBadges === 'function') {
                 setTimeout(refreshAllCommentBadges, 100);
@@ -1157,61 +1172,98 @@ reporting_effort_tracker_server <- function(id) {
         modal_tracker_id(tracker_id)
         modal_item_id(item_id)
         
-        # Show edit modal
+        # Get item label for display
+        item_label <- tryCatch({
+          items <- reporting_effort_items()
+          item <- items[sapply(items, function(x) x$id == as.integer(item_id))]
+          if (length(item) > 0) item[[1]]$item_code else paste("Item", item_id)
+        }, error = function(e) paste("Item", item_id))
+
+        # Show edit modal with Production/QC sections
         showModal(create_edit_modal(
           title = if (!is.na(tracker_id) && tracker_id != "") "Edit Tracker" else "Create Tracker",
           size = "l",
-          
-          fluidRow(
-            column(6,
-              selectInput(ns("edit_prod_programmer"), "Production Programmer:",
-                         choices = prog_choices,
-                         selected = tracker_data$production_programmer_id %||% "")
+          content = tagList(
+            # Item info header
+            div(
+              class = "alert alert-info mb-3 py-2",
+              tags$strong("Item: "), item_label
             ),
-            column(6,
-              selectInput(ns("edit_qc_programmer"), "QC Programmer:",
-                         choices = prog_choices,
-                         selected = tracker_data$qc_programmer_id %||% "")
-            )
+
+            # ===== PRODUCTION SECTION =====
+            div(
+              class = "card mb-3",
+              div(
+                class = "card-header bg-warning text-dark py-2",
+                tags$h6(bs_icon("gear"), " Production", class = "mb-0")
+              ),
+              div(
+                class = "card-body",
+                fluidRow(
+                  column(6,
+                    selectInput(ns("edit_prod_programmer"), "Programmer:",
+                               choices = prog_choices,
+                               selected = tracker_data$production_programmer_id %||% "")
+                  ),
+                  column(6,
+                    selectInput(ns("edit_prod_status"), "Status:",
+                               choices = c("Not Started" = "not_started", "In Progress" = "in_progress", "Completed" = "completed", "On Hold" = "on_hold"),
+                               selected = tracker_data$production_status %||% "not_started")
+                  )
+                ),
+                fluidRow(
+                  column(6,
+                    selectInput(ns("edit_priority"), "Priority:",
+                               choices = c("Low" = "low", "Medium" = "medium", "High" = "high"),
+                               selected = tracker_data$priority %||% "medium")
+                  ),
+                  column(6,
+                    dateInput(ns("edit_due_date"), "Due Date:",
+                             value = if (!is.null(tracker_data$due_date) && nchar(tracker_data$due_date) > 0) as.Date(tracker_data$due_date) else NULL)
+                  )
+                )
+              )
+            ),
+
+            # ===== QC SECTION =====
+            div(
+              class = "card mb-3",
+              div(
+                class = "card-header bg-info text-white py-2",
+                tags$h6(bs_icon("check2-circle"), " QC", class = "mb-0")
+              ),
+              div(
+                class = "card-body",
+                fluidRow(
+                  column(6,
+                    selectInput(ns("edit_qc_programmer"), "QC Programmer:",
+                               choices = prog_choices,
+                               selected = tracker_data$qc_programmer_id %||% "")
+                  ),
+                  column(6,
+                    selectInput(ns("edit_qc_status"), "QC Status:",
+                               choices = c("Not Started" = "not_started", "In Progress" = "in_progress", "Completed" = "completed", "Failed" = "failed"),
+                               selected = tracker_data$qc_status %||% "not_started")
+                  )
+                ),
+                fluidRow(
+                  column(6,
+                    selectInput(ns("edit_qc_level"), "QC Level:",
+                               choices = c("None" = "", "Level 1" = "1", "Level 2" = "2", "Level 3" = "3"),
+                               selected = tracker_data$qc_level %||% "3")
+                  ),
+                  column(6,
+                    dateInput(ns("edit_qc_date"), "QC Completion Date:",
+                             value = if (!is.null(tracker_data$qc_completion_date) && nchar(tracker_data$qc_completion_date) > 0) as.Date(tracker_data$qc_completion_date) else NULL)
+                  )
+                )
+              )
+            ),
+
+            # In Production Flag
+            checkboxInput(ns("edit_in_production"), "In Production",
+                         value = tracker_data$in_production_flag %||% FALSE)
           ),
-          
-          fluidRow(
-            column(3,
-              selectInput(ns("edit_prod_status"), "Production Status:",
-                         choices = c("Not Started" = "not_started", "In Progress" = "in_progress", "Completed" = "completed", "On Hold" = "on_hold"),
-                         selected = tracker_data$production_status %||% "not_started")
-            ),
-            column(3,
-              selectInput(ns("edit_qc_status"), "QC Status:",
-                         choices = c("Not Started" = "not_started", "In Progress" = "in_progress", "Completed" = "completed", "Failed" = "failed"),
-                         selected = tracker_data$qc_status %||% "not_started")
-            ),
-            column(3,
-              selectInput(ns("edit_priority"), "Priority:",
-                         choices = c("low", "medium", "high"),
-                         selected = tracker_data$priority %||% "medium")
-            ),
-            column(3,
-              selectInput(ns("edit_qc_level"), "QC Level:",
-                         choices = c("None" = "", "1" = "1", "2" = "2", "3" = "3"),
-                         selected = tracker_data$qc_level %||% "3")
-            )
-          ),
-          
-          fluidRow(
-            column(6,
-              dateInput(ns("edit_due_date"), "Due Date:",
-                       value = if (!is.null(tracker_data$due_date) && nchar(tracker_data$due_date) > 0) as.Date(tracker_data$due_date) else NULL)
-            ),
-            column(6,
-              dateInput(ns("edit_qc_date"), "QC Completion Date:",
-                       value = if (!is.null(tracker_data$qc_completion_date) && nchar(tracker_data$qc_completion_date) > 0) as.Date(tracker_data$qc_completion_date) else NULL)
-            )
-          ),
-          
-          checkboxInput(ns("edit_in_production"), "In Production", 
-                       value = tracker_data$in_production_flag %||% FALSE),
-          
           footer = tagList(
             modalButton("Cancel"),
             actionButton(ns("save_tracker"), "Save", class = "btn btn-primary")
@@ -1239,12 +1291,59 @@ reporting_effort_tracker_server <- function(id) {
       # Get the stored IDs from reactive values
       tracker_id <- modal_tracker_id()
       item_id <- modal_item_id()
-      
+
+      # ===== VALIDATION RULES =====
+      validation_errors <- c()
+
+      # Get current values
+      prod_programmer <- input$edit_prod_programmer
+      qc_programmer <- input$edit_qc_programmer
+      prod_status <- input$edit_prod_status
+      qc_status <- input$edit_qc_status
+      in_production <- input$edit_in_production
+
+      # Rule 1: If Production Programmer is assigned, Due Date and Priority are required
+      if (prod_programmer != "") {
+        # Note: dateInput returns NA when empty, not NULL
+        if (is.null(input$edit_due_date) || is.na(input$edit_due_date)) {
+          validation_errors <- c(validation_errors, "Due Date is required when Production Programmer is assigned")
+        }
+        if (is.null(input$edit_priority) || input$edit_priority == "") {
+          validation_errors <- c(validation_errors, "Priority is required when Production Programmer is assigned")
+        }
+      }
+
+      # Rule 2: In Production can only be checked if QC Status is "completed" (QC pass)
+      if (isTRUE(in_production) && qc_status != "completed") {
+        validation_errors <- c(validation_errors, "In Production can only be enabled when QC Status is 'Completed'")
+      }
+
+      # Rule 3: Production and QC Programmer cannot be the same (unless both are Not Assigned)
+      if (prod_programmer != "" && qc_programmer != "" && prod_programmer == qc_programmer) {
+        validation_errors <- c(validation_errors, "Production Programmer and QC Programmer cannot be the same person")
+      }
+
+      # Rule 4: If Production Programmer is Not Assigned, Production Status must be Not Started
+      if (prod_programmer == "" && prod_status != "not_started") {
+        validation_errors <- c(validation_errors, "Production Status must be 'Not Started' when no Production Programmer is assigned")
+      }
+
+      # Rule 5: If QC Programmer is Not Assigned, QC Status must be Not Started
+      if (qc_programmer == "" && qc_status != "not_started") {
+        validation_errors <- c(validation_errors, "QC Status must be 'Not Started' when no QC Programmer is assigned")
+      }
+
+      # Show validation errors if any
+      if (length(validation_errors) > 0) {
+        show_warning_notification(paste("Validation Error:", paste(validation_errors, collapse = "; ")))
+        return()
+      }
+
       # Build tracker data
       tracker_data <- list(
         reporting_effort_item_id = as.integer(item_id)
       )
-      
+
       # Add optional fields if set
       if (input$edit_prod_programmer != "") {
         tracker_data$production_programmer_id <- as.integer(input$edit_prod_programmer)
@@ -1252,23 +1351,23 @@ reporting_effort_tracker_server <- function(id) {
       if (input$edit_qc_programmer != "") {
         tracker_data$qc_programmer_id <- as.integer(input$edit_qc_programmer)
       }
-      
+
       tracker_data$production_status <- input$edit_prod_status
       tracker_data$qc_status <- input$edit_qc_status
       tracker_data$priority <- input$edit_priority
       tracker_data$in_production_flag <- input$edit_in_production
-      
+
       if (input$edit_qc_level != "") {
         tracker_data$qc_level <- as.character(input$edit_qc_level)
       }
-      
+
       if (!is.null(input$edit_due_date)) {
         tracker_data$due_date <- as.character(input$edit_due_date)
       }
       if (!is.null(input$edit_qc_date)) {
         tracker_data$qc_completion_date <- as.character(input$edit_qc_date)
       }
-      
+
       # Create or update tracker
       if (!is.na(tracker_id) && tracker_id != "") {
         # Update existing
@@ -1277,7 +1376,7 @@ reporting_effort_tracker_server <- function(id) {
         # Create new
         res <- create_or_update_tracker(tracker_data)
       }
-      
+
       if ("error" %in% names(res)) {
         show_error_notification(paste("Failed to save tracker:", res$error))
       } else {
