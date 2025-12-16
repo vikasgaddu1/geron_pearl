@@ -186,36 +186,46 @@ extract_error_message <- function(api_result) {
 # NOTIFICATION STANDARDIZATION (Phase 2A - High Priority)
 # =============================================================================
 
+# Helper to convert duration - Shiny expects seconds, but code may pass milliseconds
+# If duration > 100, assume milliseconds and convert to seconds
+convert_duration <- function(duration) {
+  if (duration > 100) {
+    return(duration / 1000)  # Convert milliseconds to seconds
+  }
+  return(duration)  # Already in seconds
+}
+
 # Standard success notification
-show_success_notification <- function(message, duration = 3000) {
+show_success_notification <- function(message, duration = 3) {
   showNotification(
     message,
     type = "message",  # Shiny's valid success type
-    duration = duration
+    duration = convert_duration(duration)
   )
 }
 
 # Standard error notification
-show_error_notification <- function(message, duration = 5000) {
+show_error_notification <- function(message, duration = 5) {
   showNotification(
     message,
     type = "error",
-    duration = duration
+    duration = convert_duration(duration)
   )
 }
 
 # Standard warning notification
-show_warning_notification <- function(message, duration = 4000) {
+show_warning_notification <- function(message, duration = 4) {
   showNotification(
     message,
     type = "warning",
-    duration = duration
+    duration = convert_duration(duration)
   )
 }
 
 # Enhanced validation error notification for API responses
-show_validation_error_notification <- function(api_result, duration = 8000) {
+show_validation_error_notification <- function(api_result, duration = 8) {
   error_msg <- extract_error_message(api_result)
+  actual_duration <- convert_duration(duration)
   
   # Special handling for duplicate validation errors
   if (grepl("Duplicate.*are not allowed", error_msg)) {
@@ -228,7 +238,7 @@ show_validation_error_notification <- function(api_result, duration = 8000) {
         tags$small("Tip: The system compares content ignoring spaces and letter case.")
       ),
       type = "error",
-      duration = duration
+      duration = actual_duration
     )
   } else if (grepl("already exists", error_msg)) {
     showNotification(
@@ -238,7 +248,7 @@ show_validation_error_notification <- function(api_result, duration = 8000) {
         error_msg
       ),
       type = "error",
-      duration = duration
+      duration = actual_duration
     )
   } else {
     show_error_notification(error_msg, duration)
@@ -261,11 +271,11 @@ show_operation_notification <- function(operation, entity, success = TRUE, entit
 }
 
 # Standard loading notification
-show_loading_notification <- function(message = "Loading...", duration = 2000) {
+show_loading_notification <- function(message = "Loading...", duration = 2) {
   showNotification(
     message,
     type = "message",
-    duration = duration
+    duration = convert_duration(duration)
   )
 }
 
