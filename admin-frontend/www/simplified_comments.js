@@ -1,11 +1,14 @@
 /**
  * Simplified Comment System JavaScript
  * Blog-style modal comments with parent/reply threading
+ * Supports filtering by comment type (Programming/Biostat)
  */
 
 // Global variables
 window.currentCommentTrackerId = null;
 window.currentCommentModalReplyTo = null;
+window.allCommentsCache = [];  // Store all comments for filtering
+window.currentCommentTypeFilter = 'programming';  // Default filter
 
 // Helper function to get API base URL
 function getApiBaseUrl() {
@@ -16,6 +19,7 @@ function getApiBaseUrl() {
 window.showSimplifiedCommentModal = function(trackerId) {
   window.currentCommentTrackerId = trackerId;
   window.currentCommentModalReplyTo = null;
+  window.currentCommentTypeFilter = 'programming';  // Reset to default
   
   // Show Shiny modal trigger with module namespace
   if (typeof Shiny !== 'undefined') {
@@ -50,6 +54,13 @@ window.loadCommentsForModal = function(trackerId) {
       return response.json();
     })
     .then(comments => {
+      // Cache all comments for filtering
+      window.allCommentsCache = comments;
+      
+      // Update count badges
+      updateTypeCountBadges(comments);
+      
+      // Display comments filtered by current type
       displayCommentsInModal(comments);
     })
     .catch(error => {
@@ -63,25 +74,82 @@ window.loadCommentsForModal = function(trackerId) {
     });
 };
 
+// Update type count badges in the filter section
+function updateTypeCountBadges(comments) {
+  let progCount = 0;
+  let biostatCount = 0;
+  
+  // Count unresolved parent comments by type
+  comments.forEach(comment => {
+    const type = comment.comment_type || 'programming';
+    if (!comment.is_resolved) {
+      if (type === 'programming') progCount++;
+      else if (type === 'biostat') biostatCount++;
+    }
+  });
+  
+  // Update badges
+  const progBadge = document.getElementById('prog-count-badge');
+  const biostatBadge = document.getElementById('biostat-count-badge');
+  
+  if (progBadge) progBadge.textContent = progCount;
+  if (biostatBadge) biostatBadge.textContent = biostatCount;
+}
+
+// Filter comments by type (called when filter radio button clicked)
+window.filterCommentsByType = function(type) {
+  window.currentCommentTypeFilter = type;
+  
+  // Update the "Add New" label to show current type
+  updateCommentTypeLabel(type);
+  
+  // Re-display comments with new filter
+  displayCommentsInModal(window.allCommentsCache);
+  
+  // Cancel any active reply
+  cancelReply();
+};
+
+// Update the comment type label in the form
+function updateCommentTypeLabel(type) {
+  const typeLabel = document.getElementById('comment-type-label');
+  if (typeLabel) {
+    if (type === 'biostat') {
+      typeLabel.textContent = 'Biostat';
+      typeLabel.className = 'badge bg-info ms-1';
+    } else {
+      typeLabel.textContent = 'Programming';
+      typeLabel.className = 'badge bg-warning text-dark ms-1';
+    }
+  }
+}
+
 // Display comments in the modal with blog-style threading
 function displayCommentsInModal(comments) {
   const commentsContainer = document.getElementById('modal-comments-list');
   if (!commentsContainer) return;
   
-  if (!comments || comments.length === 0) {
+  // Filter comments by current type
+  const filteredComments = comments.filter(comment => {
+    const type = comment.comment_type || 'programming';
+    return type === window.currentCommentTypeFilter;
+  });
+  
+  if (!filteredComments || filteredComments.length === 0) {
+    const typeLabel = window.currentCommentTypeFilter === 'biostat' ? 'Biostat' : 'Programming';
     commentsContainer.innerHTML = `
       <div class="text-center p-4 text-muted">
         <i class="fa fa-comment-o fa-2x mb-3"></i>
-        <div>No comments yet.</div>
-        <div class="small">Be the first to add a comment!</div>
+        <div>No ${typeLabel} comments yet.</div>
+        <div class="small">Be the first to add a ${typeLabel.toLowerCase()} comment!</div>
       </div>
     `;
     return;
   }
   
   let html = '';
-  comments.forEach(comment => {
-    html += renderCommentThread(comment, 0);
+  filteredComments.forEach(comment => {
+    html += renderCommentThread(comment, 0, comment.is_resolved);
   });
   
   commentsContainer.innerHTML = html;
@@ -104,11 +172,18 @@ function getCommentTypeClass(commentType) {
 }
 
 // Render a comment thread (parent + nested replies)
-function renderCommentThread(comment, depth) {
+// parentResolved: if true, this comment is part of a resolved thread
+function renderCommentThread(comment, depth, parentResolved = false) {
   const marginLeft = depth * 20;
   const isParent = depth === 0;
   const commentType = comment.comment_type || 'programming';
   const typeClass = getCommentTypeClass(commentType);
+  
+  // Determine if this comment thread is resolved (parent is resolved means whole thread is closed)
+  const isInResolvedThread = parentResolved || comment.is_resolved;
+  
+  // Styling based on resolved state
+  const resolvedClass = isInResolvedThread ? 'comment-resolved' : '';
   const borderClass = isParent 
     ? (commentType === 'biostat' ? 'border-start border-info border-3' : 'border-start border-warning border-3')
     : 'border-start border-secondary border-2';
@@ -119,43 +194,50 @@ function renderCommentThread(comment, depth) {
   
   // Build comment HTML
   let html = `
-    <div class="comment-item mb-3 p-3 ${borderClass} ${typeClass}" 
+    <div class="comment-item mb-3 p-3 ${borderClass} ${typeClass} ${resolvedClass}" 
          style="margin-left: ${marginLeft}px; border-radius: 0.375rem;"
          data-comment-id="${comment.id}"
-         data-comment-type="${commentType}">
+         data-comment-type="${commentType}"
+         data-resolved="${isInResolvedThread}">
       <div class="d-flex justify-content-between align-items-start mb-2">
         <div class="d-flex align-items-center flex-wrap">
-          ${!isParent ? '<i class="fa fa-reply me-2 text-info"></i>' : ''}
-          ${getCommentTypeBadge(commentType)}
+          ${!isParent ? '<i class="fa fa-reply me-2 text-muted"></i>' : ''}
           <strong class="text-primary">${escapeHtml(comment.username)}</strong>
           ${comment.is_resolved ? '<span class="badge bg-success ms-2"><i class="fa fa-check me-1"></i>Resolved</span>' : ''}
+          ${isInResolvedThread && !comment.is_resolved ? '<span class="badge bg-secondary ms-2"><i class="fa fa-lock me-1"></i>Closed</span>' : ''}
         </div>
         <small class="text-muted">${timeAgo}</small>
       </div>
       
-      <div class="comment-text mb-3">${escapeHtml(comment.comment_text)}</div>
+      <div class="comment-text mb-2">${escapeHtml(comment.comment_text)}</div>
       
-      <div class="comment-actions d-flex gap-2">
-        <button class="btn btn-outline-primary btn-sm reply-btn" 
-                data-comment-id="${comment.id}" 
-                data-comment-username="${escapeHtml(comment.username)}">
-          <i class="fa fa-reply me-1"></i>Reply
-        </button>
-        
-        ${isParent && !comment.is_resolved ? `
-          <button class="btn btn-outline-success btn-sm resolve-btn" 
-                  data-comment-id="${comment.id}">
-            <i class="fa fa-check me-1"></i>Resolve
+      ${!isInResolvedThread ? `
+        <div class="comment-actions d-flex gap-2">
+          <button class="btn btn-outline-primary btn-sm reply-btn" 
+                  data-comment-id="${comment.id}" 
+                  data-comment-username="${escapeHtml(comment.username)}">
+            <i class="fa fa-reply me-1"></i>Reply
           </button>
-        ` : ''}
-      </div>
+          
+          ${isParent && !comment.is_resolved ? `
+            <button class="btn btn-outline-success btn-sm resolve-btn" 
+                    data-comment-id="${comment.id}">
+              <i class="fa fa-check me-1"></i>Resolve
+            </button>
+          ` : ''}
+        </div>
+      ` : `
+        <div class="comment-actions">
+          <small class="text-muted"><i class="fa fa-lock me-1"></i>This conversation is closed</small>
+        </div>
+      `}
     </div>
   `;
   
-  // Add nested replies
+  // Add nested replies (pass down resolved state)
   if (comment.replies && comment.replies.length > 0) {
     comment.replies.forEach(reply => {
-      html += renderCommentThread(reply, depth + 1);
+      html += renderCommentThread(reply, depth + 1, isInResolvedThread);
     });
   }
   
@@ -189,30 +271,28 @@ function showReplyForm(parentCommentId, parentUsername) {
   // Update form title and button text
   const formTitle = document.getElementById('comment-form-title');
   const submitBtn = document.getElementById('comment-submit-btn');
+  const cancelBtn = document.getElementById('comment-cancel-reply-btn');
   
   if (formTitle) {
-    formTitle.innerHTML = `<i class="fa fa-reply me-2"></i>Reply to ${escapeHtml(parentUsername)}`;
+    const typeLabel = document.getElementById('comment-type-label');
+    const typeBadgeHtml = typeLabel ? typeLabel.outerHTML : '';
+    formTitle.innerHTML = `<i class="fa fa-reply me-2"></i>Reply to <strong>${escapeHtml(parentUsername)}</strong> ${typeBadgeHtml}`;
   }
   
   if (submitBtn) {
-    submitBtn.innerHTML = '<i class="fa fa-reply me-1"></i>Add Reply';
+    submitBtn.innerHTML = '<i class="fa fa-reply me-1"></i>Submit Reply';
   }
   
-  // Focus on textarea
+  // Show cancel button
+  if (cancelBtn) {
+    cancelBtn.style.display = 'inline-block';
+  }
+  
+  // Focus on textarea and scroll it into view
   const textarea = document.getElementById('comment-text-input');
   if (textarea) {
     textarea.focus();
-  }
-  
-  // Show cancel reply button
-  showCancelReplyButton();
-}
-
-// Show cancel reply button
-function showCancelReplyButton() {
-  const cancelBtn = document.getElementById('comment-cancel-reply-btn');
-  if (cancelBtn) {
-    cancelBtn.style.display = 'inline-block';
+    textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 }
 
@@ -226,11 +306,13 @@ window.cancelReply = function() {
   const cancelBtn = document.getElementById('comment-cancel-reply-btn');
   
   if (formTitle) {
-    formTitle.innerHTML = '<i class="fa fa-plus me-2"></i>Add New Comment';
+    const typeLabel = document.getElementById('comment-type-label');
+    const typeBadgeHtml = typeLabel ? typeLabel.outerHTML : '';
+    formTitle.innerHTML = `<i class="fa fa-plus me-2"></i>Add New ${typeBadgeHtml} Comment`;
   }
   
   if (submitBtn) {
-    submitBtn.innerHTML = '<i class="fa fa-plus me-1"></i>Add Comment';
+    submitBtn.innerHTML = '<i class="fa fa-paper-plane me-1"></i>Submit Comment';
   }
   
   if (cancelBtn) {
@@ -244,9 +326,9 @@ window.cancelReply = function() {
   }
 };
 
-// Get selected comment type from radio buttons
+// Get selected comment type from filter radio buttons
 function getSelectedCommentType() {
-  const selectedRadio = document.querySelector('input[name="comment-type"]:checked');
+  const selectedRadio = document.querySelector('input[name="comment-type-filter"]:checked');
   return selectedRadio ? selectedRadio.value : 'programming';
 }
 
@@ -259,11 +341,12 @@ window.submitComment = function() {
   
   const commentText = textarea.value.trim();
   if (!commentText) {
-    alert('Please enter a comment.');
+    showCommentNotification('Please enter a comment.', 'error');
+    textarea.focus();
     return;
   }
   
-  // Get the selected comment type
+  // Get the selected comment type from filter
   const commentType = getSelectedCommentType();
   
   // Show loading state
@@ -303,16 +386,18 @@ window.submitComment = function() {
     textarea.value = '';
     cancelReply(); // Reset form state
     
-    // Reload comments
+    // Reload comments (will apply current filter)
     loadCommentsForModal(window.currentCommentTrackerId);
     
     // Show success message
-    showCommentNotification('Comment added successfully!', 'success');
+    const typeLabel = commentType === 'biostat' ? 'Biostat' : 'Programming';
+    showCommentNotification(`${typeLabel} comment added successfully!`, 'success');
     
     // Update button badge via Shiny
     if (typeof Shiny !== 'undefined') {
       Shiny.setInputValue('comment_added_event', {
         tracker_id: window.currentCommentTrackerId,
+        comment_type: commentType,
         timestamp: new Date().getTime()
       }, {priority: 'event'});
     }
@@ -330,7 +415,7 @@ window.submitComment = function() {
 
 // Resolve a comment
 function resolveComment(commentId) {
-  if (!confirm('Are you sure you want to resolve this comment?')) {
+  if (!confirm('Resolve this comment? This will close the entire conversation thread and prevent further replies.')) {
     return;
   }
   
@@ -351,7 +436,7 @@ function resolveComment(commentId) {
     loadCommentsForModal(window.currentCommentTrackerId);
     
     // Show success message
-    showCommentNotification('Comment resolved successfully!', 'success');
+    showCommentNotification('Comment resolved! Conversation thread is now closed.', 'success');
     
     // Update button badge via Shiny
     if (typeof Shiny !== 'undefined') {
@@ -453,7 +538,7 @@ function showCommentNotification(message, type = 'info') {
   const toast = document.createElement('div');
   toast.className = `toast align-items-center text-white ${toastClass} border-0`;
   toast.setAttribute('role', 'alert');
-  toast.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+  toast.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 99999; min-width: 300px;';
   
   toast.innerHTML = `
     <div class="d-flex">
@@ -478,7 +563,7 @@ function showCommentNotification(message, type = 'info') {
 
 // Initialize when document is ready
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('Simplified comment system loaded');
+  console.log('Simplified comment system loaded with type filtering');
 });
 
 // Handle custom message from R Shiny for updating comment badges

@@ -885,11 +885,62 @@ reporting_effort_tracker_server <- function(id) {
           tags$div(
             class = "container-fluid",
             
+            # Comment type filter at the TOP (controls viewing AND creating)
+            tags$div(
+              class = "comment-type-filter mb-3 p-3 bg-light rounded",
+              tags$div(
+                class = "d-flex align-items-center justify-content-between flex-wrap gap-2",
+                tags$div(
+                  class = "d-flex align-items-center gap-2",
+                  tags$label("View & Add:", class = "form-label fw-bold mb-0 me-2"),
+                  tags$div(
+                    class = "btn-group",
+                    role = "group",
+                    `aria-label` = "Comment type filter",
+                    tags$input(
+                      type = "radio", 
+                      class = "btn-check comment-type-filter-radio", 
+                      name = "comment-type-filter", 
+                      id = "comment-filter-prog", 
+                      value = "programming", 
+                      checked = "checked",
+                      autocomplete = "off",
+                      onclick = "filterCommentsByType('programming')"
+                    ),
+                    tags$label(
+                      class = "btn btn-outline-warning", 
+                      `for` = "comment-filter-prog", 
+                      tags$i(class = "fa fa-code me-1"),
+                      "Programming",
+                      tags$span(id = "prog-count-badge", class = "badge bg-dark ms-1", "0")
+                    ),
+                    tags$input(
+                      type = "radio", 
+                      class = "btn-check comment-type-filter-radio", 
+                      name = "comment-type-filter", 
+                      id = "comment-filter-biostat", 
+                      value = "biostat",
+                      autocomplete = "off",
+                      onclick = "filterCommentsByType('biostat')"
+                    ),
+                    tags$label(
+                      class = "btn btn-outline-info", 
+                      `for` = "comment-filter-biostat", 
+                      tags$i(class = "fa fa-chart-bar me-1"),
+                      "Biostat",
+                      tags$span(id = "biostat-count-badge", class = "badge bg-dark ms-1", "0")
+                    )
+                  )
+                ),
+                tags$small(class = "text-muted", "Select type to filter comments and set type for new comments")
+              )
+            ),
+            
             # Comments display area
             tags$div(
               id = "modal-comments-list",
               class = "mb-4",
-              style = "max-height: 400px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 1rem;",
+              style = "max-height: 350px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 1rem;",
               tags$div(
                 class = "text-center p-3",
                 tags$div(class = "spinner-border text-primary", role = "status"),
@@ -897,54 +948,16 @@ reporting_effort_tracker_server <- function(id) {
               )
             ),
             
-            # Comment form
+            # Add new comment form (simplified - type is controlled by filter above)
             tags$div(
-              class = "border-top pt-3",
+              class = "comment-form-section border-top pt-3",
               tags$h6(
                 id = "comment-form-title",
-                class = "mb-3",
+                class = "mb-3 d-flex align-items-center",
                 tags$i(class = "fa fa-plus me-2"),
-                "Add New Comment"
-              ),
-              
-              # Comment type selector (radio buttons)
-              tags$div(
-                class = "mb-3",
-                tags$label("Comment Type:", class = "form-label fw-bold me-3"),
-                tags$div(
-                  class = "btn-group",
-                  role = "group",
-                  `aria-label` = "Comment type selector",
-                  tags$input(
-                    type = "radio", 
-                    class = "btn-check", 
-                    name = "comment-type", 
-                    id = "comment-type-prog", 
-                    value = "programming", 
-                    checked = "checked",
-                    autocomplete = "off"
-                  ),
-                  tags$label(
-                    class = "btn btn-outline-warning", 
-                    `for` = "comment-type-prog", 
-                    tags$i(class = "fa fa-code me-1"),
-                    "Programming"
-                  ),
-                  tags$input(
-                    type = "radio", 
-                    class = "btn-check", 
-                    name = "comment-type", 
-                    id = "comment-type-biostat", 
-                    value = "biostat",
-                    autocomplete = "off"
-                  ),
-                  tags$label(
-                    class = "btn btn-outline-info", 
-                    `for` = "comment-type-biostat", 
-                    tags$i(class = "fa fa-chart-bar me-1"),
-                    "Biostat"
-                  )
-                )
+                "Add New ",
+                tags$span(id = "comment-type-label", class = "badge bg-warning text-dark ms-1", "Programming"),
+                " Comment"
               ),
               
               # Comment text input
@@ -966,8 +979,8 @@ reporting_effort_tracker_server <- function(id) {
                   id = "comment-submit-btn",
                   class = "btn btn-primary",
                   onclick = "submitComment()",
-                  tags$i(class = "fa fa-plus me-1"),
-                  "Add Comment"
+                  tags$i(class = "fa fa-paper-plane me-1"),
+                  "Submit Comment"
                 ),
                 tags$button(
                   id = "comment-cancel-reply-btn",
