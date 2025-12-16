@@ -495,12 +495,19 @@ function resolveComment(commentId) {
 // Update comment button badge with separate counts for programming and biostat
 // totalComments: total number of comments (to distinguish "no comments" from "all resolved")
 window.updateCommentButtonBadge = function(trackerId, unresolvedCount, programmingCount, biostatCount, totalComments) {
+  console.log(`updateCommentButtonBadge called: tracker=${trackerId}, prog=${programmingCount}, biostat=${biostatCount}, total=${totalComments}`);
+  
   const button = document.querySelector(`button.comment-btn[data-tracker-id="${trackerId}"]`);
-  if (!button) return;
+  if (!button) {
+    console.warn(`Button not found for tracker ${trackerId}`);
+    return;
+  }
   
   const icon = button.querySelector('i');
   const progBadge = button.querySelector('.comment-badge-prog');
   const biostatBadge = button.querySelector('.comment-badge-biostat');
+  
+  console.log(`Found badges: progBadge=${!!progBadge}, biostatBadge=${!!biostatBadge}`);
   
   // Handle legacy calls with only unresolvedCount (backward compatibility)
   if (programmingCount === undefined && biostatCount === undefined) {
@@ -559,10 +566,13 @@ window.updateCommentButtonBadge = function(trackerId, unresolvedCount, programmi
       if (biostatCount > 0) {
         biostatBadge.textContent = `B:${biostatCount}`;
         biostatBadge.style.display = 'inline';
+        console.log(`Set biostat badge: B:${biostatCount}`);
       } else {
         biostatBadge.style.display = 'none';
       }
     }
+    
+    console.log(`Final button state: class=${button.className}, prog=${progBadge?.textContent}, biostat=${biostatBadge?.textContent}`);
   }
 };
 
