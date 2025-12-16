@@ -136,6 +136,9 @@ reporting_effort_tracker_ui <- function(id) {
                 )
               ),
 
+              # Selection action bar (dynamic - shown when items are selected)
+              uiOutput(ns("selection_action_bar")),
+
               # Three trackers: TLF, SDTM, ADaM
               navset_pill(
                 id = ns("tracker_tabs"),

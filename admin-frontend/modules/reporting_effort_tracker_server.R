@@ -341,6 +341,8 @@ reporting_effort_tracker_server <- function(id) {
            <button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="%s" data-item-id="%s" title="Delete tracker"><i class="fa fa-trash"></i></button>',
           tracker_id %||% "", item$id, tracker_id %||% "", item$id)
         data.frame(
+          Tracker_ID = tracker_id %||% "",  # Hidden column for bulk selection
+          Item_ID = item$id %||% "",  # Hidden column for bulk selection
           Item = item$item_code %||% "",
           Category = item$item_subtype %||% "",
           Prod_Programmer = prod_prog,
@@ -558,15 +560,17 @@ reporting_effort_tracker_server <- function(id) {
     }
 
     # Render TLF Tracker Table (following items module pattern)
-    output$tracker_table_tlf <- DT::renderDataTable({
+    output$tracker_table_tlf <- DT::renderDT({
       eff_id <- current_reporting_effort_id()
       data_list <- tracker_data()
       cat("DEBUG: Rendering TLF tracker table\n")
-      
+
       # Check if a reporting effort is selected
       if (is.null(eff_id)) {
         # No reporting effort selected - show empty table
         empty_df <- data.frame(
+          Tracker_ID = character(0),
+          Item_ID = character(0),
           Item = character(0),
           Category = character(0),
           Prod_Programmer = character(0),
@@ -581,7 +585,7 @@ reporting_effort_tracker_server <- function(id) {
           Actions = character(0),
           stringsAsFactors = FALSE
         )
-        
+
         return(DT::datatable(
           empty_df,
           container = create_tracker_container(),
@@ -589,9 +593,12 @@ reporting_effort_tracker_server <- function(id) {
           options = list(
             dom = 'rtip',
             pageLength = 25,
+            columnDefs = list(
+              list(targets = c(0, 1), visible = FALSE)  # Hide Tracker_ID and Item_ID columns
+            ),
             language = list(emptyTable = "Please select a reporting effort to view tracker items")
           ),
-          escape = FALSE, selection = 'none', rownames = FALSE
+          escape = FALSE, rownames = FALSE
         ))
       }
       
@@ -607,6 +614,8 @@ reporting_effort_tracker_server <- function(id) {
         cat("DEBUG: No TLF tracker data - adding dummy data\n")
         # Add dummy data for demonstration only when effort is selected
         tlf_data <- data.frame(
+          Tracker_ID = c("", "", ""),  # Empty for dummy data
+          Item_ID = c("dummy1", "dummy2", "dummy3"),
           Item = c("T14.1.1", "T14.2.1", "F9.1.1"),
           Category = c("Table", "Table", "Figure"),
           Prod_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
@@ -634,17 +643,17 @@ reporting_effort_tracker_server <- function(id) {
       
       # Apply comment filter
       tlf_data <- filter_by_comments(tlf_data)
-      
-      # Remove Comment_Status column before display (keep only for filtering)
+
+      # Remove Comment_Status column before display (keep Tracker_ID and Item_ID for selection)
       display_data <- if (nrow(tlf_data) > 0 && "Comment_Status" %in% names(tlf_data)) {
         tlf_data[, !names(tlf_data) %in% "Comment_Status", drop = FALSE]
       } else {
         tlf_data
       }
-      
+
       if (TRUE) {  # Always render with the same configuration
         cat("DEBUG: Rendering TLF tracker table with data, rows:", nrow(display_data), "\n")
-        
+
         DT::datatable(
           display_data,
           container = create_tracker_container(),
@@ -656,6 +665,7 @@ reporting_effort_tracker_server <- function(id) {
             autoWidth = TRUE,
             search = list(regex = TRUE, caseInsensitive = TRUE),
             columnDefs = list(
+              list(targets = c(0, 1), visible = FALSE),  # Hide Tracker_ID and Item_ID columns
               list(targets = ncol(display_data) - 2, searchable = FALSE, orderable = FALSE, width = "120px"),  # Comments column
               list(targets = ncol(display_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
             ),
@@ -688,21 +698,23 @@ reporting_effort_tracker_server <- function(id) {
               }",
               ns("tracker_action"), ns("tracker_action")))
           ),
-          escape = FALSE, selection = 'none', rownames = FALSE
+          escape = FALSE, rownames = FALSE
         )
       }
-    })
-    
-    # Render SDTM Tracker Table  
-    output$tracker_table_sdtm <- DT::renderDataTable({
+    }, selection = list(mode = 'multiple', target = 'row'))
+
+    # Render SDTM Tracker Table
+    output$tracker_table_sdtm <- DT::renderDT({
       eff_id <- current_reporting_effort_id()
       data_list <- tracker_data()
       cat("DEBUG: Rendering SDTM tracker table\n")
-      
+
       # Check if a reporting effort is selected
       if (is.null(eff_id)) {
         # No reporting effort selected - show empty table
         empty_df <- data.frame(
+          Tracker_ID = character(0),
+          Item_ID = character(0),
           Item = character(0),
           Category = character(0),
           Prod_Programmer = character(0),
@@ -717,7 +729,7 @@ reporting_effort_tracker_server <- function(id) {
           Actions = character(0),
           stringsAsFactors = FALSE
         )
-        
+
         return(DT::datatable(
           empty_df,
           container = create_tracker_container(),
@@ -725,23 +737,28 @@ reporting_effort_tracker_server <- function(id) {
           options = list(
             dom = 'frtip',
             pageLength = 25,
+            columnDefs = list(
+              list(targets = c(0, 1), visible = FALSE)  # Hide Tracker_ID and Item_ID columns
+            ),
             search = list(regex = TRUE, caseInsensitive = TRUE),
             language = list(emptyTable = "Please select a reporting effort to view tracker items")
           ),
-          escape = FALSE, selection = 'none', rownames = FALSE
+          escape = FALSE, rownames = FALSE
         ))
       }
-      
+
       sdtm_data <- if (is.list(data_list) && !is.null(data_list$sdtm_trackers)) {
         data_list$sdtm_trackers
       } else {
         data.frame()
       }
       cat("DEBUG: SDTM tracker data rows:", nrow(sdtm_data), "\n")
-      
+
       if (nrow(sdtm_data) == 0 && !is.null(eff_id)) {
         # Add dummy SDTM data with new status values
         sdtm_data <- data.frame(
+          Tracker_ID = c("", "", ""),  # Empty for dummy data
+          Item_ID = c("sdtm1", "sdtm2", "sdtm3"),
           Item = c("DM", "AE", "CM"),
           Category = c("SDTM", "SDTM", "SDTM"),
           Prod_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
@@ -766,20 +783,20 @@ reporting_effort_tracker_server <- function(id) {
           stringsAsFactors = FALSE
         )
       }
-      
+
       # Apply comment filter
       sdtm_data <- filter_by_comments(sdtm_data)
-      
+
       # Remove Comment_Status column before display
       display_data <- if (nrow(sdtm_data) > 0 && "Comment_Status" %in% names(sdtm_data)) {
         sdtm_data[, !names(sdtm_data) %in% "Comment_Status", drop = FALSE]
       } else {
         sdtm_data
       }
-      
+
       # Always render with consistent configuration
       cat("DEBUG: Rendering SDTM tracker table with data, rows:", nrow(display_data), "\n")
-      
+
       DT::datatable(
         display_data,
         container = create_tracker_container(),
@@ -791,6 +808,7 @@ reporting_effort_tracker_server <- function(id) {
           ordering = TRUE,
           autoWidth = TRUE,
           columnDefs = list(
+            list(targets = c(0, 1), visible = FALSE),  # Hide Tracker_ID and Item_ID columns
             list(targets = ncol(display_data) - 2, searchable = FALSE, orderable = FALSE, width = "120px"),  # Comments column
             list(targets = ncol(display_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
           ),
@@ -829,20 +847,22 @@ reporting_effort_tracker_server <- function(id) {
             }",
             ns("tracker_action"), ns("tracker_action")))
         ),
-        escape = FALSE, selection = 'none', rownames = FALSE
+        escape = FALSE, rownames = FALSE
       )
-    })
+    }, selection = list(mode = 'multiple', target = 'row'))
 
     # Render ADaM Tracker Table
-    output$tracker_table_adam <- DT::renderDataTable({
+    output$tracker_table_adam <- DT::renderDT({
       eff_id <- current_reporting_effort_id()
-      data_list <- tracker_data()  
+      data_list <- tracker_data()
       cat("DEBUG: Rendering ADaM tracker table\n")
-      
+
       # Check if a reporting effort is selected
       if (is.null(eff_id)) {
         # No reporting effort selected - show empty table
         empty_df <- data.frame(
+          Tracker_ID = character(0),
+          Item_ID = character(0),
           Item = character(0),
           Category = character(0),
           Prod_Programmer = character(0),
@@ -857,7 +877,7 @@ reporting_effort_tracker_server <- function(id) {
           Actions = character(0),
           stringsAsFactors = FALSE
         )
-        
+
         return(DT::datatable(
           empty_df,
           container = create_tracker_container(),
@@ -865,23 +885,28 @@ reporting_effort_tracker_server <- function(id) {
           options = list(
             dom = 'frtip',
             pageLength = 25,
+            columnDefs = list(
+              list(targets = c(0, 1), visible = FALSE)  # Hide Tracker_ID and Item_ID columns
+            ),
             search = list(regex = TRUE, caseInsensitive = TRUE),
             language = list(emptyTable = "Please select a reporting effort to view tracker items")
           ),
-          escape = FALSE, selection = 'none', rownames = FALSE
+          escape = FALSE, rownames = FALSE
         ))
       }
-      
+
       adam_data <- if (is.list(data_list) && !is.null(data_list$adam_trackers)) {
         data_list$adam_trackers
       } else {
         data.frame()
       }
       cat("DEBUG: ADaM tracker data rows:", nrow(adam_data), "\n")
-      
+
       if (nrow(adam_data) == 0 && !is.null(eff_id)) {
         # Add dummy ADaM data with new status values
         adam_data <- data.frame(
+          Tracker_ID = c("", "", ""),  # Empty for dummy data
+          Item_ID = c("adam1", "adam2", "adam3"),
           Item = c("ADSL", "ADAE", "ADEFF"),
           Category = c("ADaM", "ADaM", "ADaM"),
           Prod_Programmer = c("Not Assigned", "Not Assigned", "Not Assigned"),
@@ -906,20 +931,20 @@ reporting_effort_tracker_server <- function(id) {
           stringsAsFactors = FALSE
         )
       }
-      
+
       # Apply comment filter
       adam_data <- filter_by_comments(adam_data)
-      
+
       # Remove Comment_Status column before display
       display_data <- if (nrow(adam_data) > 0 && "Comment_Status" %in% names(adam_data)) {
         adam_data[, !names(adam_data) %in% "Comment_Status", drop = FALSE]
       } else {
         adam_data
       }
-      
+
       # Always render with consistent configuration
       cat("DEBUG: Rendering ADaM tracker table with data, rows:", nrow(display_data), "\n")
-      
+
       DT::datatable(
         display_data,
         container = create_tracker_container(),
@@ -931,6 +956,7 @@ reporting_effort_tracker_server <- function(id) {
           ordering = TRUE,
           autoWidth = TRUE,
           columnDefs = list(
+            list(targets = c(0, 1), visible = FALSE),  # Hide Tracker_ID and Item_ID columns
             list(targets = ncol(display_data) - 2, searchable = FALSE, orderable = FALSE, width = "120px"),  # Comments column
             list(targets = ncol(display_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
           ),
@@ -969,9 +995,9 @@ reporting_effort_tracker_server <- function(id) {
             }",
             ns("tracker_action"), ns("tracker_action")))
         ),
-        escape = FALSE, selection = 'none', rownames = FALSE
+        escape = FALSE, rownames = FALSE
       )
-    })
+    }, selection = list(mode = 'multiple', target = 'row'))
 
     # Reactive values to store modal data
     modal_tracker_id <- reactiveVal(NULL)
@@ -1543,9 +1569,580 @@ reporting_effort_tracker_server <- function(id) {
       }
     })
 
-    # Bulk assign/status placeholders
-    observeEvent(input$bulk_assign_clicked, show_success_notification("Bulk assign coming soon"))
-    observeEvent(input$bulk_status_clicked, show_success_notification("Bulk status update coming soon"))
+    # ===== BULK OPERATIONS SECTION =====
+
+    # Helper function to get the current tab's data
+    get_current_tab_data <- function() {
+      active_tab <- input$tracker_tabs
+      data_list <- tracker_data()
+      if (is.null(data_list)) return(data.frame())
+
+      switch(active_tab,
+        "tlf" = if (!is.null(data_list$tlf_trackers)) data_list$tlf_trackers else data.frame(),
+        "sdtm" = if (!is.null(data_list$sdtm_trackers)) data_list$sdtm_trackers else data.frame(),
+        "adam" = if (!is.null(data_list$adam_trackers)) data_list$adam_trackers else data.frame(),
+        data.frame()
+      )
+    }
+
+    # Get selected row indices for current tab
+    get_current_selection <- reactive({
+      active_tab <- input$tracker_tabs
+      switch(active_tab,
+        "tlf" = input$tracker_table_tlf_rows_selected,
+        "sdtm" = input$tracker_table_sdtm_rows_selected,
+        "adam" = input$tracker_table_adam_rows_selected,
+        NULL
+      )
+    })
+
+    # Get selected tracker data for current tab
+    get_selected_trackers <- reactive({
+      selected_rows <- get_current_selection()
+      if (is.null(selected_rows) || length(selected_rows) == 0) {
+        return(data.frame())
+      }
+
+      tab_data <- get_current_tab_data()
+      if (nrow(tab_data) == 0) return(data.frame())
+
+      # Apply comment filter to get the same data as displayed
+      filtered_data <- filter_by_comments(tab_data)
+      if (nrow(filtered_data) == 0) return(data.frame())
+
+      # Return selected rows
+      filtered_data[selected_rows, , drop = FALSE]
+    })
+
+    # Render selection action bar (dynamic - appears when items selected)
+    output$selection_action_bar <- renderUI({
+      selected_rows <- get_current_selection()
+      active_tab <- input$tracker_tabs
+
+      # Only show if items are selected
+      if (is.null(selected_rows) || length(selected_rows) == 0) {
+        return(NULL)
+      }
+
+      tab_name <- switch(active_tab,
+        "tlf" = "TLF",
+        "sdtm" = "SDTM",
+        "adam" = "ADaM",
+        "Unknown"
+      )
+
+      # Get selection summary
+      selected_data <- get_selected_trackers()
+      prod_assigned <- sum(selected_data$Prod_Programmer != "Not Assigned", na.rm = TRUE)
+      prod_unassigned <- length(selected_rows) - prod_assigned
+      qc_assigned <- sum(selected_data$QC_Programmer != "Not Assigned", na.rm = TRUE)
+      qc_unassigned <- length(selected_rows) - qc_assigned
+
+      div(
+        class = "alert alert-info mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2",
+        style = "padding: 10px 15px;",
+        # Left side: Selection info
+        div(
+          class = "d-flex align-items-center gap-3",
+          tags$strong(paste0(length(selected_rows), " item(s) selected")),
+          tags$span(class = "text-muted", paste0("from ", tab_name, " Tracker")),
+          tags$span(
+            class = "badge bg-warning text-dark",
+            title = "Production assignment status",
+            paste0("Prod: ", prod_assigned, " assigned, ", prod_unassigned, " unassigned")
+          ),
+          tags$span(
+            class = "badge bg-info text-white",
+            title = "QC assignment status",
+            paste0("QC: ", qc_assigned, " assigned, ", qc_unassigned, " unassigned")
+          )
+        ),
+        # Right side: Action buttons
+        div(
+          class = "d-flex gap-2",
+          actionButton(
+            ns("select_all_visible"),
+            "Select All Visible",
+            icon = icon("check-square"),
+            class = "btn btn-outline-secondary btn-sm"
+          ),
+          actionButton(
+            ns("deselect_all"),
+            "Deselect All",
+            icon = icon("square"),
+            class = "btn btn-outline-secondary btn-sm"
+          ),
+          tags$span(class = "vr mx-1"),  # Vertical divider
+          actionButton(
+            ns("bulk_assign_action"),
+            "Bulk Assign",
+            icon = icon("users"),
+            class = "btn btn-primary btn-sm"
+          ),
+          actionButton(
+            ns("bulk_update_action"),
+            "Bulk Update",
+            icon = icon("edit"),
+            class = "btn btn-info btn-sm"
+          )
+        )
+      )
+    })
+
+    # Select All Visible button handler
+    observeEvent(input$select_all_visible, {
+      active_tab <- input$tracker_tabs
+      tab_data <- get_current_tab_data()
+      filtered_data <- filter_by_comments(tab_data)
+
+      if (nrow(filtered_data) == 0) {
+        show_warning_notification("No items to select")
+        return()
+      }
+
+      # Get the proxy for the current table and select all rows
+      proxy <- switch(active_tab,
+        "tlf" = DT::dataTableProxy("tracker_table_tlf"),
+        "sdtm" = DT::dataTableProxy("tracker_table_sdtm"),
+        "adam" = DT::dataTableProxy("tracker_table_adam")
+      )
+
+      # Select all rows (1:nrow gives all visible after filtering)
+      DT::selectRows(proxy, 1:nrow(filtered_data))
+    })
+
+    # Deselect All button handler
+    observeEvent(input$deselect_all, {
+      active_tab <- input$tracker_tabs
+
+      proxy <- switch(active_tab,
+        "tlf" = DT::dataTableProxy("tracker_table_tlf"),
+        "sdtm" = DT::dataTableProxy("tracker_table_sdtm"),
+        "adam" = DT::dataTableProxy("tracker_table_adam")
+      )
+
+      # Clear selection
+      DT::selectRows(proxy, NULL)
+    })
+
+    # Bulk Assign button handler (from action bar)
+    observeEvent(input$bulk_assign_action, {
+      selected_data <- get_selected_trackers()
+      if (nrow(selected_data) == 0) {
+        show_warning_notification("Please select items first")
+        return()
+      }
+
+      # Filter out items without tracker IDs (dummy data)
+      valid_trackers <- selected_data[selected_data$Tracker_ID != "", , drop = FALSE]
+      if (nrow(valid_trackers) == 0) {
+        show_warning_notification("No valid tracker items selected. Please create trackers first.")
+        return()
+      }
+
+      # Get programmers list for dropdown
+      progs <- programmers_list()
+      prog_choices <- c("-- No Change --" = "", "Not Assigned" = "UNASSIGN")
+      if (length(progs) > 0) {
+        prog_choices <- c(prog_choices, setNames(
+          sapply(progs, function(x) x$id),
+          sapply(progs, function(x) x$username)
+        ))
+      }
+
+      # Calculate assignment summary
+      prod_assigned <- sum(valid_trackers$Prod_Programmer != "Not Assigned", na.rm = TRUE)
+      prod_unassigned <- nrow(valid_trackers) - prod_assigned
+      qc_assigned <- sum(valid_trackers$QC_Programmer != "Not Assigned", na.rm = TRUE)
+      qc_unassigned <- nrow(valid_trackers) - qc_assigned
+
+      showModal(modalDialog(
+        title = tagList(icon("users"), " Bulk Assign Programmers"),
+        size = "l",
+
+        # Selection summary
+        div(
+          class = "alert alert-info mb-3",
+          tags$h6(class = "mb-2", paste0(nrow(valid_trackers), " items selected")),
+          div(
+            class = "d-flex gap-3",
+            tags$span(class = "badge bg-warning text-dark",
+              paste0("Prod: ", prod_assigned, " assigned, ", prod_unassigned, " unassigned")),
+            tags$span(class = "badge bg-info text-white",
+              paste0("QC: ", qc_assigned, " assigned, ", qc_unassigned, " unassigned"))
+          )
+        ),
+
+        # Production Section
+        div(
+          class = "card mb-3",
+          div(class = "card-header bg-warning text-dark",
+              tags$h6(bs_icon("gear"), " Production Assignment", class = "mb-0")),
+          div(
+            class = "card-body",
+            selectInput(ns("bulk_prod_programmer"), "Assign Production Programmer:",
+                       choices = prog_choices, selected = ""),
+            checkboxInput(ns("bulk_prod_only_unassigned"), "Only assign to unassigned items", value = FALSE)
+          )
+        ),
+
+        # QC Section
+        div(
+          class = "card mb-3",
+          div(class = "card-header bg-info text-white",
+              tags$h6(bs_icon("check2-circle"), " QC Assignment", class = "mb-0")),
+          div(
+            class = "card-body",
+            selectInput(ns("bulk_qc_programmer"), "Assign QC Programmer:",
+                       choices = prog_choices, selected = ""),
+            checkboxInput(ns("bulk_qc_only_unassigned"), "Only assign to unassigned items", value = FALSE)
+          )
+        ),
+
+        # Validation note
+        div(
+          class = "alert alert-secondary small",
+          tags$strong("Note: "),
+          "Production and QC programmers cannot be the same person for any item."
+        ),
+
+        footer = tagList(
+          modalButton("Cancel"),
+          actionButton(ns("confirm_bulk_assign"), "Apply Changes",
+                      class = "btn btn-primary", icon = icon("check"))
+        )
+      ))
+    })
+
+    # Confirm bulk assign
+    observeEvent(input$confirm_bulk_assign, {
+      selected_data <- get_selected_trackers()
+      valid_trackers <- selected_data[selected_data$Tracker_ID != "", , drop = FALSE]
+
+      prod_prog <- input$bulk_prod_programmer
+      qc_prog <- input$bulk_qc_programmer
+      prod_only_unassigned <- input$bulk_prod_only_unassigned
+      qc_only_unassigned <- input$bulk_qc_only_unassigned
+
+      # Build assignments list
+      assignments <- list()
+
+      for (i in 1:nrow(valid_trackers)) {
+        tracker_id <- valid_trackers$Tracker_ID[i]
+        current_prod <- valid_trackers$Prod_Programmer[i]
+        current_qc <- valid_trackers$QC_Programmer[i]
+
+        # Production assignment
+        if (prod_prog != "") {
+          skip_prod <- prod_only_unassigned && current_prod != "Not Assigned"
+          if (!skip_prod) {
+            if (prod_prog == "UNASSIGN") {
+              assignments <- append(assignments, list(list(
+                tracker_id = tracker_id,
+                user_id = NULL,
+                role = "production"
+              )))
+            } else {
+              # Validation: check if same as QC
+              if (qc_prog != "" && qc_prog != "UNASSIGN" && prod_prog == qc_prog) {
+                show_warning_notification(paste0("Skipping item ", valid_trackers$Item[i],
+                  ": Production and QC programmer cannot be the same"))
+                next
+              }
+              assignments <- append(assignments, list(list(
+                tracker_id = tracker_id,
+                user_id = prod_prog,
+                role = "production"
+              )))
+            }
+          }
+        }
+
+        # QC assignment
+        if (qc_prog != "") {
+          skip_qc <- qc_only_unassigned && current_qc != "Not Assigned"
+          if (!skip_qc) {
+            if (qc_prog == "UNASSIGN") {
+              assignments <- append(assignments, list(list(
+                tracker_id = tracker_id,
+                user_id = NULL,
+                role = "qc"
+              )))
+            } else {
+              # Validation: check if same as production
+              if (prod_prog != "" && prod_prog != "UNASSIGN" && prod_prog == qc_prog) {
+                # Already warned above
+                next
+              }
+              assignments <- append(assignments, list(list(
+                tracker_id = tracker_id,
+                user_id = qc_prog,
+                role = "qc"
+              )))
+            }
+          }
+        }
+      }
+
+      if (length(assignments) == 0) {
+        show_warning_notification("No assignments to apply. Check your selections.")
+        return()
+      }
+
+      # Call bulk assign API
+      result <- bulk_assign_programmers(list(assignments = assignments))
+
+      if ("error" %in% names(result)) {
+        show_error_notification(paste("Bulk assign failed:", result$error))
+      } else {
+        removeModal()
+        show_success_notification(paste0("Successfully updated ", length(assignments), " assignment(s)"))
+
+        # Clear selection and refresh
+        active_tab <- input$tracker_tabs
+        proxy <- switch(active_tab,
+          "tlf" = DT::dataTableProxy("tracker_table_tlf"),
+          "sdtm" = DT::dataTableProxy("tracker_table_sdtm"),
+          "adam" = DT::dataTableProxy("tracker_table_adam")
+        )
+        DT::selectRows(proxy, NULL)
+        load_tracker_tables()
+      }
+    })
+
+    # Bulk Update button handler (from action bar)
+    observeEvent(input$bulk_update_action, {
+      selected_data <- get_selected_trackers()
+      if (nrow(selected_data) == 0) {
+        show_warning_notification("Please select items first")
+        return()
+      }
+
+      # Filter out items without tracker IDs
+      valid_trackers <- selected_data[selected_data$Tracker_ID != "", , drop = FALSE]
+      if (nrow(valid_trackers) == 0) {
+        show_warning_notification("No valid tracker items selected. Please create trackers first.")
+        return()
+      }
+
+      # Status choices with "No Change" option
+      prod_status_choices <- c(
+        "-- No Change --" = "",
+        "Not Started" = "not_started",
+        "In Progress" = "in_progress",
+        "Completed" = "completed",
+        "On Hold" = "on_hold"
+      )
+
+      qc_status_choices <- c(
+        "-- No Change --" = "",
+        "Not Started" = "not_started",
+        "In Progress" = "in_progress",
+        "Completed" = "completed",
+        "Failed" = "failed"
+      )
+
+      priority_choices <- c(
+        "-- No Change --" = "",
+        "Low" = "low",
+        "Medium" = "medium",
+        "High" = "high",
+        "Critical" = "critical"
+      )
+
+      qc_level_choices <- c(
+        "-- No Change --" = "",
+        "None" = "0",
+        "Level 1" = "1",
+        "Level 2" = "2",
+        "Level 3" = "3"
+      )
+
+      showModal(modalDialog(
+        title = tagList(icon("edit"), " Bulk Update Fields"),
+        size = "l",
+
+        # Selection summary
+        div(
+          class = "alert alert-info mb-3",
+          tags$h6(paste0(nrow(valid_trackers), " items selected")),
+          tags$small(class = "text-muted", "Leave fields as 'No Change' to keep existing values")
+        ),
+
+        # Production Section
+        div(
+          class = "card mb-3",
+          div(class = "card-header bg-warning text-dark",
+              tags$h6(bs_icon("gear"), " Production Fields", class = "mb-0")),
+          div(
+            class = "card-body",
+            fluidRow(
+              column(6, selectInput(ns("bulk_prod_status"), "Production Status:",
+                                   choices = prod_status_choices, selected = "")),
+              column(6, selectInput(ns("bulk_priority"), "Priority:",
+                                   choices = priority_choices, selected = ""))
+            ),
+            fluidRow(
+              column(6,
+                div(
+                  class = "d-flex align-items-end gap-2",
+                  div(style = "flex: 1;",
+                    dateInput(ns("bulk_due_date"), "Due Date:", value = NA)
+                  ),
+                  checkboxInput(ns("bulk_due_date_no_change"), "No Change", value = TRUE)
+                )
+              ),
+              column(6, "")
+            )
+          )
+        ),
+
+        # QC Section
+        div(
+          class = "card mb-3",
+          div(class = "card-header bg-info text-white",
+              tags$h6(bs_icon("check2-circle"), " QC Fields", class = "mb-0")),
+          div(
+            class = "card-body",
+            fluidRow(
+              column(6, selectInput(ns("bulk_qc_status"), "QC Status:",
+                                   choices = qc_status_choices, selected = "")),
+              column(6, selectInput(ns("bulk_qc_level"), "QC Level:",
+                                   choices = qc_level_choices, selected = ""))
+            )
+          )
+        ),
+
+        # In Production flag
+        div(
+          class = "card mb-3",
+          div(class = "card-body",
+            div(
+              class = "form-check",
+              tags$input(type = "checkbox", class = "form-check-input",
+                        id = ns("bulk_in_production_check")),
+              tags$label(class = "form-check-label", `for` = ns("bulk_in_production_check"),
+                        "Set In Production flag (only applies to items with QC Status = Completed)")
+            ),
+            checkboxInput(ns("bulk_in_production_no_change"), "No Change to In Production", value = TRUE)
+          )
+        ),
+
+        footer = tagList(
+          modalButton("Cancel"),
+          actionButton(ns("confirm_bulk_update"), "Apply Changes",
+                      class = "btn btn-primary", icon = icon("check"))
+        )
+      ))
+    })
+
+    # Confirm bulk update
+    observeEvent(input$confirm_bulk_update, {
+      selected_data <- get_selected_trackers()
+      valid_trackers <- selected_data[selected_data$Tracker_ID != "", , drop = FALSE]
+
+      prod_status <- input$bulk_prod_status
+      priority <- input$bulk_priority
+      due_date <- input$bulk_due_date
+      due_date_no_change <- input$bulk_due_date_no_change
+      qc_status <- input$bulk_qc_status
+      qc_level <- input$bulk_qc_level
+      in_production_no_change <- input$bulk_in_production_no_change
+
+      # Build updates list
+      updates <- list()
+
+      for (i in 1:nrow(valid_trackers)) {
+        tracker_id <- valid_trackers$Tracker_ID[i]
+        update_obj <- list(tracker_id = tracker_id)
+        has_updates <- FALSE
+
+        # Production status
+        if (prod_status != "") {
+          update_obj$production_status <- prod_status
+          has_updates <- TRUE
+        }
+
+        # Priority
+        if (priority != "") {
+          update_obj$priority <- priority
+          has_updates <- TRUE
+        }
+
+        # Due date
+        if (!due_date_no_change && !is.na(due_date)) {
+          update_obj$due_date <- as.character(due_date)
+          has_updates <- TRUE
+        }
+
+        # QC status
+        if (qc_status != "") {
+          update_obj$qc_status <- qc_status
+          has_updates <- TRUE
+        }
+
+        # QC level
+        if (qc_level != "") {
+          update_obj$qc_level <- qc_level
+          has_updates <- TRUE
+        }
+
+        # In production flag
+        if (!in_production_no_change) {
+          in_prod_checked <- isTRUE(input$bulk_in_production_check)
+          # Only set in_production if QC status is completed
+          if (in_prod_checked) {
+            current_qc_status <- valid_trackers$QC_Status[i]
+            if (qc_status == "completed" || current_qc_status == "Completed") {
+              update_obj$in_production <- TRUE
+              has_updates <- TRUE
+            }
+          } else {
+            update_obj$in_production <- FALSE
+            has_updates <- TRUE
+          }
+        }
+
+        if (has_updates) {
+          updates <- append(updates, list(update_obj))
+        }
+      }
+
+      if (length(updates) == 0) {
+        show_warning_notification("No updates to apply. Please select at least one field to change.")
+        return()
+      }
+
+      # Call bulk status update API
+      result <- bulk_status_update(list(updates = updates))
+
+      if ("error" %in% names(result)) {
+        show_error_notification(paste("Bulk update failed:", result$error))
+      } else {
+        removeModal()
+        show_success_notification(paste0("Successfully updated ", length(updates), " item(s)"))
+
+        # Clear selection and refresh
+        active_tab <- input$tracker_tabs
+        proxy <- switch(active_tab,
+          "tlf" = DT::dataTableProxy("tracker_table_tlf"),
+          "sdtm" = DT::dataTableProxy("tracker_table_sdtm"),
+          "adam" = DT::dataTableProxy("tracker_table_adam")
+        )
+        DT::selectRows(proxy, NULL)
+        load_tracker_tables()
+      }
+    })
+
+    # Legacy dropdown menu handlers (kept for backward compatibility)
+    observeEvent(input$bulk_assign_clicked, {
+      # Trigger the same action as the action bar button
+      shinyjs::click("bulk_assign_action")
+    })
+    observeEvent(input$bulk_status_clicked, {
+      # Trigger the same action as the action bar button
+      shinyjs::click("bulk_update_action")
+    })
     observeEvent(input$workload_summary_clicked, show_success_notification("Workload summary coming soon"))
     
     # Enhanced surgical update event handlers
