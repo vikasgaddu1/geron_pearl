@@ -122,7 +122,7 @@ ui <- page_navbar(
       tags$script(src = paste0("websocket_client.js?v=", as.numeric(Sys.time()))),
       tags$script(src = "shiny_handlers.js"),
       tags$script(src = "crud_activity_manager.js"),
-      tags$script(src = "simplified_comments.js"),
+      tags$script(src = paste0("simplified_comments.js?v=", format(Sys.time(), "%Y%m%d%H%M%S"))),
       tags$script(HTML("
         $(document).on('shiny:connected', function() {
           console.log('Shiny connected - WebSocket should be initializing...');

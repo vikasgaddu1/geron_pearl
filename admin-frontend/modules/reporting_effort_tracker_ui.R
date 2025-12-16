@@ -13,7 +13,7 @@ reporting_effort_tracker_ui <- function(id) {
   # Fluid page as container
   page_fluid(
     # Include simplified comments JavaScript
-    tags$script(src = "simplified_comments.js"),
+    tags$script(src = paste0("simplified_comments.js?v=", format(Sys.time(), "%Y%m%d%H%M%S"))),
     # Center content using d-flex
     div(
       style = "display: flex; justify-content: center; padding: 20px;",
