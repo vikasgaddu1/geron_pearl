@@ -267,14 +267,16 @@ reporting_effort_tracker_server <- function(id) {
             }
           }
         }
-        # Create simplified comments column with modal trigger button (+ green, +N yellow)
+        # Create simplified comments column with modal trigger button
+        # Shows separate badges for Programming (yellow) and Biostat (blue) comments
         comments_column <- if (!is.null(tracker_id) && !is.na(tracker_id) && tracker_id != "") {
           sprintf('<div class="comment-column" data-tracker-id="%s">
                      <button class="btn btn-success btn-sm comment-btn" data-tracker-id="%s" 
                              onclick="showSimplifiedCommentModal(%s)" 
                              title="Comments">
-                       <i class="fa fa-plus"></i>
-                       <span class="comment-badge badge bg-warning text-dark ms-1" style="display: none;"></span>
+                       <i class="fa fa-comments"></i>
+                       <span class="comment-badge-prog badge bg-warning text-dark ms-1" style="display: none;"></span>
+                       <span class="comment-badge-biostat badge bg-info text-white ms-1" style="display: none;"></span>
                      </button>
                    </div>', tracker_id, tracker_id, tracker_id)
         } else {
@@ -903,6 +905,46 @@ reporting_effort_tracker_server <- function(id) {
                 class = "mb-3",
                 tags$i(class = "fa fa-plus me-2"),
                 "Add New Comment"
+              ),
+              
+              # Comment type selector (radio buttons)
+              tags$div(
+                class = "mb-3",
+                tags$label("Comment Type:", class = "form-label fw-bold me-3"),
+                tags$div(
+                  class = "btn-group",
+                  role = "group",
+                  `aria-label` = "Comment type selector",
+                  tags$input(
+                    type = "radio", 
+                    class = "btn-check", 
+                    name = "comment-type", 
+                    id = "comment-type-prog", 
+                    value = "programming", 
+                    checked = "checked",
+                    autocomplete = "off"
+                  ),
+                  tags$label(
+                    class = "btn btn-outline-warning", 
+                    `for` = "comment-type-prog", 
+                    tags$i(class = "fa fa-code me-1"),
+                    "Programming"
+                  ),
+                  tags$input(
+                    type = "radio", 
+                    class = "btn-check", 
+                    name = "comment-type", 
+                    id = "comment-type-biostat", 
+                    value = "biostat",
+                    autocomplete = "off"
+                  ),
+                  tags$label(
+                    class = "btn btn-outline-info", 
+                    `for` = "comment-type-biostat", 
+                    tags$i(class = "fa fa-chart-bar me-1"),
+                    "Biostat"
+                  )
+                )
               ),
               
               # Comment text input

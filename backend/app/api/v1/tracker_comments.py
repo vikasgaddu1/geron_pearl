@@ -232,34 +232,16 @@ async def get_comment_summary(
     Get comment summary for a tracker
     
     Provides statistics about comments for dashboard and analytics.
+    Includes separate counts for programming and biostat comments.
     """
     try:
-        comments = await tracker_comment.get_by_tracker_id(
+        # Use the CRUD method that returns separate counts
+        summary = await tracker_comment.get_comment_summary(
             db=db, 
             tracker_id=tracker_id
         )
         
-        # Calculate summary statistics
-        total_comments = len(comments)
-        parent_comments = [c for c in comments if c.is_parent_comment]
-        replies = [c for c in comments if not c.is_parent_comment]
-        
-        unresolved_count = len([c for c in parent_comments if not c.is_resolved])
-        resolved_parent_comments = len([c for c in parent_comments if c.is_resolved])
-        total_replies = len(replies)
-        
-        latest_comment_at = None
-        if comments:
-            latest_comment_at = max(c.created_at for c in comments)
-        
-        return TrackerCommentSummary(
-            tracker_id=tracker_id,
-            total_comments=total_comments,
-            unresolved_count=unresolved_count,
-            resolved_parent_comments=resolved_parent_comments,
-            total_replies=total_replies,
-            latest_comment_at=latest_comment_at
-        )
+        return TrackerCommentSummary(**summary)
         
     except Exception as e:
         raise HTTPException(

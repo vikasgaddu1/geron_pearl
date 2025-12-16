@@ -90,12 +90,28 @@ function displayCommentsInModal(comments) {
   initializeCommentActions();
 }
 
+// Get comment type badge HTML
+function getCommentTypeBadge(commentType) {
+  if (commentType === 'biostat') {
+    return '<span class="badge bg-info me-2"><i class="fa fa-chart-bar me-1"></i>Biostat</span>';
+  }
+  return '<span class="badge bg-warning text-dark me-2"><i class="fa fa-code me-1"></i>Programming</span>';
+}
+
+// Get comment type CSS class for background styling
+function getCommentTypeClass(commentType) {
+  return commentType === 'biostat' ? 'comment-biostat' : 'comment-programming';
+}
+
 // Render a comment thread (parent + nested replies)
 function renderCommentThread(comment, depth) {
   const marginLeft = depth * 20;
   const isParent = depth === 0;
-  const borderClass = isParent ? 'border-start border-primary border-3' : 'border-start border-info border-2';
-  const bgClass = isParent ? 'bg-light' : 'bg-white';
+  const commentType = comment.comment_type || 'programming';
+  const typeClass = getCommentTypeClass(commentType);
+  const borderClass = isParent 
+    ? (commentType === 'biostat' ? 'border-start border-info border-3' : 'border-start border-warning border-3')
+    : 'border-start border-secondary border-2';
   
   // Format timestamp
   const createdAt = new Date(comment.created_at);
@@ -103,12 +119,14 @@ function renderCommentThread(comment, depth) {
   
   // Build comment HTML
   let html = `
-    <div class="comment-item mb-3 p-3 ${borderClass} ${bgClass}" 
+    <div class="comment-item mb-3 p-3 ${borderClass} ${typeClass}" 
          style="margin-left: ${marginLeft}px; border-radius: 0.375rem;"
-         data-comment-id="${comment.id}">
+         data-comment-id="${comment.id}"
+         data-comment-type="${commentType}">
       <div class="d-flex justify-content-between align-items-start mb-2">
-        <div class="d-flex align-items-center">
+        <div class="d-flex align-items-center flex-wrap">
           ${!isParent ? '<i class="fa fa-reply me-2 text-info"></i>' : ''}
+          ${getCommentTypeBadge(commentType)}
           <strong class="text-primary">${escapeHtml(comment.username)}</strong>
           ${comment.is_resolved ? '<span class="badge bg-success ms-2"><i class="fa fa-check me-1"></i>Resolved</span>' : ''}
         </div>
@@ -226,6 +244,12 @@ window.cancelReply = function() {
   }
 };
 
+// Get selected comment type from radio buttons
+function getSelectedCommentType() {
+  const selectedRadio = document.querySelector('input[name="comment-type"]:checked');
+  return selectedRadio ? selectedRadio.value : 'programming';
+}
+
 // Submit comment or reply
 window.submitComment = function() {
   const textarea = document.getElementById('comment-text-input');
@@ -239,6 +263,9 @@ window.submitComment = function() {
     return;
   }
   
+  // Get the selected comment type
+  const commentType = getSelectedCommentType();
+  
   // Show loading state
   const originalText = submitBtn.innerHTML;
   submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i>Saving...';
@@ -247,7 +274,8 @@ window.submitComment = function() {
   // Prepare API payload
   const payload = {
     tracker_id: parseInt(window.currentCommentTrackerId),
-    comment_text: commentText
+    comment_text: commentText,
+    comment_type: commentType
   };
   
   // Add parent_comment_id if this is a reply
@@ -340,23 +368,59 @@ function resolveComment(commentId) {
   });
 }
 
-// Update comment button badge
-window.updateCommentButtonBadge = function(trackerId, unresolvedCount) {
-  const button = document.querySelector(`[data-tracker-id="${trackerId}"]`);
+// Update comment button badge with separate counts for programming and biostat
+window.updateCommentButtonBadge = function(trackerId, unresolvedCount, programmingCount, biostatCount) {
+  const button = document.querySelector(`button.comment-btn[data-tracker-id="${trackerId}"]`);
   if (!button) return;
   
-  const badge = button.querySelector('.comment-badge');
-  if (!badge) return;
+  const progBadge = button.querySelector('.comment-badge-prog');
+  const biostatBadge = button.querySelector('.comment-badge-biostat');
   
-  if (unresolvedCount === 0) {
-    // Green button, no badge
+  // Handle legacy calls with only unresolvedCount (backward compatibility)
+  if (programmingCount === undefined && biostatCount === undefined) {
+    programmingCount = unresolvedCount;
+    biostatCount = 0;
+  }
+  
+  const totalUnresolved = (programmingCount || 0) + (biostatCount || 0);
+  
+  if (totalUnresolved === 0) {
+    // Green button, no badges
     button.className = 'btn btn-success btn-sm comment-btn';
-    badge.style.display = 'none';
+    if (progBadge) progBadge.style.display = 'none';
+    if (biostatBadge) biostatBadge.style.display = 'none';
   } else {
-    // Yellow button with count badge
-    button.className = 'btn btn-warning btn-sm comment-btn';
-    badge.textContent = `+${unresolvedCount}`;
-    badge.style.display = 'inline';
+    // Show button with appropriate color based on which types have comments
+    if (programmingCount > 0 && biostatCount > 0) {
+      // Both types - use gradient/mixed style
+      button.className = 'btn btn-outline-secondary btn-sm comment-btn';
+    } else if (programmingCount > 0) {
+      // Only programming comments
+      button.className = 'btn btn-warning btn-sm comment-btn';
+    } else {
+      // Only biostat comments
+      button.className = 'btn btn-info btn-sm comment-btn';
+    }
+    
+    // Update programming badge
+    if (progBadge) {
+      if (programmingCount > 0) {
+        progBadge.textContent = `P:${programmingCount}`;
+        progBadge.style.display = 'inline';
+      } else {
+        progBadge.style.display = 'none';
+      }
+    }
+    
+    // Update biostat badge
+    if (biostatBadge) {
+      if (biostatCount > 0) {
+        biostatBadge.textContent = `B:${biostatCount}`;
+        biostatBadge.style.display = 'inline';
+      } else {
+        biostatBadge.style.display = 'none';
+      }
+    }
   }
 };
 
@@ -441,12 +505,14 @@ if (typeof Shiny !== 'undefined') {
         if (summary && typeof summary === 'object') {
           const trackerId = summary.tracker_id;
           const unresolvedCount = summary.unresolved_count || 0;
+          const programmingCount = summary.programming_unresolved_count || 0;
+          const biostatCount = summary.biostat_unresolved_count || 0;
           
-          if (trackerId !== undefined && unresolvedCount !== undefined) {
-            console.log(`Updating button for tracker ${trackerId} with count ${unresolvedCount}`);
-            updateCommentButtonBadge(trackerId, unresolvedCount);
+          if (trackerId !== undefined) {
+            console.log(`Updating button for tracker ${trackerId}: prog=${programmingCount}, biostat=${biostatCount}`);
+            updateCommentButtonBadge(trackerId, unresolvedCount, programmingCount, biostatCount);
           } else {
-            console.warn('Missing tracker_id or unresolved_count in summary:', summary);
+            console.warn('Missing tracker_id in summary:', summary);
           }
         } else {
           console.warn('Invalid summary format:', summary);

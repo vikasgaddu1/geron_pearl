@@ -3,13 +3,18 @@ Pydantic schemas for simplified tracker comment system
 """
 
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Literal
 from pydantic import BaseModel, Field
+
+
+# Valid comment types
+CommentTypeEnum = Literal["programming", "biostat"]
 
 
 class TrackerCommentBase(BaseModel):
     """Base schema for tracker comments"""
     comment_text: str = Field(..., min_length=1, description="Comment content")
+    comment_type: CommentTypeEnum = Field(default="programming", description="Comment type: programming or biostat")
     parent_comment_id: Optional[int] = Field(None, description="Parent comment ID for replies")
 
 
@@ -28,6 +33,7 @@ class TrackerCommentInDB(TrackerCommentBase):
     id: int
     tracker_id: int
     user_id: int
+    comment_type: str = Field(default="programming", description="Comment type: programming or biostat")
     is_resolved: bool
     resolved_by_user_id: Optional[int] = None
     resolved_at: Optional[datetime] = None
@@ -55,7 +61,9 @@ class TrackerCommentSummary(BaseModel):
     """Summary of comments for a tracker"""
     tracker_id: int
     total_comments: int
-    unresolved_count: int  # Only parent comments count toward unresolved badge
+    unresolved_count: int  # Only parent comments count toward unresolved badge (total)
+    programming_unresolved_count: int = Field(default=0, description="Unresolved programming comments")
+    biostat_unresolved_count: int = Field(default=0, description="Unresolved biostat comments")
     resolved_parent_comments: int
     total_replies: int
     latest_comment_at: Optional[datetime] = None
@@ -69,6 +77,7 @@ class CommentWithUserInfo(BaseModel):
     username: str
     parent_comment_id: Optional[int] = None
     comment_text: str
+    comment_type: str = Field(default="programming", description="Comment type: programming or biostat")
     is_resolved: bool
     resolved_by_user_id: Optional[int] = None
     resolved_by_username: Optional[str] = None

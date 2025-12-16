@@ -75,6 +75,7 @@ class TrackerCommentCRUD:
             User.username,
             TrackerComment.parent_comment_id,
             TrackerComment.comment_text,
+            TrackerComment.comment_type,
             TrackerComment.is_resolved,
             TrackerComment.resolved_by_user_id,
             User.username.label("resolved_by_username"),  # Will be overridden by join
@@ -116,6 +117,7 @@ class TrackerCommentCRUD:
                 username=row.username,
                 parent_comment_id=row.parent_comment_id,
                 comment_text=row.comment_text,
+                comment_type=row.comment_type or "programming",
                 is_resolved=row.is_resolved,
                 resolved_by_user_id=row.resolved_by_user_id,
                 resolved_by_username=resolved_by_username,
@@ -243,6 +245,7 @@ class TrackerCommentCRUD:
                 "username": parent.user.username if parent.user else "Unknown",
                 "parent_comment_id": parent.parent_comment_id,
                 "comment_text": parent.comment_text,
+                "comment_type": parent.comment_type or "programming",
                 "is_resolved": parent.is_resolved,
                 "resolved_by_user_id": parent.resolved_by_user_id,
                 "resolved_by_username": parent.resolved_by_user.username if parent.resolved_by_user else None,
@@ -264,6 +267,7 @@ class TrackerCommentCRUD:
                             "username": comment.user.username if comment.user else "Unknown",
                             "parent_comment_id": comment.parent_comment_id,
                             "comment_text": comment.comment_text,
+                            "comment_type": comment.comment_type or "programming",
                             "is_resolved": comment.is_resolved,
                             "resolved_by_user_id": comment.resolved_by_user_id,
                             "resolved_by_username": comment.resolved_by_user.username if comment.resolved_by_user else None,
@@ -402,6 +406,107 @@ class TrackerCommentCRUD:
         except Exception as e:
             await db.rollback()
             raise e
+
+    async def get_comment_summary(
+        self, 
+        db: AsyncSession, 
+        *, 
+        tracker_id: int
+    ) -> Dict[str, Any]:
+        """
+        Get comment summary with separate counts for programming and biostat comments.
+        Only counts unresolved parent comments for badges.
+        """
+        # Get total count
+        total_result = await db.execute(
+            select(func.count(TrackerComment.id))
+            .where(TrackerComment.tracker_id == tracker_id)
+        )
+        total_comments = total_result.scalar() or 0
+        
+        # Get unresolved parent comments count (total)
+        unresolved_result = await db.execute(
+            select(func.count(TrackerComment.id))
+            .where(
+                and_(
+                    TrackerComment.tracker_id == tracker_id,
+                    TrackerComment.parent_comment_id.is_(None),
+                    TrackerComment.is_resolved == False
+                )
+            )
+        )
+        unresolved_count = unresolved_result.scalar() or 0
+        
+        # Get unresolved programming comments count
+        prog_unresolved_result = await db.execute(
+            select(func.count(TrackerComment.id))
+            .where(
+                and_(
+                    TrackerComment.tracker_id == tracker_id,
+                    TrackerComment.parent_comment_id.is_(None),
+                    TrackerComment.is_resolved == False,
+                    TrackerComment.comment_type == "programming"
+                )
+            )
+        )
+        programming_unresolved_count = prog_unresolved_result.scalar() or 0
+        
+        # Get unresolved biostat comments count
+        biostat_unresolved_result = await db.execute(
+            select(func.count(TrackerComment.id))
+            .where(
+                and_(
+                    TrackerComment.tracker_id == tracker_id,
+                    TrackerComment.parent_comment_id.is_(None),
+                    TrackerComment.is_resolved == False,
+                    TrackerComment.comment_type == "biostat"
+                )
+            )
+        )
+        biostat_unresolved_count = biostat_unresolved_result.scalar() or 0
+        
+        # Get resolved parent comments count
+        resolved_result = await db.execute(
+            select(func.count(TrackerComment.id))
+            .where(
+                and_(
+                    TrackerComment.tracker_id == tracker_id,
+                    TrackerComment.parent_comment_id.is_(None),
+                    TrackerComment.is_resolved == True
+                )
+            )
+        )
+        resolved_parent_comments = resolved_result.scalar() or 0
+        
+        # Get total replies count
+        replies_result = await db.execute(
+            select(func.count(TrackerComment.id))
+            .where(
+                and_(
+                    TrackerComment.tracker_id == tracker_id,
+                    TrackerComment.parent_comment_id.isnot(None)
+                )
+            )
+        )
+        total_replies = replies_result.scalar() or 0
+        
+        # Get latest comment timestamp
+        latest_result = await db.execute(
+            select(func.max(TrackerComment.created_at))
+            .where(TrackerComment.tracker_id == tracker_id)
+        )
+        latest_comment_at = latest_result.scalar()
+        
+        return {
+            "tracker_id": tracker_id,
+            "total_comments": total_comments,
+            "unresolved_count": unresolved_count,
+            "programming_unresolved_count": programming_unresolved_count,
+            "biostat_unresolved_count": biostat_unresolved_count,
+            "resolved_parent_comments": resolved_parent_comments,
+            "total_replies": total_replies,
+            "latest_comment_at": latest_comment_at
+        }
 
 
 # Create singleton instance

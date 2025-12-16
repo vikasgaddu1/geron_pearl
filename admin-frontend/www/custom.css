@@ -237,3 +237,63 @@
   border-color: #ffc107 !important;
   color: #000 !important;
 }
+
+/* ===== COMMENT TYPE STYLING ===== */
+
+/* Programming comment styling (yellow/amber) */
+.comment-item.comment-programming {
+  background-color: #fff3cd !important;
+  border-left-color: #ffc107 !important;
+}
+
+/* Biostat comment styling (blue/info) */
+.comment-item.comment-biostat {
+  background-color: #cff4fc !important;
+  border-left-color: #0dcaf0 !important;
+}
+
+/* Programming badge in comment button */
+.comment-badge-prog {
+  font-size: 0.7rem;
+  padding: 0.2em 0.4em;
+}
+
+/* Biostat badge in comment button */
+.comment-badge-biostat {
+  font-size: 0.7rem;
+  padding: 0.2em 0.4em;
+}
+
+/* Comment type selector button styling */
+.btn-check:checked + .btn-outline-warning {
+  background-color: #ffc107 !important;
+  border-color: #ffc107 !important;
+  color: #000 !important;
+}
+
+.btn-check:checked + .btn-outline-info {
+  background-color: #0dcaf0 !important;
+  border-color: #0dcaf0 !important;
+  color: #000 !important;
+}
+
+/* Dark mode comment styling */
+[data-bs-theme="dark"] .comment-item.comment-programming {
+  background-color: #664d03 !important;
+  border-left-color: #ffca2c !important;
+  color: #fff;
+}
+
+[data-bs-theme="dark"] .comment-item.comment-biostat {
+  background-color: #055160 !important;
+  border-left-color: #0dcaf0 !important;
+  color: #fff;
+}
+
+[data-bs-theme="dark"] .comment-item .comment-text {
+  color: #e9ecef;
+}
+
+[data-bs-theme="dark"] .comment-item .text-primary {
+  color: #6ea8fe !important;
+}

@@ -3,12 +3,19 @@ Simplified Tracker Comment Model
 Blog-style comment system for reporting effort tracker items.
 """
 
+import enum
 from typing import Optional, List
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Text
+from sqlalchemy import Boolean, Column, DateTime, Enum as SQLEnum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.db.base import Base
+
+
+class CommentType(str, enum.Enum):
+    """Enum for comment types - Programming team or Biostatistician"""
+    PROGRAMMING = "programming"
+    BIOSTAT = "biostat"
 
 
 class TrackerComment(Base):
@@ -43,6 +50,14 @@ class TrackerComment(Base):
     
     # Comment content
     comment_text = Column(Text, nullable=False)
+    
+    # Comment type (programming or biostat)
+    comment_type = Column(
+        String(20),
+        default=CommentType.PROGRAMMING.value,
+        nullable=False,
+        index=True
+    )
     
     # Simple status tracking
     is_resolved = Column(Boolean, default=False, nullable=False, index=True)
@@ -99,7 +114,7 @@ class TrackerComment(Base):
 
     def __repr__(self):
         try:
-            return f"<TrackerComment(id={self.id}, tracker_id={self.tracker_id}, is_resolved={self.is_resolved})>"
+            return f"<TrackerComment(id={self.id}, tracker_id={self.tracker_id}, type={self.comment_type}, is_resolved={self.is_resolved})>"
         except Exception:
             return f"<TrackerComment(detached)>"
     
