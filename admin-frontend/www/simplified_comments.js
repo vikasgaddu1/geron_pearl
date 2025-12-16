@@ -120,7 +120,16 @@ function updateTypeCountBadges(comments) {
 
 // Filter comments by type (called when filter radio button clicked)
 window.filterCommentsByType = function(type) {
+  console.log('filterCommentsByType called with:', type);
   window.currentCommentTypeFilter = type;
+  
+  // Ensure the correct radio button is checked
+  const radioId = type === 'biostat' ? 'comment-filter-biostat' : 'comment-filter-prog';
+  const radio = document.getElementById(radioId);
+  if (radio) {
+    radio.checked = true;
+    console.log('Set radio checked:', radioId);
+  }
   
   // Update the "Add New" label to show current type
   updateCommentTypeLabel(type);
@@ -350,8 +359,16 @@ window.cancelReply = function() {
 
 // Get selected comment type from filter radio buttons
 function getSelectedCommentType() {
+  // First check the global filter variable (most reliable)
+  if (window.currentCommentTypeFilter) {
+    console.log('Using currentCommentTypeFilter:', window.currentCommentTypeFilter);
+    return window.currentCommentTypeFilter;
+  }
+  // Fallback to reading from radio button
   const selectedRadio = document.querySelector('input[name="comment-type-filter"]:checked');
-  return selectedRadio ? selectedRadio.value : 'programming';
+  const type = selectedRadio ? selectedRadio.value : 'programming';
+  console.log('getSelectedCommentType from radio:', type);
+  return type;
 }
 
 // Submit comment or reply
