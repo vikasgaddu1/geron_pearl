@@ -76,24 +76,46 @@ window.loadCommentsForModal = function(trackerId) {
 
 // Update type count badges in the filter section
 function updateTypeCountBadges(comments) {
-  let progCount = 0;
-  let biostatCount = 0;
+  let progTotal = 0;
+  let progUnresolved = 0;
+  let biostatTotal = 0;
+  let biostatUnresolved = 0;
   
-  // Count unresolved parent comments by type
+  // Count ALL parent comments by type (for filter badges)
   comments.forEach(comment => {
     const type = comment.comment_type || 'programming';
-    if (!comment.is_resolved) {
-      if (type === 'programming') progCount++;
-      else if (type === 'biostat') biostatCount++;
+    if (type === 'programming') {
+      progTotal++;
+      if (!comment.is_resolved) progUnresolved++;
+    } else if (type === 'biostat') {
+      biostatTotal++;
+      if (!comment.is_resolved) biostatUnresolved++;
     }
   });
   
-  // Update badges
+  // Update badges - show total count, with unresolved indicator if any
   const progBadge = document.getElementById('prog-count-badge');
   const biostatBadge = document.getElementById('biostat-count-badge');
   
-  if (progBadge) progBadge.textContent = progCount;
-  if (biostatBadge) biostatBadge.textContent = biostatCount;
+  if (progBadge) {
+    if (progUnresolved > 0) {
+      progBadge.textContent = `${progUnresolved}/${progTotal}`;
+      progBadge.className = 'badge bg-warning text-dark ms-1';
+    } else {
+      progBadge.textContent = progTotal;
+      progBadge.className = progTotal > 0 ? 'badge bg-success ms-1' : 'badge bg-dark ms-1';
+    }
+  }
+  
+  if (biostatBadge) {
+    if (biostatUnresolved > 0) {
+      biostatBadge.textContent = `${biostatUnresolved}/${biostatTotal}`;
+      biostatBadge.className = 'badge bg-info ms-1';
+    } else {
+      biostatBadge.textContent = biostatTotal;
+      biostatBadge.className = biostatTotal > 0 ? 'badge bg-success ms-1' : 'badge bg-dark ms-1';
+    }
+  }
 }
 
 // Filter comments by type (called when filter radio button clicked)
