@@ -271,8 +271,8 @@ reporting_effort_tracker_server <- function(id) {
         # Default: gray outline (no comments), then colored based on comment types
         # Shows separate badges for Programming (P:N yellow) and Biostat (B:N blue) comments
         
-        # Get comment summary for filtering - default to "None"
-        comment_filter <- "None"
+        # Get comment summary for dropdown filtering
+        comment_status <- "none"  # Default: no comments
         if (!is.null(tracker_id) && !is.na(tracker_id) && tracker_id != "") {
           comment_summary <- tryCatch({
             get_tracker_comment_summary(tracker_id)
@@ -280,22 +280,21 @@ reporting_effort_tracker_server <- function(id) {
           
           prog_count <- comment_summary$programming_unresolved_count %||% 0
           biostat_count <- comment_summary$biostat_unresolved_count %||% 0
+          total_count <- comment_summary$total_comments %||% 0
           
           if (prog_count > 0 && biostat_count > 0) {
-            comment_filter <- "Both"
+            comment_status <- "both"
           } else if (prog_count > 0) {
-            comment_filter <- "Prog"
+            comment_status <- "prog"
           } else if (biostat_count > 0) {
-            comment_filter <- "Biostat"
-          } else if ((comment_summary$total_comments %||% 0) > 0) {
-            comment_filter <- "Resolved"
+            comment_status <- "biostat"
+          } else if (total_count > 0) {
+            comment_status <- "resolved"
           }
         }
         
-        # Include hidden filter text for DataTable searching
         comments_column <- if (!is.null(tracker_id) && !is.na(tracker_id) && tracker_id != "") {
           sprintf('<div class="comment-column" data-tracker-id="%s">
-                     <span style="display:none;">%s</span>
                      <button class="btn btn-outline-secondary btn-sm comment-btn" data-tracker-id="%s" 
                              onclick="showSimplifiedCommentModal(%s)" 
                              title="No comments yet">
@@ -303,10 +302,9 @@ reporting_effort_tracker_server <- function(id) {
                        <span class="comment-badge-prog badge bg-warning text-dark ms-1" style="display: none;"></span>
                        <span class="comment-badge-biostat badge bg-info text-white ms-1" style="display: none;"></span>
                      </button>
-                   </div>', tracker_id, comment_filter, tracker_id, tracker_id)
+                   </div>', tracker_id, tracker_id, tracker_id)
         } else {
           '<div class="comment-column">
-             <span style="display:none;">None</span>
              <button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first">
                <i class="fa fa-plus"></i>
              </button>
@@ -330,6 +328,7 @@ reporting_effort_tracker_server <- function(id) {
           QC_Completion = qc_done,
           Comments = comments_column,
           Actions = actions,
+          Comment_Status = comment_status,  # Hidden column for filtering
           stringsAsFactors = FALSE
         )
       }
@@ -369,8 +368,33 @@ reporting_effort_tracker_server <- function(id) {
         if (length(rows)) {
           do.call(rbind, rows)
         } else {
-          data.frame(Item=character(0), Category=character(0), Prod_Programmer=character(0), Prod_Status=character(0), Priority=character(0), Due_Date=character(0), QC_Programmer=character(0), QC_Status=character(0), QC_Level=character(0), QC_Completion=character(0), Comments=character(0), Actions=character(0), stringsAsFactors = FALSE)
+          data.frame(Item=character(0), Category=character(0), Prod_Programmer=character(0), Prod_Status=character(0), Priority=character(0), Due_Date=character(0), QC_Programmer=character(0), QC_Status=character(0), QC_Level=character(0), QC_Completion=character(0), Comments=character(0), Actions=character(0), Comment_Status=character(0), stringsAsFactors = FALSE)
         }
+      }
+      
+      # Helper function to filter data by comment status
+      filter_by_comments <- function(df) {
+        if (nrow(df) == 0) return(df)
+        
+        filter_value <- input$comment_filter %||% "all"
+        
+        if (filter_value == "all") {
+          return(df)
+        } else if (filter_value == "has_comments") {
+          # Any comments (prog, biostat, both, or resolved)
+          return(df[df$Comment_Status != "none", ])
+        } else if (filter_value == "prog") {
+          # Programming comments (prog or both)
+          return(df[df$Comment_Status %in% c("prog", "both"), ])
+        } else if (filter_value == "biostat") {
+          # Biostat comments (biostat or both)
+          return(df[df$Comment_Status %in% c("biostat", "both"), ])
+        } else if (filter_value == "none") {
+          # No comments
+          return(df[df$Comment_Status == "none", ])
+        }
+        
+        return(df)
       }
       
       tlf_df <- to_df(tlf_rows)
@@ -603,15 +627,26 @@ reporting_effort_tracker_server <- function(id) {
             '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="dummy2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="dummy2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
             '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="dummy3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="dummy3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
           ),
+          Comment_Status = c("none", "none", "none"),
           stringsAsFactors = FALSE
         )
       }
       
+      # Apply comment filter
+      tlf_data <- filter_by_comments(tlf_data)
+      
+      # Remove Comment_Status column before display (keep only for filtering)
+      display_data <- if (nrow(tlf_data) > 0 && "Comment_Status" %in% names(tlf_data)) {
+        tlf_data[, !names(tlf_data) %in% "Comment_Status", drop = FALSE]
+      } else {
+        tlf_data
+      }
+      
       if (TRUE) {  # Always render with the same configuration
-        cat("DEBUG: Rendering TLF tracker table with data, rows:", nrow(tlf_data), "\n")
+        cat("DEBUG: Rendering TLF tracker table with data, rows:", nrow(display_data), "\n")
         
         DT::datatable(
-          tlf_data,
+          display_data,
           container = create_tracker_container(),
           filter = 'top',
           options = list(
@@ -621,8 +656,8 @@ reporting_effort_tracker_server <- function(id) {
             autoWidth = TRUE,
             search = list(regex = TRUE, caseInsensitive = TRUE),
             columnDefs = list(
-              list(targets = ncol(tlf_data) - 2, searchable = TRUE, orderable = FALSE, width = "120px"),  # Comments column - searchable for filter values
-              list(targets = ncol(tlf_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
+              list(targets = ncol(display_data) - 2, searchable = FALSE, orderable = FALSE, width = "120px"),  # Comments column
+              list(targets = ncol(display_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
             ),
             drawCallback = JS(sprintf(
               "function(settings){
@@ -717,15 +752,26 @@ reporting_effort_tracker_server <- function(id) {
             '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="sdtm2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="sdtm2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
             '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="sdtm3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="sdtm3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
           ),
+          Comment_Status = c("none", "none", "none"),
           stringsAsFactors = FALSE
         )
       }
       
+      # Apply comment filter
+      sdtm_data <- filter_by_comments(sdtm_data)
+      
+      # Remove Comment_Status column before display
+      display_data <- if (nrow(sdtm_data) > 0 && "Comment_Status" %in% names(sdtm_data)) {
+        sdtm_data[, !names(sdtm_data) %in% "Comment_Status", drop = FALSE]
+      } else {
+        sdtm_data
+      }
+      
       # Always render with consistent configuration
-      cat("DEBUG: Rendering SDTM tracker table with data, rows:", nrow(sdtm_data), "\n")
+      cat("DEBUG: Rendering SDTM tracker table with data, rows:", nrow(display_data), "\n")
       
       DT::datatable(
-        sdtm_data,
+        display_data,
         container = create_tracker_container(),
         filter = 'top',
         options = list(
@@ -735,8 +781,8 @@ reporting_effort_tracker_server <- function(id) {
           ordering = TRUE,
           autoWidth = TRUE,
           columnDefs = list(
-            list(targets = ncol(sdtm_data) - 2, searchable = TRUE, orderable = FALSE, width = "120px"),  # Comments column - searchable for filter values
-            list(targets = ncol(sdtm_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
+            list(targets = ncol(display_data) - 2, searchable = FALSE, orderable = FALSE, width = "120px"),  # Comments column
+            list(targets = ncol(display_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
           ),
           drawCallback = JS(sprintf(
             "function(settings){
@@ -837,15 +883,26 @@ reporting_effort_tracker_server <- function(id) {
             '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="adam2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="adam2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
             '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="adam3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="adam3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
           ),
+          Comment_Status = c("none", "none", "none"),
           stringsAsFactors = FALSE
         )
       }
       
+      # Apply comment filter
+      adam_data <- filter_by_comments(adam_data)
+      
+      # Remove Comment_Status column before display
+      display_data <- if (nrow(adam_data) > 0 && "Comment_Status" %in% names(adam_data)) {
+        adam_data[, !names(adam_data) %in% "Comment_Status", drop = FALSE]
+      } else {
+        adam_data
+      }
+      
       # Always render with consistent configuration
-      cat("DEBUG: Rendering ADaM tracker table with data, rows:", nrow(adam_data), "\n")
+      cat("DEBUG: Rendering ADaM tracker table with data, rows:", nrow(display_data), "\n")
       
       DT::datatable(
-        adam_data,
+        display_data,
         container = create_tracker_container(),
         filter = 'top',
         options = list(
@@ -855,8 +912,8 @@ reporting_effort_tracker_server <- function(id) {
           ordering = TRUE,
           autoWidth = TRUE,
           columnDefs = list(
-            list(targets = ncol(adam_data) - 2, searchable = TRUE, orderable = FALSE, width = "120px"),  # Comments column - searchable for filter values
-            list(targets = ncol(adam_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
+            list(targets = ncol(display_data) - 2, searchable = FALSE, orderable = FALSE, width = "120px"),  # Comments column
+            list(targets = ncol(display_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
           ),
           drawCallback = JS(sprintf(
             "function(settings){

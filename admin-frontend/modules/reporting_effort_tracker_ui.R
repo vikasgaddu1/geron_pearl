@@ -102,14 +102,37 @@ reporting_effort_tracker_ui <- function(id) {
               style = "padding: 10px 0;",
               uiOutput(ns("tracker_error_msg")),
 
-              # Reporting Effort selector (same style as items module)
+              # Reporting Effort selector and Comment filter
               div(
                 id = ns("effort_selector_wrapper"),
                 class = "effort-selector-wrapper mb-3",
                 div(
-                  class = "d-flex align-items-center flex-wrap gap-2",
-                  tags$label("Select Reporting Effort", `for` = ns("selected_reporting_effort"), class = "me-2 mb-0 fw-semibold"),
-                  selectInput(ns("selected_reporting_effort"), NULL, choices = list("Select a Reporting Effort" = ""), width = "520px")
+                  class = "d-flex align-items-center flex-wrap gap-3",
+                  # Reporting Effort selector
+                  div(
+                    class = "d-flex align-items-center gap-2",
+                    tags$label("Reporting Effort:", `for` = ns("selected_reporting_effort"), class = "mb-0 fw-semibold"),
+                    selectInput(ns("selected_reporting_effort"), NULL, choices = list("Select a Reporting Effort" = ""), width = "400px")
+                  ),
+                  # Comment filter dropdown
+                  div(
+                    class = "d-flex align-items-center gap-2",
+                    style = "border-left: 2px solid #dee2e6; padding-left: 15px;",
+                    tags$label("Comments:", `for` = ns("comment_filter"), class = "mb-0 fw-semibold"),
+                    selectInput(
+                      ns("comment_filter"), 
+                      NULL, 
+                      choices = list(
+                        "All Items" = "all",
+                        "With Any Comments" = "has_comments",
+                        "Programming Comments" = "prog",
+                        "Biostat Comments" = "biostat",
+                        "No Comments" = "none"
+                      ),
+                      selected = "all",
+                      width = "200px"
+                    )
+                  )
                 )
               ),
 
