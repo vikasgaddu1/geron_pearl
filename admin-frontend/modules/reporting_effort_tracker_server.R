@@ -1292,11 +1292,18 @@ reporting_effort_tracker_server <- function(id) {
       tracker_id <- modal_tracker_id()
       item_id <- modal_item_id()
 
-      # Validation: if programmer assigned, due date and priority are required
+      # ===== VALIDATION RULES =====
       validation_errors <- c()
 
-      if (input$edit_prod_programmer != "") {
-        # Production programmer is assigned - validate required fields
+      # Get current values
+      prod_programmer <- input$edit_prod_programmer
+      qc_programmer <- input$edit_qc_programmer
+      prod_status <- input$edit_prod_status
+      qc_status <- input$edit_qc_status
+      in_production <- input$edit_in_production
+
+      # Rule 1: If Production Programmer is assigned, Due Date and Priority are required
+      if (prod_programmer != "") {
         # Note: dateInput returns NA when empty, not NULL
         if (is.null(input$edit_due_date) || is.na(input$edit_due_date)) {
           validation_errors <- c(validation_errors, "Due Date is required when Production Programmer is assigned")
@@ -1304,6 +1311,26 @@ reporting_effort_tracker_server <- function(id) {
         if (is.null(input$edit_priority) || input$edit_priority == "") {
           validation_errors <- c(validation_errors, "Priority is required when Production Programmer is assigned")
         }
+      }
+
+      # Rule 2: In Production can only be checked if QC Status is "completed" (QC pass)
+      if (isTRUE(in_production) && qc_status != "completed") {
+        validation_errors <- c(validation_errors, "In Production can only be enabled when QC Status is 'Completed'")
+      }
+
+      # Rule 3: Production and QC Programmer cannot be the same (unless both are Not Assigned)
+      if (prod_programmer != "" && qc_programmer != "" && prod_programmer == qc_programmer) {
+        validation_errors <- c(validation_errors, "Production Programmer and QC Programmer cannot be the same person")
+      }
+
+      # Rule 4: If Production Programmer is Not Assigned, Production Status must be Not Started
+      if (prod_programmer == "" && prod_status != "not_started") {
+        validation_errors <- c(validation_errors, "Production Status must be 'Not Started' when no Production Programmer is assigned")
+      }
+
+      # Rule 5: If QC Programmer is Not Assigned, QC Status must be Not Started
+      if (qc_programmer == "" && qc_status != "not_started") {
+        validation_errors <- c(validation_errors, "QC Status must be 'Not Started' when no QC Programmer is assigned")
       }
 
       # Show validation errors if any
