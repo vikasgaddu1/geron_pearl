@@ -583,6 +583,32 @@ window.updateCommentButtonBadge = function(trackerId, unresolvedCount, programmi
   }
 };
 
+// Refresh all visible comment badges (called after table draw/filter)
+window.refreshAllCommentBadges = function() {
+  const buttons = document.querySelectorAll('button.comment-btn[data-tracker-id]');
+  console.log(`refreshAllCommentBadges: found ${buttons.length} comment buttons`);
+  
+  buttons.forEach(button => {
+    const trackerId = button.getAttribute('data-tracker-id');
+    if (!trackerId) return;
+    
+    // Fetch comment summary for this tracker
+    fetch(`${getApiBaseUrl()}/api/v1/tracker-comments/tracker/${trackerId}/summary`)
+      .then(response => response.ok ? response.json() : null)
+      .then(summary => {
+        if (summary) {
+          const totalComments = summary.total_comments || 0;
+          const unresolvedCount = summary.unresolved_count || 0;
+          const programmingCount = summary.programming_unresolved_count || 0;
+          const biostatCount = summary.biostat_unresolved_count || 0;
+          
+          updateCommentButtonBadge(trackerId, unresolvedCount, programmingCount, biostatCount, totalComments);
+        }
+      })
+      .catch(err => console.warn(`Failed to fetch summary for tracker ${trackerId}:`, err));
+  });
+};
+
 // Utility functions
 function getTimeAgo(date) {
   const now = new Date();

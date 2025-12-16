@@ -675,6 +675,11 @@ reporting_effort_tracker_server <- function(id) {
                   var itemId = $(this).attr('data-item-id');
                   Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
                 });
+                
+                // Refresh comment badges after table draw
+                if (typeof refreshAllCommentBadges === 'function') {
+                  setTimeout(refreshAllCommentBadges, 100);
+                }
               }",
               ns("tracker_action"), ns("tracker_action")))
           ),
@@ -807,6 +812,10 @@ reporting_effort_tracker_server <- function(id) {
                 showSimplifiedCommentModal(trackerId);
               });
               
+              // Refresh comment badges after table draw
+              if (typeof refreshAllCommentBadges === 'function') {
+                setTimeout(refreshAllCommentBadges, 100);
+              }
             }",
             ns("tracker_action"), ns("tracker_action")))
         ),
@@ -938,6 +947,10 @@ reporting_effort_tracker_server <- function(id) {
                 showSimplifiedCommentModal(trackerId);
               });
               
+              // Refresh comment badges after table draw
+              if (typeof refreshAllCommentBadges === 'function') {
+                setTimeout(refreshAllCommentBadges, 100);
+              }
             }",
             ns("tracker_action"), ns("tracker_action")))
         ),
