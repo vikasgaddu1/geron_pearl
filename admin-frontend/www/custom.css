@@ -71,13 +71,22 @@
   border: 2px solid #ffc107 !important;
   border-radius: 8px;
   padding: 5px 10px;
-  animation: subtle-pulse 3s infinite;
+  /* No animation - it interferes with selectize dropdown z-index */
 }
 
 .package-selector-wrapper.has-selection {
   background-color: #d4edda !important;
   border-color: #28a745 !important;
-  animation: none;
+}
+
+/* Ensure text is visible in package selector */
+.package-selector-wrapper .selectize-input {
+  background-color: #fff !important;
+  color: #212529 !important;
+}
+
+.package-selector-wrapper .selectize-input .item {
+  color: #212529 !important;
 }
 
 /* Inline tracker action buttons */
@@ -90,13 +99,85 @@
   border: 2px solid #ffc107 !important;
   border-radius: 8px;
   padding: 5px 10px;
-  animation: subtle-pulse 3s infinite;
+  /* No animation - it interferes with selectize dropdown z-index */
 }
 
 .effort-selector-wrapper.has-selection {
   background-color: #d4edda !important;
   border-color: #28a745 !important;
-  animation: none;
+}
+
+/* Ensure text is visible in effort selector */
+.effort-selector-wrapper .selectize-input {
+  background-color: #fff !important;
+  color: #212529 !important;
+}
+
+.effort-selector-wrapper .selectize-input .item {
+  color: #212529 !important;
+}
+
+/* Ensure selectize dropdown appears above other content including Bootstrap tabs */
+.selectize-dropdown {
+  z-index: 99999 !important;
+  background-color: #fff !important;
+  border: 1px solid #ced4da !important;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.175) !important;
+  isolation: isolate !important;
+  position: absolute !important;
+}
+
+.selectize-dropdown-content {
+  background-color: #fff !important;
+  max-height: 300px !important;
+  overflow-y: auto !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.selectize-dropdown-content .option {
+  background-color: #fff !important;
+  color: #212529 !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  position: relative !important;
+}
+
+.selectize-dropdown-content .option:hover {
+  background-color: #e9ecef !important;
+  color: #212529 !important;
+}
+
+.selectize-dropdown-content .option.active,
+.selectize-dropdown-content .option.selected {
+  background-color: #0d6efd !important;
+  color: #fff !important;
+}
+
+/* Force tabs to stay below dropdown */
+.nav-tabs .nav-link,
+.nav-pills .nav-link {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Dark mode dropdown background */
+[data-bs-theme="dark"] .selectize-dropdown {
+  background-color: #212529 !important;
+  border-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] .selectize-dropdown-content {
+  background-color: #212529 !important;
+}
+
+[data-bs-theme="dark"] .selectize-dropdown-content .option {
+  background-color: #212529 !important;
+}
+
+[data-bs-theme="dark"] .selectize-dropdown-content .option:hover,
+[data-bs-theme="dark"] .selectize-dropdown-content .option.active {
+  background-color: #343a40 !important;
 }
 
 /* Dark mode adjustments for package selector */
@@ -121,13 +202,13 @@
   border-color: #198754 !important;
 }
 
-/* Subtle pulse for package selector when empty */
+/* Subtle pulse for package selector when empty - using box-shadow instead of opacity to avoid stacking context issues */
 @keyframes subtle-pulse {
   0%, 100% {
-    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.4);
   }
   50% {
-    opacity: 0.85;
+    box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.2);
   }
 }
 

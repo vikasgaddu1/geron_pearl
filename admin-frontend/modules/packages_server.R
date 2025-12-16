@@ -150,14 +150,9 @@ packages_server <- function(id) {
                            width = "100%")
                 ),
                 size = "m",
-                footer = div(
-                  class = "d-flex justify-content-end gap-2",
-                  actionButton(ns("cancel_edit_modal"), "Cancel", 
-                              class = "btn btn-secondary"),
-                  actionButton(ns("save_edit_modal"), "Update Package", 
-                              icon = icon("check"),
-                              class = "btn btn-warning")
-                )
+                save_button_id = ns("save_edit_modal"),
+                cancel_button_id = ns("cancel_edit_modal"),
+                save_button_label = "Update Package"
               )
             )
           }

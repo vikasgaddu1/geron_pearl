@@ -14,6 +14,7 @@ reporting_effort_items_server <- function(id) {
     reporting_efforts_list <- reactiveVal(list())
     packages_list <- reactiveVal(list())
     database_releases_lookup <- reactiveVal(list())
+    text_elements_lookup <- reactiveVal(list())  # Lookup for title, population, ICH text elements
     last_update <- reactiveVal(Sys.time())
     is_editing <- reactiveVal(FALSE)
     editing_item_id <- reactiveVal(NULL)
@@ -99,6 +100,22 @@ reporting_effort_items_server <- function(id) {
       }
     }
     
+    # Load text elements lookup for title, population, ICH category display
+    load_text_elements_lookup <- function() {
+      result <- get_text_elements()
+      if (is.null(result) || "error" %in% names(result)) {
+        text_elements_lookup(list())
+        return()
+      }
+      
+      # Build lookup table: id -> label
+      lookup <- list()
+      for (elem in result) {
+        lookup[[as.character(elem$id)]] <- elem$label
+      }
+      text_elements_lookup(lookup)
+    }
+    
     # Load items data for selected reporting effort
     load_items_data <- function() {
       effort_id <- current_reporting_effort_id()
@@ -158,6 +175,9 @@ reporting_effort_items_server <- function(id) {
     
     # Convert TLF items to data frame (matching Package Items format)
     convert_tlf_to_df <- function(items) {
+      # Get text elements lookup for resolving IDs to labels
+      te_lookup <- text_elements_lookup()
+      
       if (length(items) > 0) {
         df <- data.frame(
           ID = sapply(items, function(x) x$id),
@@ -165,22 +185,27 @@ reporting_effort_items_server <- function(id) {
           `Title Key` = sapply(items, function(x) x$item_code %||% ""),
           Title = sapply(items, function(x) {
             if (!is.null(x$tlf_details) && !is.null(x$tlf_details$title_id)) {
-              # For now show Title ID (TODO: resolve to actual title text from text elements)
-              paste0("Title ID: ", x$tlf_details$title_id)
+              # Look up actual title text from text elements
+              title_id <- as.character(x$tlf_details$title_id)
+              te_lookup[[title_id]] %||% ""
             } else {
               ""
             }
           }),
           Population = sapply(items, function(x) {
             if (!is.null(x$tlf_details) && !is.null(x$tlf_details$population_flag_id)) {
-              paste0("Pop ID: ", x$tlf_details$population_flag_id)
+              # Look up actual population text from text elements
+              pop_id <- as.character(x$tlf_details$population_flag_id)
+              te_lookup[[pop_id]] %||% ""
             } else {
               ""
             }
           }),
           `ICH Category` = sapply(items, function(x) {
             if (!is.null(x$tlf_details) && !is.null(x$tlf_details$ich_category_id)) {
-              paste0("ICH ID: ", x$tlf_details$ich_category_id)
+              # Look up actual ICH category text from text elements
+              ich_id <- as.character(x$tlf_details$ich_category_id)
+              te_lookup[[ich_id]] %||% ""
             } else {
               ""
             }
@@ -264,7 +289,7 @@ reporting_effort_items_server <- function(id) {
     observe({
       load_reporting_efforts()
       load_packages()
-      load_text_elements()
+      load_text_elements_lookup()
     })
     
     # Watch for reporting effort selection changes
@@ -971,14 +996,11 @@ reporting_effort_items_server <- function(id) {
             )
           ),
           size = "m",
-          footer = div(
-            class = "d-flex justify-content-end gap-2",
-            actionButton(ns("cancel_bulk_tlf"), "Cancel", 
-                        class = "btn btn-secondary"),
-            actionButton(ns("process_bulk_tlf"), "Upload TLFs", 
-                        icon = icon("upload"),
-                        class = "btn btn-primary")
-          )
+          save_button_id = ns("process_bulk_tlf"),
+          cancel_button_id = ns("cancel_bulk_tlf"),
+          save_button_label = "Upload TLFs",
+          save_button_icon = "upload",
+          save_button_class = "btn-primary"
         )
       )
     })
@@ -1042,14 +1064,11 @@ reporting_effort_items_server <- function(id) {
             )
           ),
           size = "m",
-          footer = div(
-            class = "d-flex justify-content-end gap-2",
-            actionButton(ns("cancel_bulk_dataset"), "Cancel", 
-                        class = "btn btn-secondary"),
-            actionButton(ns("process_bulk_dataset"), "Upload Datasets", 
-                        icon = icon("upload"),
-                        class = "btn btn-primary")
-          )
+          save_button_id = ns("process_bulk_dataset"),
+          cancel_button_id = ns("cancel_bulk_dataset"),
+          save_button_label = "Upload Datasets",
+          save_button_icon = "upload",
+          save_button_class = "btn-primary"
         )
       )
     })
@@ -1118,14 +1137,11 @@ reporting_effort_items_server <- function(id) {
             )
           ),
           size = "m",
-          footer = div(
-            class = "d-flex justify-content-end gap-2",
-            actionButton(ns("cancel_copy_tlf_package"), "Cancel", 
-                        class = "btn btn-secondary"),
-            actionButton(ns("process_copy_tlf_package"), "Copy TLF Items", 
-                        icon = icon("copy"),
-                        class = "btn btn-primary")
-          )
+          save_button_id = ns("process_copy_tlf_package"),
+          cancel_button_id = ns("cancel_copy_tlf_package"),
+          save_button_label = "Copy TLF Items",
+          save_button_icon = "copy",
+          save_button_class = "btn-primary"
         )
       )
     })
@@ -1212,14 +1228,11 @@ reporting_effort_items_server <- function(id) {
             )
           ),
           size = "m",
-          footer = div(
-            class = "d-flex justify-content-end gap-2",
-            actionButton(ns("cancel_copy_tlf_effort"), "Cancel", 
-                        class = "btn btn-secondary"),
-            actionButton(ns("process_copy_tlf_effort"), "Copy TLF Items", 
-                        icon = icon("copy"),
-                        class = "btn btn-primary")
-          )
+          save_button_id = ns("process_copy_tlf_effort"),
+          cancel_button_id = ns("cancel_copy_tlf_effort"),
+          save_button_label = "Copy TLF Items",
+          save_button_icon = "copy",
+          save_button_class = "btn-primary"
         )
       )
     })
@@ -1288,14 +1301,11 @@ reporting_effort_items_server <- function(id) {
             )
           ),
           size = "m",
-          footer = div(
-            class = "d-flex justify-content-end gap-2",
-            actionButton(ns("cancel_copy_dataset_package"), "Cancel", 
-                        class = "btn btn-secondary"),
-            actionButton(ns("process_copy_dataset_package"), "Copy Dataset Items", 
-                        icon = icon("copy"),
-                        class = "btn btn-primary")
-          )
+          save_button_id = ns("process_copy_dataset_package"),
+          cancel_button_id = ns("cancel_copy_dataset_package"),
+          save_button_label = "Copy Dataset Items",
+          save_button_icon = "copy",
+          save_button_class = "btn-primary"
         )
       )
     })
@@ -1382,14 +1392,11 @@ reporting_effort_items_server <- function(id) {
             )
           ),
           size = "m",
-          footer = div(
-            class = "d-flex justify-content-end gap-2",
-            actionButton(ns("cancel_copy_dataset_effort"), "Cancel", 
-                        class = "btn btn-secondary"),
-            actionButton(ns("process_copy_dataset_effort"), "Copy Dataset Items", 
-                        icon = icon("copy"),
-                        class = "btn btn-primary")
-          )
+          save_button_id = ns("process_copy_dataset_effort"),
+          cancel_button_id = ns("cancel_copy_dataset_effort"),
+          save_button_label = "Copy Dataset Items",
+          save_button_icon = "copy",
+          save_button_class = "btn-primary"
         )
       )
     })

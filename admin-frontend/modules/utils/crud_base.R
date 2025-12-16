@@ -314,15 +314,15 @@ setup_crud_refresh_observer <- function(input, load_data_func, module_prefix = N
 # =============================================================================
 
 # Standard edit modal for entity CRUD operations
-create_edit_modal <- function(title, content, size = "m", save_button_id, cancel_button_id = NULL, 
+# If footer is provided, it overrides the default footer generation
+create_edit_modal <- function(title, content = NULL, size = "m", save_button_id = NULL, cancel_button_id = NULL, 
                              save_button_label = "Update", save_button_icon = "check", 
-                             save_button_class = "btn-warning") {
-  modalDialog(
-    title = tagList(bs_icon("pencil"), " ", title),
-    size = size,
-    easyClose = FALSE,
-    content,
-    footer = div(
+                             save_button_class = "btn-warning", footer = NULL, easyClose = FALSE, ...) {
+  # Generate default footer if not provided
+  modal_footer <- if (!is.null(footer)) {
+    footer
+  } else if (!is.null(save_button_id)) {
+    div(
       class = "d-flex justify-content-end gap-2",
       if (!is.null(cancel_button_id)) {
         actionButton(cancel_button_id, "Cancel", class = "btn btn-secondary")
@@ -330,22 +330,33 @@ create_edit_modal <- function(title, content, size = "m", save_button_id, cancel
         modalButton("Cancel")
       },
       actionButton(save_button_id, save_button_label,
-                  icon = bs_icon(save_button_icon),
+                  icon = icon(save_button_icon),
                   class = paste("btn", save_button_class))
     )
+  } else {
+    modalButton("Close")
+  }
+  
+  modalDialog(
+    title = tagList(bs_icon("pencil"), " ", title),
+    size = size,
+    easyClose = easyClose,
+    content,
+    ...,
+    footer = modal_footer
   )
 }
 
 # Standard create modal for new entities
-create_create_modal <- function(title, content, size = "m", save_button_id, cancel_button_id = NULL,
+# If footer is provided, it overrides the default footer generation
+create_create_modal <- function(title, content = NULL, size = "m", save_button_id = NULL, cancel_button_id = NULL,
                                save_button_label = "Create", save_button_icon = "plus",
-                               save_button_class = "btn-success") {
-  modalDialog(
-    title = tagList(bs_icon("plus-circle"), " ", title),
-    size = size,
-    easyClose = FALSE,
-    content,
-    footer = div(
+                               save_button_class = "btn-success", footer = NULL, easyClose = FALSE, ...) {
+  # Generate default footer if not provided
+  modal_footer <- if (!is.null(footer)) {
+    footer
+  } else if (!is.null(save_button_id)) {
+    div(
       class = "d-flex justify-content-end gap-2",
       if (!is.null(cancel_button_id)) {
         actionButton(cancel_button_id, "Cancel", class = "btn btn-secondary")
@@ -353,46 +364,80 @@ create_create_modal <- function(title, content, size = "m", save_button_id, canc
         modalButton("Cancel")
       },
       actionButton(save_button_id, save_button_label,
-                  icon = bs_icon(save_button_icon),
+                  icon = icon(save_button_icon),
                   class = paste("btn", save_button_class))
     )
+  } else {
+    modalButton("Close")
+  }
+  
+  modalDialog(
+    title = tagList(bs_icon("plus-circle"), " ", title),
+    size = size,
+    easyClose = easyClose,
+    content,
+    ...,
+    footer = modal_footer
   )
 }
 
 # Standard delete confirmation modal with enhanced warning
-create_delete_confirmation_modal <- function(entity_type, entity_name, confirm_button_id, 
-                                           additional_info = NULL, warning_message = NULL) {
+# Supports two calling conventions:
+# 1. Standard: create_delete_confirmation_modal(entity_type, entity_name, confirm_button_id, ...)
+# 2. Custom: create_delete_confirmation_modal(title = ..., content = ..., footer = ..., size = ...)
+create_delete_confirmation_modal <- function(entity_type = NULL, entity_name = NULL, confirm_button_id = NULL, 
+                                           additional_info = NULL, warning_message = NULL,
+                                           title = NULL, content = NULL, footer = NULL, size = "m", ...) {
+  # Custom API: use provided title, content, and footer directly
+  if (!is.null(title) && !is.null(content)) {
+    return(modalDialog(
+      title = title,
+      content,
+      ...,
+      footer = if (!is.null(footer)) footer else modalButton("Close"),
+      easyClose = FALSE,
+      size = size
+    ))
+  }
+  
+  # Standard API: generate content from entity_type and entity_name
   default_warning <- "This action cannot be undone!"
   warning_text <- if (!is.null(warning_message)) warning_message else default_warning
   
-  content <- tagList(
+  generated_content <- tagList(
     tags$div(class = "alert alert-danger",
       tags$strong("Warning: "), warning_text
     ),
-    tags$p(paste("Are you sure you want to delete this", tolower(entity_type), "?")),
+    tags$p(paste("Are you sure you want to delete this", tolower(entity_type %||% "item"), "?")),
     tags$hr(),
     tags$dl(
-      tags$dt(paste(entity_type, "Name:")),
-      tags$dd(tags$strong(entity_name))
+      tags$dt(paste(entity_type %||% "Item", "Name:")),
+      tags$dd(tags$strong(entity_name %||% ""))
     )
   )
   
   # Add additional info if provided
   if (!is.null(additional_info)) {
-    content <- tagList(content, additional_info)
+    generated_content <- tagList(generated_content, additional_info)
   }
   
   modalDialog(
     title = tagList(bs_icon("exclamation-triangle", class = "text-danger"), " Confirm Deletion"),
-    content,
-    footer = tagList(
-      actionButton(confirm_button_id, paste("Delete", entity_type),
-                  icon = bs_icon("trash"),
-                  class = "btn-danger"),
-      modalButton("Cancel")
-    ),
+    generated_content,
+    footer = if (!is.null(footer)) {
+      footer
+    } else if (!is.null(confirm_button_id)) {
+      tagList(
+        actionButton(confirm_button_id, paste("Delete", entity_type %||% "Item"),
+                    icon = bs_icon("trash"),
+                    class = "btn-danger"),
+        modalButton("Cancel")
+      )
+    } else {
+      modalButton("Close")
+    },
     easyClose = FALSE,
-    size = "m"
+    size = size
   )
 }
 

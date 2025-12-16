@@ -154,16 +154,13 @@ ui <- page_navbar(
   nav_menu(
     "Packages",
     nav_panel("Packages", value = "packages_tab", packages_ui("packages")),
-    nav_panel("Package Items", value = "package_items_tab", package_items_ui("package_items")),
-    nav_panel("Package Installer", disabled = TRUE),
-    nav_panel("Package Config", disabled = TRUE)
+    nav_panel("Package Items", value = "package_items_tab", package_items_ui("package_items"))
   ),
 
   nav_menu(
     "Reporting Management",
     nav_panel("Reporting Effort Items", value = "reporting_effort_items_tab", reporting_effort_items_ui("reporting_effort_items")),
-    nav_panel("Tracker Management", value = "reporting_effort_tracker_tab", reporting_effort_tracker_ui("reporting_effort_tracker")),
-    nav_panel("Progress Reports", disabled = TRUE)
+    nav_panel("Tracker Management", value = "reporting_effort_tracker_tab", reporting_effort_tracker_ui("reporting_effort_tracker"))
   ),
 
   # (Removed Health Check nav; show compact health badge instead)
