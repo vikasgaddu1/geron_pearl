@@ -336,10 +336,7 @@ reporting_effort_tracker_server <- function(id) {
            </div>'
         }
         
-        actions <- sprintf(
-          '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="%s" data-item-id="%s" title="Edit tracker"><i class="fa fa-pencil"></i></button>
-           <button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="%s" data-item-id="%s" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-          tracker_id %||% "", item$id, tracker_id %||% "", item$id)
+        # Note: Actions column removed - Edit/Delete now shown in selection action bar
         data.frame(
           Tracker_ID = tracker_id %||% "",  # Hidden column for bulk selection
           Item_ID = item$id %||% "",  # Hidden column for bulk selection
@@ -354,7 +351,6 @@ reporting_effort_tracker_server <- function(id) {
           QC_Level = qc_level,
           QC_Completion = qc_done,
           Comments = comments_column,
-          Actions = actions,
           Comment_Status = comment_status,  # Hidden column for filtering
           stringsAsFactors = FALSE
         )
@@ -395,7 +391,7 @@ reporting_effort_tracker_server <- function(id) {
         if (length(rows)) {
           do.call(rbind, rows)
         } else {
-          data.frame(Item=character(0), Category=character(0), Prod_Programmer=character(0), Prod_Status=character(0), Priority=character(0), Due_Date=character(0), QC_Programmer=character(0), QC_Status=character(0), QC_Level=character(0), QC_Completion=character(0), Comments=character(0), Actions=character(0), Comment_Status=character(0), stringsAsFactors = FALSE)
+          data.frame(Tracker_ID=character(0), Item_ID=character(0), Item=character(0), Category=character(0), Prod_Programmer=character(0), Prod_Status=character(0), Priority=character(0), Due_Date=character(0), QC_Programmer=character(0), QC_Status=character(0), QC_Level=character(0), QC_Completion=character(0), Comments=character(0), Comment_Status=character(0), stringsAsFactors = FALSE)
         }
       }
       
@@ -532,31 +528,72 @@ reporting_effort_tracker_server <- function(id) {
       })
     }
 
-    # Create single container function for consistency
-    create_tracker_container <- function() {
-      htmltools::withTags(table(
-        class = 'display',
-        thead(
-          tr(
-            th(rowspan = 2, 'Item'),
-            th(rowspan = 2, 'Category'),
-            th(colspan = 4, 'Production', style = 'text-align: center; background-color: #f8f9fa;'),
-            th(colspan = 4, 'QC', style = 'text-align: center; background-color: #e9ecef;'),
-            th(rowspan = 2, 'Comments'),
-            th(rowspan = 2, 'Actions')
-          ),
-          tr(
-            th('Programmer'),
-            th('Status'),
-            th('Priority'),
-            th('Due Date'),
-            th('Programmer'),
-            th('Status'),
-            th('QC Level'),
-            th('QC Completion')
-          )
-        )
-      ))
+    # Create tracker datatable options with grouped header
+    # Columns: Tracker_ID(hidden), Item_ID(hidden), Item, Category, Prod_Programmer, Prod_Status, Priority, Due_Date,
+    #          QC_Programmer, QC_Status, QC_Level, QC_Completion, Comments
+    # Visible columns (11 total): Item, Category, [Production: Programmer, Status, Priority, Due Date], [QC: Programmer, Status, Level, Done], Comments
+    get_tracker_dt_options <- function(ncols) {
+      list(
+        dom = 'frtip',
+        pageLength = 25,
+        ordering = TRUE,
+        autoWidth = FALSE,
+        search = list(regex = TRUE, caseInsensitive = TRUE),
+        columnDefs = list(
+          list(targets = c(0, 1), visible = FALSE),  # Hide Tracker_ID and Item_ID
+          list(targets = ncols - 1, searchable = FALSE, orderable = FALSE, width = "100px"),
+          list(targets = "_all", className = "dt-center")
+        ),
+        drawCallback = JS("
+          function(settings) {
+            var api = this.api();
+            var $table = $(api.table().node());
+            var $thead = $table.find('thead');
+
+            // Add grouped header row if not already present
+            if ($thead.find('tr.grouped-header').length === 0) {
+              // Find the header row with column names
+              var $headerRow = $thead.find('tr').first();
+
+              // Get only VISIBLE column headers using DataTables API
+              var visibleHeaders = api.columns(':visible').header().toArray();
+
+              // Friendly names for visible columns (11 total)
+              // Item, Category, [Production: Programmer, Status, Priority, Due Date], [QC: Programmer, Status, Level, Done], Comments
+              var headerNames = ['Item', 'Category', 'Programmer', 'Status', 'Priority', 'Due Date', 'Programmer', 'Status', 'Level', 'Done', 'Comments'];
+
+              // Rename visible column headers only
+              visibleHeaders.forEach(function(th, i) {
+                if (i < headerNames.length) {
+                  $(th).text(headerNames[i]);
+                }
+              });
+
+              // Create grouped header row for visible columns (11 total)
+              // Structure: Item | Category | Production (4 cols) | QC (4 cols) | Comments
+              var groupedRow = $('<tr class=\"grouped-header\"></tr>');
+              groupedRow.append('<th style=\"text-align: center; border-bottom: 2px solid #dee2e6; background-color: #f8f9fa;\"></th>');  // Item
+              groupedRow.append('<th style=\"text-align: center; border-bottom: 2px solid #dee2e6; background-color: #f8f9fa;\"></th>');  // Category
+              groupedRow.append('<th colspan=\"4\" style=\"text-align: center; background-color: #fff8e1; border-bottom: 3px solid #ffc107; font-weight: 600; color: #856404;\">Production</th>');
+              groupedRow.append('<th colspan=\"4\" style=\"text-align: center; background-color: #e3f2fd; border-bottom: 3px solid #0d6efd; font-weight: 600; color: #084298;\">QC</th>');
+              groupedRow.append('<th style=\"text-align: center; border-bottom: 2px solid #dee2e6; background-color: #f8f9fa;\"></th>');  // Comments
+
+              // Insert before the first header row
+              $headerRow.before(groupedRow);
+
+              // Add subtle background colors to sub-headers for visual grouping
+              var $subHeaders = $headerRow.find('th:visible');
+              $subHeaders.slice(2, 6).css({'background-color': '#fffdf5'});  // Production columns (light yellow tint)
+              $subHeaders.slice(6, 10).css({'background-color': '#f8fbff'}); // QC columns (light blue tint)
+            }
+
+            // Refresh comment badges
+            if (typeof refreshAllCommentBadges === 'function') {
+              setTimeout(refreshAllCommentBadges, 100);
+            }
+          }
+        ")
+      )
     }
 
     # Render TLF Tracker Table (following items module pattern)
@@ -582,22 +619,15 @@ reporting_effort_tracker_server <- function(id) {
           QC_Level = character(0),
           QC_Completion = character(0),
           Comments = character(0),
-          Actions = character(0),
           stringsAsFactors = FALSE
         )
 
+        opts <- get_tracker_dt_options(ncol(empty_df))
+        opts$language <- list(emptyTable = "Please select a reporting effort to view tracker items")
         return(DT::datatable(
           empty_df,
-          container = create_tracker_container(),
           filter = 'top',
-          options = list(
-            dom = 'rtip',
-            pageLength = 25,
-            columnDefs = list(
-              list(targets = c(0, 1), visible = FALSE)  # Hide Tracker_ID and Item_ID columns
-            ),
-            language = list(emptyTable = "Please select a reporting effort to view tracker items")
-          ),
+          options = opts,
           escape = FALSE, rownames = FALSE
         ))
       }
@@ -631,11 +661,6 @@ reporting_effort_tracker_server <- function(id) {
             '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>',
             '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>'
           ),
-          Actions = c(
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="dummy1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="dummy1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="dummy2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="dummy2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="dummy3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="dummy3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
-          ),
           Comment_Status = c("none", "none", "none"),
           stringsAsFactors = FALSE
         )
@@ -651,56 +676,15 @@ reporting_effort_tracker_server <- function(id) {
         tlf_data
       }
 
-      if (TRUE) {  # Always render with the same configuration
-        cat("DEBUG: Rendering TLF tracker table with data, rows:", nrow(display_data), "\n")
+      cat("DEBUG: Rendering TLF tracker table with data, rows:", nrow(display_data), "\n")
 
-        DT::datatable(
-          display_data,
-          container = create_tracker_container(),
-          filter = 'top',
-          options = list(
-            dom = 'rtip',
-            pageLength = 25,
-            ordering = TRUE,
-            autoWidth = TRUE,
-            search = list(regex = TRUE, caseInsensitive = TRUE),
-            columnDefs = list(
-              list(targets = c(0, 1), visible = FALSE),  # Hide Tracker_ID and Item_ID columns
-              list(targets = ncol(display_data) - 2, searchable = FALSE, orderable = FALSE, width = "120px"),  # Comments column
-              list(targets = ncol(display_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
-            ),
-            drawCallback = JS(sprintf(
-              "function(settings){
-                var api = this.api();
-                var tbl = $(api.table().node()).closest('.dataTables_wrapper').find('table');
-
-                // Edit/Delete button handlers - use event.stopPropagation to prevent comment modal from opening
-                tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(e){
-                  e.stopPropagation();
-                  e.preventDefault();
-                  var id = $(this).attr('data-id');
-                  var itemId = $(this).attr('data-item-id');
-                  console.log('TLF Edit clicked: tracker_id=' + id + ', item_id=' + itemId);
-                  Shiny.setInputValue('%s', {action: 'edit', id: id, itemId: itemId}, {priority: 'event'});
-                });
-                tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(e){
-                  e.stopPropagation();
-                  e.preventDefault();
-                  var id = $(this).attr('data-id');
-                  var itemId = $(this).attr('data-item-id');
-                  Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
-                });
-
-                // Refresh comment badges after table draw
-                if (typeof refreshAllCommentBadges === 'function') {
-                  setTimeout(refreshAllCommentBadges, 100);
-                }
-              }",
-              ns("tracker_action"), ns("tracker_action")))
-          ),
-          escape = FALSE, rownames = FALSE
-        )
-      }
+      DT::datatable(
+        display_data,
+        filter = 'top',
+        options = get_tracker_dt_options(ncol(display_data)),
+        escape = FALSE, 
+        rownames = FALSE
+      )
     }, selection = list(mode = 'multiple', target = 'row'))
 
     # Render SDTM Tracker Table
@@ -726,23 +710,15 @@ reporting_effort_tracker_server <- function(id) {
           QC_Level = character(0),
           QC_Completion = character(0),
           Comments = character(0),
-          Actions = character(0),
           stringsAsFactors = FALSE
         )
 
+        opts <- get_tracker_dt_options(ncol(empty_df))
+        opts$language <- list(emptyTable = "Please select a reporting effort to view tracker items")
         return(DT::datatable(
           empty_df,
-          container = create_tracker_container(),
           filter = 'top',
-          options = list(
-            dom = 'frtip',
-            pageLength = 25,
-            columnDefs = list(
-              list(targets = c(0, 1), visible = FALSE)  # Hide Tracker_ID and Item_ID columns
-            ),
-            search = list(regex = TRUE, caseInsensitive = TRUE),
-            language = list(emptyTable = "Please select a reporting effort to view tracker items")
-          ),
+          options = opts,
           escape = FALSE, rownames = FALSE
         ))
       }
@@ -774,11 +750,6 @@ reporting_effort_tracker_server <- function(id) {
             '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>',
             '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>'
           ),
-          Actions = c(
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="sdtm1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="sdtm1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="sdtm2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="sdtm2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="sdtm3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="sdtm3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
-          ),
           Comment_Status = c("none", "none", "none"),
           stringsAsFactors = FALSE
         )
@@ -794,60 +765,14 @@ reporting_effort_tracker_server <- function(id) {
         sdtm_data
       }
 
-      # Always render with consistent configuration
       cat("DEBUG: Rendering SDTM tracker table with data, rows:", nrow(display_data), "\n")
 
       DT::datatable(
         display_data,
-        container = create_tracker_container(),
         filter = 'top',
-        options = list(
-          dom = 'frtip',
-          pageLength = 25,
-          search = list(regex = TRUE, caseInsensitive = TRUE),
-          ordering = TRUE,
-          autoWidth = TRUE,
-          columnDefs = list(
-            list(targets = c(0, 1), visible = FALSE),  # Hide Tracker_ID and Item_ID columns
-            list(targets = ncol(display_data) - 2, searchable = FALSE, orderable = FALSE, width = "120px"),  # Comments column
-            list(targets = ncol(display_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
-          ),
-          drawCallback = JS(sprintf(
-            "function(settings){
-              var api = this.api();
-              var tbl = $(api.table().node()).closest('.dataTables_wrapper').find('table');
-
-              // Edit/Delete button handlers - use event.stopPropagation to prevent comment modal from opening
-              tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(e){
-                e.stopPropagation();
-                e.preventDefault();
-                var id = $(this).attr('data-id');
-                var itemId = $(this).attr('data-item-id');
-                console.log('SDTM Edit clicked: tracker_id=' + id + ', item_id=' + itemId);
-                Shiny.setInputValue('%s', {action: 'edit', id: id, itemId: itemId}, {priority: 'event'});
-              });
-              tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(e){
-                e.stopPropagation();
-                e.preventDefault();
-                var id = $(this).attr('data-id');
-                var itemId = $(this).attr('data-item-id');
-                Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
-              });
-
-              // Comment modal button handlers
-              tbl.find('.comment-btn').off('click').on('click', function(){
-                var trackerId = $(this).attr('data-tracker-id');
-                showSimplifiedCommentModal(trackerId);
-              });
-
-              // Refresh comment badges after table draw
-              if (typeof refreshAllCommentBadges === 'function') {
-                setTimeout(refreshAllCommentBadges, 100);
-              }
-            }",
-            ns("tracker_action"), ns("tracker_action")))
-        ),
-        escape = FALSE, rownames = FALSE
+        options = get_tracker_dt_options(ncol(display_data)),
+        escape = FALSE, 
+        rownames = FALSE
       )
     }, selection = list(mode = 'multiple', target = 'row'))
 
@@ -874,23 +799,15 @@ reporting_effort_tracker_server <- function(id) {
           QC_Level = character(0),
           QC_Completion = character(0),
           Comments = character(0),
-          Actions = character(0),
           stringsAsFactors = FALSE
         )
 
+        opts <- get_tracker_dt_options(ncol(empty_df))
+        opts$language <- list(emptyTable = "Please select a reporting effort to view tracker items")
         return(DT::datatable(
           empty_df,
-          container = create_tracker_container(),
           filter = 'top',
-          options = list(
-            dom = 'frtip',
-            pageLength = 25,
-            columnDefs = list(
-              list(targets = c(0, 1), visible = FALSE)  # Hide Tracker_ID and Item_ID columns
-            ),
-            search = list(regex = TRUE, caseInsensitive = TRUE),
-            language = list(emptyTable = "Please select a reporting effort to view tracker items")
-          ),
+          options = opts,
           escape = FALSE, rownames = FALSE
         ))
       }
@@ -922,11 +839,6 @@ reporting_effort_tracker_server <- function(id) {
             '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>',
             '<div class="comment-column"><button class="btn btn-outline-secondary btn-sm" disabled title="Create tracker first"><i class="fa fa-plus"></i></button></div>'
           ),
-          Actions = c(
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="adam1" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="adam1" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="adam2" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="adam2" title="Delete tracker"><i class="fa fa-trash"></i></button>',
-            '<button class="btn btn-warning btn-sm me-1" data-action="edit" data-id="" data-item-id="adam3" title="Edit tracker"><i class="fa fa-pencil"></i></button><button class="btn btn-danger btn-sm me-1" data-action="delete" data-id="" data-item-id="adam3" title="Delete tracker"><i class="fa fa-trash"></i></button>'
-          ),
           Comment_Status = c("none", "none", "none"),
           stringsAsFactors = FALSE
         )
@@ -942,60 +854,14 @@ reporting_effort_tracker_server <- function(id) {
         adam_data
       }
 
-      # Always render with consistent configuration
       cat("DEBUG: Rendering ADaM tracker table with data, rows:", nrow(display_data), "\n")
 
       DT::datatable(
         display_data,
-        container = create_tracker_container(),
         filter = 'top',
-        options = list(
-          dom = 'frtip',
-          pageLength = 25,
-          search = list(regex = TRUE, caseInsensitive = TRUE),
-          ordering = TRUE,
-          autoWidth = TRUE,
-          columnDefs = list(
-            list(targets = c(0, 1), visible = FALSE),  # Hide Tracker_ID and Item_ID columns
-            list(targets = ncol(display_data) - 2, searchable = FALSE, orderable = FALSE, width = "120px"),  # Comments column
-            list(targets = ncol(display_data) - 1, searchable = FALSE, orderable = FALSE)  # Actions column
-          ),
-          drawCallback = JS(sprintf(
-            "function(settings){
-              var api = this.api();
-              var tbl = $(api.table().node()).closest('.dataTables_wrapper').find('table');
-
-              // Edit/Delete button handlers - use event.stopPropagation to prevent comment modal from opening
-              tbl.find('button[data-action=\\'edit\\']').off('click').on('click', function(e){
-                e.stopPropagation();
-                e.preventDefault();
-                var id = $(this).attr('data-id');
-                var itemId = $(this).attr('data-item-id');
-                console.log('ADaM Edit clicked: tracker_id=' + id + ', item_id=' + itemId);
-                Shiny.setInputValue('%s', {action: 'edit', id: id, itemId: itemId}, {priority: 'event'});
-              });
-              tbl.find('button[data-action=\\'delete\\']').off('click').on('click', function(e){
-                e.stopPropagation();
-                e.preventDefault();
-                var id = $(this).attr('data-id');
-                var itemId = $(this).attr('data-item-id');
-                Shiny.setInputValue('%s', {action: 'delete', id: id, itemId: itemId}, {priority: 'event'});
-              });
-
-              // Comment modal button handlers
-              tbl.find('.comment-btn').off('click').on('click', function(){
-                var trackerId = $(this).attr('data-tracker-id');
-                showSimplifiedCommentModal(trackerId);
-              });
-
-              // Refresh comment badges after table draw
-              if (typeof refreshAllCommentBadges === 'function') {
-                setTimeout(refreshAllCommentBadges, 100);
-              }
-            }",
-            ns("tracker_action"), ns("tracker_action")))
-        ),
-        escape = FALSE, rownames = FALSE
+        options = get_tracker_dt_options(ncol(display_data)),
+        escape = FALSE, 
+        rownames = FALSE
       )
     }, selection = list(mode = 'multiple', target = 'row'))
 
@@ -1633,10 +1499,14 @@ reporting_effort_tracker_server <- function(id) {
 
       # Get selection summary
       selected_data <- get_selected_trackers()
+      num_selected <- length(selected_rows)
       prod_assigned <- sum(selected_data$Prod_Programmer != "Not Assigned", na.rm = TRUE)
-      prod_unassigned <- length(selected_rows) - prod_assigned
+      prod_unassigned <- num_selected - prod_assigned
       qc_assigned <- sum(selected_data$QC_Programmer != "Not Assigned", na.rm = TRUE)
-      qc_unassigned <- length(selected_rows) - qc_assigned
+      qc_unassigned <- num_selected - qc_assigned
+      
+      # Check if there are valid trackers (with IDs) for edit/delete operations
+      valid_trackers <- sum(selected_data$Tracker_ID != "", na.rm = TRUE)
 
       div(
         class = "alert alert-info mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2",
@@ -1644,7 +1514,7 @@ reporting_effort_tracker_server <- function(id) {
         # Left side: Selection info
         div(
           class = "d-flex align-items-center gap-3",
-          tags$strong(paste0(length(selected_rows), " item(s) selected")),
+          tags$strong(paste0(num_selected, " item(s) selected")),
           tags$span(class = "text-muted", paste0("from ", tab_name, " Tracker")),
           tags$span(
             class = "badge bg-warning text-dark",
@@ -1662,28 +1532,32 @@ reporting_effort_tracker_server <- function(id) {
           class = "d-flex gap-2",
           actionButton(
             ns("select_all_visible"),
-            "Select All Visible",
+            "Select All",
             icon = icon("check-square"),
             class = "btn btn-outline-secondary btn-sm"
           ),
           actionButton(
             ns("deselect_all"),
-            "Deselect All",
+            "Deselect",
             icon = icon("square"),
             class = "btn btn-outline-secondary btn-sm"
           ),
           tags$span(class = "vr mx-1"),  # Vertical divider
+          # Combined Edit button - works for single or multiple selections
           actionButton(
-            ns("bulk_assign_action"),
-            "Bulk Assign",
-            icon = icon("users"),
-            class = "btn btn-primary btn-sm"
+            ns("edit_selected_action"),
+            if (num_selected == 1) "Edit" else paste0("Edit (", num_selected, ")"),
+            icon = icon("pencil"),
+            class = "btn btn-warning btn-sm",
+            title = if (num_selected == 1) "Edit selected tracker" else paste0("Bulk edit ", num_selected, " trackers")
           ),
+          # Delete button - works for single or multiple selections  
           actionButton(
-            ns("bulk_update_action"),
-            "Bulk Update",
-            icon = icon("edit"),
-            class = "btn btn-info btn-sm"
+            ns("delete_selected_action"),
+            if (num_selected == 1) "Delete" else paste0("Delete (", num_selected, ")"),
+            icon = icon("trash"),
+            class = "btn btn-danger btn-sm",
+            title = if (num_selected == 1) "Delete selected tracker" else paste0("Delete ", num_selected, " trackers")
           )
         )
       )
@@ -1725,7 +1599,409 @@ reporting_effort_tracker_server <- function(id) {
       DT::selectRows(proxy, NULL)
     })
 
-    # Bulk Assign button handler (from action bar)
+    # Edit Selected button handler (from action bar) - single or bulk edit
+    observeEvent(input$edit_selected_action, {
+      selected_data <- get_selected_trackers()
+      if (nrow(selected_data) == 0) {
+        show_warning_notification("Please select items first")
+        return()
+      }
+
+      num_selected <- nrow(selected_data)
+      
+      # Filter out items without tracker IDs (dummy data)
+      valid_trackers <- selected_data[selected_data$Tracker_ID != "", , drop = FALSE]
+      
+      if (nrow(valid_trackers) == 0) {
+        show_warning_notification("No valid tracker items selected. Please create trackers first.")
+        return()
+      }
+      
+      if (num_selected == 1) {
+        # Single item selected - open individual edit modal
+        tracker_id <- valid_trackers$Tracker_ID[1]
+        item_id <- valid_trackers$Item_ID[1]
+        
+        # Trigger the same edit action handler
+        shinyjs::runjs(sprintf(
+          "Shiny.setInputValue('%s', {action: 'edit', id: '%s', itemId: '%s'}, {priority: 'event'});",
+          ns("tracker_action"), tracker_id, item_id
+        ))
+      } else {
+        # Multiple items selected - show bulk edit modal (combines assign + update)
+        show_bulk_edit_modal(valid_trackers)
+      }
+    })
+    
+    # Delete Selected button handler (from action bar) - single or bulk delete
+    observeEvent(input$delete_selected_action, {
+      selected_data <- get_selected_trackers()
+      if (nrow(selected_data) == 0) {
+        show_warning_notification("Please select items first")
+        return()
+      }
+
+      # Filter out items without tracker IDs
+      valid_trackers <- selected_data[selected_data$Tracker_ID != "", , drop = FALSE]
+      
+      if (nrow(valid_trackers) == 0) {
+        show_warning_notification("No valid tracker items selected. Cannot delete dummy data.")
+        return()
+      }
+      
+      num_to_delete <- nrow(valid_trackers)
+      
+      # Show confirmation modal
+      showModal(modalDialog(
+        title = tagList(icon("trash"), " Confirm Delete"),
+        size = "m",
+        
+        div(
+          class = "alert alert-danger",
+          tags$h5(
+            class = "mb-2",
+            if (num_to_delete == 1) "Delete this tracker?" else paste0("Delete ", num_to_delete, " trackers?")
+          ),
+          tags$p("This action cannot be undone."),
+          if (num_to_delete > 1) {
+            tags$div(
+              tags$strong("Items to be deleted:"),
+              tags$ul(
+                class = "mt-2",
+                style = "max-height: 200px; overflow-y: auto;",
+                lapply(1:min(nrow(valid_trackers), 10), function(i) {
+                  tags$li(valid_trackers$Item[i])
+                }),
+                if (nrow(valid_trackers) > 10) {
+                  tags$li(class = "text-muted", paste0("... and ", nrow(valid_trackers) - 10, " more"))
+                }
+              )
+            )
+          }
+        ),
+        
+        footer = tagList(
+          modalButton("Cancel"),
+          actionButton(ns("confirm_delete_selected"), "Delete", class = "btn btn-danger", icon = icon("trash"))
+        )
+      ))
+    })
+    
+    # Confirm delete selected items
+    observeEvent(input$confirm_delete_selected, {
+      selected_data <- get_selected_trackers()
+      valid_trackers <- selected_data[selected_data$Tracker_ID != "", , drop = FALSE]
+      
+      if (nrow(valid_trackers) == 0) {
+        removeModal()
+        return()
+      }
+      
+      # Track successes and failures
+      success_count <- 0
+      fail_count <- 0
+      
+      for (i in 1:nrow(valid_trackers)) {
+        tracker_id <- valid_trackers$Tracker_ID[i]
+        result <- delete_reporting_effort_tracker(tracker_id)
+        
+        if ("error" %in% names(result)) {
+          fail_count <- fail_count + 1
+        } else {
+          success_count <- success_count + 1
+        }
+      }
+      
+      removeModal()
+      
+      if (fail_count == 0) {
+        show_success_notification(paste0("Successfully deleted ", success_count, " tracker(s)"))
+      } else if (success_count == 0) {
+        show_error_notification(paste0("Failed to delete all ", fail_count, " tracker(s)"))
+      } else {
+        show_warning_notification(paste0("Deleted ", success_count, " tracker(s), ", fail_count, " failed"))
+      }
+      
+      # Clear selection and refresh
+      active_tab <- input$tracker_tabs
+      proxy <- switch(active_tab,
+        "tlf" = DT::dataTableProxy("tracker_table_tlf"),
+        "sdtm" = DT::dataTableProxy("tracker_table_sdtm"),
+        "adam" = DT::dataTableProxy("tracker_table_adam")
+      )
+      DT::selectRows(proxy, NULL)
+      load_tracker_tables()
+    })
+    
+    # Helper function to show bulk edit modal (combines assign + status update)
+    show_bulk_edit_modal <- function(valid_trackers) {
+      # Get programmers list for dropdown
+      progs <- programmers_list()
+      prog_choices <- c("-- No Change --" = "", "Not Assigned" = "UNASSIGN")
+      if (length(progs) > 0) {
+        prog_choices <- c(prog_choices, setNames(
+          sapply(progs, function(x) x$id),
+          sapply(progs, function(x) x$username)
+        ))
+      }
+
+      # Calculate summary
+      prod_assigned <- sum(valid_trackers$Prod_Programmer != "Not Assigned", na.rm = TRUE)
+      prod_unassigned <- nrow(valid_trackers) - prod_assigned
+      qc_assigned <- sum(valid_trackers$QC_Programmer != "Not Assigned", na.rm = TRUE)
+      qc_unassigned <- nrow(valid_trackers) - qc_assigned
+
+      # Status choices
+      prod_status_choices <- c(
+        "-- No Change --" = "",
+        "Not Started" = "not_started",
+        "In Progress" = "in_progress",
+        "Completed" = "completed",
+        "On Hold" = "on_hold"
+      )
+      qc_status_choices <- c(
+        "-- No Change --" = "",
+        "Not Started" = "not_started",
+        "In Progress" = "in_progress",
+        "Completed" = "completed",
+        "Failed" = "failed"
+      )
+      priority_choices <- c(
+        "-- No Change --" = "",
+        "Low" = "low",
+        "Medium" = "medium",
+        "High" = "high"
+      )
+      qc_level_choices <- c(
+        "-- No Change --" = "",
+        "Level 1" = "1",
+        "Level 2" = "2",
+        "Level 3" = "3"
+      )
+
+      showModal(modalDialog(
+        title = tagList(icon("pencil"), paste0(" Edit ", nrow(valid_trackers), " Trackers")),
+        size = "l",
+
+        # Selection summary
+        div(
+          class = "alert alert-info mb-3",
+          tags$h6(class = "mb-2", paste0(nrow(valid_trackers), " items selected")),
+          div(
+            class = "d-flex gap-3",
+            tags$span(class = "badge bg-warning text-dark",
+              paste0("Prod: ", prod_assigned, " assigned, ", prod_unassigned, " unassigned")),
+            tags$span(class = "badge bg-info text-white",
+              paste0("QC: ", qc_assigned, " assigned, ", qc_unassigned, " unassigned"))
+          ),
+          tags$small(class = "text-muted d-block mt-2", "Leave fields as 'No Change' to keep existing values")
+        ),
+
+        # Production Section
+        div(
+          class = "card mb-3",
+          div(class = "card-header bg-warning text-dark py-2",
+              tags$h6(bs_icon("gear"), " Production", class = "mb-0")),
+          div(
+            class = "card-body",
+            fluidRow(
+              column(6, selectInput(ns("bulk_edit_prod_programmer"), "Programmer:",
+                                   choices = prog_choices, selected = "")),
+              column(6, selectInput(ns("bulk_edit_prod_status"), "Status:",
+                                   choices = prod_status_choices, selected = ""))
+            ),
+            fluidRow(
+              column(6, selectInput(ns("bulk_edit_priority"), "Priority:",
+                                   choices = priority_choices, selected = "")),
+              column(6,
+                div(
+                  class = "d-flex align-items-end gap-2",
+                  div(style = "flex: 1;",
+                    dateInput(ns("bulk_edit_due_date"), "Due Date:", value = NA)
+                  ),
+                  checkboxInput(ns("bulk_edit_due_date_no_change"), "No Change", value = TRUE)
+                )
+              )
+            ),
+            checkboxInput(ns("bulk_edit_prod_only_unassigned"), "Only assign programmer to currently unassigned items", value = FALSE)
+          )
+        ),
+
+        # QC Section
+        div(
+          class = "card mb-3",
+          div(class = "card-header bg-info text-white py-2",
+              tags$h6(bs_icon("check2-circle"), " QC", class = "mb-0")),
+          div(
+            class = "card-body",
+            fluidRow(
+              column(6, selectInput(ns("bulk_edit_qc_programmer"), "QC Programmer:",
+                                   choices = prog_choices, selected = "")),
+              column(6, selectInput(ns("bulk_edit_qc_status"), "QC Status:",
+                                   choices = qc_status_choices, selected = ""))
+            ),
+            fluidRow(
+              column(6, selectInput(ns("bulk_edit_qc_level"), "QC Level:",
+                                   choices = qc_level_choices, selected = "")),
+              column(6, "")
+            ),
+            checkboxInput(ns("bulk_edit_qc_only_unassigned"), "Only assign QC programmer to currently unassigned items", value = FALSE)
+          )
+        ),
+
+        # Validation note
+        div(
+          class = "alert alert-secondary small",
+          tags$strong("Note: "),
+          "Production and QC programmers cannot be the same person for any item."
+        ),
+
+        footer = tagList(
+          modalButton("Cancel"),
+          actionButton(ns("confirm_bulk_edit"), "Apply Changes",
+                      class = "btn btn-primary", icon = icon("check"))
+        )
+      ))
+    }
+    
+    # Confirm bulk edit
+    observeEvent(input$confirm_bulk_edit, {
+      selected_data <- get_selected_trackers()
+      valid_trackers <- selected_data[selected_data$Tracker_ID != "", , drop = FALSE]
+      
+      if (nrow(valid_trackers) == 0) {
+        removeModal()
+        return()
+      }
+      
+      # Get all input values
+      prod_prog <- input$bulk_edit_prod_programmer
+      prod_status <- input$bulk_edit_prod_status
+      priority <- input$bulk_edit_priority
+      due_date <- input$bulk_edit_due_date
+      due_date_no_change <- input$bulk_edit_due_date_no_change
+      prod_only_unassigned <- input$bulk_edit_prod_only_unassigned
+      
+      qc_prog <- input$bulk_edit_qc_programmer
+      qc_status <- input$bulk_edit_qc_status
+      qc_level <- input$bulk_edit_qc_level
+      qc_only_unassigned <- input$bulk_edit_qc_only_unassigned
+      
+      # Track successes and failures
+      success_count <- 0
+      fail_count <- 0
+      
+      for (i in 1:nrow(valid_trackers)) {
+        tracker_id <- valid_trackers$Tracker_ID[i]
+        current_prod_prog <- valid_trackers$Prod_Programmer[i]
+        current_qc_prog <- valid_trackers$QC_Programmer[i]
+        
+        update_data <- list()
+        has_updates <- FALSE
+        
+        # Production programmer
+        if (prod_prog != "") {
+          skip_prod <- prod_only_unassigned && current_prod_prog != "Not Assigned"
+          if (!skip_prod) {
+            if (prod_prog == "UNASSIGN") {
+              update_data$production_programmer_id <- NULL
+            } else {
+              # Validation: check if same as QC
+              if (qc_prog != "" && qc_prog != "UNASSIGN" && prod_prog == qc_prog) {
+                # Skip this item - would violate constraint
+                next
+              }
+              update_data$production_programmer_id <- as.integer(prod_prog)
+            }
+            has_updates <- TRUE
+          }
+        }
+        
+        # Production status
+        if (prod_status != "") {
+          update_data$production_status <- prod_status
+          has_updates <- TRUE
+        }
+        
+        # Priority
+        if (priority != "") {
+          update_data$priority <- priority
+          has_updates <- TRUE
+        }
+        
+        # Due date
+        if (!due_date_no_change && !is.na(due_date)) {
+          update_data$due_date <- as.character(due_date)
+          has_updates <- TRUE
+        }
+        
+        # QC programmer
+        if (qc_prog != "") {
+          skip_qc <- qc_only_unassigned && current_qc_prog != "Not Assigned"
+          if (!skip_qc) {
+            if (qc_prog == "UNASSIGN") {
+              update_data$qc_programmer_id <- NULL
+            } else {
+              # Validation: check if same as production
+              if (prod_prog != "" && prod_prog != "UNASSIGN" && prod_prog == qc_prog) {
+                # Skip - already handled above
+              } else {
+                update_data$qc_programmer_id <- as.integer(qc_prog)
+              }
+            }
+            has_updates <- TRUE
+          }
+        }
+        
+        # QC status
+        if (qc_status != "") {
+          update_data$qc_status <- qc_status
+          has_updates <- TRUE
+        }
+        
+        # QC level
+        if (qc_level != "") {
+          update_data$qc_level <- qc_level
+          has_updates <- TRUE
+        }
+        
+        # Apply update if there are changes
+        if (has_updates) {
+          result <- update_reporting_effort_tracker(tracker_id, update_data)
+          if ("error" %in% names(result)) {
+            fail_count <- fail_count + 1
+          } else {
+            success_count <- success_count + 1
+          }
+        }
+      }
+      
+      removeModal()
+      
+      if (success_count > 0 || fail_count > 0) {
+        if (fail_count == 0) {
+          show_success_notification(paste0("Successfully updated ", success_count, " tracker(s)"))
+        } else if (success_count == 0) {
+          show_error_notification(paste0("Failed to update all ", fail_count, " tracker(s)"))
+        } else {
+          show_warning_notification(paste0("Updated ", success_count, " tracker(s), ", fail_count, " failed"))
+        }
+        
+        # Clear selection and refresh
+        active_tab <- input$tracker_tabs
+        proxy <- switch(active_tab,
+          "tlf" = DT::dataTableProxy("tracker_table_tlf"),
+          "sdtm" = DT::dataTableProxy("tracker_table_sdtm"),
+          "adam" = DT::dataTableProxy("tracker_table_adam")
+        )
+        DT::selectRows(proxy, NULL)
+        load_tracker_tables()
+      } else {
+        show_warning_notification("No changes to apply")
+      }
+    })
+
+    # Legacy Bulk Assign button handler (kept for backward compatibility)
     observeEvent(input$bulk_assign_action, {
       selected_data <- get_selected_trackers()
       if (nrow(selected_data) == 0) {
@@ -2134,15 +2410,7 @@ reporting_effort_tracker_server <- function(id) {
       }
     })
 
-    # Legacy dropdown menu handlers (kept for backward compatibility)
-    observeEvent(input$bulk_assign_clicked, {
-      # Trigger the same action as the action bar button
-      shinyjs::click("bulk_assign_action")
-    })
-    observeEvent(input$bulk_status_clicked, {
-      # Trigger the same action as the action bar button
-      shinyjs::click("bulk_update_action")
-    })
+    # Dropdown menu handler
     observeEvent(input$workload_summary_clicked, show_success_notification("Workload summary coming soon"))
     
     # Enhanced surgical update event handlers

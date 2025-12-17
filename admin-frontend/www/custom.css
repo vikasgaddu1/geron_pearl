@@ -395,3 +395,212 @@
 [data-bs-theme="dark"] .comment-item .text-primary {
   color: #6ea8fe !important;
 }
+
+/* ===== TRACKER TABLE GROUPED HEADERS ===== */
+
+/* Grouped header row styling (Production/QC spanning headers) */
+table.dataTable thead tr.grouped-header {
+  background-color: #f8f9fa;
+}
+
+table.dataTable thead tr.grouped-header th {
+  text-align: center !important;
+  vertical-align: middle !important;
+  font-weight: 600;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid #dee2e6;
+}
+
+/* Production spanning header */
+table.dataTable thead tr.grouped-header th:nth-child(3) {
+  background-color: #fff8e1 !important;
+  border-bottom: 3px solid #ffc107 !important;
+  color: #856404;
+}
+
+/* QC spanning header */
+table.dataTable thead tr.grouped-header th:nth-child(4) {
+  background-color: #e3f2fd !important;
+  border-bottom: 3px solid #0d6efd !important;
+  color: #084298;
+}
+
+/* Sub-header row (column names under Production/QC) */
+table.dataTable thead tr:not(.grouped-header) th {
+  font-weight: 500;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+/* Production sub-columns background tint */
+table.dataTable thead tr:not(.grouped-header) th:nth-child(n+3):nth-child(-n+6) {
+  background-color: #fffdf5 !important;
+}
+
+/* QC sub-columns background tint */
+table.dataTable thead tr:not(.grouped-header) th:nth-child(n+7):nth-child(-n+10) {
+  background-color: #f8fbff !important;
+}
+
+/* Column filter row styling */
+table.dataTable thead tr.dt-filter-row th {
+  padding: 0.25rem 0.5rem;
+}
+
+/* ===== DATA ROW COLUMN SHADING ===== */
+
+/* Production data columns background (columns 3-6: Programmer, Status, Priority, Due Date) */
+table.dataTable tbody tr td:nth-child(n+3):nth-child(-n+6) {
+  background-color: #fffef8 !important;
+}
+
+/* QC data columns background (columns 7-10: Programmer, Status, Level, Done) */
+table.dataTable tbody tr td:nth-child(n+7):nth-child(-n+10) {
+  background-color: #f8faff !important;
+}
+
+/* Maintain shading on hover */
+table.dataTable tbody tr:hover td:nth-child(n+3):nth-child(-n+6) {
+  background-color: #fff8e1 !important;
+}
+
+table.dataTable tbody tr:hover td:nth-child(n+7):nth-child(-n+10) {
+  background-color: #e8f0fe !important;
+}
+
+/* Selected row maintains column shading with selection highlight */
+table.dataTable tbody tr.selected td:nth-child(n+3):nth-child(-n+6) {
+  background-color: rgba(255, 248, 225, 0.7) !important;
+}
+
+table.dataTable tbody tr.selected td:nth-child(n+7):nth-child(-n+10) {
+  background-color: rgba(232, 240, 254, 0.7) !important;
+}
+
+/* Dark mode grouped headers */
+[data-bs-theme="dark"] table.dataTable thead tr.grouped-header {
+  background-color: #212529;
+}
+
+[data-bs-theme="dark"] table.dataTable thead tr.grouped-header th:nth-child(3) {
+  background-color: #664d03 !important;
+  border-bottom-color: #ffca2c !important;
+  color: #ffc107;
+}
+
+[data-bs-theme="dark"] table.dataTable thead tr.grouped-header th:nth-child(4) {
+  background-color: #032830 !important;
+  border-bottom-color: #0d6efd !important;
+  color: #6ea8fe;
+}
+
+[data-bs-theme="dark"] table.dataTable thead tr:not(.grouped-header) th:nth-child(n+3):nth-child(-n+6) {
+  background-color: #2d2810 !important;
+}
+
+[data-bs-theme="dark"] table.dataTable thead tr:not(.grouped-header) th:nth-child(n+7):nth-child(-n+10) {
+  background-color: #0a1929 !important;
+}
+
+/* Dark mode data row column shading */
+[data-bs-theme="dark"] table.dataTable tbody tr td:nth-child(n+3):nth-child(-n+6) {
+  background-color: #2a2510 !important;
+}
+
+[data-bs-theme="dark"] table.dataTable tbody tr td:nth-child(n+7):nth-child(-n+10) {
+  background-color: #0d1f30 !important;
+}
+
+[data-bs-theme="dark"] table.dataTable tbody tr:hover td:nth-child(n+3):nth-child(-n+6) {
+  background-color: #3d3518 !important;
+}
+
+[data-bs-theme="dark"] table.dataTable tbody tr:hover td:nth-child(n+7):nth-child(-n+10) {
+  background-color: #152a40 !important;
+}
+
+[data-bs-theme="dark"] table.dataTable tbody tr.selected td:nth-child(n+3):nth-child(-n+6) {
+  background-color: rgba(61, 53, 24, 0.8) !important;
+}
+
+[data-bs-theme="dark"] table.dataTable tbody tr.selected td:nth-child(n+7):nth-child(-n+10) {
+  background-color: rgba(21, 42, 64, 0.8) !important;
+}
+
+/* ===== TRACKER TABLE COLUMN ALIGNMENT ===== */
+
+/* Center all DataTable headers and cells for tracker tables */
+.dataTables_wrapper table.dataTable thead th,
+.dataTables_wrapper table.dataTable thead td {
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.dataTables_wrapper table.dataTable tbody td {
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+/* Fix DataTable header alignment */
+table.dataTable thead th {
+  text-align: center !important;
+}
+
+/* Multi-row header styling */
+table.dataTable thead tr:first-child th {
+  border-bottom: none !important;
+}
+
+table.dataTable thead tr:last-child th {
+  border-top: none !important;
+}
+
+/* Production column group header */
+table.dataTable thead th[colspan="4"]:first-of-type {
+  background-color: #f8f9fa !important;
+  border-bottom: 2px solid #ffc107 !important;
+}
+
+/* QC column group header */
+table.dataTable thead th[colspan="4"]:last-of-type {
+  background-color: #e9ecef !important;
+  border-bottom: 2px solid #0dcaf0 !important;
+}
+
+/* Ensure filter inputs in column headers are centered */
+.dataTables_wrapper .dataTables_filter {
+  text-align: right !important;
+}
+
+/* Selection action bar styling */
+.alert.alert-info.mb-3 {
+  border-left: 4px solid #0dcaf0;
+}
+
+/* Row selection highlight styling */
+table.dataTable tbody tr.selected {
+  background-color: rgba(13, 110, 253, 0.15) !important;
+}
+
+table.dataTable tbody tr.selected:hover {
+  background-color: rgba(13, 110, 253, 0.25) !important;
+}
+
+/* Dark mode tracker table adjustments */
+[data-bs-theme="dark"] table.dataTable thead th[colspan="4"]:first-of-type {
+  background-color: #343a40 !important;
+  border-bottom-color: #ffca2c !important;
+}
+
+[data-bs-theme="dark"] table.dataTable thead th[colspan="4"]:last-of-type {
+  background-color: #2b3035 !important;
+  border-bottom-color: #0dcaf0 !important;
+}
+
+[data-bs-theme="dark"] table.dataTable tbody tr.selected {
+  background-color: rgba(13, 110, 253, 0.25) !important;
+}
+
+[data-bs-theme="dark"] table.dataTable tbody tr.selected:hover {
+  background-color: rgba(13, 110, 253, 0.35) !important;
+}
