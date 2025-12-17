@@ -1469,8 +1469,9 @@ reporting_effort_tracker_server <- function(id) {
         return(data.frame())
       }
 
+      eff_id <- current_reporting_effort_id()
       tab_data <- get_current_tab_data()
-      if (nrow(tab_data) == 0) return(data.frame())
+      if (is.null(tab_data) || nrow(tab_data) == 0) return(data.frame())
 
       # Apply comment filter to get the same data as displayed
       filtered_data <- filter_by_comments(tab_data)
@@ -1480,13 +1481,17 @@ reporting_effort_tracker_server <- function(id) {
       filtered_data[selected_rows, , drop = FALSE]
     })
 
-    # Render selection action bar (dynamic - appears when items selected)
+        # Render selection action bar (always visible with Select All when data loaded)
     output$selection_action_bar <- renderUI({
       selected_rows <- get_current_selection()
       active_tab <- input$tracker_tabs
 
-      # Only show if items are selected
-      if (is.null(selected_rows) || length(selected_rows) == 0) {
+      # Check if a reporting effort is selected (toolbar shows when effort is selected)
+      eff_id <- current_reporting_effort_id()
+      has_effort <- !is.null(eff_id)
+
+      # Don't show toolbar if no reporting effort is selected
+      if (!has_effort) {
         return(NULL)
       }
 
@@ -1497,92 +1502,140 @@ reporting_effort_tracker_server <- function(id) {
         "Unknown"
       )
 
-      # Get selection summary
-      selected_data <- get_selected_trackers()
-      num_selected <- length(selected_rows)
-      prod_assigned <- sum(selected_data$Prod_Programmer != "Not Assigned", na.rm = TRUE)
-      prod_unassigned <- num_selected - prod_assigned
-      qc_assigned <- sum(selected_data$QC_Programmer != "Not Assigned", na.rm = TRUE)
-      qc_unassigned <- num_selected - qc_assigned
-      
-      # Check if there are valid trackers (with IDs) for edit/delete operations
-      valid_trackers <- sum(selected_data$Tracker_ID != "", na.rm = TRUE)
+      # Check if items are selected
+      has_selection <- !is.null(selected_rows) && length(selected_rows) > 0
+      num_selected <- if (has_selection) length(selected_rows) else 0
+
+      if (has_selection) {
+        # Get selection summary
+        selected_data <- get_selected_trackers()
+        prod_assigned <- sum(selected_data$Prod_Programmer != "Not Assigned", na.rm = TRUE)
+        prod_unassigned <- num_selected - prod_assigned
+        qc_assigned <- sum(selected_data$QC_Programmer != "Not Assigned", na.rm = TRUE)
+        qc_unassigned <- num_selected - qc_assigned
+
+        # Check if there are valid trackers (with IDs) for edit/delete operations
+        valid_trackers <- sum(selected_data$Tracker_ID != "", na.rm = TRUE)
+      }
 
       div(
-        class = "alert alert-info mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2",
+        class = if (has_selection) "alert alert-info mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2" else "alert alert-light mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2",
         style = "padding: 10px 15px;",
-        # Left side: Selection info
+        # Left side: Selection info or hint
         div(
           class = "d-flex align-items-center gap-3",
-          tags$strong(paste0(num_selected, " item(s) selected")),
-          tags$span(class = "text-muted", paste0("from ", tab_name, " Tracker")),
-          tags$span(
-            class = "badge bg-warning text-dark",
-            title = "Production assignment status",
-            paste0("Prod: ", prod_assigned, " assigned, ", prod_unassigned, " unassigned")
-          ),
-          tags$span(
-            class = "badge bg-info text-white",
-            title = "QC assignment status",
-            paste0("QC: ", qc_assigned, " assigned, ", qc_unassigned, " unassigned")
-          )
+          if (has_selection) {
+            tagList(
+              tags$strong(paste0(num_selected, " item(s) selected")),
+              tags$span(class = "text-muted", paste0("from ", tab_name, " Tracker")),
+              tags$span(
+                class = "badge bg-warning text-dark",
+                title = "Production assignment status",
+                paste0("Prod: ", prod_assigned, " assigned, ", prod_unassigned, " unassigned")
+              ),
+              tags$span(
+                class = "badge bg-info text-white",
+                title = "QC assignment status",
+                paste0("QC: ", qc_assigned, " assigned, ", qc_unassigned, " unassigned")
+              )
+            )
+          } else {
+            tags$span(class = "text-muted", paste0("Click rows to select from ", tab_name, " Tracker, or use Select All"))
+          }
         ),
         # Right side: Action buttons
         div(
           class = "d-flex gap-2",
+          # Select All - always visible
           actionButton(
             ns("select_all_visible"),
             "Select All",
             icon = icon("check-square"),
-            class = "btn btn-outline-secondary btn-sm"
+            class = "btn btn-outline-primary btn-sm"
           ),
+          # Deselect - always visible but styled differently when no selection
           actionButton(
             ns("deselect_all"),
             "Deselect",
             icon = icon("square"),
-            class = "btn btn-outline-secondary btn-sm"
+            class = if (has_selection) "btn btn-outline-secondary btn-sm" else "btn btn-outline-secondary btn-sm disabled"
           ),
-          tags$span(class = "vr mx-1"),  # Vertical divider
-          # Combined Edit button - works for single or multiple selections
-          actionButton(
-            ns("edit_selected_action"),
-            if (num_selected == 1) "Edit" else paste0("Edit (", num_selected, ")"),
-            icon = icon("pencil"),
-            class = "btn btn-warning btn-sm",
-            title = if (num_selected == 1) "Edit selected tracker" else paste0("Bulk edit ", num_selected, " trackers")
-          ),
-          # Delete button - works for single or multiple selections  
-          actionButton(
-            ns("delete_selected_action"),
-            if (num_selected == 1) "Delete" else paste0("Delete (", num_selected, ")"),
-            icon = icon("trash"),
-            class = "btn btn-danger btn-sm",
-            title = if (num_selected == 1) "Delete selected tracker" else paste0("Delete ", num_selected, " trackers")
-          )
+          if (has_selection) {
+            tagList(
+              tags$span(class = "vr mx-1"),  # Vertical divider
+              # Combined Edit button - works for single or multiple selections
+              actionButton(
+                ns("edit_selected_action"),
+                if (num_selected == 1) "Edit" else paste0("Edit (", num_selected, ")"),
+                icon = icon("pencil"),
+                class = "btn btn-warning btn-sm",
+                title = if (num_selected == 1) "Edit selected tracker" else paste0("Bulk edit ", num_selected, " trackers")
+              ),
+              # Delete button - works for single or multiple selections
+              actionButton(
+                ns("delete_selected_action"),
+                if (num_selected == 1) "Delete" else paste0("Delete (", num_selected, ")"),
+                icon = icon("trash"),
+                class = "btn btn-danger btn-sm",
+                title = if (num_selected == 1) "Delete selected tracker" else paste0("Delete ", num_selected, " trackers")
+              )
+            )
+          }
         )
       )
     })
 
     # Select All Visible button handler
+    # Uses DT's built-in _rows_current input to get filtered row indices
     observeEvent(input$select_all_visible, {
       active_tab <- input$tracker_tabs
-      tab_data <- get_current_tab_data()
-      filtered_data <- filter_by_comments(tab_data)
 
-      if (nrow(filtered_data) == 0) {
-        show_warning_notification("No items to select")
+      # Get the visible row indices from DT's _rows_current input
+      # This automatically accounts for all filtering (search box, column filters)
+      visible_indices <- switch(active_tab,
+        "tlf" = input$tracker_table_tlf_rows_current,
+        "sdtm" = input$tracker_table_sdtm_rows_current,
+        "adam" = input$tracker_table_adam_rows_current
+      )
+
+      if (is.null(visible_indices) || length(visible_indices) == 0) {
+        show_warning_notification("No visible items to select")
         return()
       }
 
-      # Get the proxy for the current table and select all rows
+      # Get the proxy for the current tab
       proxy <- switch(active_tab,
         "tlf" = DT::dataTableProxy("tracker_table_tlf"),
         "sdtm" = DT::dataTableProxy("tracker_table_sdtm"),
         "adam" = DT::dataTableProxy("tracker_table_adam")
       )
 
-      # Select all rows (1:nrow gives all visible after filtering)
-      DT::selectRows(proxy, 1:nrow(filtered_data))
+      # Select only the visible rows
+      DT::selectRows(proxy, visible_indices)
+      cat("Selected", length(visible_indices), "visible rows
+")
+    })
+
+    # Legacy callback observer - kept for compatibility but not actively used
+    observeEvent(input$select_visible_callback, {
+      indices <- input$select_visible_callback
+
+      if (is.null(indices) || length(indices) == 0) {
+        show_warning_notification("No visible items to select")
+        return()
+      }
+
+      active_tab <- input$tracker_tabs
+      proxy <- switch(active_tab,
+        "tlf" = DT::dataTableProxy("tracker_table_tlf"),
+        "sdtm" = DT::dataTableProxy("tracker_table_sdtm"),
+        "adam" = DT::dataTableProxy("tracker_table_adam")
+      )
+
+      # Select only the visible rows using DT proxy
+      DT::selectRows(proxy, indices)
+
+      cat("✅ Selected", length(indices), "visible rows\n")
     })
 
     # Deselect All button handler

@@ -377,4 +377,58 @@ Shiny.addCustomMessageHandler('triggerTrackerRefresh', function(message) {
   }
 });
 
+
+// =============================================================================
+// DATATABLE ROW SELECTION UTILITIES
+// =============================================================================
+
+/**
+ * Custom message handler to get visible row indices after all filtering
+ * and trigger selection via callback. This ensures "Select All" only selects
+ * rows that are visible after both server-side (comment filter) and client-side
+ * (DataTable search box) filters are applied.
+ */
+Shiny.addCustomMessageHandler('getAndSelectVisibleRows', function(message) {
+  var tableId = message.tableId;
+  var callbackId = message.callbackId;
+
+  console.log('Getting visible rows for table:', tableId);
+
+  var $table = $('#' + tableId);
+  if ($table.length === 0) {
+    console.warn('Table not found:', tableId);
+    return;
+  }
+
+  var table = $table.DataTable();
+  if (!table) {
+    console.warn('DataTable instance not found for:', tableId);
+    return;
+  }
+
+  // Get indices of rows visible after all filtering (search box, etc.)
+  // { search: 'applied' } returns only rows matching current search/filter state
+  var visibleRows = table.rows({ search: 'applied' });
+  var visibleIndices = visibleRows.indexes().toArray();
+
+  if (visibleIndices.length === 0) {
+    console.log('No visible rows to select');
+    // Still send back empty array so R can show notification
+    if (window.Shiny && window.Shiny.setInputValue) {
+      Shiny.setInputValue(callbackId, [], { priority: 'event' });
+    }
+    return;
+  }
+
+  // Convert to 1-based indices for R compatibility
+  var rIndices = visibleIndices.map(function(i) { return i + 1; });
+
+  console.log('Found', rIndices.length, 'visible rows to select:', rIndices);
+
+  // Send indices back to Shiny to trigger selection via DT proxy
+  if (window.Shiny && window.Shiny.setInputValue) {
+    Shiny.setInputValue(callbackId, rIndices, { priority: 'event' });
+  }
+});
+
 console.log('✅ Simplified shiny_handlers.js loaded - legacy periodic refresh system removed');

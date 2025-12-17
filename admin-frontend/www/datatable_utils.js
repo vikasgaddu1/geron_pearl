@@ -246,6 +246,66 @@ function createEnhancedDrawCallback(tableId, moduleNamespace, actionTypes = ['ed
   };
 }
 
+// =============================================================================
+// DATATABLE ROW SELECTION UTILITIES
+// =============================================================================
+
+/**
+ * Shiny custom message handler to get visible row indices after all filtering
+ * and trigger selection via callback. This ensures "Select All" only selects
+ * rows that are visible after both server-side (comment filter) and client-side
+ * (DataTable search box) filters are applied.
+ */
+if (typeof Shiny !== 'undefined') {
+  Shiny.addCustomMessageHandler('getAndSelectVisibleRows', function(message) {
+    var tableId = message.tableId;
+    var callbackId = message.callbackId;
+
+    // Remove namespace prefix 'ns-' pattern to get clean table ID for jQuery
+    var cleanTableId = tableId;
+
+    console.log('🔍 Getting visible rows for table:', tableId);
+
+    var $table = $('#' + cleanTableId);
+    if ($table.length === 0) {
+      console.warn('⚠️ Table not found:', cleanTableId);
+      return;
+    }
+
+    var table = $table.DataTable();
+    if (!table) {
+      console.warn('⚠️ DataTable instance not found for:', cleanTableId);
+      return;
+    }
+
+    // Get indices of rows visible after all filtering (search box, etc.)
+    // { search: 'applied' } returns only rows matching current search/filter state
+    var visibleRows = table.rows({ search: 'applied' });
+    var visibleIndices = visibleRows.indexes().toArray();
+
+    if (visibleIndices.length === 0) {
+      console.log('📭 No visible rows to select');
+      // Still send back empty array so R can show notification
+      if (window.Shiny && window.Shiny.setInputValue) {
+        Shiny.setInputValue(callbackId, [], { priority: 'event' });
+      }
+      return;
+    }
+
+    // Convert to 1-based indices for R compatibility
+    var rIndices = visibleIndices.map(function(i) { return i + 1; });
+
+    console.log('✅ Found', rIndices.length, 'visible rows to select:', rIndices);
+
+    // Send indices back to Shiny to trigger selection via DT proxy
+    if (window.Shiny && window.Shiny.setInputValue) {
+      Shiny.setInputValue(callbackId, rIndices, { priority: 'event' });
+    }
+  });
+
+  console.log('✅ DataTable row selection utilities loaded');
+}
+
 // Export functions for global access
 window.DataTableUtils = {
   createStandardDrawCallback,
