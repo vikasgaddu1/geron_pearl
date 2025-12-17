@@ -12,508 +12,161 @@ PEARL is a **full-stack research data management system** with real-time WebSock
 ## Quick Start
 
 ```bash
-# 1. Backend (Terminal 1)
+# Backend (Terminal 1)
 cd backend
 uv pip install -r requirements.txt
 uv run python -m app.db.init_db
 uv run python run.py
 
-# 2. Frontend (Terminal 2)  
+# Frontend (Terminal 2)
 cd admin-frontend
 Rscript setup_environment.R
 Rscript run_app.R
 
-# 3. Access Applications
-# Backend API: http://localhost:8000
-# Frontend UI: http://localhost:3838
-# API Docs: http://localhost:8000/docs
+# Access: Backend http://localhost:8000 | Frontend http://localhost:3838 | Docs http://localhost:8000/docs
+```
+
+## Critical Constraints
+
+### SQLAlchemy Async Session Conflicts
+**⚠️ CRITICAL**: Batch tests fail due to async session management. This is architectural, not a bug.
+- ✅ Individual tests work perfectly
+- ❌ Batch test execution fails
+- Always test individually: `./test_crud_simple.sh` or `pytest single_test.py -v`
+
+### Mandatory Patterns
+
+**Deletion Protection** - ALL deletions must check dependencies:
+```python
+dependent_entities = await dependent_crud.get_by_parent_id(db, parent_id=entity_id)
+if dependent_entities:
+    raise HTTPException(status_code=400, detail=f"Cannot delete: {len(dependent_entities)} dependent entities exist")
+```
+
+**WebSocket Broadcasting** - ALL CRUD operations must broadcast:
+```python
+created_entity = await entity_crud.create(db, obj_in=entity_in)
+await broadcast_entity_created(created_entity)
 ```
 
 ## Essential Commands
 
-### Backend Commands
+### Backend
 ```bash
 cd backend
-
-# Development
-uv run python run.py                      # Start development server
-uv run python -m app.db.init_db           # Initialize database
-make run                                  # Alternative: Start via Makefile
-
-# Testing (Individual execution only due to async session conflicts)
-./test_crud_simple.sh                     # Run functional CRUD tests
-./test_packages_crud.sh                   # Test packages system
-./test_reporting_effort_tracker_crud.sh   # Test tracker CRUD operations
-./test_study_deletion_protection_fixed.sh # Test deletion protection
-./test_tracker_delete_simple.sh           # Test tracker deletion functionality
-uv run python tests/integration/test_websocket_broadcast.py  # Test WebSocket
-
-# Make-based testing (comprehensive test suites)
-make test-fast                            # Run fast tests (excludes slow performance)
-make test-unit                            # Unit tests only
-make test-integration                     # Integration tests only
-make test-security                        # Security tests only
-make test-coverage                        # Tests with coverage report
-
-# Code Quality
-make format                               # Format with black + isort
-make lint                                 # Run flake8 + mypy
-make typecheck                            # Type checking only
-make check-all                            # Lint + typecheck + fast tests
-make validate                             # Full validation pipeline
-
-# Database
+uv run python run.py                      # Start server
+./test_crud_simple.sh                     # Run functional tests
+make format && make lint                  # Code quality (required before commits)
+uv run alembic revision --autogenerate -m "msg"  # Create migration
 uv run alembic upgrade head               # Apply migrations
-uv run alembic revision --autogenerate -m "Description"  # Create migration
-make migrate                              # Apply migrations via Makefile
-
-# Utilities
-make clean                                # Clean up generated files and cache
-make help                                 # Show all available make commands
-
-# Cascade Migration (for orphaned records fix)
-uv run python execute_cascade_migration.py  # Execute CASCADE DELETE migration
-uv run python analyze_orphaned_records.py   # Analyze orphaned records
+uv run python tests/validator/run_model_validation.py  # Validate models (run after model changes)
 ```
 
-### Frontend Commands
+### Frontend
 ```bash
 cd admin-frontend
-
-# Development
-Rscript run_app.R                         # Start R Shiny app
-Rscript setup_environment.R               # First-time setup
-
-# Package Management (renv)
+Rscript run_app.R                         # Start app
 renv::restore()                           # Restore packages
-renv::install("package")                  # Add new package
-renv::snapshot()                          # Save package state
-
-# Playwright Testing
-npm test                                  # Run Playwright tests
-npm run install:browsers                  # Install test browsers
+renv::install("package") && renv::snapshot()  # Add new package
 ```
 
-### Stopping Running Processes (Windows)
-
+### Stop Processes (Windows)
 ```bash
-# Find processes using specific ports
-netstat -ano | findstr :8000     # Backend port
-netstat -ano | findstr :3838     # Frontend port
-
-# Kill processes by PID (use PowerShell for reliability)
+netstat -ano | findstr :8000              # Find backend PID
+netstat -ano | findstr :3838              # Find frontend PID
 powershell -Command "Stop-Process -Id <PID> -Force"
-
-# Alternative: Kill all Python/R processes
-powershell -Command "Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force"
-powershell -Command "Get-Process Rscript -ErrorAction SilentlyContinue | Stop-Process -Force"
-
-# Quick utility scripts (from scripts/ directory)
-./scripts/kill_backend.bat                # Kill backend only
-./scripts/kill3838.bat                    # Kill frontend only  
-./scripts/kill_all_services.bat           # Kill both services
 ```
 
-## Critical System Constraints
-
-### SQLAlchemy Async Session Conflicts
-**⚠️ CRITICAL**: This system cannot reliably run batch tests due to async session management issues.
-- ✅ Individual tests work perfectly
-- ❌ Batch test execution frequently fails  
-- 📋 **MANDATORY**: Read `backend/tests/README.md` before creating ANY tests
-- 🎯 **Success Metric**: Individual test reliability, not batch pass rates
-
-### Database Integrity & Orphaned Records
-**🛡️ CASCADE DELETE MIGRATION AVAILABLE**: The system has comprehensive migration scripts ready to implement CASCADE DELETE constraints to prevent orphaned records.
-- **Current State**: 31 foreign key constraints lack proper CASCADE behavior
-- **Migration Ready**: `execute_cascade_migration.py` script provides complete solution
-- **Analysis Available**: `analyze_orphaned_records.py` identifies current orphaned data
-- **Risk Mitigation**: Automatic backup creation and rollback procedures included
-- **Documentation**: See `CASCADE_DELETE_MIGRATION_PLAN.md` for complete migration strategy
-
-### WebSocket Real-time Implementation
-**📡 CRITICAL**: WebSocket integration requires specific data conversion patterns.
-- SQLAlchemy models → Pydantic conversion required in broadcast functions
-- Dual WebSocket clients (JavaScript primary, R secondary)
-- Shiny module namespacing: `{module}-websocket_event` format
-- Manual session management in WebSocket endpoints
-
-## High-Level Architecture
+## Architecture
 
 ```
 PEARL/
-├── backend/                    # FastAPI + PostgreSQL + WebSocket
-│   ├── app/api/v1/            # REST endpoints + WebSocket broadcasting  
-│   ├── tests/                 # Individual tests + validator
-│   └── [README.md, CLAUDE.md] # Component documentation
-├── admin-frontend/            # R Shiny + bslib + dual WebSocket clients
-│   ├── modules/               # UI/server + API client + WebSocket
-│   ├── www/                   # JavaScript WebSocket client
-│   └── [README.md, CLAUDE.md] # Component documentation
-└── test_websocket*.py         # Real-time testing scripts
+├── backend/
+│   ├── app/api/v1/     # REST endpoints + WebSocket broadcasting
+│   ├── app/crud/       # Business logic (never bypass this layer)
+│   ├── app/models/     # SQLAlchemy ORM models
+│   ├── app/schemas/    # Pydantic validation schemas
+│   └── tests/          # Individual test scripts
+├── admin-frontend/
+│   ├── modules/        # UI (*_ui.R) + Server (*_server.R) modules
+│   ├── www/            # JavaScript WebSocket client
+│   └── app.R           # Main application entry
+```
+
+### Database Schema
+```
+Study (1) ↔ (N) DatabaseRelease (1) ↔ (N) ReportingEffort (1) ↔ (N) ReportingEffortItem
+                                                                         ↓
+Package (1) ↔ (N) PackageItem (TLF/Dataset)                    ReportingEffortItemTracker
+                      ↓                                            (with TrackerComment)
+              TextElement (title, footnote, population_set, acronyms_set)
+User (admin, analyst, viewer roles)
 ```
 
 ## Key Development Patterns
 
-### Backend Development (FastAPI)
-- **Clean Architecture**: API → CRUD → Models with clear separation
-- **Deletion Protection**: Check for dependent entities before deletion
-- **WebSocket Broadcasting**: All CRUD operations trigger real-time events
-- **Model Validation**: Run validator after model changes: `uv run python tests/validator/run_model_validation.py`
+### Backend (FastAPI)
+- **Clean Architecture**: API → CRUD → Models (never bypass CRUD layer)
+- **Model Changes**: Always run model validator after changes
+- **WebSocket**: SQLAlchemy models require Pydantic conversion for broadcasts
+- **UV Package Manager**: Use `uv run` for all Python operations
 
-### Frontend Development (R Shiny)
-- **Module Pattern**: UI/Server separation for all components
-- **Environment Variables**: All API endpoints use Sys.getenv()
-- **WebSocket Events**: Observes `{module}-websocket_event` inputs
+### Frontend (R Shiny)
+- **Environment Variables**: All API endpoints use `Sys.getenv()`
 - **Form Validation**: Use shinyvalidate with deferred validation (only on Save/Submit)
+- **Module Pattern**: UI/Server separation for all components
+- **WebSocket Events**: Module observers listen for `input$crud_refresh`
 
-### Testing Strategy
-- **Backend**: Use `./test_crud_simple.sh` for functional testing
-- **Frontend**: Open multiple browser sessions to test real-time sync
-- **Integration**: Run `test_websocket_broadcast.py` for end-to-end testing
+### Cross-Browser WebSocket Sync (Universal CRUD Manager)
+```r
+# In module server - Shiny strips module prefix automatically
+observeEvent(input$crud_refresh, {  # NOT input$module-crud_refresh
+  load_data()
+})
+```
 
-## Common Development Tasks
+### Database Migrations
+```bash
+# After modifying models
+uv run alembic revision --autogenerate -m "Description"
+uv run alembic upgrade head
+uv run python tests/validator/run_model_validation.py
+```
 
-### Adding a New Entity Type
-1. **Backend**: Create model, schema, CRUD, and API endpoints
-2. **Frontend**: Create UI and server modules following existing patterns  
+## Adding a New Entity
+
+1. **Backend**: Create model → schema → CRUD class → API endpoints with WebSocket broadcasts
+2. **Frontend**: Create UI module → server module → add to api_client.R
 3. **WebSocket**: Add broadcast functions and event types
 4. **Testing**: Create functional test script like `test_crud_simple.sh`
 
-### Debugging WebSocket Issues
-1. Check browser console for connection errors
-2. Verify backend WebSocket endpoint is running
-3. Ensure message type matches expected format
-4. Test with `test_websocket_broadcast.py`
+## Common Issues
 
-### Database Schema Changes
-1. Modify SQLAlchemy models in `backend/app/models/`
-2. Run: `uv run alembic revision --autogenerate -m "Description"`
-3. Review generated migration in `backend/migrations/versions/`
-4. Apply: `uv run alembic upgrade head`
-5. Run model validator: `uv run python tests/validator/run_model_validation.py`
+| Issue | Solution |
+|-------|----------|
+| WebSocket not updating | Check browser console; verify message type matches module pattern |
+| Module observer not triggering | Shiny strips module prefix; use `input$crud_refresh` not `input$module-crud_refresh` |
+| Batch tests failing | Expected behavior; use individual test scripts |
+| Model validation errors | Run `uv run python tests/validator/run_model_validation.py` |
+| JavaScript timing errors | Always check `window.Shiny && window.Shiny.setInputValue` before use |
 
-## Git Workflow
+## Technology Stack
 
-### Commit Regularly
-- Make frequent commits to track progress
-- Use descriptive commit messages
-- Follow conventional commit format: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`
+### Backend
+- Python 3.11+ with UV package manager
+- FastAPI 0.111+ with async/await
+- SQLAlchemy 2.0 async + PostgreSQL
+- Pydantic v2, Alembic migrations
+- Black + isort + flake8 + mypy
 
-### Before Committing
-1. **Backend**: Run `make format` and `make lint`
-2. **Frontend**: Ensure app runs without errors
-3. **Tests**: Run relevant test scripts
-4. **Documentation**: Update CLAUDE.md if patterns change
+### Frontend
+- R 4.2.2 with renv
+- Shiny + bslib (Bootstrap 5)
+- httr2, shinyvalidate, DT
+- Dual WebSocket clients (JS primary, R secondary)
 
-## Important Development Guidelines
+## Component Documentation
 
-### Backend Guidelines
-- **Never bypass CRUD layer** - All database operations must go through CRUD classes
-- **Implement deletion protection** - Check for dependent entities before deletion
-- **Use UV for all Python operations** - Faster and more reliable than pip
-- **Run model validator** after any model/schema changes
-- **Test individually** - Use `./test_crud_simple.sh` for functional testing
-
-### Frontend Guidelines  
-- **Use environment variables** for all API endpoints
-- **Follow module pattern** - UI/Server separation for all components
-- **Implement deferred validation** - Only validate on Save/Submit actions
-- **Test WebSocket sync** - Open multiple browser sessions
-- **Use renv** for package management - Ensures reproducibility
-
-### Testing Guidelines
-- **Backend**: Focus on functional endpoint testing with curl/HTTP
-- **Frontend**: Test real-time synchronization across sessions
-- **Individual tests only** - Batch tests will fail due to async session conflicts
-- **Use test scripts** - `test_crud_simple.sh`, `test_packages_crud.sh`, etc.
-
-## Recent Changes
-
-### December 2024 - Frontend Module Consolidation
-- Removed individual Studies, Database Releases, and Reporting Efforts modules
-- All functionality now handled by Study Tree module with hierarchical view
-- Fixed Study Tree selection ambiguity with path-based selection
-
-### January 2025 - Form Validation UX Improvements
-- Form validation now only triggers when Save/Create buttons clicked
-- Implemented deferred validation pattern across all modules
-- Fixed TNFP Edit modal Save button issue
-
-## MCP Tools Integration
-
-### Playwright MCP for UI Testing
-- Navigate and interact with the R Shiny application
-- Test shinyTree expand/collapse and selection
-- Verify WebSocket real-time synchronization
-- Take screenshots for documentation
-
-### Context7 MCP for Documentation
-- Access up-to-date library documentation
-- Research best practices for R Shiny and FastAPI
-- Find code examples and implementation patterns
-
-### IDE MCP Integration
-- Get language diagnostics from VS Code
-- Execute Python code in Jupyter kernels
-- Test notebook files and data analysis workflows
-
-## Available Claude Code Agents
-
-### rshiny-modern-builder
-Use for creating modern, API-driven R Shiny applications with modular architecture, bslib UI, httr2 API calls, and real-time WebSocket integration.
-
-### fastapi-crud-builder
-Use for building or enhancing FastAPI applications with async PostgreSQL CRUD operations, particularly for data science environments with R Shiny integration.
-
-### fastapi-model-validator
-Use for validating Pydantic and SQLAlchemy model alignment in FastAPI applications, especially after making changes to data models, schemas, or database structures.
-
-### fastapi-simple-tester
-Use for creating simple, reliable endpoint testing for FastAPI applications using curl commands that avoid complex test frameworks and database session conflicts.
-
-## Essential Development Constraints
-
-### File Creation Guidelines
-- **NEVER create files** unless absolutely necessary for achieving your goal
-- **ALWAYS prefer editing** an existing file to creating a new one  
-- **NEVER proactively create** documentation files (*.md) or README files
-- Only create documentation files if explicitly requested by the User
-
-### Path Conventions (Windows)
-- Use forward slashes `/` in all file paths (even on Windows)
-- Backend paths: `backend/app/models/`, `backend/tests/`
-- Frontend paths: `admin-frontend/modules/`, `admin-frontend/www/`
-
-### Critical Testing Constraint
-**⚠️ ABSOLUTE CRITICAL**: This codebase has documented SQLAlchemy async session conflicts that prevent reliable batch test execution. This is **NOT a bug** - it's an architectural constraint.
-- Individual tests work perfectly ✅
-- Batch test execution frequently fails ❌
-- Always test individually: `pytest single_test.py -v`
-- Success metric: Individual test reliability, not batch pass rates
-
-### Deletion Protection Pattern (Mandatory)
-**🛡️ ALL entity deletions MUST implement dependency checking**:
-```python
-# Pattern: Check for dependent entities before deletion
-dependent_entities = await dependent_crud.get_by_parent_id(db, parent_id=entity_id)
-if dependent_entities:
-    entity_names = [e.label for e in dependent_entities]
-    raise HTTPException(
-        status_code=400,
-        detail=f"Cannot delete {entity_type} '{entity.label}': {len(dependent_entities)} associated {dependent_type}(s) exist: {', '.join(entity_names)}. Please delete all associated {dependent_type}s first."
-    )
-```
-
-### WebSocket Broadcasting Pattern (Required)
-**📡 ALL CRUD operations MUST trigger WebSocket broadcasts**:
-```python
-# In API endpoints after successful operations
-created_entity = await entity_crud.create(db, obj_in=entity_in)
-await broadcast_entity_created(created_entity)  # Required for real-time sync
-```
-
-### Make Commands (Backend Code Quality)
-```bash
-# Run these commands before committing backend changes
-make format     # Auto-format with black + isort (required)
-make lint       # Check with flake8 + mypy (required)
-make typecheck  # Type checking only
-
-# Additional make commands available
-make help       # Show all available make commands
-make check-all  # Run lint, typecheck, and fast tests
-make validate   # Full validation: format + lint + typecheck + coverage
-make clean      # Clean up generated files and cache
-```
-
-## Technology Stack Summary
-
-### Backend (FastAPI)
-- **Python**: 3.11+ with UV package manager (preferred) or pip
-- **Framework**: FastAPI 0.111+ + uvicorn with async/await patterns
-- **Database**: PostgreSQL with SQLAlchemy 2.0 async + asyncpg driver
-- **Migrations**: Alembic for schema changes
-- **Real-time**: WebSocket broadcasting via ConnectionManager
-- **Validation**: Pydantic v2 for request/response schemas
-- **Testing**: pytest 8.0+ with individual test execution only
-- **Code Quality**: Black + isort + flake8 + mypy (strict mode)
-- **Development**: Comprehensive Makefile with test suites (unit/integration/security/performance)
-
-### Frontend (R Shiny)
-- **R Version**: 4.2.2 with renv for reproducible packages
-- **Framework**: Shiny with bslib for modern Bootstrap 5 UI
-- **HTTP Client**: httr2 for robust API communication
-- **Validation**: shinyvalidate with deferred validation pattern
-- **Tables**: DT for interactive data tables with search/filter
-- **Real-time**: Dual WebSocket clients (JavaScript primary, R secondary)
-- **Testing**: Playwright MCP for automated browser testing
-
-### Database Schema Overview
-**Hierarchical Entity Relationships**:
-```
-Study (1) ←→ (N) DatabaseRelease (1) ←→ (N) ReportingEffort (1) ←→ (N) ReportingEffortItem
-  ↑                                              ↓                          ↓
-  └────────────── (1) ←→ (N) ──────────────────┘                   ReportingEffortItemTracker
-                                                                     (with TrackerComment support)
-
-Package (1) ←→ (N) PackageItem (polymorphic: TLF/Dataset)
-  ↑                     ↓
-  └─── Text Elements ───┘ (footnotes, acronyms via junction tables)
-
-TextElement (standalone: title, footnote, population_set, acronyms_set)
-User (authentication: admin, analyst, viewer roles)
-TrackerComment (workflow comments with threading and resolution status)
-```
-
-## For More Details
-
-- **Backend**: See [backend/CLAUDE.md](backend/CLAUDE.md) and [backend/README.md](backend/README.md)
-- **Frontend**: See [admin-frontend/CLAUDE.md](admin-frontend/CLAUDE.md) and [admin-frontend/README.md](admin-frontend/README.md)
-- **Testing**: See [backend/tests/README.md](backend/tests/README.md)
-- **Utility Scripts**: See [scripts/README.md](scripts/README.md) for service management
-- **Database Migration**: See [backend/CASCADE_DELETE_MIGRATION_PLAN.md](backend/CASCADE_DELETE_MIGRATION_PLAN.md) for orphaned records solution
-- **Tracker Delete Testing**: DELETE endpoint for reporting effort tracker is production-ready and tested
-- **MCP Integration**: fastapi-mcp running at http://localhost:8000/mcp
-
-## Recent Important Updates (August 2025)
-
-### Cross-Browser WebSocket Synchronization Pattern
-**✅ COMPLETE SOLUTION**: Implemented for packages, package items, reporting effort trackers, and comments
-- **Problem**: Shiny module namespace isolation prevents direct cross-session communication
-- **Solution**: Universal CRUD Manager with proper namespace handling
-
-#### Two Working Approaches for Cross-Browser Sync:
-
-### **Approach A: Universal CRUD Manager (Recommended)**
-**✅ Used by**: Package Items, Trackers (newer implementation)
-- **Advantage**: Automatic, no extra configuration needed
-- **How it works**: WebSocket → Universal CRUD Manager → Module input
-
-1. **Backend broadcasts**: Standard WebSocket events (`package_item_updated`, etc.)
-2. **Universal CRUD Manager**: Automatically routes to correct module
-3. **Module Observer**: Listens for `input$crud_refresh` (note: module prefix stripped!)
-
-```r
-# In module server (e.g., package_items_server.R)
-observeEvent(input$crud_refresh, {  # ⚠️ NO module prefix!
-  if (!is.null(input$crud_refresh)) {
-    load_data()  # Refresh the data
-  }
-})
-```
-
-### **Approach B: Global Observer + Custom Messages**
-**✅ Used by**: Packages, Studies (legacy implementation)
-
-1. **WebSocket Client Routes to Global** (`websocket_client.js`):
-```javascript
-// Route to global observer for cross-browser sync
-if (data.type.startsWith('package_')) {
-    this.notifyShinyGlobal(data.type, data.data, 'package_update');
-}
-```
-
-2. **Global Observer in app.R**:
-```r
-observeEvent(input$`package_update-websocket_event`, {
-  if (!is.null(input$`package_update-websocket_event`)) {
-    session$sendCustomMessage("triggerPackageRefresh", list(
-      timestamp = as.numeric(Sys.time()),
-      event_type = event_data$type
-    ))
-  }
-})
-```
-
-3. **JavaScript Handler** (`shiny_handlers.js`):
-```javascript
-Shiny.addCustomMessageHandler('triggerPackageRefresh', function(message) {
-  if (window.Shiny && window.Shiny.setInputValue) {  // ⚠️ Check availability!
-    Shiny.setInputValue('packages-crud_refresh', Math.random(), {priority: 'event'});
-  }
-});
-```
-
-4. **Module Observer**:
-```r
-observeEvent(input$`packages-crud_refresh`, {  # ⚠️ FULL name in observer!
-  if (!is.null(input$`packages-crud_refresh`)) {
-    load_packages_data()
-  }
-})
-```
-
-#### Critical Implementation Rules:
-1. **Namespace Stripping**: Shiny automatically removes module prefix from input names within modules
-   - JavaScript sets: `package_items-crud_refresh`
-   - Module receives: `crud_refresh` (prefix stripped)
-2. **JavaScript Timing**: Always check `window.Shiny && window.Shiny.setInputValue` before use
-3. **Avoid Duplicates**: Don't use both approaches for the same entity type (causes race conditions)
-4. **Universal CRUD Manager**: Preferred for new implementations (simpler, more reliable)
-
-### Tracker Delete Functionality
-**✅ PRODUCTION READY**: DELETE endpoint for reporting effort tracker has been thoroughly tested
-- **Endpoint**: `DELETE /api/v1/reporting-effort-tracker/{tracker_id}`
-- **Features**: Comprehensive error handling, WebSocket broadcasting, audit logging
-- **Testing**: Complete test coverage with `test_tracker_delete_simple.sh`
-- **Status Codes**: 204 (success), 404 (not found), 422 (validation error)
-
-### CASCADE DELETE Migration System
-**🛠️ MIGRATION AVAILABLE**: Comprehensive solution for database referential integrity
-- **Scripts Ready**: Complete migration with automatic backup and rollback
-- **Analysis Complete**: No orphaned records currently exist in database
-- **Constraints Updated**: 31 foreign key constraints need CASCADE DELETE implementation
-- **Safety Features**: Pre-migration validation, post-migration testing, automated backups
-
-### Cross-Browser Sync Debugging Guide
-**🔍 SYSTEMATIC DEBUGGING**: When cross-browser sync doesn't work
-
-#### Step 1: Check Backend WebSocket Broadcasting
-```bash
-# Check backend logs for broadcast messages
-cd backend
-uv run python run.py  # Look for: "Broadcasting [entity]_[action]" messages
-```
-
-#### Step 2: Check JavaScript Chain
-**Open Browser Console (F12) and look for:**
-```javascript
-📨 WebSocket message received: [entity]_[action]
-📤 Triggering Shiny refresh: [module]-crud_refresh with value: [timestamp]
-```
-
-#### Step 3: Check R Module Input Reception
-**Add temporary debug observer in module:**
-```r
-# Temporary debugging observer
-observe({
-  all_inputs <- reactiveValuesToList(input)
-  crud_inputs <- names(all_inputs)[grepl("crud_refresh", names(all_inputs))]
-  if (length(crud_inputs) > 0) {
-    cat("🔍 DEBUG: CRUD inputs:", paste(crud_inputs, collapse=", "), "\n")
-  }
-})
-```
-
-#### Step 4: Common Issues and Solutions
-1. **JavaScript Timing Errors**: `Shiny.setInputValue is not a function`
-   - **Fix**: Always check `window.Shiny && window.Shiny.setInputValue`
-   
-2. **Module Observer Not Triggering**: Input name mismatch
-   - **Check**: Shiny strips module prefix! Use `input$crud_refresh`, not `input$module-crud_refresh`
-   
-3. **Race Conditions**: Multiple systems setting same input
-   - **Fix**: Use either Universal CRUD Manager OR Global Observer, never both
-   
-4. **Module Not Loading**: Syntax errors prevent observer registration
-   - **Check**: `Rscript -e "source('modules/[module]_server.R')"`
-
-### Enhanced Testing Infrastructure  
-**📋 EXPANDED TEST COVERAGE**: Multiple specialized test scripts available
-- **Core CRUD**: `test_crud_simple.sh` for basic functionality
-- **Packages**: `test_packages_crud.sh` for package management
-- **Tracker Operations**: `test_reporting_effort_tracker_crud.sh` and `test_tracker_delete_simple.sh`
-- **Deletion Protection**: `test_study_deletion_protection_fixed.sh`
-- **Cross-Browser Sync**: Open multiple browser tabs and test create/update/delete operations
-- **Individual Testing**: All scripts designed for individual execution due to async session constraints
+- **Backend**: [backend/CLAUDE.md](backend/CLAUDE.md) and [backend/README.md](backend/README.md)
+- **Frontend**: [admin-frontend/CLAUDE.md](admin-frontend/CLAUDE.md) and [admin-frontend/README.md](admin-frontend/README.md)
+- **Testing**: [backend/tests/README.md](backend/tests/README.md)
