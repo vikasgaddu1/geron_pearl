@@ -1,23 +1,42 @@
-# Admin Dashboard UI Module
+# Dashboard UI Module - Role-Based Dashboards
+# Provides Lead Dashboard and Programmer Dashboard views
 
 admin_dashboard_ui <- function(id) {
   ns <- NS(id)
   
   tagList(
     # Custom CSS for dashboard
-    tags$style(HTML(paste0("
+    tags$style(HTML("
       .dashboard-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        padding: 2rem;
+        padding: 1.5rem 2rem;
         border-radius: 0.5rem;
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
+      }
+      
+      .user-selector-container {
+        background: rgba(255,255,255,0.15);
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+      
+      .user-selector-container label {
+        margin-bottom: 0;
+        font-weight: 500;
+      }
+      
+      .user-selector-container .form-select {
+        max-width: 250px;
       }
       
       .metric-card {
         background: white;
         border-radius: 0.5rem;
-        padding: 1.5rem;
+        padding: 1.25rem;
         box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
         height: 100%;
         transition: transform 0.2s;
@@ -29,9 +48,21 @@ admin_dashboard_ui <- function(id) {
       }
       
       .metric-value {
-        font-size: 2.5rem;
+        font-size: 2.25rem;
         font-weight: bold;
         color: #667eea;
+      }
+      
+      .metric-value.warning {
+        color: #ffc107;
+      }
+      
+      .metric-value.danger {
+        color: #dc3545;
+      }
+      
+      .metric-value.success {
+        color: #28a745;
       }
       
       .metric-label {
@@ -42,310 +73,365 @@ admin_dashboard_ui <- function(id) {
         margin-top: 0.5rem;
       }
       
-      .metric-change {
-        font-size: 0.875rem;
-        margin-top: 0.5rem;
-      }
-      
-      .change-positive {
-        color: #28a745;
-      }
-      
-      .change-negative {
-        color: #dc3545;
-      }
-      
-      .chart-card {
+      .assignment-card {
         background: white;
         border-radius: 0.5rem;
-        padding: 1.5rem;
+        padding: 1.25rem;
         box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-        height: 400px;
+        margin-bottom: 1rem;
       }
       
-      .activity-card {
-        background: white;
-        border-radius: 0.5rem;
-        padding: 1.5rem;
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-      }
-      
-      .activity-item {
-        padding: 0.75rem 0;
+      .deadline-item {
+        padding: 0.75rem;
         border-bottom: 1px solid #e9ecef;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
       }
       
-      .activity-item:last-child {
+      .deadline-item:last-child {
         border-bottom: none;
       }
       
-      .workload-bar {
-        background: #e9ecef;
+      .deadline-item.overdue {
+        background: rgba(220, 53, 69, 0.1);
+        border-left: 3px solid #dc3545;
+      }
+      
+      .deadline-item.due-soon {
+        background: rgba(255, 193, 7, 0.1);
+        border-left: 3px solid #ffc107;
+      }
+      
+      .deadline-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
         border-radius: 0.25rem;
+      }
+      
+      .priority-badge {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 0.25rem;
+        text-transform: uppercase;
+      }
+      
+      .priority-critical { background: #dc3545; color: white; }
+      .priority-high { background: #fd7e14; color: white; }
+      .priority-medium { background: #ffc107; color: #212529; }
+      .priority-low { background: #6c757d; color: white; }
+      
+      .status-badge {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 0.25rem;
+      }
+      
+      .status-not_started { background: #e9ecef; color: #495057; }
+      .status-in_progress { background: #0dcaf0; color: #212529; }
+      .status-completed { background: #198754; color: white; }
+      .status-on_hold { background: #6c757d; color: white; }
+      .status-failed { background: #dc3545; color: white; }
+      
+      .workload-progress {
         height: 8px;
-        position: relative;
+        background: #e9ecef;
+        border-radius: 4px;
         overflow: hidden;
       }
       
-      .workload-fill {
-        position: absolute;
-        top: 0;
-        left: 0;
+      .workload-bar {
         height: 100%;
         background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
         transition: width 0.5s ease;
       }
       
-      .team-member-card {
-        padding: 1rem;
-        background: #f8f9fa;
-        border-radius: 0.5rem;
+      .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #6c757d;
+      }
+      
+      .empty-state i {
+        font-size: 3rem;
         margin-bottom: 1rem;
+        opacity: 0.5;
       }
       
-      .progress-ring {
-        transform: rotate(-90deg);
+      .nav-tabs .nav-link {
+        font-weight: 500;
       }
       
-      .progress-ring-circle {
-        fill: transparent;
-        stroke-width: 4;
-        stroke-dasharray: 251.2;
-        stroke-dashoffset: 251.2;
-        transition: stroke-dashoffset 1s ease;
+      .nav-tabs .nav-link.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
       }
-      
-      .status-indicator {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        display: inline-block;
-        margin-right: 0.5rem;
-      }
-      
-      .status-active {
-        background: #28a745;
-        animation: pulse 2s infinite;
-      }
-      
-      .status-pending {
-        background: #ffc107;
-      }
-      
-      .status-completed {
-        background: #6c757d;
-      }
-      
-      @keyframes pulse {
-        0% {
-          box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4);
-        }
-        70% {
-          box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
-        }
-        100% {
-          box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
-        }
-      }
-      
-      .export-menu {
-        position: absolute;
-        top: 1rem;
-        right: 1rem;
-      }
-    "))),
+    ")),
     
     # Main container
     div(
       class = "container-fluid px-4",
       
-      # Dashboard Header
+      # Dashboard Header with User Selector
       div(
         class = "dashboard-header",
         div(
-          class = "d-flex justify-content-between align-items-center",
+          class = "d-flex justify-content-between align-items-center flex-wrap gap-3",
           div(
-            h1("Admin Dashboard", class = "mb-0"),
-            p("Real-time overview of PEARL system activity", class = "mb-0 mt-2")
+            h1("Dashboard", class = "mb-0 h3"),
+            p("View assignments and track progress", class = "mb-0 mt-1 small opacity-75")
           ),
           div(
-            class = "btn-group",
+            class = "d-flex align-items-center gap-3",
+            div(
+              class = "user-selector-container",
+              tags$label(icon("user"), " View As:"),
+              uiOutput(ns("user_selector_ui"))
+            ),
             actionButton(
               ns("refresh_dashboard"),
-              "Refresh",
-              icon = icon("sync-alt"),
-              class = "btn btn-light"
+              tagList(icon("sync-alt"), " Refresh"),
+              class = "btn btn-light btn-sm"
+            )
+          )
+        )
+      ),
+      
+      # Dashboard Tabs
+      tabsetPanel(
+        id = ns("dashboard_tabs"),
+        type = "tabs",
+        
+        # Programmer Dashboard Tab
+        tabPanel(
+          "Programmer Dashboard",
+          value = "programmer_tab",
+          icon = icon("code"),
+          div(
+            class = "py-3",
+            
+            # Summary Metrics Row
+            div(
+              class = "row mb-4",
+              div(
+                class = "col-md-3 mb-3",
+                div(
+                  class = "metric-card",
+                  div(class = "metric-value", textOutput(ns("prog_total_assignments"), inline = TRUE)),
+                  div(class = "metric-label", "Total Assignments")
+                )
+              ),
+              div(
+                class = "col-md-3 mb-3",
+                div(
+                  class = "metric-card",
+                  div(class = "metric-value", textOutput(ns("prog_in_production"), inline = TRUE)),
+                  div(class = "metric-label", "In Production")
+                )
+              ),
+              div(
+                class = "col-md-3 mb-3",
+                div(
+                  class = "metric-card",
+                  uiOutput(ns("prog_overdue_value")),
+                  div(class = "metric-label", "Overdue Items")
+                )
+              ),
+              div(
+                class = "col-md-3 mb-3",
+                div(
+                  class = "metric-card",
+                  uiOutput(ns("prog_due_soon_value")),
+                  div(class = "metric-label", "Due Within 7 Days")
+                )
+              )
             ),
-            dropdown(
-              actionButton(
-                ns("export_pdf"),
-                "Export as PDF",
-                icon = icon("file-pdf"),
-                class = "btn btn-link text-dark w-100 text-start"
+            
+            # Main Content Row
+            div(
+              class = "row",
+              # My Assignments Section
+              div(
+                class = "col-lg-8 mb-4",
+                div(
+                  class = "card",
+                  div(
+                    class = "card-header bg-white d-flex justify-content-between align-items-center",
+                    h5(tagList(icon("clipboard-list"), " My Assignments"), class = "mb-0"),
+                    div(
+                      class = "btn-group btn-group-sm",
+                      actionButton(ns("filter_all"), "All", class = "btn btn-outline-primary active"),
+                      actionButton(ns("filter_production"), "Production", class = "btn btn-outline-primary"),
+                      actionButton(ns("filter_qc"), "QC", class = "btn btn-outline-primary")
+                    )
+                  ),
+                  div(
+                    class = "card-body p-0",
+                    DT::dataTableOutput(ns("my_assignments_table"))
+                  )
+                )
               ),
-              actionButton(
-                ns("export_excel"),
-                "Export as Excel",
-                icon = icon("file-excel"),
-                class = "btn btn-link text-dark w-100 text-start"
-              ),
-              actionButton(
-                ns("export_csv"),
-                "Export as CSV",
-                icon = icon("file-csv"),
-                class = "btn btn-link text-dark w-100 text-start"
-              ),
-              icon = icon("download"),
-              status = "light",
-              width = "200px"
-            )
-          )
-        )
-      ),
-      
-      # Key Metrics Row
-      div(
-        class = "row mb-4",
-        div(
-          class = "col-md-3 mb-3",
-          div(
-            class = "metric-card",
-            div(class = "metric-value", textOutput(ns("total_studies"), inline = TRUE)),
-            div(class = "metric-label", "Active Studies"),
-            div(
-              class = "metric-change change-positive",
-              uiOutput(ns("studies_change"))
-            )
-          )
-        ),
-        div(
-          class = "col-md-3 mb-3",
-          div(
-            class = "metric-card",
-            div(class = "metric-value", textOutput(ns("total_trackers"), inline = TRUE)),
-            div(class = "metric-label", "Active Trackers"),
-            div(
-              class = "metric-change",
-              uiOutput(ns("trackers_change"))
-            )
-          )
-        ),
-        div(
-          class = "col-md-3 mb-3",
-          div(
-            class = "metric-card",
-            div(class = "metric-value", textOutput(ns("total_items"), inline = TRUE)),
-            div(class = "metric-label", "Total Items"),
-            div(
-              class = "metric-change",
-              uiOutput(ns("items_change"))
-            )
-          )
-        ),
-        div(
-          class = "col-md-3 mb-3",
-          div(
-            class = "metric-card",
-            div(class = "metric-value", textOutput(ns("completion_rate"), inline = TRUE)),
-            div(class = "metric-label", "Completion Rate"),
-            div(
-              class = "metric-change",
-              uiOutput(ns("completion_change"))
-            )
-          )
-        )
-      ),
-      
-      # Charts Row
-      div(
-        class = "row mb-4",
-        # Team Workload Chart
-        div(
-          class = "col-md-6 mb-3",
-          div(
-            class = "chart-card",
-            h5("Team Workload Overview"),
-            div(
-              id = ns("workload_chart"),
-              plotOutput(ns("team_workload_plot"), height = "320px")
-            )
-          )
-        ),
-        # Progress Tracking Chart
-        div(
-          class = "col-md-6 mb-3",
-          div(
-            class = "chart-card",
-            h5("Progress Tracking"),
-            div(
-              id = ns("progress_chart"),
-              plotOutput(ns("progress_tracking_plot"), height = "320px")
-            )
-          )
-        )
-      ),
-      
-      # Bottom Row - Activity and Resources
-      div(
-        class = "row",
-        # Recent Activity
-        div(
-          class = "col-md-4 mb-3",
-          div(
-            class = "activity-card",
-            h5("Recent Activity"),
-            div(
-              id = ns("recent_activity"),
-              uiOutput(ns("activity_list"))
-            )
-          )
-        ),
-        # Resource Allocation
-        div(
-          class = "col-md-4 mb-3",
-          div(
-            class = "chart-card",
-            h5("Resource Allocation"),
-            plotOutput(ns("resource_allocation_plot"), height = "320px")
-          )
-        ),
-        # Bottleneck Identification
-        div(
-          class = "col-md-4 mb-3",
-          div(
-            class = "activity-card",
-            h5("Bottleneck Analysis"),
-            uiOutput(ns("bottleneck_list"))
-          )
-        )
-      ),
-      
-      # Team Members Workload Details
-      div(
-        class = "row mt-4",
-        div(
-          class = "col-12",
-          div(
-            class = "card",
-            div(
-              class = "card-header bg-white",
-              h5("Team Member Details", class = "mb-0")
+              
+              # Upcoming Deadlines Section
+              div(
+                class = "col-lg-4 mb-4",
+                div(
+                  class = "card",
+                  div(
+                    class = "card-header bg-white",
+                    h5(tagList(icon("calendar-alt"), " Upcoming Deadlines"), class = "mb-0")
+                  ),
+                  div(
+                    class = "card-body p-0",
+                    style = "max-height: 500px; overflow-y: auto;",
+                    uiOutput(ns("upcoming_deadlines_list"))
+                  )
+                )
+              )
             ),
+            
+            # Status Breakdown
             div(
-              class = "card-body",
-              DT::dataTableOutput(ns("team_details_table"))
+              class = "row",
+              div(
+                class = "col-md-6 mb-4",
+                div(
+                  class = "card",
+                  div(
+                    class = "card-header bg-white",
+                    h5(tagList(icon("tasks"), " Production Status"), class = "mb-0")
+                  ),
+                  div(
+                    class = "card-body",
+                    uiOutput(ns("production_status_breakdown"))
+                  )
+                )
+              ),
+              div(
+                class = "col-md-6 mb-4",
+                div(
+                  class = "card",
+                  div(
+                    class = "card-header bg-white",
+                    h5(tagList(icon("check-double"), " QC Status"), class = "mb-0")
+                  ),
+                  div(
+                    class = "card-body",
+                    uiOutput(ns("qc_status_breakdown"))
+                  )
+                )
+              )
+            )
+          )
+        ),
+        
+        # Lead Dashboard Tab
+        tabPanel(
+          "Lead Dashboard",
+          value = "lead_tab",
+          icon = icon("users"),
+          div(
+            class = "py-3",
+            
+            # Key Metrics Row
+            div(
+              class = "row mb-4",
+              div(
+                class = "col-md-3 mb-3",
+                div(
+                  class = "metric-card",
+                  div(class = "metric-value", textOutput(ns("total_studies"), inline = TRUE)),
+                  div(class = "metric-label", "Active Studies")
+                )
+              ),
+              div(
+                class = "col-md-3 mb-3",
+                div(
+                  class = "metric-card",
+                  div(class = "metric-value", textOutput(ns("total_trackers"), inline = TRUE)),
+                  div(class = "metric-label", "Active Trackers")
+                )
+              ),
+              div(
+                class = "col-md-3 mb-3",
+                div(
+                  class = "metric-card",
+                  div(class = "metric-value", textOutput(ns("total_items"), inline = TRUE)),
+                  div(class = "metric-label", "Total Items")
+                )
+              ),
+              div(
+                class = "col-md-3 mb-3",
+                div(
+                  class = "metric-card",
+                  div(class = "metric-value", textOutput(ns("completion_rate"), inline = TRUE)),
+                  div(class = "metric-label", "Completion Rate")
+                )
+              )
+            ),
+            
+            # Team Workload Section
+            div(
+              class = "row mb-4",
+              div(
+                class = "col-12",
+                div(
+                  class = "card",
+                  div(
+                    class = "card-header bg-white",
+                    h5(tagList(icon("users-cog"), " Team Workload"), class = "mb-0")
+                  ),
+                  div(
+                    class = "card-body",
+                    DT::dataTableOutput(ns("team_workload_table"))
+                  )
+                )
+              )
+            ),
+            
+            # System-Wide Deadlines Overview
+            div(
+              class = "row",
+              div(
+                class = "col-md-6 mb-4",
+                div(
+                  class = "card",
+                  div(
+                    class = "card-header bg-white",
+                    h5(tagList(icon("exclamation-triangle"), " Overdue Items"), class = "mb-0")
+                  ),
+                  div(
+                    class = "card-body",
+                    uiOutput(ns("system_overdue_list"))
+                  )
+                )
+              ),
+              div(
+                class = "col-md-6 mb-4",
+                div(
+                  class = "card",
+                  div(
+                    class = "card-header bg-white",
+                    h5(tagList(icon("clock"), " Items Due This Week"), class = "mb-0")
+                  ),
+                  div(
+                    class = "card-body",
+                    uiOutput(ns("system_due_soon_list"))
+                  )
+                )
+              )
             )
           )
         )
       ),
       
-      # Auto-refresh indicator
+      # Last update indicator
       div(
-        class = "text-center text-muted mt-4",
+        class = "text-center text-muted mt-3 small",
         icon("clock"),
         " Last updated: ",
-        textOutput(ns("last_update"), inline = TRUE),
-        " (Auto-refreshes every 30 seconds)"
+        textOutput(ns("last_update"), inline = TRUE)
       )
     )
   )

@@ -1,533 +1,878 @@
-# Admin Dashboard Server Module
+# Dashboard Server Module - Role-Based Dashboards
+# Provides Lead Dashboard and Programmer Dashboard functionality
 
 admin_dashboard_server <- function(id) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
-    
+
     # Reactive values for dashboard data
     rv <- reactiveValues(
-      studies = list(),
-      database_releases = list(),
-      reporting_efforts = list(),
-      trackers = list(),
-      tracker_items = list(),
       users = list(),
-      packages = list(),
-      recent_activity = list(),
+      current_user_id = NULL,
+      workload_data = NULL,
+      all_trackers = list(),
+      studies = list(),
       last_refresh = NULL,
-      metrics_history = list()
+      assignment_filter = "all",  # all, production, qc
+      users_loaded = FALSE  # Flag to track if users have been loaded
     )
+
+    # Load all users for the selector (only fetches data, doesn't update UI)
+    load_users <- function() {
+      users_result <- get_users()
+      if (!is.null(users_result) && is.null(users_result$error)) {
+        rv$users <- users_result
+        rv$users_loaded <- TRUE
+      }
+    }
     
-    # Load all dashboard data
-    load_dashboard_data <- function() {
-      # Load studies
+    # Load workload data for selected user
+    load_workload_data <- function(user_id) {
+      if (is.null(user_id) || user_id == "") return()
+      
+      workload_result <- get_programmer_workload(as.integer(user_id))
+      if (!is.null(workload_result) && is.null(workload_result$error)) {
+        rv$workload_data <- workload_result
+      } else {
+        rv$workload_data <- list(
+          production = list(stats = list(total = 0, not_started = 0, in_progress = 0, completed = 0, on_hold = 0), trackers = list()),
+          qc = list(stats = list(total = 0, not_started = 0, in_progress = 0, completed = 0, failed = 0), trackers = list()),
+          total_workload = 0
+        )
+      }
+    }
+    
+    # Load all trackers for lead dashboard
+    load_all_trackers <- function() {
+      trackers_result <- get_reporting_effort_tracker()
+      if (!is.null(trackers_result) && is.null(trackers_result$error)) {
+        rv$all_trackers <- trackers_result
+      } else {
+        rv$all_trackers <- list()
+      }
+    }
+    
+    # Load studies
+    load_studies <- function() {
       studies_result <- get_studies()
-      if (!is.null(studies_result) && !is.null(studies_result$error)) {
-        rv$studies <- list()
-      } else if (is.list(studies_result)) {
+      if (!is.null(studies_result) && is.null(studies_result$error)) {
         rv$studies <- studies_result
       } else {
         rv$studies <- list()
       }
-      
-      # Load database releases
-      releases_result <- get_database_releases()
-      if (!is.null(releases_result) && !is.null(releases_result$error)) {
-        rv$database_releases <- list()
-      } else if (is.list(releases_result)) {
-        rv$database_releases <- releases_result
-      } else {
-        rv$database_releases <- list()
+    }
+    
+    # Load all dashboard data (studies and trackers only - users handled separately)
+    load_dashboard_data <- function() {
+      load_studies()
+      load_all_trackers()
+
+      # Load workload for current user - use isolate to prevent reactive dependency
+      current_user <- isolate(rv$current_user_id)
+      if (!is.null(current_user) && current_user != "") {
+        load_workload_data(current_user)
       }
-      
-      # Load reporting efforts
-      efforts_result <- get_reporting_efforts()
-      if (!is.null(efforts_result) && !is.null(efforts_result$error)) {
-        rv$reporting_efforts <- list()
-      } else if (is.list(efforts_result)) {
-        rv$reporting_efforts <- efforts_result
-      } else {
-        rv$reporting_efforts <- list()
-      }
-      
-      # Load trackers
-      trackers_result <- get_reporting_effort_tracker()
-      if (!is.null(trackers_result) && !is.null(trackers_result$error)) {
-        rv$trackers <- list()
-      } else if (is.list(trackers_result)) {
-        rv$trackers <- trackers_result
-      } else {
-        rv$trackers <- list()
-      }
-      
-      # Load users
-      users_result <- get_users()
-      if (!is.null(users_result) && !is.null(users_result$error)) {
-        rv$users <- list()
-      } else if (is.list(users_result)) {
-        rv$users <- users_result
-      } else {
-        rv$users <- list()
-      }
-      
-      # Load packages
-      packages_result <- get_packages()
-      if (!is.null(packages_result) && !is.null(packages_result$error)) {
-        rv$packages <- list()
-      } else if (is.list(packages_result)) {
-        rv$packages <- packages_result
-      } else {
-        rv$packages <- list()
-      }
-      
-      # Calculate recent activity (last 7 days)
-      rv$recent_activity <- calculate_recent_activity()
-      
-      # Update last refresh time
+
       rv$last_refresh <- Sys.time()
     }
-    
-    # Calculate recent activity from all entities
-    calculate_recent_activity <- function() {
-      activity <- list()
-      
-      # Add recent studies
-      if (length(rv$studies) > 0) {
-        recent_studies <- Filter(function(s) {
-          if (!is.null(s$created_at)) {
-            created_date <- as.POSIXct(s$created_at, format = "%Y-%m-%dT%H:%M:%S")
-            difftime(Sys.time(), created_date, units = "days") < 7
-          } else {
-            FALSE
-          }
-        }, rv$studies)
-        
-        for (study in recent_studies) {
-          activity <- append(activity, list(list(
-            type = "study",
-            action = "created",
-            title = study$title,
-            time = study$created_at,
-            icon = "flask",
-            color = "primary"
-          )))
+
+    # Initial load - load users once at startup
+    observe({
+      if (!rv$users_loaded) {
+        load_users()
+        load_studies()
+        load_all_trackers()
+        rv$last_refresh <- Sys.time()
+      }
+    })
+
+    # Watch for user selector changes and initial render
+    # ignoreInit = FALSE so we catch the first render when selectInput gets a value
+    observeEvent(input$current_user, {
+      req(input$current_user)
+      if (input$current_user != "") {
+        new_user <- as.character(input$current_user)
+        # Only load workload if the user actually changed
+        if (is.null(rv$current_user_id) || rv$current_user_id != new_user) {
+          rv$current_user_id <- new_user
+          load_workload_data(new_user)
         }
       }
-      
-      # Add recent trackers
-      if (length(rv$trackers) > 0) {
-        recent_trackers <- Filter(function(t) {
-          if (!is.null(t$created_at)) {
-            created_date <- as.POSIXct(t$created_at, format = "%Y-%m-%dT%H:%M:%S")
-            difftime(Sys.time(), created_date, units = "days") < 7
-          } else {
-            FALSE
-          }
-        }, rv$trackers)
-        
-        for (tracker in recent_trackers) {
-          activity <- append(activity, list(list(
-            type = "tracker",
-            action = "created",
-            title = paste("Tracker #", tracker$id),
-            time = tracker$created_at,
-            icon = "clipboard-check",
-            color = "success"
-          )))
+    }, ignoreInit = FALSE)
+
+    # Build choices for user selector (reactive)
+    user_choices <- reactive({
+      req(rv$users_loaded)
+      choices <- c()
+      for (user in rv$users) {
+        dept_label <- if (!is.null(user$department) && user$department != "") {
+          paste0(" (", user$department, ")")
+        } else {
+          ""
         }
+        choices[paste0(user$username, dept_label)] <- user$id
       }
-      
-      # Sort by time (most recent first)
-      if (length(activity) > 0) {
-        activity <- activity[order(sapply(activity, function(a) a$time), decreasing = TRUE)]
+      choices
+    })
+
+    # Render user selector UI - only re-renders when users list changes
+    output$user_selector_ui <- renderUI({
+      choices <- user_choices()
+
+      if (length(choices) == 0) {
+        return(tags$span("Loading...", class = "text-muted"))
       }
-      
-      # Return top 10 activities
-      if (length(activity) > 10) {
-        activity <- activity[1:10]
+
+      # Get current selection to preserve it (if any)
+      current_selection <- isolate(rv$current_user_id)
+
+      # Determine which user to select:
+      # - If we have a valid current selection, keep it
+      # - Otherwise, select the first user
+      selected_user <- if (!is.null(current_selection) &&
+                           current_selection != "" &&
+                           current_selection %in% choices) {
+        current_selection
+      } else if (length(choices) > 0) {
+        as.character(choices[1])
+      } else {
+        NULL
       }
-      
-      return(activity)
-    }
-    
-    # Calculate metrics
-    calculate_metrics <- function() {
-      # Safe counting with proper list handling
-      total_studies <- if (is.list(rv$studies)) length(rv$studies) else 0
-      active_studies <- if (is.list(rv$studies) && length(rv$studies) > 0) {
-        sum(sapply(rv$studies, function(s) {
-          if (is.list(s) && !is.null(s$is_active)) isTRUE(s$is_active) else FALSE
-        }))
-      } else 0
-      
-      total_trackers <- if (is.list(rv$trackers)) length(rv$trackers) else 0
-      active_trackers <- if (is.list(rv$trackers) && length(rv$trackers) > 0) {
-        sum(sapply(rv$trackers, function(t) {
-          if (is.list(t) && !is.null(t$status)) {
-            t$status %in% c("not_started", "in_progress")
-          } else FALSE
-        }))
-      } else 0
-      
-      total_items <- if (is.list(rv$trackers) && length(rv$trackers) > 0) {
-        sum(sapply(rv$trackers, function(t) {
-          if (is.list(t) && !is.null(t$tracker_items) && is.list(t$tracker_items)) {
-            length(t$tracker_items)
-          } else 0
-        }))
-      } else 0
-      
-      completed_items <- if (is.list(rv$trackers) && length(rv$trackers) > 0) {
-        sum(sapply(rv$trackers, function(t) {
-          if (is.list(t) && !is.null(t$tracker_items) && is.list(t$tracker_items)) {
-            sum(sapply(t$tracker_items, function(i) {
-              if (is.list(i) && !is.null(i$status)) {
-                i$status == "completed"
-              } else FALSE
-            }))
-          } else 0
-        }))
-      } else 0
-      
-      total_users <- if (is.list(rv$users)) length(rv$users) else 0
-      active_users <- if (is.list(rv$users) && length(rv$users) > 0) {
-        sum(sapply(rv$users, function(u) {
-          if (is.list(u) && !is.null(u$is_active)) isTRUE(u$is_active) else FALSE
-        }))
-      } else 0
-      
-      total_packages <- if (is.list(rv$packages)) length(rv$packages) else 0
-      
-      list(
-        total_studies = total_studies,
-        active_studies = active_studies,
-        total_trackers = total_trackers,
-        active_trackers = active_trackers,
-        total_items = total_items,
-        completed_items = completed_items,
-        total_users = total_users,
-        active_users = active_users,
-        total_packages = total_packages
+
+      selectInput(
+        ns("current_user"),
+        label = NULL,
+        choices = choices,
+        selected = selected_user,
+        width = "200px"
       )
-    }
-    
-    # Initial load
-    observe({
-      load_dashboard_data()
     })
-    
-    # Auto-refresh every 30 seconds
-    observe({
-      invalidateLater(30000, session)
-      load_dashboard_data()
-    })
-    
+
     # Manual refresh
     observeEvent(input$refresh_dashboard, {
       load_dashboard_data()
-      show_success_notification(
-        "Dashboard refreshed",
-        duration = 2000
-      )
+      show_success_notification("Dashboard refreshed", duration = 2000)
     })
     
-    # Render metrics
-    output$total_studies <- renderText({
-      metrics <- calculate_metrics()
-      as.character(metrics$active_studies)
+    # Filter buttons
+    observeEvent(input$filter_all, {
+      rv$assignment_filter <- "all"
+      shinyjs::runjs(sprintf("
+        $('#%s').addClass('active');
+        $('#%s').removeClass('active');
+        $('#%s').removeClass('active');
+      ", ns("filter_all"), ns("filter_production"), ns("filter_qc")))
     })
     
-    output$studies_change <- renderUI({
-      # Calculate change from previous period (mock data for now)
-      change <- sample(c(-5:10), 1)
-      if (change > 0) {
-        tags$span(
-          class = "change-positive",
-          icon("arrow-up"),
-          paste0("+", change, " this week")
-        )
-      } else if (change < 0) {
-        tags$span(
-          class = "change-negative",
-          icon("arrow-down"),
-          paste0(abs(change), " this week")
-        )
-      } else {
-        tags$span(
-          class = "text-muted",
-          "No change"
-        )
-      }
+    observeEvent(input$filter_production, {
+      rv$assignment_filter <- "production"
+      shinyjs::runjs(sprintf("
+        $('#%s').removeClass('active');
+        $('#%s').addClass('active');
+        $('#%s').removeClass('active');
+      ", ns("filter_all"), ns("filter_production"), ns("filter_qc")))
     })
     
-    output$total_trackers <- renderText({
-      metrics <- calculate_metrics()
-      as.character(metrics$active_trackers)
+    observeEvent(input$filter_qc, {
+      rv$assignment_filter <- "qc"
+      shinyjs::runjs(sprintf("
+        $('#%s').removeClass('active');
+        $('#%s').removeClass('active');
+        $('#%s').addClass('active');
+      ", ns("filter_all"), ns("filter_production"), ns("filter_qc")))
     })
     
-    output$trackers_change <- renderUI({
-      change <- sample(c(-3:8), 1)
-      if (change > 0) {
-        tags$span(
-          class = "change-positive",
-          icon("arrow-up"),
-          paste0("+", change, " this week")
-        )
-      } else if (change < 0) {
-        tags$span(
-          class = "change-negative",
-          icon("arrow-down"),
-          paste0(abs(change), " this week")
-        )
-      } else {
-        tags$span(
-          class = "text-muted",
-          "No change"
-        )
-      }
-    })
-    
-    output$total_items <- renderText({
-      metrics <- calculate_metrics()
-      as.character(metrics$total_items)
-    })
-    
-    output$items_change <- renderUI({
-      change <- sample(c(-10:25), 1)
-      if (change > 0) {
-        tags$span(
-          class = "change-positive",
-          icon("arrow-up"),
-          paste0("+", change, " this week")
-        )
-      } else if (change < 0) {
-        tags$span(
-          class = "change-negative",
-          icon("arrow-down"),
-          paste0(abs(change), " this week")
-        )
-      } else {
-        tags$span(
-          class = "text-muted",
-          "No change"
-        )
-      }
-    })
-    
-    output$completion_rate <- renderText({
-      metrics <- calculate_metrics()
-      if (metrics$total_items > 0) {
-        rate <- round((metrics$completed_items / metrics$total_items) * 100, 1)
-        paste0(rate, "%")
-      } else {
-        "0%"
-      }
-    })
-    
-    output$completion_change <- renderUI({
-      change <- sample(c(-5:15), 1) / 10
-      if (change > 0) {
-        tags$span(
-          class = "change-positive",
-          icon("arrow-up"),
-          paste0("+", change, "%")
-        )
-      } else if (change < 0) {
-        tags$span(
-          class = "change-negative",
-          icon("arrow-down"),
-          paste0(abs(change), "%")
-        )
-      } else {
-        tags$span(
-          class = "text-muted",
-          "No change"
-        )
-      }
-    })
-    
-    # Team Workload Chart
-    output$team_workload_plot <- renderPlot({
-      # Create sample workload data
-      workload_data <- data.frame(
-        Team = c("Clinical", "Statistical", "Medical Writing", "Data Management", "QC"),
-        Tasks = c(45, 38, 52, 29, 41),
-        Capacity = c(50, 45, 55, 40, 45)
-      )
+    # Helper: Calculate overdue and due soon counts
+    get_deadline_stats <- function(trackers) {
+      today <- Sys.Date()
+      week_ahead <- today + 7
       
-      workload_data$Utilization <- round((workload_data$Tasks / workload_data$Capacity) * 100)
+      overdue <- 0
+      due_soon <- 0
       
-      # Create horizontal bar chart
-      par(mar = c(4, 8, 2, 2))
-      barplot(
-        workload_data$Utilization,
-        names.arg = workload_data$Team,
-        horiz = TRUE,
-        col = ifelse(workload_data$Utilization > 90, "#dc3545", 
-                    ifelse(workload_data$Utilization > 70, "#ffc107", "#667eea")),
-        xlim = c(0, 120),
-        xlab = "Utilization (%)",
-        las = 1,
-        border = NA
-      )
-      abline(v = 100, col = "red", lty = 2, lwd = 2)
-      grid(nx = NA, ny = NULL, col = "gray90")
-    })
-    
-    # Progress Tracking Chart
-    output$progress_tracking_plot <- renderPlot({
-      # Create sample progress data
-      dates <- seq(Sys.Date() - 29, Sys.Date(), by = "day")
-      planned <- cumsum(rep(10, 30))
-      actual <- cumsum(c(8, 9, 10, 11, 9, 8, 10, 12, 11, 10, 
-                        9, 10, 11, 10, 9, 10, 11, 12, 10, 9,
-                        10, 11, 10, 9, 10, 11, 10, 9, 10, 11))
-      
-      par(mar = c(4, 4, 2, 2))
-      plot(dates, planned, type = "l", col = "#6c757d", lwd = 2,
-           ylim = c(0, max(planned) * 1.1),
-           xlab = "Date", ylab = "Cumulative Items",
-           main = "Planned vs Actual Progress")
-      lines(dates, actual, col = "#667eea", lwd = 2)
-      
-      # Add legend
-      legend("topleft", 
-             legend = c("Planned", "Actual"),
-             col = c("#6c757d", "#667eea"),
-             lwd = 2,
-             bty = "n")
-      
-      # Add grid
-      grid(col = "gray90")
-    })
-    
-    # Resource Allocation Chart
-    output$resource_allocation_plot <- renderPlot({
-      # Create sample resource data
-      resources <- data.frame(
-        Category = c("Development", "Testing", "Documentation", "Review", "Other"),
-        Hours = c(120, 80, 45, 60, 25)
-      )
-      
-      # Create pie chart with custom colors
-      colors <- c("#667eea", "#764ba2", "#f67280", "#c06c84", "#6c5b7b")
-      
-      par(mar = c(2, 2, 2, 2))
-      pie(resources$Hours, 
-          labels = paste0(resources$Category, "\n", 
-                         round(resources$Hours / sum(resources$Hours) * 100, 1), "%"),
-          col = colors,
-          border = "white",
-          main = "")
-    })
-    
-    # Recent Activity List
-    output$activity_list <- renderUI({
-      if (length(rv$recent_activity) > 0) {
-        activity_items <- lapply(rv$recent_activity, function(activity) {
-          time_ago <- format_relative_time(activity$time)
+      for (tracker in trackers) {
+        if (!is.null(tracker$due_date) && tracker$due_date != "") {
+          due_date <- tryCatch({
+            as.Date(tracker$due_date)
+          }, error = function(e) NULL)
           
-          div(
-            class = "activity-item",
-            div(
-              class = "d-flex align-items-start",
-              div(
-                class = paste("me-3 text", activity$color),
-                icon(activity$icon)
-              ),
-              div(
-                class = "flex-grow-1",
-                div(
-                  class = "fw-semibold",
-                  paste(toupper(substring(activity$action, 1, 1)), 
-                        substring(activity$action, 2), " ",
-                        activity$type, sep = "")
-                ),
-                div(
-                  class = "text-muted small",
-                  activity$title
-                ),
-                div(
-                  class = "text-muted small mt-1",
-                  time_ago
-                )
+          if (!is.null(due_date)) {
+            # Check if not completed
+            status <- tracker$production_status %||% tracker$status %||% "not_started"
+            if (status != "completed") {
+              if (due_date < today) {
+                overdue <- overdue + 1
+              } else if (due_date <= week_ahead) {
+                due_soon <- due_soon + 1
+              }
+            }
+          }
+        }
+      }
+      
+      list(overdue = overdue, due_soon = due_soon)
+    }
+    
+    # Helper: Get in production count
+    get_in_production_count <- function(trackers) {
+      count <- 0
+      for (tracker in trackers) {
+        if (isTRUE(tracker$in_production_flag) || isTRUE(tracker$in_production)) {
+          count <- count + 1
+        }
+      }
+      count
+    }
+    
+    # ============================================
+    # PROGRAMMER DASHBOARD OUTPUTS
+    # ============================================
+    
+    # Total Assignments
+    output$prog_total_assignments <- renderText({
+      if (is.null(rv$workload_data)) return("0")
+      as.character(rv$workload_data$total_workload %||% 0)
+    })
+    
+    # In Production count
+    output$prog_in_production <- renderText({
+      if (is.null(rv$workload_data)) return("0")
+      
+      all_trackers <- c(
+        rv$workload_data$production$trackers %||% list(),
+        rv$workload_data$qc$trackers %||% list()
+      )
+      
+      as.character(get_in_production_count(all_trackers))
+    })
+    
+    # Overdue count
+    output$prog_overdue_value <- renderUI({
+      if (is.null(rv$workload_data)) {
+        return(div(class = "metric-value", "0"))
+      }
+      
+      all_trackers <- c(
+        rv$workload_data$production$trackers %||% list(),
+        rv$workload_data$qc$trackers %||% list()
+      )
+      
+      stats <- get_deadline_stats(all_trackers)
+      
+      if (stats$overdue > 0) {
+        div(class = "metric-value danger", stats$overdue)
+      } else {
+        div(class = "metric-value success", "0")
+      }
+    })
+    
+    # Due soon count
+    output$prog_due_soon_value <- renderUI({
+      if (is.null(rv$workload_data)) {
+        return(div(class = "metric-value", "0"))
+      }
+      
+      all_trackers <- c(
+        rv$workload_data$production$trackers %||% list(),
+        rv$workload_data$qc$trackers %||% list()
+      )
+      
+      stats <- get_deadline_stats(all_trackers)
+      
+      if (stats$due_soon > 0) {
+        div(class = "metric-value warning", stats$due_soon)
+      } else {
+        div(class = "metric-value", "0")
+      }
+    })
+    
+    # My Assignments Table
+    output$my_assignments_table <- DT::renderDataTable({
+      if (is.null(rv$workload_data)) {
+        return(DT::datatable(
+          data.frame(Message = "Select a user to view assignments"),
+          options = list(dom = 't'),
+          rownames = FALSE
+        ))
+      }
+      
+      # Build combined assignments dataframe
+      assignments <- data.frame(
+        ID = integer(0),
+        Item = character(0),
+        Type = character(0),
+        Status = character(0),
+        Priority = character(0),
+        Due_Date = character(0),
+        In_Production = character(0),
+        stringsAsFactors = FALSE
+      )
+      
+      today <- Sys.Date()
+      
+      # Add production assignments
+      if (rv$assignment_filter %in% c("all", "production")) {
+        prod_trackers <- rv$workload_data$production$trackers %||% list()
+        for (tracker in prod_trackers) {
+          # Get item info if available
+          item_code <- tracker$item_code %||% tracker$item$item_code %||% paste0("Item #", tracker$reporting_effort_item_id)
+          
+          due_date_str <- ""
+          deadline_class <- ""
+          if (!is.null(tracker$due_date) && tracker$due_date != "") {
+            due_date <- tryCatch(as.Date(tracker$due_date), error = function(e) NULL)
+            if (!is.null(due_date)) {
+              due_date_str <- format(due_date, "%Y-%m-%d")
+              if (due_date < today && tracker$production_status != "completed") {
+                deadline_class <- "overdue"
+              } else if (due_date <= today + 7 && tracker$production_status != "completed") {
+                deadline_class <- "due-soon"
+              }
+            }
+          }
+          
+          assignments <- rbind(assignments, data.frame(
+            ID = tracker$id %||% 0,
+            Item = item_code,
+            Type = "Production",
+            Status = tracker$production_status %||% "not_started",
+            Priority = tracker$priority %||% "medium",
+            Due_Date = due_date_str,
+            In_Production = if (isTRUE(tracker$in_production_flag) || isTRUE(tracker$in_production)) "Yes" else "No",
+            stringsAsFactors = FALSE
+          ))
+        }
+      }
+      
+      # Add QC assignments
+      if (rv$assignment_filter %in% c("all", "qc")) {
+        qc_trackers <- rv$workload_data$qc$trackers %||% list()
+        for (tracker in qc_trackers) {
+          item_code <- tracker$item_code %||% tracker$item$item_code %||% paste0("Item #", tracker$reporting_effort_item_id)
+          
+          due_date_str <- ""
+          if (!is.null(tracker$due_date) && tracker$due_date != "") {
+            due_date <- tryCatch(as.Date(tracker$due_date), error = function(e) NULL)
+            if (!is.null(due_date)) {
+              due_date_str <- format(due_date, "%Y-%m-%d")
+            }
+          }
+          
+          assignments <- rbind(assignments, data.frame(
+            ID = tracker$id %||% 0,
+            Item = item_code,
+            Type = "QC",
+            Status = tracker$qc_status %||% "not_started",
+            Priority = tracker$priority %||% "medium",
+            Due_Date = due_date_str,
+            In_Production = if (isTRUE(tracker$in_production_flag) || isTRUE(tracker$in_production)) "Yes" else "No",
+            stringsAsFactors = FALSE
+          ))
+        }
+      }
+      
+      if (nrow(assignments) == 0) {
+        return(DT::datatable(
+          data.frame(Message = "No assignments found for this user"),
+          options = list(dom = 't'),
+          rownames = FALSE
+        ))
+      }
+      
+      # Format for display
+      assignments$Priority <- sapply(assignments$Priority, function(p) {
+        sprintf('<span class="priority-badge priority-%s">%s</span>', p, toupper(p))
+      })
+      
+      assignments$Status <- sapply(assignments$Status, function(s) {
+        label <- gsub("_", " ", s)
+        label <- paste0(toupper(substr(label, 1, 1)), substr(label, 2, nchar(label)))
+        sprintf('<span class="status-badge status-%s">%s</span>', s, label)
+      })
+      
+      assignments$Type <- sapply(assignments$Type, function(t) {
+        if (t == "Production") {
+          '<span class="badge bg-primary">Production</span>'
+        } else {
+          '<span class="badge bg-info">QC</span>'
+        }
+      })
+      
+      # Rename columns for display
+      colnames(assignments) <- c("ID", "Item", "Type", "Status", "Priority", "Due Date", "In Production")
+      
+      DT::datatable(
+        assignments,
+        options = list(
+          dom = 'frtip',
+          pageLength = 10,
+          order = list(list(5, 'asc')),  # Sort by due date
+          columnDefs = list(
+            list(visible = FALSE, targets = 0),  # Hide ID column
+            list(className = 'text-center', targets = c(2, 3, 4, 6))
+          )
+        ),
+        escape = FALSE,
+        rownames = FALSE,
+        selection = 'none'
+      )
+    }, server = FALSE)
+    
+    # Upcoming Deadlines List
+    output$upcoming_deadlines_list <- renderUI({
+      if (is.null(rv$workload_data)) {
+        return(div(class = "empty-state", icon("calendar"), p("No deadline data available")))
+      }
+      
+      all_trackers <- c(
+        rv$workload_data$production$trackers %||% list(),
+        rv$workload_data$qc$trackers %||% list()
+      )
+      
+      today <- Sys.Date()
+      upcoming <- list()
+      
+      for (tracker in all_trackers) {
+        if (!is.null(tracker$due_date) && tracker$due_date != "") {
+          due_date <- tryCatch(as.Date(tracker$due_date), error = function(e) NULL)
+          if (!is.null(due_date)) {
+            # Check status
+            status <- tracker$production_status %||% tracker$qc_status %||% "not_started"
+            if (status != "completed") {
+              item_code <- tracker$item_code %||% tracker$item$item_code %||% paste0("Item #", tracker$reporting_effort_item_id)
+              upcoming[[length(upcoming) + 1]] <- list(
+                item = item_code,
+                due_date = due_date,
+                priority = tracker$priority %||% "medium",
+                status = status,
+                is_overdue = due_date < today,
+                days_until = as.integer(due_date - today)
               )
+            }
+          }
+        }
+      }
+      
+      if (length(upcoming) == 0) {
+        return(div(
+          class = "empty-state",
+          icon("check-circle"),
+          p("No upcoming deadlines"),
+          tags$small("All items are either completed or have no due date", class = "text-muted")
+        ))
+      }
+      
+      # Sort by due date
+      upcoming <- upcoming[order(sapply(upcoming, function(x) x$due_date))]
+      
+      # Take first 15 items
+      if (length(upcoming) > 15) {
+        upcoming <- upcoming[1:15]
+      }
+      
+      items <- lapply(upcoming, function(item) {
+        item_class <- if (item$is_overdue) {
+          "deadline-item overdue"
+        } else if (item$days_until <= 7) {
+          "deadline-item due-soon"
+        } else {
+          "deadline-item"
+        }
+        
+        due_label <- if (item$is_overdue) {
+          sprintf('<span class="badge bg-danger">%d days overdue</span>', abs(item$days_until))
+        } else if (item$days_until == 0) {
+          '<span class="badge bg-warning">Due Today</span>'
+        } else if (item$days_until == 1) {
+          '<span class="badge bg-warning">Due Tomorrow</span>'
+        } else if (item$days_until <= 7) {
+          sprintf('<span class="badge bg-warning">%d days left</span>', item$days_until)
+        } else {
+          sprintf('<span class="badge bg-secondary">%d days left</span>', item$days_until)
+        }
+        
+        div(
+          class = item_class,
+          div(
+            class = "flex-grow-1",
+            div(class = "fw-semibold", item$item),
+            div(
+              class = "d-flex align-items-center gap-2 mt-1",
+              tags$small(class = "text-muted", format(item$due_date, "%b %d, %Y")),
+              HTML(sprintf('<span class="priority-badge priority-%s">%s</span>', 
+                          item$priority, toupper(item$priority)))
+            )
+          ),
+          HTML(due_label)
+        )
+      })
+      
+      tagList(items)
+    })
+    
+    # Production Status Breakdown
+    output$production_status_breakdown <- renderUI({
+      if (is.null(rv$workload_data)) {
+        return(div(class = "text-muted", "No data available"))
+      }
+      
+      stats <- rv$workload_data$production$stats
+      if (is.null(stats) || stats$total == 0) {
+        return(div(class = "text-muted", "No production assignments"))
+      }
+      
+      statuses <- list(
+        list(label = "Not Started", value = stats$not_started %||% 0, color = "#e9ecef"),
+        list(label = "In Progress", value = stats$in_progress %||% 0, color = "#0dcaf0"),
+        list(label = "Completed", value = stats$completed %||% 0, color = "#198754"),
+        list(label = "On Hold", value = stats$on_hold %||% 0, color = "#6c757d")
+      )
+      
+      items <- lapply(statuses, function(s) {
+        pct <- round((s$value / stats$total) * 100)
+        div(
+          class = "mb-3",
+          div(
+            class = "d-flex justify-content-between mb-1",
+            tags$span(s$label),
+            tags$span(paste0(s$value, " (", pct, "%)"))
+          ),
+          div(
+            class = "workload-progress",
+            div(
+              class = "workload-bar",
+              style = sprintf("width: %d%%; background: %s;", pct, s$color)
             )
           )
-        })
-        
-        tagList(activity_items)
-      } else {
-        div(
-          class = "text-center text-muted py-4",
-          icon("inbox"),
-          p("No recent activity", class = "mt-2")
         )
-      }
-    })
-    
-    # Bottleneck Analysis
-    output$bottleneck_list <- renderUI({
-      # Identify potential bottlenecks
-      bottlenecks <- list()
+      })
       
-      # Check for overdue items (mock data)
-      bottlenecks <- append(bottlenecks, list(
-        div(
-          class = "alert alert-warning",
-          icon("exclamation-triangle"),
-          " 5 items are overdue in Statistical Analysis"
-        )
-      ))
-      
-      # Check for resource constraints
-      bottlenecks <- append(bottlenecks, list(
-        div(
-          class = "alert alert-info",
-          icon("users"),
-          " Medical Writing team at 95% capacity"
-        )
-      ))
-      
-      if (length(bottlenecks) > 0) {
-        tagList(bottlenecks)
-      } else {
-        div(
-          class = "alert alert-success",
-          icon("check-circle"),
-          " No bottlenecks identified"
-        )
-      }
-    })
-    
-    # Team Details Table
-    output$team_details_table <- DT::renderDataTable({
-      # Create sample team data
-      team_data <- data.frame(
-        Member = c("John Smith", "Jane Doe", "Bob Wilson", "Alice Brown", "Charlie Davis"),
-        Team = c("Clinical", "Statistical", "Medical Writing", "Data Management", "QC"),
-        `Active Tasks` = c(12, 8, 15, 6, 10),
-        `Completed This Week` = c(5, 7, 4, 8, 6),
-        Utilization = c("85%", "72%", "95%", "60%", "80%"),
-        Status = c("Active", "Active", "Active", "Active", "Active"),
-        stringsAsFactors = FALSE,
-        check.names = FALSE
+      tagList(
+        div(class = "mb-3", tags$strong(paste("Total:", stats$total))),
+        items
       )
+    })
+    
+    # QC Status Breakdown
+    output$qc_status_breakdown <- renderUI({
+      if (is.null(rv$workload_data)) {
+        return(div(class = "text-muted", "No data available"))
+      }
+      
+      stats <- rv$workload_data$qc$stats
+      if (is.null(stats) || stats$total == 0) {
+        return(div(class = "text-muted", "No QC assignments"))
+      }
+      
+      statuses <- list(
+        list(label = "Not Started", value = stats$not_started %||% 0, color = "#e9ecef"),
+        list(label = "In Progress", value = stats$in_progress %||% 0, color = "#0dcaf0"),
+        list(label = "Completed", value = stats$completed %||% 0, color = "#198754"),
+        list(label = "Failed", value = stats$failed %||% 0, color = "#dc3545")
+      )
+      
+      items <- lapply(statuses, function(s) {
+        pct <- round((s$value / stats$total) * 100)
+        div(
+          class = "mb-3",
+          div(
+            class = "d-flex justify-content-between mb-1",
+            tags$span(s$label),
+            tags$span(paste0(s$value, " (", pct, "%)"))
+          ),
+          div(
+            class = "workload-progress",
+            div(
+              class = "workload-bar",
+              style = sprintf("width: %d%%; background: %s;", pct, s$color)
+            )
+          )
+        )
+      })
+      
+      tagList(
+        div(class = "mb-3", tags$strong(paste("Total:", stats$total))),
+        items
+      )
+    })
+    
+    # ============================================
+    # LEAD DASHBOARD OUTPUTS
+    # ============================================
+    
+    # Total Studies
+    output$total_studies <- renderText({
+      active_count <- sum(sapply(rv$studies, function(s) isTRUE(s$is_active)))
+      as.character(active_count)
+    })
+    
+    # Total Trackers
+    output$total_trackers <- renderText({
+      as.character(length(rv$all_trackers))
+    })
+    
+    # Total Items
+    output$total_items <- renderText({
+      as.character(length(rv$all_trackers))
+    })
+    
+    # Completion Rate
+    output$completion_rate <- renderText({
+      if (length(rv$all_trackers) == 0) return("0%")
+      
+      completed <- sum(sapply(rv$all_trackers, function(t) {
+        t$production_status == "completed" && (t$qc_status == "completed" || is.null(t$qc_programmer_id))
+      }))
+      
+      rate <- round((completed / length(rv$all_trackers)) * 100)
+      paste0(rate, "%")
+    })
+    
+    # Team Workload Table
+    output$team_workload_table <- DT::renderDataTable({
+      if (length(rv$users) == 0) {
+        return(DT::datatable(
+          data.frame(Message = "No users found"),
+          options = list(dom = 't'),
+          rownames = FALSE
+        ))
+      }
+      
+      # Calculate workload for each user
+      team_data <- data.frame(
+        Username = character(0),
+        Department = character(0),
+        Production = integer(0),
+        QC = integer(0),
+        Total = integer(0),
+        Overdue = integer(0),
+        In_Progress = integer(0),
+        stringsAsFactors = FALSE
+      )
+      
+      for (user in rv$users) {
+        prod_count <- 0
+        qc_count <- 0
+        overdue_count <- 0
+        in_progress_count <- 0
+        today <- Sys.Date()
+        
+        for (tracker in rv$all_trackers) {
+          # Production assignments
+          if (!is.null(tracker$production_programmer_id) && 
+              tracker$production_programmer_id == user$id) {
+            prod_count <- prod_count + 1
+            
+            if (tracker$production_status == "in_progress") {
+              in_progress_count <- in_progress_count + 1
+            }
+            
+            if (!is.null(tracker$due_date) && tracker$due_date != "") {
+              due_date <- tryCatch(as.Date(tracker$due_date), error = function(e) NULL)
+              if (!is.null(due_date) && due_date < today && tracker$production_status != "completed") {
+                overdue_count <- overdue_count + 1
+              }
+            }
+          }
+          
+          # QC assignments
+          if (!is.null(tracker$qc_programmer_id) && 
+              tracker$qc_programmer_id == user$id) {
+            qc_count <- qc_count + 1
+            
+            if (tracker$qc_status == "in_progress") {
+              in_progress_count <- in_progress_count + 1
+            }
+          }
+        }
+        
+        total_count <- prod_count + qc_count
+        
+        # Only show users with assignments or all users
+        team_data <- rbind(team_data, data.frame(
+          Username = user$username,
+          Department = user$department %||% "-",
+          Production = prod_count,
+          QC = qc_count,
+          Total = total_count,
+          Overdue = overdue_count,
+          In_Progress = in_progress_count,
+          stringsAsFactors = FALSE
+        ))
+      }
+      
+      # Sort by total (descending)
+      team_data <- team_data[order(-team_data$Total), ]
+      
+      # Format overdue column
+      team_data$Overdue <- sapply(team_data$Overdue, function(o) {
+        if (o > 0) {
+          sprintf('<span class="badge bg-danger">%d</span>', o)
+        } else {
+          '<span class="badge bg-success">0</span>'
+        }
+      })
+      
+      # Rename columns
+      colnames(team_data) <- c("Username", "Department", "Production", "QC", "Total", "Overdue", "In Progress")
       
       DT::datatable(
         team_data,
         options = list(
-          dom = 'ftip',
-          pageLength = 10,
-          searching = TRUE,
-          ordering = TRUE,
+          dom = 'frtip',
+          pageLength = 15,
+          order = list(list(4, 'desc')),
           columnDefs = list(
-            list(className = 'text-center', targets = c(2, 3, 4, 5))
+            list(className = 'text-center', targets = c(2, 3, 4, 5, 6))
           )
         ),
+        escape = FALSE,
         rownames = FALSE
       )
     }, server = FALSE)
+    
+    # System-wide Overdue Items
+    output$system_overdue_list <- renderUI({
+      if (length(rv$all_trackers) == 0) {
+        return(div(class = "text-muted", "No trackers available"))
+      }
+      
+      today <- Sys.Date()
+      overdue_items <- list()
+      
+      for (tracker in rv$all_trackers) {
+        if (!is.null(tracker$due_date) && tracker$due_date != "") {
+          due_date <- tryCatch(as.Date(tracker$due_date), error = function(e) NULL)
+          if (!is.null(due_date) && due_date < today) {
+            if (tracker$production_status != "completed") {
+              item_code <- tracker$item_code %||% tracker$item$item_code %||% paste0("Item #", tracker$reporting_effort_item_id)
+              
+              # Get assigned programmer
+              programmer <- "Unassigned"
+              for (user in rv$users) {
+                if (!is.null(tracker$production_programmer_id) && user$id == tracker$production_programmer_id) {
+                  programmer <- user$username
+                  break
+                }
+              }
+              
+              overdue_items[[length(overdue_items) + 1]] <- list(
+                item = item_code,
+                programmer = programmer,
+                days_overdue = as.integer(today - due_date),
+                due_date = due_date
+              )
+            }
+          }
+        }
+      }
+      
+      if (length(overdue_items) == 0) {
+        return(div(
+          class = "text-center text-success py-3",
+          icon("check-circle", class = "fa-2x mb-2"),
+          p("No overdue items!")
+        ))
+      }
+      
+      # Sort by days overdue (most overdue first)
+      overdue_items <- overdue_items[order(-sapply(overdue_items, function(x) x$days_overdue))]
+      
+      # Limit to 10
+      if (length(overdue_items) > 10) {
+        overdue_items <- overdue_items[1:10]
+      }
+      
+      items <- lapply(overdue_items, function(item) {
+        div(
+          class = "deadline-item overdue",
+          div(
+            class = "flex-grow-1",
+            div(class = "fw-semibold", item$item),
+            div(class = "small text-muted", paste("Assigned to:", item$programmer))
+          ),
+          span(class = "badge bg-danger", paste(item$days_overdue, "days overdue"))
+        )
+      })
+      
+      tagList(items)
+    })
+    
+    # System-wide Due Soon Items
+    output$system_due_soon_list <- renderUI({
+      if (length(rv$all_trackers) == 0) {
+        return(div(class = "text-muted", "No trackers available"))
+      }
+      
+      today <- Sys.Date()
+      week_ahead <- today + 7
+      due_soon_items <- list()
+      
+      for (tracker in rv$all_trackers) {
+        if (!is.null(tracker$due_date) && tracker$due_date != "") {
+          due_date <- tryCatch(as.Date(tracker$due_date), error = function(e) NULL)
+          if (!is.null(due_date) && due_date >= today && due_date <= week_ahead) {
+            if (tracker$production_status != "completed") {
+              item_code <- tracker$item_code %||% tracker$item$item_code %||% paste0("Item #", tracker$reporting_effort_item_id)
+              
+              # Get assigned programmer
+              programmer <- "Unassigned"
+              for (user in rv$users) {
+                if (!is.null(tracker$production_programmer_id) && user$id == tracker$production_programmer_id) {
+                  programmer <- user$username
+                  break
+                }
+              }
+              
+              due_soon_items[[length(due_soon_items) + 1]] <- list(
+                item = item_code,
+                programmer = programmer,
+                days_until = as.integer(due_date - today),
+                due_date = due_date
+              )
+            }
+          }
+        }
+      }
+      
+      if (length(due_soon_items) == 0) {
+        return(div(
+          class = "text-center text-muted py-3",
+          icon("calendar-check", class = "fa-2x mb-2"),
+          p("No items due this week")
+        ))
+      }
+      
+      # Sort by due date (soonest first)
+      due_soon_items <- due_soon_items[order(sapply(due_soon_items, function(x) x$days_until))]
+      
+      # Limit to 10
+      if (length(due_soon_items) > 10) {
+        due_soon_items <- due_soon_items[1:10]
+      }
+      
+      items <- lapply(due_soon_items, function(item) {
+        badge_text <- if (item$days_until == 0) {
+          "Due Today"
+        } else if (item$days_until == 1) {
+          "Due Tomorrow"
+        } else {
+          paste(item$days_until, "days left")
+        }
+        
+        div(
+          class = "deadline-item due-soon",
+          div(
+            class = "flex-grow-1",
+            div(class = "fw-semibold", item$item),
+            div(class = "small text-muted", paste("Assigned to:", item$programmer))
+          ),
+          span(class = "badge bg-warning text-dark", badge_text)
+        )
+      })
+      
+      tagList(items)
+    })
     
     # Last update time
     output$last_update <- renderText({
@@ -538,66 +883,31 @@ admin_dashboard_server <- function(id) {
       }
     })
     
-    # Export handlers
-    observeEvent(input$export_pdf, {
-      show_success_notification(
-        "PDF export will be available in a future release",
-        duration = 3000
-      )
-    })
-    
-    observeEvent(input$export_excel, {
-      show_success_notification(
-        "Excel export will be available in a future release",
-        duration = 3000
-      )
-    })
-    
-    observeEvent(input$export_csv, {
-      show_success_notification(
-        "CSV export will be available in a future release",
-        duration = 3000
-      )
-    })
-    
-    # Helper function for relative time
-    format_relative_time <- function(date_str) {
-      if (is.null(date_str) || is.na(date_str)) return("Unknown")
-      
-      tryCatch({
-        dt <- as.POSIXct(date_str, format = "%Y-%m-%dT%H:%M:%S")
-        diff <- difftime(Sys.time(), dt, units = "auto")
-        
-        if (as.numeric(diff) < 1) {
-          return("Just now")
-        } else if (as.numeric(diff) < 60) {
-          return(paste0(round(as.numeric(diff)), " minutes ago"))
-        } else if (as.numeric(diff) < 1440) {
-          hours <- round(as.numeric(diff) / 60)
-          return(paste0(hours, " hour", ifelse(hours > 1, "s", ""), " ago"))
-        } else {
-          days <- round(as.numeric(diff) / 1440)
-          return(paste0(days, " day", ifelse(days > 1, "s", ""), " ago"))
-        }
-      }, error = function(e) {
-        return("Unknown")
-      })
-    }
-    
-    # Universal CRUD Manager integration (Phase 2)
-    # Replaces entity-specific WebSocket observer with standardized refresh trigger
+    # WebSocket/CRUD refresh integration - completely skip to preserve user selection
+    # The user dropdown doesn't need to be refreshed on every WebSocket event
     observeEvent(input$crud_refresh, {
       if (!is.null(input$crud_refresh)) {
-        cat("📊 Universal CRUD refresh triggered for admin dashboard\n")
-        load_dashboard_data()
+        # Only refresh trackers and studies, not users
+        load_studies()
+        load_all_trackers()
+        current_user <- isolate(rv$current_user_id)
+        if (!is.null(current_user) && current_user != "") {
+          load_workload_data(current_user)
+        }
+        rv$last_refresh <- Sys.time()
       }
     })
-    
-    # Legacy WebSocket observer (kept for backward compatibility during transition)
+
     observeEvent(input$websocket_event, {
       if (!is.null(input$websocket_event)) {
-        # Reload data when we receive any WebSocket event
-        load_dashboard_data()
+        # Only refresh trackers and studies, not users
+        load_studies()
+        load_all_trackers()
+        current_user <- isolate(rv$current_user_id)
+        if (!is.null(current_user) && current_user != "") {
+          load_workload_data(current_user)
+        }
+        rv$last_refresh <- Sys.time()
       }
     })
     
@@ -605,9 +915,6 @@ admin_dashboard_server <- function(id) {
     return(list(
       refresh = function() {
         load_dashboard_data()
-      },
-      get_metrics = function() {
-        calculate_metrics()
       }
     ))
   })
