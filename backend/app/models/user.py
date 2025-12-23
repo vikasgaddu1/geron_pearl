@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, String, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from typing import TYPE_CHECKING, List
 from app.db.base import Base
+from app.db.mixins import TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.tracker_comment import TrackerComment
@@ -20,7 +21,7 @@ class UserDepartment(str, Enum):
     MANAGEMENT = "management"
 
 
-class User(Base):
+class User(Base, TimestampMixin):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)

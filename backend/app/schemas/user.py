@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional
+from datetime import datetime
 from app.models.user import UserRole, UserDepartment
 
 
@@ -21,6 +22,8 @@ class UserUpdate(BaseModel):
 
 class UserInDBBase(UserBase):
     id: int
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
