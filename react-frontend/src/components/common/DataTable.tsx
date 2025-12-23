@@ -1,4 +1,4 @@
-import { ReactNode, useState, useMemo } from 'react'
+import { ReactNode, useState, useMemo, useRef, useEffect } from 'react'
 import {
   useReactTable,
   getCoreRowModel,
@@ -10,7 +10,7 @@ import {
   ColumnFiltersState,
   ColumnDef as TanStackColumnDef,
 } from '@tanstack/react-table'
-import { ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react'
+import { ArrowUpDown, ArrowUp, ArrowDown, X, ChevronRight } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -62,6 +62,36 @@ export function DataTable<T>({
   const [textFilters, setTextFilters] = useState<Record<string, string>>({})
   const [selectFilters, setSelectFilters] = useState<Record<string, string[]>>({})
   const [dateFilters, setDateFilters] = useState<Record<string, DateRange>>({})
+  const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false)
+  const [isScrolledRight, setIsScrolledRight] = useState(false)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  // Check for horizontal overflow
+  useEffect(() => {
+    const checkOverflow = () => {
+      const container = scrollContainerRef.current
+      if (container) {
+        const hasOverflow = container.scrollWidth > container.clientWidth
+        setHasHorizontalOverflow(hasOverflow)
+        setIsScrolledRight(container.scrollLeft > 0)
+      }
+    }
+
+    checkOverflow()
+    window.addEventListener('resize', checkOverflow)
+    
+    const container = scrollContainerRef.current
+    if (container) {
+      container.addEventListener('scroll', () => {
+        setIsScrolledRight(container.scrollLeft > 0)
+        // Check if scrolled to end
+        const atEnd = container.scrollLeft + container.clientWidth >= container.scrollWidth - 5
+        setHasHorizontalOverflow(!atEnd)
+      })
+    }
+
+    return () => window.removeEventListener('resize', checkOverflow)
+  }, [data, columns])
 
   // Build TanStack Table columns
   const tableColumns: TanStackColumnDef<T>[] = useMemo(() => {
@@ -111,58 +141,63 @@ export function DataTable<T>({
         }
 
         return (
-          <div className="flex items-center gap-1">
-            {canSort ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-                className="-ml-3 h-8 data-[state=open]:bg-accent"
-              >
-                <span>{col.header}</span>
-                {isSorted === 'asc' && <ArrowUp className="ml-2 h-3.5 w-3.5" />}
-                {isSorted === 'desc' && <ArrowDown className="ml-2 h-3.5 w-3.5" />}
-                {!isSorted && <ArrowUpDown className="ml-2 h-3.5 w-3.5 opacity-50" />}
-              </Button>
-            ) : (
-              <span className="font-medium">{col.header}</span>
-            )}
+          <div className="flex flex-col gap-0.5">
+            {/* Column name */}
+            <span className="font-medium text-xs">{col.header}</span>
             
-            {hasFilter && (
-              <ColumnFilterPopover
-                isActive={isFilterActive}
-                onClear={handleClearFilter}
-                filterSummary={getFilterSummary()}
-              >
-                {filterType === 'text' && (
-                  <TextColumnFilter
-                    value={textFilters[columnId] || ''}
-                    onChange={handleTextFilterChange}
-                    placeholder={`Filter ${col.header.toLowerCase()}...`}
+            {/* Icons row - sort, filter, help */}
+            {(canSort || hasFilter || col.helpText) && (
+              <div className="flex items-center gap-0.5">
+                {canSort && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+                    className="h-5 w-5 p-0"
+                  >
+                    {isSorted === 'asc' && <ArrowUp className="h-3 w-3" />}
+                    {isSorted === 'desc' && <ArrowDown className="h-3 w-3" />}
+                    {!isSorted && <ArrowUpDown className="h-3 w-3 opacity-50" />}
+                  </Button>
+                )}
+                
+                {hasFilter && (
+                  <ColumnFilterPopover
+                    isActive={isFilterActive}
+                    onClear={handleClearFilter}
+                    filterSummary={getFilterSummary()}
+                  >
+                    {filterType === 'text' && (
+                      <TextColumnFilter
+                        value={textFilters[columnId] || ''}
+                        onChange={handleTextFilterChange}
+                        placeholder={`Filter ${col.header.toLowerCase()}...`}
+                      />
+                    )}
+                    {filterType === 'select' && (
+                      <SelectColumnFilter
+                        options={col.filterOptions || getUniqueValues(data, col.accessorKey)}
+                        value={selectFilters[columnId] || []}
+                        onChange={handleSelectFilterChange}
+                        placeholder={`Search ${col.header.toLowerCase()}...`}
+                      />
+                    )}
+                    {filterType === 'date' && (
+                      <DateRangeFilter
+                        value={dateFilters[columnId]}
+                        onChange={handleDateFilterChange}
+                      />
+                    )}
+                  </ColumnFilterPopover>
+                )}
+                
+                {col.helpText && (
+                  <HelpIcon
+                    title={col.header}
+                    content={col.helpText}
                   />
                 )}
-                {filterType === 'select' && (
-                  <SelectColumnFilter
-                    options={col.filterOptions || getUniqueValues(data, col.accessorKey)}
-                    value={selectFilters[columnId] || []}
-                    onChange={handleSelectFilterChange}
-                    placeholder={`Search ${col.header.toLowerCase()}...`}
-                  />
-                )}
-                {filterType === 'date' && (
-                  <DateRangeFilter
-                    value={dateFilters[columnId]}
-                    onChange={handleDateFilterChange}
-                  />
-                )}
-              </ColumnFilterPopover>
-            )}
-            
-            {col.helpText && (
-              <HelpIcon
-                title={col.header}
-                content={col.helpText}
-              />
+              </div>
             )}
           </div>
         )
@@ -276,7 +311,7 @@ export function DataTable<T>({
   }
 
   return (
-    <div className={cn('space-y-4', className)}>
+    <div className={cn('space-y-4 w-full', className)}>
       {/* Active Filters Summary */}
       {activeFilters.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
@@ -306,54 +341,70 @@ export function DataTable<T>({
         </div>
       )}
 
-      {/* Table */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && 'selected'}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
+      {/* Table with horizontal scroll indicator */}
+      <div className="relative w-full">
+        {/* Scroll indicator - right side */}
+        {hasHorizontalOverflow && (
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background via-background/80 to-transparent pointer-events-none z-10 flex items-center justify-end pr-1">
+            <ChevronRight className="h-5 w-5 text-muted-foreground animate-pulse" />
+          </div>
+        )}
+        {/* Scroll indicator - left side (when scrolled) */}
+        {isScrolledRight && (
+          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-background via-background/80 to-transparent pointer-events-none z-10" />
+        )}
+        
+        <div 
+          ref={scrollContainerRef}
+          className="rounded-md border overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent"
+        >
+          <Table className="w-full min-w-max">
+            <TableHeader className="sticky top-0 bg-background z-20">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id} className="bg-muted/50">
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id} className="whitespace-nowrap">
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
                   ))}
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  No results found.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && 'selected'}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id} className="whitespace-nowrap">
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-24 text-center"
+                  >
+                    No results found.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       {/* Pagination */}
