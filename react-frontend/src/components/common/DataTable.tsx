@@ -10,7 +10,7 @@ import {
   ColumnFiltersState,
   ColumnDef as TanStackColumnDef,
 } from '@tanstack/react-table'
-import { ArrowUpDown, ArrowUp, ArrowDown, X, ChevronRight } from 'lucide-react'
+import { ArrowUpDown, ArrowUp, ArrowDown, X, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -19,6 +19,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { HelpIcon } from './HelpIcon'
@@ -46,15 +53,19 @@ interface DataTableProps<T> {
   data: T[]
   columns: ColumnDef<T>[]
   enablePagination?: boolean
-  pageSize?: number
+  defaultPageSize?: number
+  pageSizeOptions?: number[]
   className?: string
 }
+
+const DEFAULT_PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
 
 export function DataTable<T>({
   data,
   columns,
-  enablePagination = false,
-  pageSize = 10,
+  enablePagination = true,
+  defaultPageSize = 10,
+  pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
   className,
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([])
@@ -62,6 +73,7 @@ export function DataTable<T>({
   const [textFilters, setTextFilters] = useState<Record<string, string>>({})
   const [selectFilters, setSelectFilters] = useState<Record<string, string[]>>({})
   const [dateFilters, setDateFilters] = useState<Record<string, DateRange>>({})
+  const [pageSize, setPageSize] = useState(defaultPageSize)
   const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false)
   const [isScrolledRight, setIsScrolledRight] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -250,10 +262,18 @@ export function DataTable<T>({
     state: {
       sorting,
       columnFilters,
+      pagination: enablePagination ? { pageIndex: 0, pageSize } : undefined,
     },
-    initialState: {
-      pagination: enablePagination ? { pageSize } : undefined,
-    },
+    onPaginationChange: enablePagination 
+      ? (updater) => {
+          if (typeof updater === 'function') {
+            const newState = updater({ pageIndex: table.getState().pagination.pageIndex, pageSize })
+            if (newState.pageSize !== pageSize) {
+              setPageSize(newState.pageSize)
+            }
+          }
+        }
+      : undefined,
   })
 
   // Get active filters for summary
@@ -409,31 +429,84 @@ export function DataTable<T>({
 
       {/* Pagination */}
       {enablePagination && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            Showing {table.getState().pagination.pageIndex * pageSize + 1} to{' '}
-            {Math.min(
-              (table.getState().pagination.pageIndex + 1) * pageSize,
-              table.getFilteredRowModel().rows.length
-            )}{' '}
-            of {table.getFilteredRowModel().rows.length} results
+        <div className="flex items-center justify-between py-2">
+          {/* Left side: Page size selector and results info */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Rows per page:</span>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(value) => {
+                  const newSize = Number(value)
+                  setPageSize(newSize)
+                  table.setPageSize(newSize)
+                }}
+              >
+                <SelectTrigger className="h-8 w-[70px]">
+                  <SelectValue placeholder={String(pageSize)} />
+                </SelectTrigger>
+                <SelectContent side="top">
+                  {pageSizeOptions.map((size) => (
+                    <SelectItem key={size} value={String(size)}>
+                      {size}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Showing {table.getFilteredRowModel().rows.length > 0 
+                ? table.getState().pagination.pageIndex * pageSize + 1 
+                : 0} to{' '}
+              {Math.min(
+                (table.getState().pagination.pageIndex + 1) * pageSize,
+                table.getFilteredRowModel().rows.length
+              )}{' '}
+              of {table.getFilteredRowModel().rows.length} results
+            </div>
           </div>
-          <div className="flex items-center space-x-2">
+
+          {/* Right side: Page navigation */}
+          <div className="flex items-center gap-1">
+            <div className="text-sm text-muted-foreground mr-2">
+              Page {table.getState().pagination.pageIndex + 1} of{' '}
+              {table.getPageCount() || 1}
+            </div>
             <Button
               variant="outline"
-              size="sm"
-              onClick={() => table.previousPage()}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => table.setPageIndex(0)}
               disabled={!table.getCanPreviousPage()}
             >
-              Previous
+              <ChevronsLeft className="h-4 w-4" />
             </Button>
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
             >
-              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+              disabled={!table.getCanNextPage()}
+            >
+              <ChevronsRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
