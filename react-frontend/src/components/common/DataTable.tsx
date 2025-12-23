@@ -382,16 +382,26 @@ export function DataTable<T>({
             <TableHeader className="sticky top-0 bg-background z-20">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id} className="bg-muted/50">
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className="whitespace-nowrap">
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  ))}
+                  {headerGroup.headers.map((header) => {
+                    const columnId = header.column.id
+                    const isActionsColumn = columnId === 'actions'
+                    return (
+                      <TableHead 
+                        key={header.id} 
+                        className={cn(
+                          "whitespace-nowrap",
+                          isActionsColumn && "text-center"
+                        )}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </TableHead>
+                    )
+                  })}
                 </TableRow>
               ))}
             </TableHeader>

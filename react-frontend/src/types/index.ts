@@ -261,8 +261,11 @@ export interface ReportingEffortFormData {
 
 export interface UserFormData {
   username: string
+  email: string
+  password?: string  // Optional for updates
   role: User['role']
   department?: string
+  generatePassword?: boolean
 }
 
 export interface TextElementFormData {

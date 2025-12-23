@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Database, Bell, Moon, Sun, Menu } from 'lucide-react'
+import { Database, Bell, Moon, Sun, Menu, LogOut, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -11,12 +11,17 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useUIStore, applyTheme } from '@/stores/uiStore'
 import { useWebSocketStore } from '@/stores/websocketStore'
+import { useAuthStore } from '@/stores/authStore'
+import { useAuth } from '@/hooks/useAuth'
+import { RoleBadge } from '@/components/common/StatusBadge'
 import { cn } from '@/lib/utils'
 import { useEffect } from 'react'
 
 export function Navbar() {
   const { theme, setTheme, toggleSidebar } = useUIStore()
   const wsStatus = useWebSocketStore((state) => state.status)
+  const currentUser = useAuthStore((state) => state.currentUser)
+  const { logout } = useAuth()
 
   useEffect(() => {
     applyTheme(theme)
@@ -25,6 +30,10 @@ export function Navbar() {
   const toggleTheme = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark'
     setTheme(newTheme)
+  }
+
+  const handleLogout = async () => {
+    await logout()
   }
 
   return (
@@ -90,9 +99,41 @@ export function Navbar() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* User Dropdown */}
+          {currentUser && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  <span className="hidden sm:inline-block font-medium">{currentUser.username}</span>
+                  <RoleBadge role={currentUser.role} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>
+                  <div className="flex flex-col space-y-1">
+                    <span className="font-semibold">{currentUser.username}</span>
+                    {currentUser.email && (
+                      <span className="text-xs text-muted-foreground">{currentUser.email}</span>
+                    )}
+                    <div className="pt-1">
+                      <RoleBadge role={currentUser.role} />
+                    </div>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Logout</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
     </header>
   )
 }
+
 

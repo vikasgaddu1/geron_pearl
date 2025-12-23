@@ -17,7 +17,7 @@ async def create_user(
     user_in: schemas.UserCreate,
 ) -> Any:
     """
-    Create new user.
+    Create new user with email and password.
     """
     try:
         user = await crud.user.create(db, obj_in=user_in)
@@ -26,17 +26,23 @@ async def create_user(
     except IntegrityError as e:
         error_msg = str(e.orig) if hasattr(e, 'orig') else str(e)
         if "already exists" in error_msg:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Username '{user_in.username}' already exists"
-            )
+            if "Username" in error_msg:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Username '{user_in.username}' already exists"
+                )
+            elif "Email" in error_msg:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Email '{user_in.email}' already exists"
+                )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Failed to create user"
         )
 
 
-@router.get("/", response_model=List[schemas.User])
+@router.get("/", response_model=List[schemas.User], response_model_exclude_none=False)
 async def read_users(
     db: AsyncSession = Depends(get_db),
     skip: int = 0,
@@ -49,7 +55,7 @@ async def read_users(
     return users
 
 
-@router.get("/{id}", response_model=schemas.User)
+@router.get("/{id}", response_model=schemas.User, response_model_exclude_none=False)
 async def read_user(
     *,
     db: AsyncSession = Depends(get_db),
@@ -67,7 +73,7 @@ async def read_user(
     return user
 
 
-@router.put("/{id}", response_model=schemas.User)
+@router.put("/{id}", response_model=schemas.User, response_model_exclude_none=False)
 async def update_user(
     *,
     db: AsyncSession = Depends(get_db),
@@ -91,11 +97,18 @@ async def update_user(
     except IntegrityError as e:
         error_msg = str(e.orig) if hasattr(e, 'orig') else str(e)
         if "already exists" in error_msg:
-            username = user_in.username if user_in.username else user.username
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Username '{username}' already exists"
-            )
+            if "Username" in error_msg:
+                username = user_in.username if user_in.username else user.username
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Username '{username}' already exists"
+                )
+            elif "Email" in error_msg:
+                email = user_in.email if user_in.email else user.email
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Email '{email}' already exists"
+                )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Failed to update user"
