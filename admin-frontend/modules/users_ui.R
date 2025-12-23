@@ -67,6 +67,31 @@ users_ui <- function(id) {
                     placeholder = "Enter username..."
                   ),
                   
+                  # Email
+                  textInput(
+                    ns("new_email"),
+                    "Email",
+                    placeholder = "Enter email address..."
+                  ),
+                  
+                  # Password generation option
+                  checkboxInput(
+                    ns("generate_password"),
+                    "Generate password automatically",
+                    value = FALSE
+                  ),
+                  
+                  # Password (shown when not auto-generating)
+                  conditionalPanel(
+                    condition = paste0("!input['", ns("generate_password"), "']"),
+                    ns = ns,
+                    passwordInput(
+                      ns("new_password"),
+                      "Password",
+                      placeholder = "Enter password (min 8 characters)"
+                    )
+                  ),
+                  
                   # Role
                   selectInput(
                     ns("new_role"),

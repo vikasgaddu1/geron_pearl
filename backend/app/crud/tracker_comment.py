@@ -32,9 +32,21 @@ class TrackerCommentCRUD:
         try:
             # Create the comment
             obj_data = obj_in.model_dump()
+            # Explicitly set user_id - don't rely on obj_data
             obj_data["user_id"] = user_id
             
-            db_obj = TrackerComment(**obj_data)
+            # Ensure user_id is not None and is the correct value
+            if obj_data.get("user_id") != user_id:
+                obj_data["user_id"] = user_id
+            
+            db_obj = TrackerComment(
+                tracker_id=obj_data["tracker_id"],
+                user_id=user_id,  # Explicitly set user_id
+                comment_text=obj_data["comment_text"],
+                comment_type=obj_data.get("comment_type", "programming"),
+                parent_comment_id=obj_data.get("parent_comment_id"),
+                is_resolved=False
+            )
             db.add(db_obj)
             await db.flush()  # Get the ID without committing
             

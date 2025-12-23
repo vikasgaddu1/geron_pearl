@@ -17,6 +17,13 @@ users_server <- function(id) {
         "Username must be at least 1 character long"
       }
     })
+    iv_user$add_rule("new_email", sv_required())
+    iv_user$add_rule("new_email", sv_email())
+    iv_user$add_rule("new_password", function(value) {
+      if (!input$generate_password && (is.null(value) || nchar(trimws(value)) < 8)) {
+        "Password must be at least 8 characters long"
+      }
+    })
     iv_user$add_rule("new_role", sv_required())
     
     # Convert API data to data frame for Users
@@ -360,34 +367,94 @@ users_server <- function(id) {
         cat("Save user clicked\n")
         
         username <- trimws(input$new_username)
+        email <- trimws(input$new_email)
         role <- input$new_role
         department <- input$new_department
         
+        # Handle password generation
+        password <- NULL
+        if (input$generate_password) {
+          # Generate secure password (12 characters)
+          # Ensure at least one character from each set
+          chars <- c(
+            sample(LETTERS, 1),      # At least one uppercase
+            sample(letters, 1),       # At least one lowercase
+            sample(0:9, 1),          # At least one digit
+            sample(strsplit("!@#$%^&*", "")[[1]], 1)  # At least one special
+          )
+          # Fill rest with random from all sets
+          all_chars <- c(LETTERS, letters, 0:9, strsplit("!@#$%^&*", "")[[1]])
+          chars <- c(chars, sample(all_chars, 8, replace = TRUE))
+          # Shuffle
+          password <- paste0(sample(chars), collapse = "")
+        } else {
+          password <- input$new_password
+        }
+        
         # Create new user
-        cat("Creating new user:", username, "with role:", role, "department:", department, "\n")
-        result <- create_user(username, role, department)
+        cat("Creating new user:", username, "email:", email, "role:", role, "department:", department, "\n")
+        result <- create_user(username, email, password, role, department)
           
         if (is.null(result$error)) {
-          show_success_notification("User created successfully")
+          # Show success with generated password if applicable
+          if (input$generate_password && !is.null(password)) {
+            show_success_notification(
+              tagList(
+                tags$strong("User created successfully"),
+                tags$br(),
+                tags$strong("Generated Password:"),
+                tags$br(),
+                tags$code(password, style = "font-size: 14px; background: #f0f0f0; padding: 4px 8px; border-radius: 4px;"),
+                tags$br(),
+                tags$small("Please share this password with the user securely.", style = "color: #666;")
+              ),
+              duration = 15000
+            )
+          } else {
+            show_success_notification("User created successfully")
+          }
           load_users_data()
           sidebar_toggle(id = "users_sidebar")
           iv_user$disable()
           
           # Reset form
           updateTextInput(session, "new_username", value = "")
+          updateTextInput(session, "new_email", value = "")
+          updateTextInput(session, "new_password", value = "")
+          updateCheckboxInput(session, "generate_password", value = FALSE)
           updateSelectInput(session, "new_role", selected = "VIEWER")
           updateSelectInput(session, "new_department", selected = "")
         } else {
           formatted_error <- format_error_message(result$error)
           if (grepl("already exists", formatted_error)) {
-            show_error_notification(
-              tagList(
-                tags$strong("Duplicate Username"),
-                tags$br(),
-                formatted_error
-              ),
-              duration = 6000
-            )
+            if (grepl("Username", formatted_error)) {
+              show_error_notification(
+                tagList(
+                  tags$strong("Duplicate Username"),
+                  tags$br(),
+                  formatted_error
+                ),
+                duration = 6000
+              )
+            } else if (grepl("Email", formatted_error)) {
+              show_error_notification(
+                tagList(
+                  tags$strong("Duplicate Email"),
+                  tags$br(),
+                  formatted_error
+                ),
+                duration = 6000
+              )
+            } else {
+              show_error_notification(
+                tagList(
+                  tags$strong("Duplicate Entry"),
+                  tags$br(),
+                  formatted_error
+                ),
+                duration = 6000
+              )
+            }
           } else {
             show_error_notification(paste("Error creating user:", formatted_error))
           }
@@ -403,6 +470,9 @@ users_server <- function(id) {
       
       # Reset form
       updateTextInput(session, "new_username", value = "")
+      updateTextInput(session, "new_email", value = "")
+      updateTextInput(session, "new_password", value = "")
+      updateCheckboxInput(session, "generate_password", value = FALSE)
       updateSelectInput(session, "new_role", selected = "VIEWER")
       updateSelectInput(session, "new_department", selected = "")
       updateNumericInput(session, "edit_user_id", value = NULL)

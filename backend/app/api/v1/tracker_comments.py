@@ -21,15 +21,10 @@ from app.api.v1.websocket import (
     broadcast_comment_resolved,
     broadcast_comment_replied
 )
+from app.core.security import get_current_user
+from app.models.user import User
 
 router = APIRouter()
-
-
-# Mock user authentication for demo purposes
-# TODO: Replace with actual authentication system
-async def get_current_user_id(x_user_id: int = Header(default=1)) -> int:
-    """Get current user ID from header (mock authentication)"""
-    return x_user_id
 
 
 @router.post("/", response_model=CommentWithUserInfo, status_code=status.HTTP_201_CREATED)
@@ -37,7 +32,7 @@ async def create_comment(
     *,
     db: AsyncSession = Depends(get_db),
     obj_in: TrackerCommentCreate,
-    current_user_id: int = Depends(get_current_user_id)
+    current_user: User = Depends(get_current_user)
 ) -> CommentWithUserInfo:
     """
     Create a new comment (parent or reply)
@@ -48,11 +43,14 @@ async def create_comment(
     - Broadcasts WebSocket event for real-time updates
     """
     try:
+        # Debug: Log the user information
+        print(f"DEBUG: Creating comment for user_id={current_user.id}, username={current_user.username}")
+        
         # Create the comment
         created_comment = await tracker_comment.create(
             db=db, 
             obj_in=obj_in, 
-            user_id=current_user_id
+            user_id=current_user.id
         )
         
         # Get the comment with user information for response
@@ -135,7 +133,7 @@ async def get_comments_for_tracker(
 async def resolve_comment(
     comment_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id)
+    current_user: User = Depends(get_current_user)
 ) -> CommentWithUserInfo:
     """
     Resolve a parent comment
@@ -149,7 +147,7 @@ async def resolve_comment(
         resolved_comment = await tracker_comment.resolve_comment(
             db=db,
             comment_id=comment_id,
-            resolved_by_user_id=current_user_id
+            resolved_by_user_id=current_user.id
         )
         
         # Get updated comment with user information

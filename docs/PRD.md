@@ -1,22 +1,37 @@
 # PEARL - Product Requirements Document
 
-**Version:** 3.0  
-**Date:** January 2025  
-**Status:** 🚧 In Development (Phase 4 - Universal CRUD System Implementation)
+**Version:** 4.0  
+**Date:** December 2024  
+**Status:** 🚀 Production Ready
 
 ## Executive Summary
 
-PEARL (Package, Effort, and Analysis Reporting Library) is a comprehensive research data management system designed to streamline clinical study package management and reporting effort tracking. The system provides real-time collaboration capabilities through WebSocket integration and maintains complete audit trails for regulatory compliance.
+PEARL (Package, Effort, and Analysis Reporting Library) is a comprehensive clinical research data management system that streamlines package management and reporting effort tracking. The system provides real-time collaboration capabilities through WebSocket integration and maintains complete audit trails for regulatory compliance.
 
-### Current Development Status
-- ✅ **Phase 1:** Database Foundation - COMPLETED
-- ✅ **Phase 2:** Backend API - COMPLETED  
-- ✅ **Phase 3:** Admin Frontend - COMPLETED
-- 🚧 **Phase 4:** Universal CRUD System - IN PROGRESS (Feature branch: universal-crud-updates)
-- 📋 **Phase 5:** User Frontend - PLANNED
-- 📋 **Phase 6:** Advanced Features - PLANNED
+### Technology Stack
 
-For detailed setup and development instructions, see [CLAUDE.md](../CLAUDE.md).
+**Backend:**
+- FastAPI (Python 3.11+)
+- PostgreSQL 13+
+- SQLAlchemy 2.0 (async)
+- Pydantic v2
+- Alembic migrations
+- UV package manager
+- WebSocket real-time communication
+
+**Frontend:**
+- React 18+
+- TypeScript
+- Vite build tool
+- TanStack Query (data fetching)
+- Zustand (state management)
+- Tailwind CSS
+- Shadcn/ui components
+
+**Infrastructure:**
+- Docker containerization
+- PostgreSQL with connection pooling
+- WebSocket real-time updates
 
 ## Product Vision & Goals
 
@@ -33,7 +48,6 @@ To provide a unified, real-time platform for managing clinical research data pac
 ## Users & Personas
 
 ### System Roles
-The system implements three user roles with department assignments:
 
 **User Roles:**
 - **ADMIN** - Full system access and control
@@ -71,148 +85,449 @@ The system implements three user roles with department assignments:
 - **Responsibilities:** Monitor progress, review reports, track metrics
 - **Access:** Read-only access to all data, view dashboards and reports
 
-## Functional Requirements
+## Core Features
 
-### Core Entity Management
+### 1. Study Management
 
-#### FR-1: Study Management
-**Status:** ✅ Implemented
+**Purpose:** Hierarchical organization of clinical studies and their data releases.
 
-- Hierarchical tree view (Study → Database Release → Reporting Effort)
-- CRUD operations with deletion protection
-- Unique study labels with validation
-- Real-time WebSocket synchronization
+**Features:**
+- **Study Creation:** Unique study labels with validation
+- **Study Tree View:** Hierarchical display (Study → Database Release → Reporting Effort)
+- **CRUD Operations:** Create, read, update, delete with validation
+- **Deletion Protection:** Cannot delete studies with associated database releases
+- **Real-time Updates:** WebSocket synchronization across all users
 
-#### FR-2: Package Management
-**Status:** ✅ Implemented
+**User Interface:**
+- Tree navigation component
+- Filter and search capabilities
+- Quick actions (edit, delete, add child entities)
 
-- Package creation with unique names
-- Polymorphic item support (TLF and Dataset types)
-- Bulk operations for package items
-- Deletion protection when items exist
-- Copy operations between packages
+### 2. Database Release Management
 
-#### FR-3: Text Elements (TNFP)
-**Status:** ✅ Implemented, 📋 Bulk Upload Planned
+**Purpose:** Track database locks and releases for each study.
 
-**Implemented:**
-- Four element types: title, footnote, population_set, acronyms_set
-- Intelligent duplicate detection (case/space insensitive)
-- Full-text search capabilities
-- WebSocket real-time updates
-- CRUD operations with validation
+**Features:**
+- **Release Creation:** Associate releases with studies
+- **Release Dating:** Track when database was locked
+- **Label Management:** Unique labels per study
+- **Deletion Protection:** Cannot delete releases with reporting efforts
+- **Timeline View:** Visual representation of releases over time
 
-**Planned - Bulk Upload:**
-- Excel/CSV template for bulk text element import
-- Support for all four element types in single upload
-- Duplicate detection during import with conflict resolution options
-- Validation report showing success/errors
-- Transaction-based import (all or nothing)
-- Import history and rollback capability
+**User Interface:**
+- Calendar view for release dates
+- Quick filters by study
+- Status indicators
 
-### Reporting Effort Tracker
+### 3. Reporting Effort Management
 
-#### FR-4: Reporting Effort Items
-**Status:** ✅ Fully Implemented (Admin), 📋 Planned (User Interface)
+**Purpose:** Organize reporting activities for each database release.
 
-**Admin Features (Completed):**
-- Complete item lifecycle management (create, edit, delete)
-- Auto-tracker creation with assignment workflows
-- Bulk TLF/Dataset upload with validation and error reporting
-- Copy from packages and other efforts with conflict resolution
-- Comprehensive deletion protection based on assignments
-- Real-time WebSocket updates across all browsers
+**Features:**
+- **Effort Creation:** Link efforts to specific releases
+- **Item Management:** Track TLFs (Tables, Listings, Figures) and datasets
+- **Status Tracking:** Monitor progress of each effort
+- **Deletion Protection:** Cannot delete efforts with items
+- **Batch Operations:** Bulk item creation and updates
 
-**User Features (Planned for Phase 5):**
-- View assigned items with filtering
-- Update tracker status and progress
-- Advanced search and sort capabilities
-- Inline editing for editors with role validation
+**User Interface:**
+- Card-based effort display
+- Progress indicators
+- Quick filters and sorting
 
-#### FR-5: Tracker Management
-**Status:** ✅ Fully Implemented (Admin), 📋 User Interface Planned
+### 4. Package System
 
-**Implemented (Complete):**
-- Programmer assignment system (production/QC programmers)
-- Status and priority management with validation
-- Export/import operations (JSON format with validation)
-- Workload tracking and assignment analytics
-- Comment badge system with real-time cross-browser updates
-- Comprehensive audit trail for all tracker operations
+**Purpose:** Template library for reusable TLF and dataset specifications.
 
-**Planned (Phase 5 - User Interface):**
-- Excel export format for end users
-- Advanced filtering and search for large datasets
-- Timeline/Gantt chart visualization for project planning
+**Features:**
 
-#### FR-6: Comment System
-**Status:** ✅ Backend Complete, ✅ Admin UI Complete, 📋 User UI Planned
+#### Package Management
+- **Package Creation:** Define reusable package templates
+- **Metadata:** Study indication and therapeutic area
+- **Item Organization:** Group related TLFs and datasets
+- **Deletion Protection:** Cannot delete packages with items
+- **Copy Operations:** Reuse packages across studies
 
-**Backend & Admin UI (Fully Implemented):**
-- Complete comment CRUD with role-based access control
-- Threaded discussions with parent-child relationships
-- Comment badge system with real-time cross-browser updates
-- Soft delete with comprehensive audit trail
-- Moderation capabilities (resolve/unresolve, pin/unpin)
-- WebSocket-powered real-time comment synchronization
-- Modal-based comment interface integrated with tracker management
+#### Package Items
+- **Polymorphic Items:** Support for TLF and Dataset types
+- **Item Codes:** Unique identifiers for each item
+- **Descriptions:** Detailed item specifications
+- **Type Management:** Distinguish between TLFs and datasets
+- **Bulk Upload:** Excel template-based import
 
-**User Interface (Planned for Phase 5):**
-- Blog-style comment display optimized for end users
-- @mentions functionality
-- Rich text formatting support
-- Mobile-optimized comment threading
+**User Interface:**
+- Package library view
+- Item editor with validation
+- Template download functionality
+- Drag-and-drop reordering
 
-### Administrative Features
+### 5. Text Elements (TNFP)
 
-#### FR-7: User Management
-**Status:** ✅ Fully Implemented
+**Purpose:** Centralized management of reusable text components.
 
-- Complete user CRUD operations with validation
-- Role-based access control (Admin, Editor, Viewer) with enforcement
-- Department assignment (Programming, Biostatistics, Management)
-- Comprehensive activity tracking and audit logs
-- Real-time WebSocket updates for user changes
-- Bulk user management capabilities
+**Features:**
 
-#### FR-8: Audit Trail
-**Status:** ✅ Fully Implemented
+#### Element Types
+- **Titles:** Table and figure titles
+- **Footnotes:** Table and figure footnotes
+- **Population Sets:** Analysis population definitions
+- **Acronyms:** Abbreviation definitions
 
-- Comprehensive action logging for all CRUD operations
-- Complete user attribution with IP/User-agent tracking
-- Searchable audit viewer with advanced filtering (Admin UI)
-- Retention policies and automatic cleanup
-- Real-time audit log updates via WebSocket
-- Export capabilities for compliance reporting
+#### Management Features
+- **Duplicate Detection:** Case and space-insensitive matching
+- **Full-text Search:** Find elements by content
+- **Category Filtering:** Filter by element type
+- **Bulk Import:** Excel/CSV template upload
+- **Validation:** Content uniqueness verification
 
-#### FR-9: Database Backup
-**Status:** ✅ Implemented
+**User Interface:**
+- Multi-tab interface by element type
+- Rich text editor
+- Search and filter toolbar
+- Import/export functionality
 
-**Completed Features:**
-- Manual backup API endpoint with validation
-- PostgreSQL pg_dump integration with compression
-- Admin UI for backup management
-- Backup file management and organization
-- Error handling and notification system
+### 6. Reporting Effort Tracker
 
-**Future Enhancements (Phase 6):**
-- Scheduled automated backups
-- Advanced retention policies with archival
-- One-click restore functionality
-- Cloud storage integration
+**Purpose:** Track progress of individual TLFs and datasets through production and QC.
 
-### Real-time Features
+**Features:**
 
-#### FR-10: WebSocket Integration
-**Status:** ✅ Implemented
+#### Tracker Management
+- **Auto-creation:** Trackers created with effort items
+- **Programmer Assignment:** Primary and QC programmer roles
+- **Status Tracking:** Independent primary and QC status
+- **Progress Monitoring:** Visual status indicators
+- **Workload Analytics:** Assignment distribution reports
 
-- Automatic broadcasting on all CRUD operations
-- Dual client architecture (JavaScript primary, R secondary)
-- Auto-reconnection with exponential backoff
-- Connection health monitoring
-- Message routing by entity type
+#### Status Workflow
+- **Primary Statuses:** NOT_STARTED → IN_PROGRESS → COMPLETED
+- **QC Statuses:** NOT_STARTED → IN_PROGRESS → QC_PASS/QC_FAIL
+- **Status History:** Track status changes over time
+- **Notifications:** Alert on status changes
 
-For detailed WebSocket implementation patterns, see [admin-frontend/CLAUDE.md](../admin-frontend/CLAUDE.md#websocket-message-routing-system).
+#### Bulk Operations
+- **Mass Assignment:** Assign multiple items to programmers
+- **Status Updates:** Bulk status changes
+- **Excel Import/Export:** Template-based updates
+- **Copy Operations:** Copy items between efforts
+
+**User Interface:**
+- Kanban board view
+- Table view with filters
+- Programmer workload dashboard
+- Status timeline visualization
+
+### 7. Comment System
+
+**Purpose:** Threaded discussions on tracker items with moderation.
+
+**Features:**
+
+#### Comment Features
+- **Threaded Discussions:** Parent-child comment relationships
+- **Comment Types:** GENERAL, QUESTION, ISSUE, RESPONSE
+- **User Attribution:** Username and timestamp tracking
+- **Rich Text:** Markdown support for formatting
+- **Soft Delete:** Maintain audit trail for deleted comments
+
+#### Moderation
+- **Resolve/Unresolve:** Mark questions/issues as resolved
+- **Pin Comments:** Highlight important comments
+- **Badge Counts:** Unresolved comment indicators
+- **Real-time Updates:** WebSocket-powered comment sync
+
+#### Integration
+- **Tracker Association:** Comments linked to specific trackers
+- **Notification Badges:** Visual indicators for new comments
+- **Search:** Find comments by content or user
+- **Export:** Download comment threads
+
+**User Interface:**
+- Modal comment interface
+- Inline comment badges
+- Threaded comment display
+- Resolve/unresolve toggles
+
+### 8. User Management
+
+**Purpose:** Role-based access control and user administration.
+
+**Features:**
+
+#### User Administration
+- **User Creation:** Add users with roles and departments
+- **Role Assignment:** ADMIN, EDITOR, VIEWER permissions
+- **Department Assignment:** PROGRAMMING, BIOSTATISTICS, MANAGEMENT
+- **Bulk Import:** Excel template for user upload
+- **Activity Tracking:** Monitor user actions
+
+#### Access Control
+- **Permission Enforcement:** Role-based feature access
+- **Read-only Mode:** Viewer restrictions
+- **Edit Permissions:** Editor capabilities
+- **Admin Functions:** Full system control
+
+**User Interface:**
+- User management table
+- Role/department filters
+- Quick edit functionality
+- Activity log viewer
+
+### 9. Audit Trail
+
+**Purpose:** Complete compliance logging for all system operations.
+
+**Features:**
+
+#### Audit Logging
+- **Comprehensive Tracking:** All CRUD operations logged
+- **User Attribution:** Track who performed actions
+- **Change History:** Before/after state capture
+- **IP/User-agent:** Technical attribution details
+- **Timestamp Precision:** Millisecond-accurate timestamps
+
+#### Audit Viewer
+- **Advanced Filtering:** By entity, action, user, date range
+- **Search:** Full-text search of changes
+- **Export:** Download audit logs for compliance
+- **Retention:** Configurable retention policies
+
+**User Interface:**
+- Filterable audit log table
+- Change diff viewer
+- Export functionality
+- Real-time log updates
+
+### 10. Database Backup
+
+**Purpose:** Database backup and recovery for business continuity.
+
+**Features:**
+
+#### Backup Management
+- **Manual Backups:** On-demand backup creation
+- **PostgreSQL Integration:** Native pg_dump support
+- **Compression:** Automatic backup compression
+- **File Management:** Organized backup storage
+- **Backup History:** Track all backup operations
+
+#### Planned Enhancements
+- **Scheduled Backups:** Automated backup scheduling
+- **Retention Policies:** Automatic old backup cleanup
+- **One-click Restore:** Simplified recovery process
+- **Cloud Storage:** S3/Azure integration
+
+**User Interface:**
+- Backup management dashboard
+- Create backup button
+- Backup history table
+- Download functionality
+
+### 11. Real-time Synchronization
+
+**Purpose:** WebSocket-powered real-time updates across all users.
+
+**Features:**
+
+#### WebSocket Integration
+- **Automatic Broadcasting:** All CRUD operations broadcast
+- **Connection Management:** Auto-reconnection with backoff
+- **Health Monitoring:** Connection status indicators
+- **Message Routing:** Entity-specific event handling
+- **Cross-browser Sync:** Instant updates for all users
+
+#### Event Types
+- Study events (created, updated, deleted)
+- Package events (created, updated, deleted)
+- Tracker events (updated, deleted, assignment changed)
+- Comment events (created, replied, resolved)
+- User events (created, updated, deleted)
+
+**User Experience:**
+- No manual refresh needed
+- Toast notifications for updates
+- Conflict resolution dialogs
+- Optimistic UI updates
+
+## Data Model
+
+### Core Entities
+
+#### Study
+- `id`: Primary key
+- `study_label`: Unique study identifier
+- `created_at`, `updated_at`: Audit timestamps
+
+#### Database Release
+- `id`: Primary key
+- `study_id`: Foreign key to Study
+- `database_release_label`: Release identifier
+- `database_release_date`: Lock date
+- `created_at`, `updated_at`: Audit timestamps
+
+#### Reporting Effort
+- `id`: Primary key
+- `database_release_id`: Foreign key to Database Release
+- `database_release_label`: Effort identifier
+- `created_at`, `updated_at`: Audit timestamps
+
+#### Reporting Effort Item
+- `id`: Primary key
+- `reporting_effort_id`: Foreign key to Reporting Effort
+- `item_code`: Unique item code
+- `item_description`: Item specification
+- `item_type`: TLF or DATASET
+- `item_status`: PENDING, IN_PROGRESS, COMPLETED
+- `created_at`, `updated_at`: Audit timestamps
+
+#### Reporting Effort Item Tracker
+- `id`: Primary key
+- `reporting_effort_item_id`: Foreign key to Reporting Effort Item
+- `primary_programmer_id`: Foreign key to User
+- `qc_programmer_id`: Foreign key to User
+- `primary_status`: NOT_STARTED, IN_PROGRESS, COMPLETED
+- `qc_status`: NOT_STARTED, IN_PROGRESS, QC_PASS, QC_FAIL
+- `created_at`, `updated_at`: Audit timestamps
+
+### Package Entities
+
+#### Package
+- `id`: Primary key
+- `package_name`: Unique package name
+- `study_indication`: Indication area
+- `therapeutic_area`: Therapeutic category
+- `created_at`, `updated_at`: Audit timestamps
+
+#### Package Item
+- `id`: Primary key
+- `package_id`: Foreign key to Package
+- `item_code`: Item identifier
+- `item_description`: Item specification
+- `item_type`: TLF or DATASET
+- `created_at`, `updated_at`: Audit timestamps
+
+### Support Entities
+
+#### Text Element
+- `id`: Primary key
+- `type`: TITLE, FOOTNOTE, POPULATION_SET, ACRONYMS_SET
+- `label`: Element identifier
+- `content`: Element text
+- `created_at`, `updated_at`: Audit timestamps
+
+#### Tracker Comment
+- `id`: Primary key
+- `tracker_id`: Foreign key to Tracker
+- `user_id`: Foreign key to User
+- `comment_text`: Comment content
+- `comment_type`: GENERAL, QUESTION, ISSUE, RESPONSE
+- `is_resolved`: Resolution status
+- `parent_comment_id`: Self-referencing foreign key for threading
+- `created_at`, `updated_at`: Audit timestamps
+
+#### User
+- `id`: Primary key
+- `username`: Unique username
+- `role`: ADMIN, EDITOR, VIEWER
+- `department`: PROGRAMMING, BIOSTATISTICS, MANAGEMENT
+- `created_at`, `updated_at`: Audit timestamps
+
+#### Audit Log
+- `id`: Primary key
+- `entity_type`: Entity being audited
+- `entity_id`: ID of audited entity
+- `action`: CREATE, UPDATE, DELETE
+- `user_id`: Foreign key to User
+- `changes`: JSON field with before/after state
+- `timestamp`: Audit timestamp
+
+## API Endpoints
+
+### Study Management
+- `GET /api/v1/studies` - List all studies
+- `GET /api/v1/studies/{id}` - Get specific study
+- `POST /api/v1/studies` - Create new study
+- `PUT /api/v1/studies/{id}` - Update study
+- `DELETE /api/v1/studies/{id}` - Delete study
+
+### Database Releases
+- `GET /api/v1/database-releases` - List all releases
+- `GET /api/v1/database-releases/by-study/{study_id}` - Get releases for study
+- `POST /api/v1/database-releases` - Create release
+- `PUT /api/v1/database-releases/{id}` - Update release
+- `DELETE /api/v1/database-releases/{id}` - Delete release
+
+### Reporting Efforts
+- `GET /api/v1/reporting-efforts` - List all efforts
+- `GET /api/v1/reporting-efforts/by-database-release/{db_release_id}` - Get efforts for release
+- `POST /api/v1/reporting-efforts` - Create effort
+- `PUT /api/v1/reporting-efforts/{id}` - Update effort
+- `DELETE /api/v1/reporting-efforts/{id}` - Delete effort
+
+### Reporting Effort Items
+- `GET /api/v1/reporting-effort-items` - List all items
+- `GET /api/v1/reporting-effort-items/by-reporting-effort/{effort_id}` - Get items for effort
+- `POST /api/v1/reporting-effort-items` - Create item
+- `PUT /api/v1/reporting-effort-items/{id}` - Update item
+- `DELETE /api/v1/reporting-effort-items/{id}` - Delete item
+
+### Tracker Management
+- `GET /api/v1/reporting-effort-tracker` - List all trackers
+- `GET /api/v1/reporting-effort-tracker/{id}` - Get tracker
+- `POST /api/v1/reporting-effort-tracker` - Create tracker
+- `PUT /api/v1/reporting-effort-tracker/{id}` - Update tracker
+- `DELETE /api/v1/reporting-effort-tracker/{id}` - Delete tracker
+- `PUT /api/v1/reporting-effort-tracker/{id}/assign-primary/{programmer_id}` - Assign primary programmer
+- `PUT /api/v1/reporting-effort-tracker/{id}/assign-qc/{programmer_id}` - Assign QC programmer
+
+### Package Management
+- `GET /api/v1/packages` - List all packages
+- `GET /api/v1/packages/{id}` - Get package
+- `POST /api/v1/packages` - Create package
+- `PUT /api/v1/packages/{id}` - Update package
+- `DELETE /api/v1/packages/{id}` - Delete package
+
+### Package Items
+- `GET /api/v1/package-items` - List all items
+- `GET /api/v1/package-items/by-package/{package_id}` - Get items for package
+- `POST /api/v1/package-items` - Create item
+- `PUT /api/v1/package-items/{id}` - Update item
+- `DELETE /api/v1/package-items/{id}` - Delete item
+
+### Text Elements
+- `GET /api/v1/text-elements` - List all elements
+- `GET /api/v1/text-elements/by-type/{type}` - Get elements by type
+- `POST /api/v1/text-elements` - Create element
+- `PUT /api/v1/text-elements/{id}` - Update element
+- `DELETE /api/v1/text-elements/{id}` - Delete element
+
+### Comments
+- `GET /api/v1/tracker-comments/by-tracker/{tracker_id}` - Get comments for tracker
+- `POST /api/v1/tracker-comments` - Create comment
+- `POST /api/v1/tracker-comments/{parent_id}/reply` - Reply to comment
+- `PUT /api/v1/tracker-comments/{id}` - Update comment
+- `PUT /api/v1/tracker-comments/{id}/resolve` - Mark comment as resolved
+- `DELETE /api/v1/tracker-comments/{id}` - Delete comment
+
+### User Management
+- `GET /api/v1/users` - List all users
+- `GET /api/v1/users/{id}` - Get user
+- `POST /api/v1/users` - Create user
+- `PUT /api/v1/users/{id}` - Update user
+- `DELETE /api/v1/users/{id}` - Delete user
+
+### Audit Trail
+- `GET /api/v1/audit-trail` - Get audit logs with filtering
+
+### Database Backup
+- `POST /api/v1/database-backup` - Create backup
+- `GET /api/v1/database-backup/list` - List backups
+
+### WebSocket
+- `WS /api/v1/ws/studies` - Real-time updates endpoint
+
+### Health Check
+- `GET /api/health` - Service health check
 
 ## Non-Functional Requirements
 
@@ -221,210 +536,117 @@ For detailed WebSocket implementation patterns, see [admin-frontend/CLAUDE.md](.
 - **Concurrent Users:** Support 100+ simultaneous users
 - **Data Volume:** Handle 10,000+ items per reporting effort
 - **WebSocket Latency:** < 100ms message propagation
+- **Page Load Time:** < 2 seconds initial load
+- **Data Table Rendering:** < 500ms for 1000 rows
 
 ### Security
 - **Authentication:** Posit Connect integration (planned)
 - **Authorization:** Role-based access control
 - **Data Protection:** PostgreSQL with encrypted connections
 - **Audit:** Complete action logging with retention
+- **Input Validation:** Server-side validation for all inputs
+- **SQL Injection Prevention:** Parameterized queries only
+- **XSS Prevention:** Sanitized user inputs
 
 ### Reliability
 - **Uptime:** 99.9% availability during business hours
 - **Data Integrity:** ACID compliance via PostgreSQL
 - **Backup:** Daily automated backups with 30-day retention
 - **Recovery:** RPO < 24 hours, RTO < 4 hours
+- **Error Handling:** Graceful degradation for service failures
 
 ### Usability
 - **Browser Support:** Chrome, Firefox, Edge (latest versions)
 - **Responsive Design:** Mobile-friendly interfaces
 - **Accessibility:** WCAG 2.1 Level AA compliance (planned)
-- **Documentation:** Comprehensive user guides and API docs
+- **Documentation:** Comprehensive user guides
+- **Keyboard Navigation:** Full keyboard accessibility
+- **Screen Reader Support:** ARIA labels and descriptions
 
 ### Scalability
 - **Horizontal Scaling:** Stateless backend design
 - **Database:** PostgreSQL with connection pooling
 - **WebSocket:** Redis pub/sub for multi-instance (future)
 - **Storage:** Support for cloud object storage (future)
+- **Caching:** Client-side caching with React Query
+- **Load Balancing:** Multi-instance deployment ready
 
-## Technical Architecture
+## Implementation Status
 
-### Technology Stack
+### ✅ Completed (Production Ready)
 
 **Backend:**
-- FastAPI (Python 3.11+)
-- PostgreSQL 13+
-- SQLAlchemy 2.0 (async)
-- Pydantic v2
-- Alembic migrations
-- UV package manager
-
-**Frontend:**
-- R Shiny
-- bslib (Bootstrap 5)
-- httr2 (API client)
-- DT (data tables)
-- renv (package management)
-
-**Infrastructure:**
-- WebSocket (real-time)
-- Docker (containerization)
-- Posit Connect (deployment)
-
-**Future Technologies (Phase 5):**
-- Transformers.js for client-side semantic search
-- IndexedDB for embedding cache storage
-- WebAssembly for ML model execution
-
-For detailed technical patterns and constraints, see [backend/CLAUDE.md](../backend/CLAUDE.md).
-
-## Implementation Phases
-
-### Phase 1: Database Foundation ✅ COMPLETED
-- Core schema design with CASCADE DELETE constraints
-- Migration system with Alembic
-- Model validation and comprehensive relationships
-- Audit logging infrastructure
-
-### Phase 2: Backend API ✅ COMPLETED  
-- Complete CRUD operations for all entities
-- WebSocket broadcasting with real-time updates
+- Complete CRUD API for all entities
+- WebSocket real-time synchronization
 - Comprehensive audit logging
-- Role-based access control foundation
-- Database backup and restore capabilities
+- Role-based access control
+- Database backup and restore
+- Health check endpoints
+- Error handling and validation
 
-### Phase 3: Admin Frontend ✅ COMPLETED
-- **Study Management**: Full hierarchical tree view (Study → Database Release → Reporting Effort)
-- **Package Management**: Complete CRUD with bulk operations and copy functionality
-- **TNFP (Text Elements)**: Full management with intelligent duplicate detection
-- **Reporting Effort Tracker**: Complete tracker system with programmer assignments
-- **Users Management**: Full user CRUD with role and department assignment
-- **Database Backup**: Manual backup with PostgreSQL integration
-- **Admin Dashboard**: Comprehensive admin overview and monitoring
-- **Audit Trail**: Searchable audit viewer with filtering
-- **Real-time WebSocket**: Cross-browser synchronization for all operations
+**Database:**
+- Complete schema with relationships
+- Cascade delete constraints
+- Indexes for performance
+- Audit log tables
+- Migration system (Alembic)
 
-### Phase 4: Universal CRUD System 🚧 IN PROGRESS (Current Focus)
-- **Status**: Active development on `feature/universal-crud-updates` branch
-- **Goal**: Standardize all cross-browser CRUD updates with intelligent conflict resolution
-- **Components**:
-  - Universal Activity Manager (✅ Implemented - `crud_activity_manager.js`)
-  - Context-aware update strategies (user modals, active forms, conflicts)
-  - Standardized WebSocket message format across all entities
-  - Intelligent update queuing and conflict resolution
-  - Legacy code removal and consolidation
+### 🚧 In Progress
 
-### Phase 5: User Frontend 📋 PLANNED (Q2-Q3 2025)
-- **Authentication**: Posit Connect integration
-- **User Interface**: Read-only tracker views for viewers, edit capabilities for editors
-- **Dashboard**: Task-focused dashboards with visualizations
-- **Comments**: Blog-style comment system with threading
-- **Mobile**: Responsive design for mobile access
+**Frontend (React):**
+- Component library setup
+- API integration with TanStack Query
+- State management with Zustand
+- Basic CRUD interfaces
+- WebSocket client integration
 
-### Phase 6: Advanced Features 📋 PLANNED (Q4 2025 - Q1 2026)
-- Analytics dashboard with advanced reporting
-- Excel/PDF export capabilities
-- Email notification system
-- Advanced Semantic Search (Vector Embeddings) - See [FR-11](#fr-11-cross-database-semantic-search) below
+### 📋 Planned
 
-**Current Focus**: The Universal CRUD Update System is being implemented to standardize cross-browser real-time updates across all entities, replacing legacy entity-specific handlers with a unified, intelligent conflict resolution system.
+**Authentication:**
+- Posit Connect integration
+- Session management
+- Token refresh handling
 
-## Current Priority: Universal CRUD System
+**Advanced Features:**
+- Analytics dashboard
+- Advanced semantic search
+- Email notifications
+- Excel/PDF export
+- Timeline/Gantt visualizations
+- Machine learning insights
 
-### Universal CRUD Update System (Phase 4 - In Progress)
-**Branch:** `feature/universal-crud-updates`  
-**Status:** Active Development  
-**Priority:** HIGH - Foundation for all future user-facing features
+## User Workflows
 
-**Overview:**  
-The Universal CRUD System standardizes all cross-browser real-time updates with intelligent context awareness and conflict resolution. This replaces the current patchwork of entity-specific update handlers with a unified, maintainable system.
+### Study Setup Workflow
+1. Admin creates new study with unique label
+2. Admin adds database release with lock date
+3. Admin creates reporting effort for the release
+4. Effort is ready for item management
 
-**Key Components:**
+### Package Template Workflow
+1. Admin creates package with metadata
+2. Admin adds TLF/dataset items to package
+3. Admin associates text elements (titles, footnotes)
+4. Package becomes reusable template
+5. Users copy package items to reporting efforts
 
-1. **Universal Activity Manager** (✅ Implemented)
-   - Context-aware user activity detection (modals, forms, typing)
-   - Intelligent update strategy determination
-   - Queue management for deferred updates
-   - Conflict detection and resolution
+### Tracker Management Workflow
+1. Effort items automatically create trackers
+2. Admin/Editor assigns primary programmer
+3. Primary programmer updates status to IN_PROGRESS
+4. Primary programmer completes work, updates to COMPLETED
+5. Admin/Editor assigns QC programmer
+6. QC programmer reviews and updates QC status
+7. If QC fails, item returns to primary programmer
+8. If QC passes, item is finalized
 
-2. **Standardized WebSocket Integration** (🚧 In Progress)
-   - Unified message format across all entities
-   - Centralized event routing and processing
-   - Legacy handler removal and consolidation
-
-3. **Conflict Resolution System** (📋 Planned)
-   - Visual conflict resolution dialogs
-   - Side-by-side change comparison
-   - User choice preservation (keep mine/take theirs/merge)
-
-**Benefits:**
-- Consistent behavior across all entity types
-- Reduced maintenance burden (single update system vs. 9+ entity-specific handlers)
-- Better user experience with intelligent update deferral
-- Foundation for advanced collaboration features
-
-### Phase 6 Feature Detail: Advanced Semantic Search
-
-#### FR-11: Cross-Database Semantic Search
-**Status:** 📋 PLANNED (Q1 2026)  
-**Priority:** Medium  
-**Location:** User Frontend - Dedicated Search Page
-
-**Overview:**  
-Implement a dedicated search page in the user-frontend application that provides intelligent, meaning-based search across all tracker data in the database using vector embeddings.
-
-**Technical Approach:**
-- Client-side vector embeddings using Transformers.js
-- Model: Xenova/all-MiniLM-L6-v2 (~30MB, 384-dimension embeddings)
-- IndexedDB for embedding cache persistence
-- Real-time semantic similarity scoring
-
-**Key Features:**
-
-1. **Universal Search Interface**
-   - Single search box for all tracker types (TLF, SDTM, ADaM)
-   - Search across all reporting efforts simultaneously
-   - Filter results by effort, type, status, or assignment
-
-2. **Semantic Understanding**
-   - Understands meaning and context, not just keywords
-   - Examples:
-     - "quality issues" → finds "QC Fail", "QC Started", quality-related items
-     - "programmer assignments" → finds all programmer-related fields
-     - "timeline" → finds "Due Date", "QC Completion", time-related fields
-     - "failed validation" → finds "QC Fail", validation errors, issues
-
-3. **Search Modes**
-   - **Semantic Mode**: Meaning-based search using embeddings
-   - **Fuzzy Mode**: Typo-tolerant character matching
-   - **Regex Mode**: Pattern-based technical search
-   - **Hybrid Mode**: Combines all three for best results
-
-4. **Performance Features**
-   - Progressive loading during model download
-   - Batch embedding generation on initial load
-   - Cached embeddings in browser storage
-   - Similarity threshold adjustment (0.5-1.0)
-   - Result ranking by relevance score
-
-5. **User Experience**
-   - Real-time search-as-you-type
-   - Relevance scores displayed for each result
-   - Highlighted matching context in results
-   - Direct navigation to source tracker items
-   - Search history and saved searches
-
-**Benefits:**
-- **Zero ongoing costs**: Runs entirely in browser after model download
-- **Privacy-compliant**: No data sent to external servers
-- **Offline capable**: Works without internet after initial setup
-- **Fast**: <200ms search latency for thousands of items
-- **Intelligent**: Understands synonyms, abbreviations, and context
-
-**Implementation Considerations:**
-- Initial model download: 3-5 seconds (cached for future)
-- Memory usage: ~150MB including model and embeddings
-- Requires modern browser with WebAssembly support
-- Progressive enhancement for older browsers
+### Comment Workflow
+1. User views tracker item
+2. User adds question comment
+3. Other users receive real-time notifications
+4. Users reply to comment thread
+5. Original commenter marks question as resolved
+6. Resolved count updates across all browsers
 
 ## Success Metrics
 
@@ -432,29 +654,54 @@ Implement a dedicated search page in the user-frontend application that provides
 - **User Adoption:** 80% of target users actively using within 3 months
 - **Data Migration:** 100% of existing packages migrated
 - **Training Completion:** 90% of users complete training
+- **Daily Active Users:** 70% of registered users
+- **Feature Usage:** 90% of features used weekly
 
 ### Efficiency Metrics
 - **Time Savings:** 75% reduction in manual tracking time
 - **Error Reduction:** 90% decrease in data entry errors
 - **Collaboration:** 2x increase in cross-team interactions
-- **Search Efficiency:** 80% reduction in time to find relevant tracker items
-- **Search Accuracy:** 95% relevant results in top 10 search results
+- **Search Efficiency:** 80% reduction in time to find items
+- **Task Completion:** 50% faster item completion rates
 
 ### Quality Metrics
 - **System Uptime:** Achieve 99.9% availability
 - **User Satisfaction:** NPS score > 8
 - **Bug Resolution:** Critical bugs fixed within 24 hours
+- **API Response Time:** 95th percentile < 200ms
+- **Zero Data Loss:** 100% audit trail coverage
 
-## Risks & Mitigations
+## Deployment Strategy
+
+### Development Environment
+- Local Docker containers
+- Development database
+- Hot reload for frontend and backend
+- Debug logging enabled
+
+### Staging Environment
+- Posit Connect staging instance
+- Staging database with anonymized data
+- Real-time monitoring
+- User acceptance testing
+
+### Production Environment
+- Posit Connect production instance
+- PostgreSQL RDS with backups
+- Performance monitoring
+- Error tracking and alerting
+- Automated health checks
+
+## Risk Mitigation
 
 ### Technical Risks
 
 | Risk | Impact | Mitigation |
 |------|---------|------------|
-| SQLAlchemy async session conflicts | Test reliability | Use individual test scripts, documented constraint |
 | WebSocket connection stability | User experience | Auto-reconnection with exponential backoff |
-| Enum serialization issues | Data integrity | Custom serialization handlers (resolved) |
+| Database performance | System slowdown | Connection pooling, query optimization, indexes |
 | Browser compatibility | User access | Progressive enhancement, fallback options |
+| Data migration errors | Data integrity | Automated validation, rollback procedures |
 
 ### Business Risks
 
@@ -463,73 +710,50 @@ Implement a dedicated search page in the user-frontend application that provides
 | User adoption resistance | ROI impact | Phased rollout with training |
 | Data migration complexity | Timeline delay | Automated migration scripts |
 | Regulatory compliance | Legal risk | Complete audit trails, validation |
+| Concurrent editing conflicts | Data integrity | Optimistic locking, conflict resolution UI |
 
-## Testing Strategy
+## Future Enhancements
 
-### Testing Approach
-- **Unit Tests:** Individual test files (async session constraint)
-- **Integration Tests:** WebSocket broadcast validation
-- **Functional Tests:** Shell script test suites
-- **User Acceptance:** Phased rollout with feedback loops
+### Phase 1 (Q1 2025)
+- Complete React frontend
+- Posit Connect authentication
+- Mobile-responsive design
+- Excel import/export
+- Advanced filtering
 
-For testing constraints and patterns, see [backend/tests/README.md](../backend/tests/README.md).
+### Phase 2 (Q2 2025)
+- Analytics dashboard
+- Timeline visualizations
+- Email notifications
+- Scheduled backups
+- Cloud storage integration
 
-## Current Development Timeline
+### Phase 3 (Q3 2025)
+- Advanced semantic search
+- Vector embeddings (Transformers.js)
+- Machine learning insights
+- Third-party integrations
+- Advanced reporting
 
-### Immediate (Q1 2025)
-- **Universal CRUD System**: Complete implementation and testing
-- **Legacy Code Removal**: Clean up entity-specific handlers
-- **Performance Optimization**: WebSocket and UI improvements
+## Glossary
 
-### Short-term (Q2 2025)
-- **Authentication System**: Posit Connect integration
-- **User Frontend**: Basic read-only interface
-- **Mobile Optimization**: Responsive design improvements
-
-### Medium-term (Q3-Q4 2025)
-- **User Frontend**: Complete editor capabilities
-- **Advanced Analytics**: Dashboard enhancements
-- **Export Systems**: Excel/PDF generation
-
-### Long-term (2026)
-- **Advanced Search**: Vector embeddings and semantic search
-- **Advanced Analytics**: Machine learning insights
-- **Integration**: Third-party system integrations
-
-## Deployment & Operations
-
-### Deployment Strategy
-- **Development:** Local Docker environment
-- **Staging:** Posit Connect staging instance
-- **Production:** Posit Connect with PostgreSQL RDS
-
-### Monitoring
-- **Health Checks:** /health endpoint monitoring
-- **Metrics:** Application performance monitoring
-- **Logs:** Centralized logging with retention
-- **Alerts:** Critical error notifications
-
-## Appendices
-
-### A. References
-- [Project Overview - CLAUDE.md](../CLAUDE.md)
-- [Backend Documentation - backend/CLAUDE.md](../backend/CLAUDE.md)
-- [Frontend Documentation - admin-frontend/CLAUDE.md](../admin-frontend/CLAUDE.md)
-- [Universal CRUD Updates - UNIVERSAL_CRUD_UPDATE_PLAN.md](../UNIVERSAL_CRUD_UPDATE_PLAN.md)
-
-### B. Glossary
 - **TLF:** Tables, Listings, and Figures
-- **TNFP:** Text, Notes, Footnotes, and Populations
+- **TNFP:** Text, Notes, Footnotes, and Populations (Text Elements)
 - **SDTM:** Study Data Tabulation Model
 - **ADaM:** Analysis Data Model
 - **CRUD:** Create, Read, Update, Delete
 - **WebSocket:** Protocol for real-time bidirectional communication
+- **QC:** Quality Control
+- **Primary Programmer:** Programmer responsible for initial development
+- **QC Programmer:** Programmer responsible for quality control review
 
-### C. Version History
-- v3.0 (Jan 2025): Updated to reflect current implementation status - Admin Frontend complete, Universal CRUD system in progress
+## Version History
+
+- v4.0 (Dec 2024): React frontend focus, comprehensive feature documentation
+- v3.0 (Jan 2025): Updated to reflect admin frontend complete, universal CRUD system
 - v2.0 (Aug 2025): Complete rewrite using BMAD-METHOD
 - v1.0 (Aug 2025): Initial PRD creation
 
 ---
 
-*This PRD is maintained using the BMAD-METHOD and serves as the single source of truth for product requirements. Technical implementation details are referenced in the respective CLAUDE.md documentation files.*
+*This PRD serves as the single source of truth for PEARL product requirements and features.*

@@ -628,10 +628,13 @@ get_user_by_id <- function(user_id) {
 }
 
 # Create a new user
-create_user <- function(username, role, department = NULL) {
+create_user <- function(username, email, password, role, department = NULL) {
   payload <- list(
     username = username,
-    role = role
+    email = email,
+    password = password,
+    role = role,
+    generate_password = FALSE
   )
   
   # Add department if provided

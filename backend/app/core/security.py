@@ -219,6 +219,42 @@ def verify_reset_token(plain_token: str, hashed_token: str) -> bool:
     return verify_password(plain_token, hashed_token)
 
 
+def generate_secure_password(length: int = 12) -> str:
+    """
+    Generate a cryptographically secure random password.
+    
+    Args:
+        length: Desired password length (default: 12)
+    
+    Returns:
+        Secure random password string with mix of character types
+    """
+    import string
+    
+    # Character sets
+    lowercase = string.ascii_lowercase
+    uppercase = string.ascii_uppercase
+    digits = string.digits
+    special = "!@#$%^&*"
+    
+    # Ensure at least one character from each set
+    password_chars = [
+        secrets.choice(lowercase),
+        secrets.choice(uppercase),
+        secrets.choice(digits),
+        secrets.choice(special),
+    ]
+    
+    # Fill the rest with random characters from all sets
+    all_chars = lowercase + uppercase + digits + special
+    password_chars.extend(secrets.choice(all_chars) for _ in range(length - 4))
+    
+    # Shuffle to avoid predictable pattern
+    secrets.SystemRandom().shuffle(password_chars)
+    
+    return ''.join(password_chars)
+
+
 # Legacy support - will be removed after migration
 def get_current_user_id() -> int:
     """
