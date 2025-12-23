@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { PackageOpen, Plus, Edit, Trash2, RefreshCw, Search, Upload, Download, CheckSquare, Loader2, FileSpreadsheet } from 'lucide-react'
 import { toast } from 'sonner'
 import { packagesApi, textElementsApi } from '@/api'
+import { getErrorMessage } from '@/lib/utils'
 import type { BulkTLFItem, BulkDatasetItem } from '@/api/endpoints/packages'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -160,7 +161,7 @@ export function PackageItems() {
       queryClient.invalidateQueries({ queryKey: ['package-items', selectedPackageId] })
       setSelectedItem(null)
     },
-    onError: () => toast.error('Failed to delete package item'),
+    onError: (error) => toast.error(`Failed to delete package item: ${getErrorMessage(error)}`),
   })
 
   // Bulk upload mutations
@@ -953,4 +954,5 @@ export function PackageItems() {
     </div>
   )
 }
+
 

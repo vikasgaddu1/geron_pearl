@@ -1,8 +1,8 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ClipboardCheck, RefreshCw, Users, CheckCircle, MessageSquare, Edit, Trash2, Send, X } from 'lucide-react'
+import { ClipboardCheck, RefreshCw, Users, CheckCircle, MessageSquare, Edit, Trash2, Send, X, Tag, Plus, Reply, Filter } from 'lucide-react'
 import { toast } from 'sonner'
-import { reportingEffortsApi, trackerApi, trackerCommentsApi, usersApi } from '@/api'
+import { reportingEffortsApi, trackerApi, trackerCommentsApi, trackerTagsApi, usersApi } from '@/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -26,6 +26,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { StatusBadge } from '@/components/common/StatusBadge'
@@ -35,12 +47,32 @@ import { DataTable, ColumnDef } from '@/components/common/DataTable'
 import { TooltipWrapper } from '@/components/common/TooltipWrapper'
 import { HelpIcon } from '@/components/common/HelpIcon'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
-import { formatDate, formatDateTime } from '@/lib/utils'
-import type { ReportingEffortItemTracker, TrackerStatus, TrackerComment, CommentType, Priority } from '@/types'
+import { formatDate, formatDateTime, getErrorMessage } from '@/lib/utils'
+import type { ReportingEffortItemTracker, TrackerStatus, TrackerComment, CommentType, Priority, TrackerTag, TrackerTagSummary } from '@/types'
 
 const TRACKER_STATUSES: TrackerStatus[] = ['not_started', 'in_progress', 'completed', 'on_hold', 'failed']
 const PRIORITIES: Priority[] = ['critical', 'high', 'medium', 'low']
-const COMMENT_TYPES: CommentType[] = ['GENERAL', 'PROGRAMMING', 'BIOSTAT', 'QUESTION', 'ISSUE', 'RESPONSE']
+// Simplified comment types for programmer/QC communication (backend only accepts programming/biostat)
+const COMMENT_TYPES: { value: CommentType; label: string }[] = [
+  { value: 'PROGRAMMING', label: 'Programmer' },
+  { value: 'BIOSTAT', label: 'QC Programmer' },
+]
+
+// Preset colors for tags
+const TAG_COLORS = [
+  '#EF4444', // Red
+  '#F97316', // Orange
+  '#F59E0B', // Amber
+  '#84CC16', // Lime
+  '#22C55E', // Green
+  '#14B8A6', // Teal
+  '#06B6D4', // Cyan
+  '#3B82F6', // Blue
+  '#6366F1', // Indigo
+  '#8B5CF6', // Violet
+  '#A855F7', // Purple
+  '#EC4899', // Pink
+]
 
 export function TrackerManagement() {
   const queryClient = useQueryClient()
@@ -52,6 +84,8 @@ export function TrackerManagement() {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [commentDialogOpen, setCommentDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [tagManageOpen, setTagManageOpen] = useState(false)
+  const [bulkTagOpen, setBulkTagOpen] = useState(false)
   const [selectedTracker, setSelectedTracker] = useState<ReportingEffortItemTracker | null>(null)
   const [bulkData, setBulkData] = useState({ programmerId: '', status: 'in_progress' as TrackerStatus, assignmentType: 'primary' as 'primary' | 'qc' })
   const [editFormData, setEditFormData] = useState({
@@ -63,7 +97,16 @@ export function TrackerManagement() {
     due_date: '',
     qc_completion_date: '',
   })
-  const [newComment, setNewComment] = useState({ text: '', type: 'GENERAL' as CommentType })
+  const [newComment, setNewComment] = useState({ text: '', type: 'PROGRAMMING' as CommentType, parentId: null as number | null })
+  const [replyingTo, setReplyingTo] = useState<TrackerComment | null>(null)
+  
+  // Filter states
+  const [commentFilter, setCommentFilter] = useState<'all' | 'has_comments' | 'has_unresolved'>('all')
+  const [tagFilter, setTagFilter] = useState<number | null>(null)
+  
+  // Tag management state
+  const [newTag, setNewTag] = useState({ name: '', color: '#3B82F6', description: '' })
+  const [editingTag, setEditingTag] = useState<TrackerTag | null>(null)
 
   // Queries
   const { data: efforts = [], isLoading: effortsLoading } = useQuery({
@@ -88,12 +131,18 @@ export function TrackerManagement() {
     enabled: !!selectedTracker && commentDialogOpen,
   })
 
+  const { data: allTags = [], refetch: refetchTags } = useQuery({
+    queryKey: ['tracker-tags'],
+    queryFn: trackerTagsApi.getAll,
+  })
+
   // WebSocket refresh
   const refetch = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['trackers', selectedEffortId] })
+    queryClient.invalidateQueries({ queryKey: ['tracker-tags'] })
   }, [queryClient, selectedEffortId])
 
-  useWebSocketRefresh(['reporting_effort_tracker', 'comment'], refetch)
+  useWebSocketRefresh(['reporting_effort_tracker', 'comment', 'tracker_tag'], refetch)
 
   // Mutations
   const bulkAssign = useMutation({
@@ -104,7 +153,7 @@ export function TrackerManagement() {
       setBulkAssignOpen(false)
       setSelectedRows(new Set())
     },
-    onError: () => toast.error('Failed to assign programmers'),
+    onError: (error) => toast.error(`Failed to assign programmers: ${getErrorMessage(error)}`),
   })
 
   const bulkStatusUpdate = useMutation({
@@ -115,7 +164,7 @@ export function TrackerManagement() {
       setBulkStatusOpen(false)
       setSelectedRows(new Set())
     },
-    onError: () => toast.error('Failed to update status'),
+    onError: (error) => toast.error(`Failed to update status: ${getErrorMessage(error)}`),
   })
 
   const updateTracker = useMutation({
@@ -126,7 +175,7 @@ export function TrackerManagement() {
       queryClient.invalidateQueries({ queryKey: ['trackers', selectedEffortId] })
       setEditDialogOpen(false)
     },
-    onError: () => toast.error('Failed to update tracker'),
+    onError: (error) => toast.error(`Failed to update tracker: ${getErrorMessage(error)}`),
   })
 
   const deleteTracker = useMutation({
@@ -136,7 +185,7 @@ export function TrackerManagement() {
       queryClient.invalidateQueries({ queryKey: ['trackers', selectedEffortId] })
       setSelectedTracker(null)
     },
-    onError: () => toast.error('Failed to delete tracker'),
+    onError: (error) => toast.error(`Failed to delete tracker: ${getErrorMessage(error)}`),
   })
 
   const createComment = useMutation({
@@ -144,10 +193,11 @@ export function TrackerManagement() {
     onSuccess: () => {
       toast.success('Comment added')
       refetchComments()
-      setNewComment({ text: '', type: 'GENERAL' })
+      setNewComment({ text: '', type: 'PROGRAMMING', parentId: null })
+      setReplyingTo(null)
       queryClient.invalidateQueries({ queryKey: ['trackers', selectedEffortId] })
     },
-    onError: () => toast.error('Failed to add comment'),
+    onError: (error) => toast.error(`Failed to add comment: ${getErrorMessage(error)}`),
   })
 
   const resolveComment = useMutation({
@@ -157,7 +207,71 @@ export function TrackerManagement() {
       refetchComments()
       queryClient.invalidateQueries({ queryKey: ['trackers', selectedEffortId] })
     },
-    onError: () => toast.error('Failed to resolve comment'),
+    onError: (error) => toast.error(`Failed to resolve comment: ${getErrorMessage(error)}`),
+  })
+
+  // Tag mutations
+  const createTag = useMutation({
+    mutationFn: trackerTagsApi.create,
+    onSuccess: () => {
+      toast.success('Tag created')
+      refetchTags()
+      setNewTag({ name: '', color: '#3B82F6', description: '' })
+    },
+    onError: (error) => toast.error(`Failed to create tag: ${getErrorMessage(error)}`),
+  })
+
+  const updateTag = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: { name?: string; color?: string; description?: string } }) =>
+      trackerTagsApi.update(id, data),
+    onSuccess: () => {
+      toast.success('Tag updated')
+      refetchTags()
+      queryClient.invalidateQueries({ queryKey: ['trackers', selectedEffortId] })
+      setEditingTag(null)
+    },
+    onError: (error) => toast.error(`Failed to update tag: ${getErrorMessage(error)}`),
+  })
+
+  const deleteTag = useMutation({
+    mutationFn: trackerTagsApi.delete,
+    onSuccess: () => {
+      toast.success('Tag deleted')
+      refetchTags()
+      queryClient.invalidateQueries({ queryKey: ['trackers', selectedEffortId] })
+    },
+    onError: (error) => toast.error(`Failed to delete tag: ${getErrorMessage(error)}`),
+  })
+
+  const assignTag = useMutation({
+    mutationFn: ({ trackerId, tagId }: { trackerId: number; tagId: number }) =>
+      trackerTagsApi.assignTag(trackerId, tagId),
+    onSuccess: () => {
+      toast.success('Tag assigned')
+      queryClient.invalidateQueries({ queryKey: ['trackers', selectedEffortId] })
+    },
+    onError: (error) => toast.error(`Failed to assign tag: ${getErrorMessage(error)}`),
+  })
+
+  const removeTag = useMutation({
+    mutationFn: ({ trackerId, tagId }: { trackerId: number; tagId: number }) =>
+      trackerTagsApi.removeTag(trackerId, tagId),
+    onSuccess: () => {
+      toast.success('Tag removed')
+      queryClient.invalidateQueries({ queryKey: ['trackers', selectedEffortId] })
+    },
+    onError: (error) => toast.error(`Failed to remove tag: ${getErrorMessage(error)}`),
+  })
+
+  const bulkAssignTag = useMutation({
+    mutationFn: trackerTagsApi.bulkAssign,
+    onSuccess: (result) => {
+      toast.success(`Tag assigned to ${result.affected_count} trackers`)
+      queryClient.invalidateQueries({ queryKey: ['trackers', selectedEffortId] })
+      setBulkTagOpen(false)
+      setSelectedRows(new Set())
+    },
+    onError: (error) => toast.error(`Failed to assign tags: ${getErrorMessage(error)}`),
   })
 
   // Filter trackers by tab (TLF vs SDTM vs ADaM)
@@ -169,15 +283,24 @@ export function TrackerManagement() {
     return true
   }
 
-  const filteredTrackers = useMemo(() => trackers.filter(filterByTab), [trackers, activeTab])
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedRows(new Set(filteredTrackers.map((t) => t.id)))
-    } else {
-      setSelectedRows(new Set())
+  // Apply all filters
+  const filteredTrackers = useMemo(() => {
+    let result = trackers.filter(filterByTab)
+    
+    // Comment filter
+    if (commentFilter === 'has_comments') {
+      result = result.filter(t => (t.unresolved_comment_count || 0) > 0 || (t.comment_count || 0) > 0)
+    } else if (commentFilter === 'has_unresolved') {
+      result = result.filter(t => (t.unresolved_comment_count || 0) > 0)
     }
-  }
+    
+    // Tag filter
+    if (tagFilter !== null) {
+      result = result.filter(t => t.tags?.some(tag => tag.id === tagFilter))
+    }
+    
+    return result
+  }, [trackers, activeTab, commentFilter, tagFilter])
 
   const handleSelectRow = (id: number, checked: boolean) => {
     const newSelected = new Set(selectedRows)
@@ -242,16 +365,43 @@ export function TrackerManagement() {
 
   const handleAddComment = () => {
     if (!selectedTracker || !newComment.text.trim()) return
+    // Convert uppercase CommentType to lowercase for API (backend expects 'programming' or 'biostat')
+    const apiCommentType = newComment.type.toLowerCase() as 'programming' | 'biostat'
     createComment.mutate({
       tracker_id: selectedTracker.id,
       comment_text: newComment.text.trim(),
-      comment_type: newComment.type,
+      comment_type: apiCommentType,
+      parent_comment_id: newComment.parentId,
     })
+  }
+
+  const handleReply = (comment: TrackerComment) => {
+    setReplyingTo(comment)
+    // Keep the current comment type (programming/biostat) for replies
+    setNewComment(prev => ({ ...prev, parentId: comment.id }))
+  }
+
+  const cancelReply = () => {
+    setReplyingTo(null)
+    setNewComment(prev => ({ ...prev, parentId: null }))
   }
 
   const handleDelete = (tracker: ReportingEffortItemTracker) => {
     setSelectedTracker(tracker)
     setDeleteDialogOpen(true)
+  }
+
+  const handleCreateTag = () => {
+    if (!newTag.name.trim()) return
+    createTag.mutate(newTag)
+  }
+
+  const handleUpdateTag = () => {
+    if (!editingTag) return
+    updateTag.mutate({
+      id: editingTag.id,
+      data: { name: editingTag.name, color: editingTag.color, description: editingTag.description }
+    })
   }
 
   // All users can be assigned as programmers
@@ -263,134 +413,198 @@ export function TrackerManagement() {
     return user?.username || '-'
   }
 
-  // Define table columns
-  const columns: ColumnDef<ReportingEffortItemTracker>[] = [
-    {
-      id: 'select',
-      header: 'Select',
-      accessorKey: 'id',
+  // Get comment type label
+  const getCommentTypeLabel = (type: CommentType) => {
+    const found = COMMENT_TYPES.find(t => t.value === type)
+    return found?.label || type
+  }
+
+  // Define table columns - changes based on active tab
+  const getColumns = (): ColumnDef<ReportingEffortItemTracker>[] => {
+    const baseColumns: ColumnDef<ReportingEffortItemTracker>[] = [
+      {
+        id: 'select',
+        header: 'Select',
+        accessorKey: 'id',
+        filterType: 'none',
+        enableSorting: false,
+        cell: (_, tracker) => (
+          <Checkbox
+            checked={selectedRows.has(tracker.id)}
+            onCheckedChange={(checked) => handleSelectRow(tracker.id, !!checked)}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ),
+      },
+      {
+        id: 'item_code',
+        header: 'Item Code',
+        accessorKey: 'item_code',
+        filterType: 'text',
+        helpText: 'Unique identifier for the reporting item.',
+        cell: (value) => <span className="font-medium">{value}</span>,
+      },
+    ]
+
+    // For TLF tab, show Title; for others, just show item code
+    if (activeTab === 'tlf') {
+      baseColumns.push({
+        id: 'item_title',
+        header: 'Title',
+        accessorKey: 'item_title',
+        filterType: 'text',
+        helpText: 'Title of the TLF output.',
+        cell: (value) => <span className="max-w-xs truncate block">{value || '-'}</span>,
+      })
+    }
+
+    // Tags column
+    baseColumns.push({
+      id: 'tags',
+      header: 'Tags',
+      accessorKey: 'tags',
       filterType: 'none',
       enableSorting: false,
       cell: (_, tracker) => (
-        <Checkbox
-          checked={selectedRows.has(tracker.id)}
-          onCheckedChange={(checked) => handleSelectRow(tracker.id, !!checked)}
-          onClick={(e) => e.stopPropagation()}
-        />
-      ),
-    },
-    {
-      id: 'item_code',
-      header: 'Item Code',
-      accessorKey: 'item_code',
-      filterType: 'text',
-      helpText: 'Unique identifier for the reporting item. Supports wildcard (*) and regex patterns.',
-      cell: (value) => <span className="font-medium">{value}</span>,
-    },
-    {
-      id: 'item_description',
-      header: 'Description',
-      accessorKey: 'item_description',
-      filterType: 'text',
-      helpText: 'Description of the reporting item output.',
-      cell: (value) => <span className="max-w-xs truncate block">{value || '-'}</span>,
-    },
-    {
-      id: 'production_programmer',
-      header: 'Prod Programmer',
-      accessorKey: 'production_programmer_id',
-      filterType: 'select',
-      filterOptions: users.map(u => u.username),
-      helpText: 'Programmer assigned to produce this output.',
-      cell: (value) => getProgrammerName(value as number),
-    },
-    {
-      id: 'production_status',
-      header: 'Prod Status',
-      accessorKey: 'production_status',
-      filterType: 'select',
-      filterOptions: TRACKER_STATUSES,
-      helpText: 'Current status of production work.',
-      cell: (value) => <StatusBadge status={value as TrackerStatus} />,
-    },
-    {
-      id: 'qc_programmer',
-      header: 'QC Programmer',
-      accessorKey: 'qc_programmer_id',
-      filterType: 'select',
-      filterOptions: users.map(u => u.username),
-      helpText: 'Programmer assigned to QC this output.',
-      cell: (value) => getProgrammerName(value as number),
-    },
-    {
-      id: 'qc_status',
-      header: 'QC Status',
-      accessorKey: 'qc_status',
-      filterType: 'select',
-      filterOptions: TRACKER_STATUSES,
-      helpText: 'Current status of QC work.',
-      cell: (value) => <StatusBadge status={value as TrackerStatus} />,
-    },
-    {
-      id: 'due_date',
-      header: 'Due Date',
-      accessorKey: 'due_date',
-      filterType: 'date',
-      helpText: 'Target completion date for this output.',
-      cell: (value) => value ? formatDate(value as string) : '-',
-    },
-    {
-      id: 'qc_completion_date',
-      header: 'QC Completion',
-      accessorKey: 'qc_completion_date',
-      filterType: 'date',
-      helpText: 'Date when QC was completed.',
-      cell: (value) => value ? formatDate(value as string) : '-',
-    },
-    {
-      id: 'comments',
-      header: 'Comments',
-      accessorKey: 'comment_count',
-      filterType: 'none',
-      enableSorting: false,
-      cell: (_, tracker) => (
-        <TooltipWrapper 
-          content={`${tracker.comment_count || 0} total comments, ${tracker.unresolved_comment_count || 0} unresolved`}
-        >
-          <Button variant="ghost" size="sm" onClick={() => handleOpenComments(tracker)}>
-            <MessageSquare className="h-4 w-4" />
-            {tracker.comment_count ? (
-              <Badge variant="secondary" className="ml-1">{tracker.comment_count}</Badge>
-            ) : null}
-            {tracker.unresolved_comment_count ? (
-              <Badge variant="destructive" className="ml-1">{tracker.unresolved_comment_count}</Badge>
-            ) : null}
-          </Button>
-        </TooltipWrapper>
-      ),
-    },
-    {
-      id: 'actions',
-      header: 'Actions',
-      accessorKey: 'id',
-      filterType: 'none',
-      enableSorting: false,
-      cell: (_, tracker) => (
-        <div className="flex justify-end gap-1">
-          <TooltipWrapper content="Edit tracker assignments and status">
-            <Button variant="ghost" size="icon" onClick={() => handleEdit(tracker)}>
-              <Edit className="h-4 w-4" />
-            </Button>
-          </TooltipWrapper>
-          <TooltipWrapper content="Delete tracker">
-            <Button variant="ghost" size="icon" onClick={() => handleDelete(tracker)}>
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-          </TooltipWrapper>
+        <div className="flex flex-wrap gap-1 items-center">
+          {tracker.tags?.map((tag) => (
+            <Badge
+              key={tag.id}
+              style={{ backgroundColor: tag.color, color: getContrastColor(tag.color) }}
+              className="text-xs cursor-pointer hover:opacity-80"
+              onClick={() => removeTag.mutate({ trackerId: tracker.id, tagId: tag.id })}
+            >
+              {tag.name}
+              <X className="h-3 w-3 ml-1" />
+            </Badge>
+          ))}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                <Plus className="h-3 w-3" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-2">
+              <div className="space-y-1">
+                {allTags.filter(t => !tracker.tags?.some(tt => tt.id === t.id)).map((tag) => (
+                  <Button
+                    key={tag.id}
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => assignTag.mutate({ trackerId: tracker.id, tagId: tag.id })}
+                  >
+                    <div
+                      className="w-3 h-3 rounded-full mr-2"
+                      style={{ backgroundColor: tag.color }}
+                    />
+                    {tag.name}
+                  </Button>
+                ))}
+                {allTags.length === 0 && (
+                  <p className="text-xs text-muted-foreground p-2">No tags available</p>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       ),
-    },
-  ]
+    })
+
+    // Rest of columns
+    baseColumns.push(
+      {
+        id: 'production_programmer',
+        header: 'Prod Programmer',
+        accessorKey: 'production_programmer_id',
+        filterType: 'select',
+        filterOptions: users.map(u => u.username),
+        helpText: 'Programmer assigned to produce this output.',
+        cell: (value) => getProgrammerName(value as number),
+      },
+      {
+        id: 'production_status',
+        header: 'Prod Status',
+        accessorKey: 'production_status',
+        filterType: 'select',
+        filterOptions: TRACKER_STATUSES,
+        helpText: 'Current status of production work.',
+        cell: (value) => <StatusBadge status={value as TrackerStatus} />,
+      },
+      {
+        id: 'qc_programmer',
+        header: 'QC Programmer',
+        accessorKey: 'qc_programmer_id',
+        filterType: 'select',
+        filterOptions: users.map(u => u.username),
+        helpText: 'Programmer assigned to QC this output.',
+        cell: (value) => getProgrammerName(value as number),
+      },
+      {
+        id: 'qc_status',
+        header: 'QC Status',
+        accessorKey: 'qc_status',
+        filterType: 'select',
+        filterOptions: TRACKER_STATUSES,
+        helpText: 'Current status of QC work.',
+        cell: (value) => <StatusBadge status={value as TrackerStatus} />,
+      },
+      {
+        id: 'due_date',
+        header: 'Due Date',
+        accessorKey: 'due_date',
+        filterType: 'date',
+        helpText: 'Target completion date for this output.',
+        cell: (value) => value ? formatDate(value as string) : '-',
+      },
+      {
+        id: 'comments',
+        header: 'Comments',
+        accessorKey: 'unresolved_comment_count',
+        filterType: 'none',
+        enableSorting: true,
+        cell: (_, tracker) => (
+          <TooltipWrapper 
+            content={`${tracker.comment_count || 0} total, ${tracker.unresolved_comment_count || 0} unresolved`}
+          >
+            <Button variant="ghost" size="sm" onClick={() => handleOpenComments(tracker)}>
+              <MessageSquare className="h-4 w-4" />
+              {(tracker.unresolved_comment_count || 0) > 0 ? (
+                <Badge variant="destructive" className="ml-1">{tracker.unresolved_comment_count}</Badge>
+              ) : tracker.comment_count ? (
+                <Badge variant="secondary" className="ml-1">{tracker.comment_count}</Badge>
+              ) : null}
+            </Button>
+          </TooltipWrapper>
+        ),
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        accessorKey: 'id',
+        filterType: 'none',
+        enableSorting: false,
+        cell: (_, tracker) => (
+          <div className="flex justify-end gap-1">
+            <TooltipWrapper content="Edit tracker">
+              <Button variant="ghost" size="icon" onClick={() => handleEdit(tracker)}>
+                <Edit className="h-4 w-4" />
+              </Button>
+            </TooltipWrapper>
+            <TooltipWrapper content="Delete tracker">
+              <Button variant="ghost" size="icon" onClick={() => handleDelete(tracker)}>
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </TooltipWrapper>
+          </div>
+        ),
+      }
+    )
+
+    return baseColumns
+  }
+
+  const columns = useMemo(() => getColumns(), [activeTab, selectedRows, users, allTags])
 
   if (effortsLoading) {
     return <PageLoader text="Loading..." />
@@ -407,7 +621,7 @@ export function TrackerManagement() {
                 Tracker Management
               </CardTitle>
               <CardDescription>
-                Manage programmer assignments and status tracking
+                Manage programmer assignments, status tracking, and tags
               </CardDescription>
             </div>
             <HelpIcon
@@ -421,7 +635,8 @@ export function TrackerManagement() {
                       <li>Assign programmers to outputs</li>
                       <li>Track production and QC status</li>
                       <li>Set due dates and priorities</li>
-                      <li>Manage comments and discussions</li>
+                      <li>Tag items (e.g., Topline, Batch 1)</li>
+                      <li>Comment threads for communication</li>
                       <li>Bulk operations for efficiency</li>
                     </ul>
                   </div>
@@ -430,6 +645,12 @@ export function TrackerManagement() {
             />
           </div>
           <div className="flex gap-2">
+            <TooltipWrapper content="Manage tags">
+              <Button variant="outline" size="sm" onClick={() => setTagManageOpen(true)}>
+                <Tag className="h-4 w-4 mr-2" />
+                Manage Tags
+              </Button>
+            </TooltipWrapper>
             <TooltipWrapper content="Refresh tracker data">
               <Button variant="outline" size="sm" onClick={refetch} disabled={!selectedEffortId}>
                 <RefreshCw className="h-4 w-4 mr-2" />
@@ -438,6 +659,12 @@ export function TrackerManagement() {
             </TooltipWrapper>
             {selectedRows.size > 0 && (
               <>
+                <TooltipWrapper content={`Assign tag to ${selectedRows.size} selected trackers`}>
+                  <Button variant="outline" size="sm" onClick={() => setBulkTagOpen(true)}>
+                    <Tag className="h-4 w-4 mr-2" />
+                    Tag ({selectedRows.size})
+                  </Button>
+                </TooltipWrapper>
                 <TooltipWrapper content={`Assign programmer to ${selectedRows.size} selected trackers`}>
                   <Button variant="outline" size="sm" onClick={() => setBulkAssignOpen(true)}>
                     <Users className="h-4 w-4 mr-2" />
@@ -455,7 +682,7 @@ export function TrackerManagement() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4 mb-4">
+          <div className="flex gap-4 mb-4 flex-wrap">
             <div className="w-80">
               <Label>Reporting Effort</Label>
               <Select value={selectedEffortId} onValueChange={(v) => { setSelectedEffortId(v); setSelectedRows(new Set()) }}>
@@ -471,6 +698,44 @@ export function TrackerManagement() {
                 </SelectContent>
               </Select>
             </div>
+            
+            {/* Filters */}
+            {selectedEffortId && (
+              <>
+                <div className="w-48">
+                  <Label>Comment Filter</Label>
+                  <Select value={commentFilter} onValueChange={(v: 'all' | 'has_comments' | 'has_unresolved') => setCommentFilter(v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Items</SelectItem>
+                      <SelectItem value="has_comments">Has Comments</SelectItem>
+                      <SelectItem value="has_unresolved">Unresolved Comments</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-48">
+                  <Label>Tag Filter</Label>
+                  <Select value={tagFilter?.toString() || 'all'} onValueChange={(v) => setTagFilter(v === 'all' ? null : Number(v))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Tags</SelectItem>
+                      {allTags.map((tag) => (
+                        <SelectItem key={tag.id} value={String(tag.id)}>
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }} />
+                            {tag.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
           </div>
 
           {!selectedEffortId ? (
@@ -510,7 +775,7 @@ export function TrackerManagement() {
                     <EmptyState
                       icon={ClipboardCheck}
                       title="No trackers found"
-                      description="No items in this tracker."
+                      description={commentFilter !== 'all' || tagFilter !== null ? "No items match the current filters." : "No items in this tracker."}
                     />
                   ) : (
                     <DataTable data={filteredTrackers} columns={columns} />
@@ -645,23 +910,23 @@ export function TrackerManagement() {
       </Dialog>
 
       {/* Comments Dialog */}
-      <Dialog open={commentDialogOpen} onOpenChange={setCommentDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh]">
+      <Dialog open={commentDialogOpen} onOpenChange={(open) => { setCommentDialogOpen(open); if (!open) { setReplyingTo(null); setNewComment({ text: '', type: 'PROGRAMMING', parentId: null }) } }}>
+        <DialogContent className="max-w-2xl max-h-[85vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5" />
               Comments for {selectedTracker?.item_code}
             </DialogTitle>
             <DialogDescription>
-              View and add comments for this tracker item
+              Communicate with programmers and QC team
             </DialogDescription>
           </DialogHeader>
           
           {/* Comment List */}
-          <ScrollArea className="h-[300px] pr-4">
+          <ScrollArea className="h-[350px] pr-4">
             {comments.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                No comments yet. Add the first comment below.
+                No comments yet. Start the conversation below.
               </div>
             ) : (
               <div className="space-y-4">
@@ -670,6 +935,9 @@ export function TrackerManagement() {
                     key={comment.id} 
                     comment={comment} 
                     onResolve={() => resolveComment.mutate(comment.id)}
+                    onReply={handleReply}
+                    getCommentTypeLabel={getCommentTypeLabel}
+                    isNested={false}
                   />
                 ))}
               </div>
@@ -678,24 +946,33 @@ export function TrackerManagement() {
 
           {/* Add Comment Form */}
           <div className="border-t pt-4 mt-4">
+            {replyingTo && (
+              <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded text-sm">
+                <Reply className="h-4 w-4" />
+                <span>Replying to {replyingTo.user?.username || 'Unknown'}</span>
+                <Button variant="ghost" size="sm" className="ml-auto h-6" onClick={cancelReply}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
             <div className="flex gap-2 mb-2">
               <Select
                 value={newComment.type}
                 onValueChange={(v: CommentType) => setNewComment((prev) => ({ ...prev, type: v }))}
               >
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-44">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {COMMENT_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="flex gap-2">
               <Textarea
-                placeholder="Add a comment..."
+                placeholder={replyingTo ? "Write your reply..." : "Add a comment..."}
                 value={newComment.text}
                 onChange={(e) => setNewComment((prev) => ({ ...prev, text: e.target.value }))}
                 className="flex-1"
@@ -706,6 +983,149 @@ export function TrackerManagement() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tag Management Dialog */}
+      <Dialog open={tagManageOpen} onOpenChange={setTagManageOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Tag className="h-5 w-5" />
+              Manage Tags
+            </DialogTitle>
+            <DialogDescription>
+              Create, edit, or delete tags for categorizing tracker items
+            </DialogDescription>
+          </DialogHeader>
+          
+          {/* Create new tag */}
+          <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+            <Label className="font-medium">Create New Tag</Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Tag name (e.g., Topline)"
+                value={newTag.name}
+                onChange={(e) => setNewTag(prev => ({ ...prev, name: e.target.value }))}
+                className="flex-1"
+              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-24" style={{ backgroundColor: newTag.color }}>
+                    <span style={{ color: getContrastColor(newTag.color) }}>Color</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64">
+                  <div className="grid grid-cols-6 gap-2">
+                    {TAG_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        className={`w-8 h-8 rounded-full border-2 ${newTag.color === color ? 'border-foreground' : 'border-transparent'}`}
+                        style={{ backgroundColor: color }}
+                        onClick={() => setNewTag(prev => ({ ...prev, color }))}
+                      />
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Button onClick={handleCreateTag} disabled={!newTag.name.trim()}>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Existing tags */}
+          <ScrollArea className="h-[250px]">
+            <div className="space-y-2">
+              {allTags.map((tag) => (
+                <div key={tag.id} className="flex items-center gap-2 p-2 border rounded hover:bg-muted/50">
+                  {editingTag?.id === tag.id ? (
+                    <>
+                      <Input
+                        value={editingTag.name}
+                        onChange={(e) => setEditingTag(prev => prev ? { ...prev, name: e.target.value } : null)}
+                        className="flex-1 h-8"
+                      />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" style={{ backgroundColor: editingTag.color }}>
+                            <span style={{ color: getContrastColor(editingTag.color) }}>Color</span>
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64">
+                          <div className="grid grid-cols-6 gap-2">
+                            {TAG_COLORS.map((color) => (
+                              <button
+                                key={color}
+                                className={`w-8 h-8 rounded-full border-2 ${editingTag.color === color ? 'border-foreground' : 'border-transparent'}`}
+                                style={{ backgroundColor: color }}
+                                onClick={() => setEditingTag(prev => prev ? { ...prev, color } : null)}
+                              />
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <Button size="sm" onClick={handleUpdateTag}>Save</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingTag(null)}>Cancel</Button>
+                    </>
+                  ) : (
+                    <>
+                      <Badge style={{ backgroundColor: tag.color, color: getContrastColor(tag.color) }}>
+                        {tag.name}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground ml-auto">
+                        {tag.usage_count || 0} uses
+                      </span>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingTag(tag)}>
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => deleteTag.mutate(tag.id)}>
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              ))}
+              {allTags.length === 0 && (
+                <p className="text-center py-4 text-muted-foreground">No tags created yet</p>
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Tag Assignment Dialog */}
+      <Dialog open={bulkTagOpen} onOpenChange={setBulkTagOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bulk Assign Tag</DialogTitle>
+            <DialogDescription>
+              Assign a tag to {selectedRows.size} selected tracker(s).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Select Tag</Label>
+              <Select onValueChange={(v) => {
+                bulkAssignTag.mutate({ tracker_ids: Array.from(selectedRows), tag_id: Number(v) })
+              }}>
+                <SelectTrigger><SelectValue placeholder="Choose a tag" /></SelectTrigger>
+                <SelectContent>
+                  {allTags.map((tag) => (
+                    <SelectItem key={tag.id} value={String(tag.id)}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }} />
+                        {tag.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkTagOpen(false)}>Cancel</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -813,37 +1233,79 @@ export function TrackerManagement() {
   )
 }
 
-// Comment Item Component
-function CommentItem({ comment, onResolve }: { comment: TrackerComment; onResolve: () => void }) {
+// Helper function to get contrasting text color
+function getContrastColor(hexColor: string): string {
+  const r = parseInt(hexColor.slice(1, 3), 16)
+  const g = parseInt(hexColor.slice(3, 5), 16)
+  const b = parseInt(hexColor.slice(5, 7), 16)
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return luminance > 0.5 ? '#000000' : '#FFFFFF'
+}
+
+// Comment Item Component with reply functionality
+function CommentItem({ 
+  comment, 
+  onResolve, 
+  onReply,
+  getCommentTypeLabel,
+  isNested = false
+}: { 
+  comment: TrackerComment
+  onResolve: () => void
+  onReply: (comment: TrackerComment) => void
+  getCommentTypeLabel: (type: CommentType) => string
+  isNested?: boolean
+}) {
+  const typeColors: Record<string, string> = {
+    'PROGRAMMING': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+    'BIOSTAT': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+    'QUESTION': 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+    'ISSUE': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+    'RESPONSE': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  }
+
   return (
-    <div className={`p-3 rounded-lg border ${comment.is_resolved ? 'bg-muted/50 opacity-70' : 'bg-card'}`}>
+    <div className={`p-3 rounded-lg border ${comment.is_resolved ? 'bg-muted/50 opacity-70' : 'bg-card'} ${isNested ? 'ml-6 mt-2' : ''}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="font-medium text-sm">{comment.user?.username || 'Unknown'}</span>
-            <Badge variant="outline" className="text-xs">{comment.comment_type}</Badge>
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className="font-semibold text-sm">{comment.user?.username || 'Unknown'}</span>
+            <Badge variant="outline" className={`text-xs ${typeColors[comment.comment_type] || ''}`}>
+              {getCommentTypeLabel(comment.comment_type)}
+            </Badge>
             {comment.is_resolved && <Badge variant="secondary" className="text-xs">Resolved</Badge>}
             <span className="text-xs text-muted-foreground">{formatDateTime(comment.created_at)}</span>
           </div>
-          <p className="text-sm">{comment.comment_text}</p>
+          <p className="text-sm whitespace-pre-wrap">{comment.comment_text}</p>
         </div>
-        {!comment.is_resolved && (
-          <Button variant="ghost" size="sm" onClick={onResolve}>
-            <X className="h-4 w-4 mr-1" />
-            Resolve
-          </Button>
-        )}
+        <div className="flex gap-1">
+          {!isNested && !comment.is_resolved && (
+            <Button variant="ghost" size="sm" onClick={() => onReply(comment)}>
+              <Reply className="h-4 w-4" />
+            </Button>
+          )}
+          {!isNested && !comment.is_resolved && (
+            <Button variant="ghost" size="sm" onClick={onResolve}>
+              <CheckCircle className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
       {/* Nested Replies */}
       {comment.replies && comment.replies.length > 0 && (
-        <div className="ml-4 mt-2 space-y-2 border-l-2 pl-3">
+        <div className="border-l-2 border-muted ml-2 mt-2">
           {comment.replies.map((reply) => (
-            <CommentItem key={reply.id} comment={reply} onResolve={() => {}} />
+            <CommentItem 
+              key={reply.id} 
+              comment={reply} 
+              onResolve={() => {}}
+              onReply={() => {}}
+              getCommentTypeLabel={getCommentTypeLabel}
+              isNested={true}
+            />
           ))}
         </div>
       )}
     </div>
   )
 }
-
-

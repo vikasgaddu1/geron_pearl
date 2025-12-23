@@ -12,6 +12,7 @@ library(shinyvalidate)
 library(shinyjs)
 library(dotenv)
 library(rlang)
+library(plotly)
 
 load_dot_env()
 
@@ -117,6 +118,8 @@ ui <- page_navbar(
       tags$title("PEARL Admin"),
       # Use a local SVG favicon for better tab rendering
       tags$link(rel = "icon", type = "image/svg+xml", href = "favicon-pearl.svg"),
+      # Bootstrap Icons CSS for dynamic HTML icon usage
+      tags$link(rel = "stylesheet", href = "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"),
       tags$link(rel = "stylesheet", type = "text/css", href = "custom.css"),
       tags$script(HTML(sprintf("const pearlApiUrl = '%s'; const pearlWsPath = '%s'; window.PEARL_API_URL = '%s';", API_BASE_URL, API_WEBSOCKET_PATH, API_BASE_URL))),
       tags$script(src = paste0("websocket_client.js?v=", as.numeric(Sys.time()))),
@@ -244,7 +247,38 @@ server <- function(input, output, session) {
   
   # Admin Dashboard module
   admin_dashboard_server("admin_dashboard")
-  
+
+  # Navigation from Dashboard to Tracker Management
+  # Stores navigation params that the tracker module will pick up
+  dashboard_nav_params <- reactiveValues(
+    reporting_effort_id = NULL,
+    item_code = NULL,
+    timestamp = NULL
+  )
+
+  observeEvent(input$dashboard_navigate_to_tracker, {
+    req(input$dashboard_navigate_to_tracker)
+
+    params <- input$dashboard_navigate_to_tracker
+    cat("Dashboard navigation requested: RE_ID=", params$reporting_effort_id,
+        ", item_code=", params$item_code, "\n")
+
+    # Store navigation params for tracker module to pick up
+    dashboard_nav_params$reporting_effort_id <- params$reporting_effort_id
+    dashboard_nav_params$item_code <- params$item_code
+    dashboard_nav_params$timestamp <- Sys.time()
+
+    # Note: nav_select() doesn't work for tabs nested inside nav_menu()
+    # The JavaScript handler dashboardNavToTracker will handle the tab switching
+    
+    # Send message to JavaScript to switch tabs and set the reporting effort
+    # The JS handler will: 1) Switch to Tracker Management tab, 2) Select the RE
+    session$sendCustomMessage("dashboardNavToTracker", list(
+      reporting_effort_id = params$reporting_effort_id,
+      item_code = params$item_code
+    ))
+  })
+
   # WebSocket real-time synchronization now handled directly in modules
   
   # Package Management placeholder handlers

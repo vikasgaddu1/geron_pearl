@@ -136,27 +136,50 @@ async def create_tracker(
             detail=f"Failed to create tracker: {str(e)}"
         )
 
-@router.get("/", response_model=List[ReportingEffortItemTracker])
+@router.get("/", response_model=List[Dict[str, Any]])
 async def read_trackers(
     *,
     db: AsyncSession = Depends(get_db),
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 1000,
     production_status: Optional[ProductionStatus] = Query(None, description="Filter by production status"),
     qc_status: Optional[QCStatus] = Query(None, description="Filter by QC status"),
-) -> List[ReportingEffortItemTracker]:
+) -> List[Dict[str, Any]]:
     """
     Retrieve trackers with optional filtering and pagination.
+    Includes item details (item_code, item_subtype) for each tracker.
     """
     try:
+        # Helper to serialize tracker with item details
+        def serialize_tracker_with_item(tracker):
+            data = sqlalchemy_to_dict(tracker)
+            # Add item details if available
+            if tracker.item:
+                data["item_code"] = tracker.item.item_code
+                data["item_subtype"] = tracker.item.item_subtype
+                data["item_type"] = tracker.item.item_type.value if tracker.item.item_type else None
+                # Add study and reporting effort info for dashboards
+                if tracker.item.reporting_effort:
+                    re = tracker.item.reporting_effort
+                    data["reporting_effort_id"] = re.id
+                    data["reporting_effort_label"] = re.database_release_label
+                    data["study_id"] = re.study_id
+                    if re.study:
+                        data["study_label"] = re.study.study_label
+                    if re.database_release:
+                        data["database_release_label"] = re.database_release.database_release_label
+            return data
+        
         if production_status or qc_status:
-            return await reporting_effort_item_tracker.get_by_status(
+            trackers = await reporting_effort_item_tracker.get_by_status(
                 db,
                 production_status=production_status.value if production_status else None,
                 qc_status=qc_status.value if qc_status else None
             )
         else:
-            return await reporting_effort_item_tracker.get_multi(db, skip=skip, limit=limit)
+            trackers = await reporting_effort_item_tracker.get_multi(db, skip=skip, limit=limit)
+        
+        return [serialize_tracker_with_item(t) for t in trackers]
     except Exception as e:
         logger.error(f"Error retrieving trackers: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -811,7 +834,14 @@ async def get_programmer_workload(
 ) -> Dict[str, Any]:
     """
     Get detailed workload information for a specific programmer.
+    Includes item details (item_code) and full hierarchy (study, db release, reporting effort).
     """
+    from sqlalchemy import select
+    from sqlalchemy.orm import joinedload
+    from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker as TrackerModel
+    from app.models.reporting_effort_item import ReportingEffortItem
+    from app.models.reporting_effort import ReportingEffort
+
     try:
         # Verify user exists
         db_user = await user.get(db, id=programmer_id)
@@ -820,16 +850,80 @@ async def get_programmer_workload(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Programmer not found"
             )
-        
-        # Get production assignments
-        production_trackers = await reporting_effort_item_tracker.get_by_programmer(
-            db, user_id=programmer_id, role="production"
+
+        # Query production assignments with full hierarchy eager loading using joinedload
+        prod_result = await db.execute(
+            select(TrackerModel)
+            .options(
+                joinedload(TrackerModel.item)
+                .joinedload(ReportingEffortItem.reporting_effort)
+                .joinedload(ReportingEffort.database_release),
+                joinedload(TrackerModel.item)
+                .joinedload(ReportingEffortItem.reporting_effort)
+                .joinedload(ReportingEffort.study)
+            )
+            .where(TrackerModel.production_programmer_id == programmer_id)
+            .order_by(TrackerModel.priority, TrackerModel.due_date)
         )
-        
-        # Get QC assignments
-        qc_trackers = await reporting_effort_item_tracker.get_by_programmer(
-            db, user_id=programmer_id, role="qc"
+        production_trackers = list(prod_result.unique().scalars().all())
+
+        # Query QC assignments with full hierarchy eager loading using joinedload
+        qc_result = await db.execute(
+            select(TrackerModel)
+            .options(
+                joinedload(TrackerModel.item)
+                .joinedload(ReportingEffortItem.reporting_effort)
+                .joinedload(ReportingEffort.database_release),
+                joinedload(TrackerModel.item)
+                .joinedload(ReportingEffortItem.reporting_effort)
+                .joinedload(ReportingEffort.study)
+            )
+            .where(TrackerModel.qc_programmer_id == programmer_id)
+            .order_by(TrackerModel.priority, TrackerModel.due_date)
         )
+        qc_trackers = list(qc_result.unique().scalars().all())
+
+        logger.info(f"Workload query: Found {len(production_trackers)} production trackers, {len(qc_trackers)} QC trackers")
+
+        # Helper to serialize tracker with item details and full hierarchy
+        # Uses tracker.item which was already loaded via joinedload
+        def serialize_tracker_with_item(tracker):
+            data = sqlalchemy_to_dict(tracker)
+            
+            # Use the item relationship already loaded via joinedload
+            item = tracker.item
+            
+            # Add item details if available
+            if item:
+                data["item_code"] = item.item_code
+                data["item_subtype"] = item.item_subtype  # table/listing/figure or SDTM/ADaM
+                data["item_type"] = item.item_type.value if item.item_type else None
+                logger.debug(f"DEBUG: Tracker {tracker.id} -> item_code={item.item_code}")
+
+                # Add reporting effort hierarchy
+                if item.reporting_effort:
+                    re = item.reporting_effort
+                    data["reporting_effort_id"] = re.id
+                    data["reporting_effort_label"] = re.database_release_label
+                    logger.debug(f"DEBUG: Tracker {tracker.id} -> RE label={re.database_release_label}")
+
+                    # Add database release info
+                    if re.database_release:
+                        data["database_release_label"] = re.database_release.database_release_label
+                        data["database_release_id"] = re.database_release.id
+                        logger.debug(f"DEBUG: Tracker {tracker.id} -> DB label={re.database_release.database_release_label}")
+
+                    # Add study info
+                    if re.study:
+                        data["study_label"] = re.study.study_label
+                        data["study_id"] = re.study.id
+                        logger.debug(f"DEBUG: Tracker {tracker.id} -> Study label={re.study.study_label}")
+                else:
+                    logger.warning(f"DEBUG: Tracker {tracker.id} item has no reporting_effort relationship")
+            else:
+                logger.warning(f"DEBUG: Tracker {tracker.id} has no item relationship loaded")
+            
+            return data
         
         # Calculate summary statistics
         production_stats = {
@@ -853,11 +947,11 @@ async def get_programmer_workload(
             "programmer_username": db_user.username,
             "production": {
                 "stats": production_stats,
-                "trackers": [sqlalchemy_to_dict(t) for t in production_trackers]
+                "trackers": [serialize_tracker_with_item(t) for t in production_trackers]
             },
             "qc": {
                 "stats": qc_stats,
-                "trackers": [sqlalchemy_to_dict(t) for t in qc_trackers]
+                "trackers": [serialize_tracker_with_item(t) for t in qc_trackers]
             },
             "total_workload": production_stats["total"] + qc_stats["total"]
         }

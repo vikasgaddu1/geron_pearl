@@ -13,47 +13,43 @@ import { StatusBadge } from '@/components/common/StatusBadge'
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
 import { trackerApi } from '@/api'
+import { useAuthStore } from '@/stores/authStore'
 import { ClipboardList, Clock, AlertTriangle, CheckCircle, PlayCircle } from 'lucide-react'
 import type { ReportingEffortItemTracker } from '@/types'
 
-interface ProgrammerDashboardProps {
-  userId?: number | null
-  userName?: string
-}
+export function ProgrammerDashboard() {
+  const { currentUser } = useAuthStore()
+  const userId = currentUser?.id
 
-export function ProgrammerDashboard({ userId, userName }: ProgrammerDashboardProps) {
   const { data: allTrackers = [], isLoading } = useQuery({
     queryKey: ['all-trackers'],
     queryFn: trackerApi.getAll,
   })
 
-  // Filter trackers for the selected user
+  // Filter trackers for the logged-in user
   const myTrackers = userId
     ? allTrackers.filter(
-        (t) => t.primary_programmer_id === userId || t.qc_programmer_id === userId
+        (t) => t.production_programmer_id === userId || t.qc_programmer_id === userId
       )
-    : allTrackers
+    : []
 
   // Calculate metrics
   const totalAssignments = myTrackers.length
   const notStarted = myTrackers.filter(
-    (t) => t.production_status === 'NOT_STARTED' || t.qc_status === 'NOT_STARTED'
+    (t) => t.production_status === 'not_started' || t.qc_status === 'not_started'
   ).length
   const inProgress = myTrackers.filter(
-    (t) => t.production_status === 'IN_PROGRESS' || t.qc_status === 'IN_PROGRESS'
+    (t) => t.production_status === 'in_progress' || t.qc_status === 'in_progress'
   ).length
   const completed = myTrackers.filter(
-    (t) => t.production_status === 'COMPLETED' && t.qc_status === 'COMPLETED'
+    (t) => t.production_status === 'completed' && t.qc_status === 'completed'
   ).length
 
   // Overdue items (items past due date that are not completed)
   const today = new Date()
   const overdue = myTrackers.filter((t) => {
-    if (t.production_status !== 'COMPLETED' && t.production_due_date) {
-      return new Date(t.production_due_date) < today
-    }
-    if (t.qc_status !== 'COMPLETED' && t.qc_due_date) {
-      return new Date(t.qc_due_date) < today
+    if (t.production_status !== 'completed' && t.due_date) {
+      return new Date(t.due_date) < today
     }
     return false
   }).length
@@ -61,19 +57,15 @@ export function ProgrammerDashboard({ userId, userName }: ProgrammerDashboardPro
   // Due soon (within 7 days)
   const weekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
   const dueSoon = myTrackers.filter((t) => {
-    if (t.production_status !== 'COMPLETED' && t.production_due_date) {
-      const dueDate = new Date(t.production_due_date)
-      return dueDate >= today && dueDate <= weekFromNow
-    }
-    if (t.qc_status !== 'COMPLETED' && t.qc_due_date) {
-      const dueDate = new Date(t.qc_due_date)
+    if (t.production_status !== 'completed' && t.due_date) {
+      const dueDate = new Date(t.due_date)
       return dueDate >= today && dueDate <= weekFromNow
     }
     return false
   }).length
 
   if (isLoading) {
-    return <PageLoader text="Loading assignments..." />
+    return <PageLoader text="Loading your assignments..." />
   }
 
   return (
@@ -116,7 +108,7 @@ export function ProgrammerDashboard({ userId, userName }: ProgrammerDashboardPro
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ClipboardList className="h-5 w-5" />
-            {userId ? `Assignments for ${userName}` : 'All Assignments'}
+            My Assignments
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -124,7 +116,7 @@ export function ProgrammerDashboard({ userId, userName }: ProgrammerDashboardPro
             <EmptyState
               icon={ClipboardList}
               title="No assignments"
-              description={userId ? "This user has no assignments." : "No tracker assignments found."}
+              description="You don't have any tracker assignments yet."
             />
           ) : (
             <div className="rounded-md border">
@@ -141,11 +133,11 @@ export function ProgrammerDashboard({ userId, userName }: ProgrammerDashboardPro
                 </TableHeader>
                 <TableBody>
                   {myTrackers.slice(0, 20).map((tracker) => {
-                    const isPrimary = tracker.primary_programmer_id === userId
+                    const isPrimary = tracker.production_programmer_id === userId
                     const isQC = tracker.qc_programmer_id === userId
-                    const role = userId ? (isPrimary ? 'Primary' : isQC ? 'QC' : 'Both') : '-'
+                    const role = isPrimary && isQC ? 'Both' : isPrimary ? 'Primary' : 'QC'
                     const status = isPrimary ? tracker.production_status : tracker.qc_status
-                    const dueDate = isPrimary ? tracker.production_due_date : tracker.qc_due_date
+                    const dueDate = tracker.due_date
 
                     return (
                       <TableRow key={tracker.id}>

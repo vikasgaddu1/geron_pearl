@@ -1522,11 +1522,11 @@ get_tracker_comments_summary <- function(tracker_ids) {
   if (length(tracker_ids) == 0) {
     return(list())
   }
-  
+
   tryCatch({
     # Make individual API calls for each tracker ID
     summaries <- list()
-    
+
     for (tracker_id in tracker_ids) {
       summary <- get_tracker_comment_summary(tracker_id)
       if (!"error" %in% names(summary)) {
@@ -1535,8 +1535,39 @@ get_tracker_comments_summary <- function(tracker_ids) {
         summaries[[length(summaries) + 1]] <- summary
       }
     }
-    
+
     return(summaries)
+  }, error = function(e) {
+    list(error = e$message)
+  })
+}
+
+# ===============================================================================
+# QUICK STATUS UPDATE FUNCTION (for Dashboard)
+# ===============================================================================
+
+# Update tracker status (production or QC) - convenience wrapper for quick updates
+update_tracker_status <- function(tracker_id, new_status, status_type = "production") {
+  tryCatch({
+    # Build the update payload with just the status field
+    tracker_data <- list()
+    if (status_type == "production") {
+      tracker_data$production_status <- new_status
+    } else {
+      tracker_data$qc_status <- new_status
+    }
+
+    response <- httr2::request(paste0(get_reporting_effort_tracker_endpoint(), "/", tracker_id)) |>
+      httr2::req_method("PUT") |>
+      httr2::req_body_json(tracker_data) |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+
+    if (httr2::resp_status(response) == 200) {
+      httr2::resp_body_json(response)
+    } else {
+      list(error = paste("HTTP", httr2::resp_status(response), "-", httr2::resp_body_string(response)))
+    }
   }, error = function(e) {
     list(error = e$message)
   })

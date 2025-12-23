@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -194,18 +194,12 @@ class PackageItemCRUD:
     ) -> PackageItem:
         """Update an existing package item."""
         try:
-            # First, ensure we have the object with all relationships loaded
-            result = await db.execute(
-                select(PackageItem)
-                .options(
-                    selectinload(PackageItem.tlf_details),
-                    selectinload(PackageItem.dataset_details),
-                    selectinload(PackageItem.footnotes),
-                    selectinload(PackageItem.acronyms)
-                )
-                .where(PackageItem.id == db_obj.id)
-            )
-            db_obj = result.scalar_one()
+            # Store the item ID - we'll work primarily with ID to avoid ORM state issues
+            item_id = db_obj.id
+            
+            # CRITICAL: Clear all session state to avoid stale ORM object references
+            # This fixes the "Instance has been deleted" error
+            db.expire_all()
             
             update_data = obj_in.model_dump(exclude_unset=True)
             
@@ -215,87 +209,98 @@ class PackageItemCRUD:
             footnotes_data = update_data.pop('footnotes', None)
             acronyms_data = update_data.pop('acronyms', None)
             
+            # Load ONLY the main item and details (NOT footnotes/acronyms) for updating
+            result = await db.execute(
+                select(PackageItem)
+                .options(
+                    selectinload(PackageItem.tlf_details),
+                    selectinload(PackageItem.dataset_details)
+                    # DO NOT load footnotes/acronyms - we'll handle them with SQL
+                )
+                .where(PackageItem.id == item_id)
+            )
+            fresh_obj = result.scalar_one()
+            
             # Update simple fields
             for field, value in update_data.items():
-                setattr(db_obj, field, value)
+                setattr(fresh_obj, field, value)
             
             # Handle TLF details
             if tlf_details_data is not None:
-                # Delete existing dataset details if switching to TLF
-                if db_obj.dataset_details:
-                    await db.delete(db_obj.dataset_details)
-                    await db.flush()
+                # Delete existing dataset details if switching to TLF (using SQL)
+                await db.execute(
+                    delete(PackageDatasetDetails).where(PackageDatasetDetails.package_item_id == item_id)
+                )
                 
                 # Update or create TLF details
-                if db_obj.tlf_details:
+                if fresh_obj.tlf_details:
                     # Update existing
                     for field, value in tlf_details_data.items():
-                        setattr(db_obj.tlf_details, field, value)
+                        setattr(fresh_obj.tlf_details, field, value)
                 else:
                     # Create new
                     tlf_details = PackageTlfDetails(
-                        package_item_id=db_obj.id,
+                        package_item_id=item_id,
                         **tlf_details_data
                     )
                     db.add(tlf_details)
             
             # Handle Dataset details
             if dataset_details_data is not None:
-                # Delete existing TLF details if switching to Dataset
-                if db_obj.tlf_details:
-                    await db.delete(db_obj.tlf_details)
-                    await db.flush()
+                # Delete existing TLF details if switching to Dataset (using SQL)
+                await db.execute(
+                    delete(PackageTlfDetails).where(PackageTlfDetails.package_item_id == item_id)
+                )
                 
                 # Update or create Dataset details
-                if db_obj.dataset_details:
+                if fresh_obj.dataset_details:
                     # Update existing
                     for field, value in dataset_details_data.items():
-                        setattr(db_obj.dataset_details, field, value)
+                        setattr(fresh_obj.dataset_details, field, value)
                 else:
                     # Create new
                     dataset_details = PackageDatasetDetails(
-                        package_item_id=db_obj.id,
+                        package_item_id=item_id,
                         **dataset_details_data
                     )
                     db.add(dataset_details)
             
-            # Handle footnotes
+            # Handle footnotes - ALWAYS use SQL DELETE (never load ORM objects)
             if footnotes_data is not None:
-                # Delete existing footnotes
-                if db_obj.footnotes:
-                    for footnote in db_obj.footnotes:
-                        await db.delete(footnote)
-                    await db.flush()
+                # Delete existing footnotes using SQL DELETE
+                await db.execute(
+                    delete(PackageItemFootnote).where(PackageItemFootnote.package_item_id == item_id)
+                )
                 
                 # Create new footnotes
                 for footnote_data in footnotes_data:
                     footnote = PackageItemFootnote(
-                        package_item_id=db_obj.id,
+                        package_item_id=item_id,
                         **footnote_data
                     )
                     db.add(footnote)
             
-            # Handle acronyms
+            # Handle acronyms - ALWAYS use SQL DELETE (never load ORM objects)
             if acronyms_data is not None:
-                # Delete existing acronyms
-                if db_obj.acronyms:
-                    for acronym in db_obj.acronyms:
-                        await db.delete(acronym)
-                    await db.flush()
+                # Delete existing acronyms using SQL DELETE
+                await db.execute(
+                    delete(PackageItemAcronym).where(PackageItemAcronym.package_item_id == item_id)
+                )
                 
                 # Create new acronyms
                 for acronym_data in acronyms_data:
                     acronym = PackageItemAcronym(
-                        package_item_id=db_obj.id,
+                        package_item_id=item_id,
                         **acronym_data
                     )
                     db.add(acronym)
             
-            db.add(db_obj)
             await db.commit()
-            await db.refresh(db_obj)
             
-            # Reload with relationships
+            # Clear all cached state before final reload
+            db.expire_all()
+            
+            # Reload with ALL relationships using a completely fresh query
             result = await db.execute(
                 select(PackageItem)
                 .options(
@@ -304,7 +309,7 @@ class PackageItemCRUD:
                     selectinload(PackageItem.footnotes),
                     selectinload(PackageItem.acronyms)
                 )
-                .where(PackageItem.id == db_obj.id)
+                .where(PackageItem.id == item_id)
             )
             return result.scalar_one()
             

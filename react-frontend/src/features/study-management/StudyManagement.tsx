@@ -20,7 +20,7 @@ import { PageLoader } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
 import type { Study, DatabaseRelease, ReportingEffort } from '@/types'
-import { cn } from '@/lib/utils'
+import { cn, getErrorMessage } from '@/lib/utils'
 
 type NodeType = 'study' | 'release' | 'effort'
 
@@ -74,7 +74,7 @@ export function StudyManagement() {
       queryClient.invalidateQueries({ queryKey: ['studies'] })
       setDialogOpen(false)
     },
-    onError: () => toast.error('Failed to create study'),
+    onError: (error) => toast.error(`Failed to create study: ${getErrorMessage(error)}`),
   })
 
   const updateStudy = useMutation({
@@ -85,7 +85,7 @@ export function StudyManagement() {
       queryClient.invalidateQueries({ queryKey: ['studies'] })
       setDialogOpen(false)
     },
-    onError: () => toast.error('Failed to update study'),
+    onError: (error) => toast.error(`Failed to update study: ${getErrorMessage(error)}`),
   })
 
   const deleteStudy = useMutation({
@@ -95,7 +95,7 @@ export function StudyManagement() {
       queryClient.invalidateQueries({ queryKey: ['studies'] })
       setSelectedNode(null)
     },
-    onError: () => toast.error('Failed to delete study. It may have dependent records.'),
+    onError: (error) => toast.error(`Failed to delete study: ${getErrorMessage(error)}`),
   })
 
   const createRelease = useMutation({
@@ -105,7 +105,7 @@ export function StudyManagement() {
       queryClient.invalidateQueries({ queryKey: ['database-releases'] })
       setDialogOpen(false)
     },
-    onError: () => toast.error('Failed to create database release'),
+    onError: (error) => toast.error(`Failed to create database release: ${getErrorMessage(error)}`),
   })
 
   const createEffort = useMutation({
@@ -115,7 +115,7 @@ export function StudyManagement() {
       queryClient.invalidateQueries({ queryKey: ['reporting-efforts'] })
       setDialogOpen(false)
     },
-    onError: () => toast.error('Failed to create reporting effort'),
+    onError: (error) => toast.error(`Failed to create reporting effort: ${getErrorMessage(error)}`),
   })
 
   // Build tree structure
@@ -395,4 +395,5 @@ export function StudyManagement() {
     </div>
   )
 }
+
 

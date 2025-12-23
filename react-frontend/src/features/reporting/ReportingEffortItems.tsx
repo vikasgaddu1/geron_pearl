@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ClipboardList, Plus, Edit, Trash2, RefreshCw, Search, Copy, Upload, CheckSquare } from 'lucide-react'
 import { toast } from 'sonner'
 import { reportingEffortsApi, reportingEffortItemsApi, packagesApi } from '@/api'
+import { getErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -102,7 +103,7 @@ export function ReportingEffortItems() {
       setDialogOpen(false)
       resetForm()
     },
-    onError: () => toast.error('Failed to create item'),
+    onError: (error) => toast.error(`Failed to create item: ${getErrorMessage(error)}`),
   })
 
   const updateItem = useMutation({
@@ -114,7 +115,7 @@ export function ReportingEffortItems() {
       setDialogOpen(false)
       resetForm()
     },
-    onError: () => toast.error('Failed to update item'),
+    onError: (error) => toast.error(`Failed to update item: ${getErrorMessage(error)}`),
   })
 
   const deleteItem = useMutation({
@@ -124,7 +125,7 @@ export function ReportingEffortItems() {
       queryClient.invalidateQueries({ queryKey: ['reporting-effort-items', selectedEffortId] })
       setSelectedItem(null)
     },
-    onError: () => toast.error('Failed to delete item'),
+    onError: (error) => toast.error(`Failed to delete item: ${getErrorMessage(error)}`),
   })
 
   const copyFromPackage = useMutation({
@@ -134,7 +135,7 @@ export function ReportingEffortItems() {
       queryClient.invalidateQueries({ queryKey: ['reporting-effort-items', selectedEffortId] })
       setCopyDialogOpen(false)
     },
-    onError: () => toast.error('Failed to copy from package'),
+    onError: (error) => toast.error(`Failed to copy from package: ${getErrorMessage(error)}`),
   })
 
   const copyFromEffort = useMutation({
@@ -144,7 +145,7 @@ export function ReportingEffortItems() {
       queryClient.invalidateQueries({ queryKey: ['reporting-effort-items', selectedEffortId] })
       setCopyDialogOpen(false)
     },
-    onError: () => toast.error('Failed to copy from reporting effort'),
+    onError: (error) => toast.error(`Failed to copy from reporting effort: ${getErrorMessage(error)}`),
   })
 
   const resetForm = () => {
@@ -252,8 +253,8 @@ export function ReportingEffortItems() {
       setBulkEditOpen(false)
       setSelectedRows(new Set())
       setBulkFormData({ item_status: '' })
-    } catch {
-      toast.error('Failed to update some items')
+    } catch (error) {
+      toast.error(`Failed to update some items: ${getErrorMessage(error)}`)
     }
   }
 
@@ -642,4 +643,5 @@ export function ReportingEffortItems() {
     </div>
   )
 }
+
 

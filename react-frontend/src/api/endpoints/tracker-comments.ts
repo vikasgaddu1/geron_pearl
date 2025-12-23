@@ -14,8 +14,8 @@ export interface CommentSummary {
 export interface CreateCommentData {
   tracker_id: number
   comment_text: string
-  comment_type?: CommentType
-  parent_comment_id?: number
+  comment_type?: CommentType | 'programming' | 'biostat'
+  parent_comment_id?: number | null
 }
 
 export const trackerCommentsApi = {
@@ -29,17 +29,13 @@ export const trackerCommentsApi = {
     return response.data
   },
 
-  create: async (data: CreateCommentData, userId = 1): Promise<TrackerComment> => {
-    const response = await apiClient.post(BASE_PATH, data, {
-      headers: { 'X-User-Id': userId.toString() },
-    })
+  create: async (data: CreateCommentData): Promise<TrackerComment> => {
+    const response = await apiClient.post(BASE_PATH, data)
     return response.data
   },
 
-  resolve: async (commentId: number, userId = 1): Promise<TrackerComment> => {
-    const response = await apiClient.post(`${BASE_PATH}/${commentId}/resolve`, null, {
-      headers: { 'X-User-Id': userId.toString() },
-    })
+  resolve: async (commentId: number): Promise<TrackerComment> => {
+    const response = await apiClient.post(`${BASE_PATH}/${commentId}/resolve`, null)
     return response.data
   },
 
@@ -53,4 +49,5 @@ export const trackerCommentsApi = {
     return response.data
   },
 }
+
 

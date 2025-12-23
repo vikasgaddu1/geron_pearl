@@ -40,3 +40,5 @@ def downgrade() -> None:
     
     # Drop the column
     op.drop_column('tracker_comments', 'comment_type')
+
+

@@ -103,7 +103,7 @@ reporting_effort_tracker_server <- function(id) {
     # WebSocket connection diagnostic (helps debug cross-browser issues)
     observe({
       invalidateLater(15000, session)  # Check every 15 seconds
-      
+
       tryCatch({
         session$sendCustomMessage("websocket_debug_info", list(
           timestamp = as.character(Sys.time()),
@@ -113,6 +113,44 @@ reporting_effort_tracker_server <- function(id) {
       }, error = function(e) {
         cat("DEBUG: WebSocket diagnostic error:", e$message, "\n")
       })
+    })
+
+    # Dashboard Navigation Handler
+    # Receives navigation request from Dashboard to select a reporting effort and highlight a row
+    pending_highlight_item_code <- reactiveVal(NULL)
+
+    observeEvent(input$dashboard_nav_select, {
+      req(input$dashboard_nav_select)
+
+      nav_data <- input$dashboard_nav_select
+      re_id <- nav_data$reporting_effort_id
+      item_code <- nav_data$item_code
+
+      cat("Tracker module received navigation: RE_ID=", re_id, ", item_code=", item_code, "\n")
+
+      if (!is.null(re_id) && re_id != "") {
+        # Store the item code for filtering and highlighting after table loads
+        pending_highlight_item_code(item_code)
+
+        cat("Dashboard navigation: selecting RE_ID=", re_id, ", will filter for item_code=", item_code, "\n")
+        
+        # Update the reporting effort dropdown selection
+        updateSelectInput(session, "selected_reporting_effort", selected = as.character(re_id))
+
+        # The table will be loaded when the dropdown changes
+        # After a delay, trigger the filter and highlight
+        # Increased delay to 2000ms to ensure table is fully rendered
+        shinyjs::delay(2000, {
+          if (!is.null(pending_highlight_item_code()) && pending_highlight_item_code() != "") {
+            cat("Sending highlightTrackerRow message for:", pending_highlight_item_code(), "\n")
+            session$sendCustomMessage("highlightTrackerRow", list(
+              item_code = pending_highlight_item_code()
+            ))
+            # Clear the pending highlight
+            pending_highlight_item_code(NULL)
+          }
+        })
+      }
     })
 
     # Update highlight class when selection changes

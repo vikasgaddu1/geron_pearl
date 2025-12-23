@@ -1,13 +1,31 @@
-# Generated from pyproject.toml - use 'uv pip compile pyproject.toml -o requirements.txt'
-# Run 'uv pip sync requirements.txt' to install dependencies
+# PEARL Backend Dependencies
+# =========================
+# Install: pip install -r requirements.txt
+# For development: pip install -r requirements.txt -r requirements-dev.txt
 
+# Core Framework
 fastapi>=0.111.0
 uvicorn[standard]>=0.30.0
 websockets>=12.0
-sqlalchemy>=2.0.30
-asyncpg>=0.29.0
 pydantic>=2.7.0
 pydantic-settings>=2.3.0
+
+# Database
+sqlalchemy>=2.0.30
+asyncpg>=0.29.0
+alembic>=1.13.0
+
+# Environment & Utilities
 python-dotenv>=1.0.0
 python-multipart>=0.0.9
-alembic>=1.13.0
+
+# Authentication
+authlib>=1.6.0
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.0
+email-validator>=2.0.0
+bcrypt==4.2.0  # Pin to 4.2.0 for passlib compatibility
+
+# MCP (Model Context Protocol) for AI integration
+# Note: fastapi-mcp is installed from git, see pyproject.toml
+# If needed manually: pip install git+https://github.com/tadata-org/fastapi_mcp.git

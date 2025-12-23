@@ -23,6 +23,12 @@ async def create_text_element(
     """
     Create a new text element.
     """
+    # #region agent log
+    import json
+    log_path = r"c:\python\PEARL\.cursor\debug.log"
+    with open(log_path, "a") as f:
+        f.write(json.dumps({"location":"text_elements.py:create:entry","message":"Create endpoint called","data":{"type":str(text_element_in.type),"label":text_element_in.label},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"D"}) + "\n")
+    # #endregion
     try:
         # Check for duplicate labels (case-insensitive, ignoring spaces)
         existing_element = await text_element.check_duplicate_label(
@@ -36,6 +42,10 @@ async def create_text_element(
         
         created_text_element = await text_element.create(db, obj_in=text_element_in)
         print(f"TextElement created successfully: {created_text_element.type.value} - {created_text_element.label[:50]}... (ID: {created_text_element.id})")
+        # #region agent log
+        with open(log_path, "a") as f:
+            f.write(json.dumps({"location":"text_elements.py:create:success","message":"Create succeeded","data":{"id":created_text_element.id,"type":str(created_text_element.type)},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"D"}) + "\n")
+        # #endregion
         
         # Broadcast WebSocket event for real-time updates
         try:
@@ -48,6 +58,10 @@ async def create_text_element(
         
         return created_text_element
     except Exception as e:
+        # #region agent log
+        with open(log_path, "a") as f:
+            f.write(json.dumps({"location":"text_elements.py:create:error","message":"Create failed","data":{"error":str(e),"type":str(type(e).__name__)},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"D"}) + "\n")
+        # #endregion
         if isinstance(e, HTTPException):
             raise
         print(f"Error creating text element: {e}")

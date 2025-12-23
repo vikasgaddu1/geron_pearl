@@ -19,6 +19,7 @@ from app.models.reporting_effort_item_footnote import ReportingEffortItemFootnot
 from app.models.reporting_effort_item_acronym import ReportingEffortItemAcronym
 from app.models.audit_log import AuditLog
 from app.models.tracker_comment import TrackerComment
+from app.models.tracker_tag import TrackerTag, TrackerItemTag
 
 __all__ = [
     "Study", 
@@ -46,5 +47,7 @@ __all__ = [
     "ReportingEffortItemFootnote",
     "ReportingEffortItemAcronym",
     "AuditLog",
-    "TrackerComment"
+    "TrackerComment",
+    "TrackerTag",
+    "TrackerItemTag"
 ]

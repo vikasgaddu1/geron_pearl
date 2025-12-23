@@ -24,7 +24,7 @@ import { TooltipWrapper } from '@/components/common/TooltipWrapper'
 import { HelpIcon } from '@/components/common/HelpIcon'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
 import type { Package as PackageType, PackageFormData } from '@/types'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, getErrorMessage } from '@/lib/utils'
 
 export function PackagesList() {
   const queryClient = useQueryClient()
@@ -60,7 +60,7 @@ export function PackagesList() {
       setDialogOpen(false)
       resetForm()
     },
-    onError: () => toast.error('Failed to create package'),
+    onError: (error) => toast.error(`Failed to create package: ${getErrorMessage(error)}`),
   })
 
   const updatePackage = useMutation({
@@ -72,7 +72,7 @@ export function PackagesList() {
       setDialogOpen(false)
       resetForm()
     },
-    onError: () => toast.error('Failed to update package'),
+    onError: (error) => toast.error(`Failed to update package: ${getErrorMessage(error)}`),
   })
 
   const deletePackage = useMutation({
@@ -82,7 +82,7 @@ export function PackagesList() {
       queryClient.invalidateQueries({ queryKey: ['packages'] })
       setSelectedPackage(null)
     },
-    onError: () => toast.error('Failed to delete package. It may have items.'),
+    onError: (error) => toast.error(`Failed to delete package: ${getErrorMessage(error)}`),
   })
 
   const resetForm = () => {

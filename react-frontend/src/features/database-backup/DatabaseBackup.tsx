@@ -28,7 +28,7 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
 import type { DatabaseBackup as BackupType } from '@/types'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, getErrorMessage } from '@/lib/utils'
 
 export function DatabaseBackup() {
   const queryClient = useQueryClient()
@@ -64,7 +64,7 @@ export function DatabaseBackup() {
       setCreateDialogOpen(false)
       setDescription('')
     },
-    onError: () => toast.error('Failed to create backup'),
+    onError: (error) => toast.error(`Failed to create backup: ${getErrorMessage(error)}`),
   })
 
   const deleteBackup = useMutation({
@@ -75,7 +75,7 @@ export function DatabaseBackup() {
       queryClient.invalidateQueries({ queryKey: ['database-backup-status'] })
       setSelectedBackup(null)
     },
-    onError: () => toast.error('Failed to delete backup'),
+    onError: (error) => toast.error(`Failed to delete backup: ${getErrorMessage(error)}`),
   })
 
   const restoreBackup = useMutation({
@@ -85,7 +85,7 @@ export function DatabaseBackup() {
       setRestoreDialogOpen(false)
       setSelectedBackup(null)
     },
-    onError: () => toast.error('Failed to restore backup'),
+    onError: (error) => toast.error(`Failed to restore backup: ${getErrorMessage(error)}`),
   })
 
   const handleDelete = (backup: BackupType) => {
@@ -304,4 +304,5 @@ export function DatabaseBackup() {
     </div>
   )
 }
+
 

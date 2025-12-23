@@ -3,12 +3,15 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
-    studies, database_releases, reporting_efforts, websocket, text_elements, packages, users,
-    reporting_effort_items, reporting_effort_tracker, tracker_comments,
+    auth, studies, database_releases, reporting_efforts, websocket, text_elements, packages, users,
+    reporting_effort_items, reporting_effort_tracker, tracker_comments, tracker_tags,
     audit_trail, database_backup
 )
 
 api_router = APIRouter()
+
+# Include auth router (no auth required for these endpoints)
+api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
 
 # Include all endpoint routers
 api_router.include_router(studies.router, prefix="/studies", tags=["studies"])
@@ -23,6 +26,7 @@ api_router.include_router(websocket.router, prefix="/ws", tags=["websocket"])
 api_router.include_router(reporting_effort_items.router, prefix="/reporting-effort-items", tags=["reporting-effort-items"])
 api_router.include_router(reporting_effort_tracker.router, prefix="/reporting-effort-tracker", tags=["reporting-effort-tracker"])
 api_router.include_router(tracker_comments.router, prefix="/tracker-comments", tags=["tracker-comments"])
+api_router.include_router(tracker_tags.router, prefix="/tracker-tags", tags=["tracker-tags"])
 
 # Admin endpoints
 api_router.include_router(audit_trail.router, prefix="/audit-trail", tags=["audit-trail"])

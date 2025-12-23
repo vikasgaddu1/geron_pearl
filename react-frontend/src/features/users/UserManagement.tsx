@@ -31,7 +31,7 @@ import { TooltipWrapper } from '@/components/common/TooltipWrapper'
 import { HelpIcon } from '@/components/common/HelpIcon'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
 import type { User, UserFormData } from '@/types'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, getErrorMessage } from '@/lib/utils'
 
 const ROLES = ['ADMIN', 'EDITOR', 'VIEWER'] as const
 
@@ -68,7 +68,7 @@ export function UserManagement() {
       setDialogOpen(false)
       resetForm()
     },
-    onError: () => toast.error('Failed to create user'),
+    onError: (error) => toast.error(`Failed to create user: ${getErrorMessage(error)}`),
   })
 
   const updateUser = useMutation({
@@ -80,7 +80,7 @@ export function UserManagement() {
       setDialogOpen(false)
       resetForm()
     },
-    onError: () => toast.error('Failed to update user'),
+    onError: (error) => toast.error(`Failed to update user: ${getErrorMessage(error)}`),
   })
 
   const deleteUser = useMutation({
@@ -90,7 +90,7 @@ export function UserManagement() {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       setSelectedUser(null)
     },
-    onError: () => toast.error('Failed to delete user'),
+    onError: (error) => toast.error(`Failed to delete user: ${getErrorMessage(error)}`),
   })
 
   const resetForm = () => {

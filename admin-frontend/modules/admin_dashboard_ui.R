@@ -167,6 +167,28 @@ admin_dashboard_ui <- function(id) {
         color: white;
         border: none;
       }
+
+      /* Highlight row for navigation from dashboard */
+      .highlight-row {
+        background-color: rgba(102, 126, 234, 0.25) !important;
+        animation: highlight-pulse 1s ease-in-out 3;
+      }
+
+      @keyframes highlight-pulse {
+        0%, 100% { background-color: rgba(102, 126, 234, 0.25); }
+        50% { background-color: rgba(102, 126, 234, 0.4); }
+      }
+
+      /* Quick status button styles */
+      .quick-status-btn {
+        padding: 0.25rem 0.4rem;
+        line-height: 1;
+      }
+
+      .go-to-tracker-btn {
+        padding: 0.25rem 0.4rem;
+        line-height: 1;
+      }
     ")),
     
     # Main container
@@ -211,11 +233,11 @@ admin_dashboard_ui <- function(id) {
           div(
             class = "py-3",
             
-            # Summary Metrics Row
+            # Summary Metrics Row (5 columns)
             div(
-              class = "row mb-4",
+              class = "row mb-4 row-cols-2 row-cols-md-3 row-cols-lg-5",
               div(
-                class = "col-md-3 mb-3",
+                class = "col mb-3",
                 div(
                   class = "metric-card",
                   div(class = "metric-value", textOutput(ns("prog_total_assignments"), inline = TRUE)),
@@ -223,7 +245,15 @@ admin_dashboard_ui <- function(id) {
                 )
               ),
               div(
-                class = "col-md-3 mb-3",
+                class = "col mb-3",
+                div(
+                  class = "metric-card",
+                  uiOutput(ns("prog_not_started_value")),
+                  div(class = "metric-label", "Not Started")
+                )
+              ),
+              div(
+                class = "col mb-3",
                 div(
                   class = "metric-card",
                   div(class = "metric-value", textOutput(ns("prog_in_production"), inline = TRUE)),
@@ -231,7 +261,7 @@ admin_dashboard_ui <- function(id) {
                 )
               ),
               div(
-                class = "col-md-3 mb-3",
+                class = "col mb-3",
                 div(
                   class = "metric-card",
                   uiOutput(ns("prog_overdue_value")),
@@ -239,7 +269,7 @@ admin_dashboard_ui <- function(id) {
                 )
               ),
               div(
-                class = "col-md-3 mb-3",
+                class = "col mb-3",
                 div(
                   class = "metric-card",
                   uiOutput(ns("prog_due_soon_value")),
@@ -326,15 +356,59 @@ admin_dashboard_ui <- function(id) {
           )
         ),
         
-        # Lead Dashboard Tab
+        # Tracker Dashboard Tab
         tabPanel(
-          "Lead Dashboard",
+          "Tracker Dashboard",
           value = "lead_tab",
-          icon = icon("users"),
+          icon = icon("chart-line"),
           div(
             class = "py-3",
             
-            # Key Metrics Row
+            # Reporting Effort Selector Row
+            div(
+              class = "row mb-4",
+              div(
+                class = "col-12",
+                div(
+                  class = "card border-primary",
+                  div(
+                    class = "card-header bg-primary text-white d-flex justify-content-between align-items-center",
+                    h5(tagList(icon("filter"), " Select Reporting Effort"), class = "mb-0"),
+                    div(
+                      class = "d-flex gap-2",
+                      actionButton(
+                        ns("tracker_dashboard_refresh"),
+                        tagList(icon("rotate"), " Refresh Data"),
+                        class = "btn btn-light btn-sm"
+                      )
+                    )
+                  ),
+                  div(
+                    class = "card-body",
+                    div(
+                      class = "row",
+                      div(
+                        class = "col-md-8",
+                        selectInput(
+                          ns("tracker_dashboard_re_selector"),
+                          label = NULL,
+                          choices = c("Select a Reporting Effort" = ""),
+                          selected = "",
+                          width = "100%"
+                        )
+                      ),
+                      div(
+                        class = "col-md-4",
+                        # Summary info
+                        uiOutput(ns("tracker_dashboard_summary_info"))
+                      )
+                    )
+                  )
+                )
+              )
+            ),
+            
+            # Key Metrics Row (for selected RE)
             div(
               class = "row mb-4",
               div(
@@ -342,7 +416,7 @@ admin_dashboard_ui <- function(id) {
                 div(
                   class = "metric-card",
                   div(class = "metric-value", textOutput(ns("total_studies"), inline = TRUE)),
-                  div(class = "metric-label", "Active Studies")
+                  div(class = "metric-label", "Total Studies")
                 )
               ),
               div(
@@ -371,7 +445,7 @@ admin_dashboard_ui <- function(id) {
               )
             ),
             
-            # Team Workload Section
+            # Selected RE Summary Section
             div(
               class = "row mb-4",
               div(
@@ -379,18 +453,126 @@ admin_dashboard_ui <- function(id) {
                 div(
                   class = "card",
                   div(
-                    class = "card-header bg-white",
-                    h5(tagList(icon("users-cog"), " Team Workload"), class = "mb-0")
+                    class = "card-header bg-white d-flex justify-content-between align-items-center",
+                    h5(tagList(icon("chart-bar"), " Task Type Breakdown"), class = "mb-0"),
+                    tags$small(class = "text-muted", "Status by SDTM, ADaM, Table, Listing, Figure")
                   ),
                   div(
                     class = "card-body",
-                    DT::dataTableOutput(ns("team_workload_table"))
+                    # Summary metrics for filtered data
+                    div(
+                      class = "row mb-3",
+                      div(
+                        class = "col-md-3",
+                        div(
+                          class = "p-2 bg-light rounded text-center",
+                          div(class = "h4 mb-0 text-primary", textOutput(ns("filtered_total"), inline = TRUE)),
+                          div(class = "small text-muted", "Total Items")
+                        )
+                      ),
+                      div(
+                        class = "col-md-3",
+                        div(
+                          class = "p-2 bg-light rounded text-center",
+                          div(class = "h4 mb-0 text-success", textOutput(ns("filtered_completed"), inline = TRUE)),
+                          div(class = "small text-muted", "Completed")
+                        )
+                      ),
+                      div(
+                        class = "col-md-3",
+                        div(
+                          class = "p-2 bg-light rounded text-center",
+                          div(class = "h4 mb-0 text-info", textOutput(ns("filtered_in_progress"), inline = TRUE)),
+                          div(class = "small text-muted", "In Progress")
+                        )
+                      ),
+                      div(
+                        class = "col-md-3",
+                        div(
+                          class = "p-2 bg-light rounded text-center",
+                          div(class = "h4 mb-0 text-danger", textOutput(ns("filtered_overdue"), inline = TRUE)),
+                          div(class = "small text-muted", "Overdue")
+                        )
+                      )
+                    ),
+                    # Task Type Breakdown Charts
+                    div(
+                      class = "row",
+                      div(
+                        class = "col-md-6",
+                        h6(tagList(icon("chart-bar"), " Status by Task Type"), class = "mb-2"),
+                        div(
+                          style = "height: 280px;",
+                          plotly::plotlyOutput(ns("task_type_breakdown_chart"), height = "100%")
+                        )
+                      ),
+                      div(
+                        class = "col-md-6",
+                        h6(tagList(icon("table"), " Task Type Summary"), class = "mb-2"),
+                        DT::dataTableOutput(ns("task_type_summary_table"))
+                      )
+                    )
                   )
                 )
               )
             ),
             
-            # System-Wide Deadlines Overview
+            # Status Distribution Charts Row
+            div(
+              class = "row mb-4",
+              div(
+                class = "col-md-6 mb-3",
+                div(
+                  class = "card",
+                  div(
+                    class = "card-header bg-white",
+                    h5(tagList(icon("chart-pie"), " Production Status"), class = "mb-0")
+                  ),
+                  div(
+                    class = "card-body",
+                    style = "height: 280px;",
+                    plotly::plotlyOutput(ns("lead_production_status_chart"), height = "100%")
+                  )
+                )
+              ),
+              div(
+                class = "col-md-6 mb-3",
+                div(
+                  class = "card",
+                  div(
+                    class = "card-header bg-white",
+                    h5(tagList(icon("chart-pie"), " QC Status"), class = "mb-0")
+                  ),
+                  div(
+                    class = "card-body",
+                    style = "height: 280px;",
+                    plotly::plotlyOutput(ns("lead_qc_status_chart"), height = "100%")
+                  )
+                )
+              )
+            ),
+            
+            # Programmer Workload Section
+            div(
+              class = "row mb-4",
+              div(
+                class = "col-12",
+                div(
+                  class = "card",
+                  div(
+                    class = "card-header bg-white d-flex justify-content-between align-items-center",
+                    h5(tagList(icon("users"), " Programmer Workload"), class = "mb-0"),
+                    tags$small(class = "text-muted", "Assignments for selected reporting effort")
+                  ),
+                  div(
+                    class = "card-body",
+                    DT::dataTableOutput(ns("programmer_workload_table"))
+                  )
+                )
+              )
+            ),
+            
+            # Deadlines for Selected RE
             div(
               class = "row",
               div(

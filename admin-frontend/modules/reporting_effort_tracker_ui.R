@@ -42,7 +42,7 @@ reporting_effort_tracker_ui <- function(id) {
                 class = "btn btn-primary btn-sm",
                 title = "Refresh tracker data"
               ),
-              # Dropdown for actions
+              # Dropdown for actions (utilities only - Edit/Delete shown on row selection)
               div(
                 class = "dropdown",
                 tags$button(
@@ -50,24 +50,11 @@ reporting_effort_tracker_ui <- function(id) {
                   type = "button",
                   `data-bs-toggle` = "dropdown",
                   `aria-expanded` = "false",
-                  title = "Bulk operations and utilities",
+                  title = "Utilities and reports",
                   tagList(icon("tools"), " Actions")
                 ),
                 tags$ul(
                   class = "dropdown-menu",
-                  tags$li(tags$a(
-                    class = "dropdown-item", 
-                    href = "#",
-                    id = ns("bulk_assign_btn"),
-                    tagList(icon("users"), " Bulk Assign")
-                  )),
-                  tags$li(tags$a(
-                    class = "dropdown-item", 
-                    href = "#",
-                    id = ns("bulk_status_btn"),
-                    tagList(icon("clipboard-check"), " Bulk Status Update")
-                  )),
-                  tags$li(tags$hr(class = "dropdown-divider")),
                   tags$li(tags$a(
                     class = "dropdown-item", 
                     href = "#",
@@ -107,7 +94,7 @@ reporting_effort_tracker_ui <- function(id) {
                 id = ns("effort_selector_wrapper"),
                 class = "effort-selector-wrapper mb-3",
                 div(
-                  class = "d-flex align-items-center flex-wrap gap-3",
+                  class = "d-flex align-items-center justify-content-center flex-wrap gap-3",
                   # Reporting Effort selector
                   div(
                     class = "d-flex align-items-center gap-2",
@@ -167,7 +154,7 @@ reporting_effort_tracker_ui <- function(id) {
       )
     ),
     
-    # JavaScript for dropdown clicks and row actions
+    # JavaScript for dropdown clicks
     tags$script(HTML(sprintf("
       document.addEventListener('DOMContentLoaded', function() {
         
@@ -177,6 +164,8 @@ reporting_effort_tracker_ui <- function(id) {
             loadCommentsForModal(data.tracker_id);
           }
         });
+        
+        // Dropdown menu item handlers
         document.getElementById('%s').addEventListener('click', function(e) {
           e.preventDefault();
           Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
@@ -188,34 +177,12 @@ reporting_effort_tracker_ui <- function(id) {
         document.getElementById('%s').addEventListener('click', function(e) {
           e.preventDefault();
           Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
-        });
-        document.getElementById('%s').addEventListener('click', function(e) {
-          e.preventDefault();
-          Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
-        });
-        document.getElementById('%s').addEventListener('click', function(e) {
-          e.preventDefault();
-          Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
-        });
-
-        // Delegate clicks for inline row actions in all tracker tables
-        document.addEventListener('click', function(e) {
-          var target = e.target;
-          if (target && target.classList.contains('pearl-tracker-action')) {
-            e.preventDefault();
-            var id = target.getAttribute('data-id');
-            var action = target.getAttribute('data-action');
-            Shiny.setInputValue('%s', { id: id, action: action, nonce: Math.random() }, {priority: 'event'});
-          }
         });
       });
     ", 
-    ns("bulk_assign_btn"), ns("bulk_assign_clicked"),
-    ns("bulk_status_btn"), ns("bulk_status_clicked"),
     ns("workload_summary_btn"), ns("workload_summary_clicked"),
     ns("export_tracker_btn"), ns("export_tracker_clicked"),
-    ns("import_tracker_btn"), ns("import_tracker_clicked"),
-    ns("row_action")
+    ns("import_tracker_btn"), ns("import_tracker_clicked")
     )))
   )
 }

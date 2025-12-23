@@ -431,4 +431,342 @@ Shiny.addCustomMessageHandler('getAndSelectVisibleRows', function(message) {
   }
 });
 
+// =============================================================================
+// PROGRAMMER DASHBOARD ACTION BUTTON HANDLERS
+// =============================================================================
+
+/**
+ * Handler for quick status update buttons in the Programmer Dashboard
+ * Sends click data to Shiny server for processing
+ */
+$(document).on('click', '.quick-status-btn', function(e) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  var $btn = $(this);
+  var trackerId = $btn.data('tracker-id');
+  var newStatus = $btn.data('status');
+  var statusType = $btn.data('type'); // 'production' or 'qc'
+
+  console.log('🚀 Quick status update:', { trackerId, newStatus, statusType });
+
+  if (window.Shiny && window.Shiny.setInputValue) {
+    Shiny.setInputValue('admin_dashboard-quick_status_click', {
+      tracker_id: trackerId,
+      new_status: newStatus,
+      status_type: statusType,
+      timestamp: Date.now()
+    }, { priority: 'event' });
+  }
+});
+
+/**
+ * Handler for "Go to Tracker" button in the Programmer Dashboard
+ * Stores navigation params and triggers tab switch + row highlight
+ */
+$(document).on('click', '.go-to-tracker-btn', function(e) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  var $btn = $(this);
+  var reportingEffortId = $btn.data('reporting-effort-id');
+  var itemCode = $btn.data('item-code');
+
+  console.log('🔗 Navigate to Tracker:', { reportingEffortId, itemCode });
+
+  // Store navigation params in sessionStorage for retrieval after tab switch
+  sessionStorage.setItem('dashboard_nav_re_id', reportingEffortId);
+  sessionStorage.setItem('dashboard_nav_item_code', itemCode);
+
+  if (window.Shiny && window.Shiny.setInputValue) {
+    Shiny.setInputValue('dashboard_navigate_to_tracker', {
+      reporting_effort_id: reportingEffortId,
+      item_code: itemCode,
+      timestamp: Date.now()
+    }, { priority: 'event' });
+  }
+});
+
+/**
+ * Show/hide loading overlay during navigation
+ */
+function showNavigationLoadingOverlay(show, message) {
+  var overlayId = 'navigation-loading-overlay';
+  var overlay = document.getElementById(overlayId);
+  
+  if (show) {
+    // Create overlay if it doesn't exist
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = overlayId;
+      overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; ' +
+        'background: rgba(255, 255, 255, 0.85); z-index: 9999; display: flex; ' +
+        'flex-direction: column; justify-content: center; align-items: center; ' +
+        'backdrop-filter: blur(2px);';
+      
+      var spinner = document.createElement('div');
+      spinner.className = 'spinner-border text-primary';
+      spinner.setAttribute('role', 'status');
+      spinner.style.cssText = 'width: 3rem; height: 3rem;';
+      
+      var spinnerText = document.createElement('span');
+      spinnerText.className = 'visually-hidden';
+      spinnerText.textContent = 'Loading...';
+      spinner.appendChild(spinnerText);
+      
+      var messageDiv = document.createElement('div');
+      messageDiv.id = 'navigation-loading-message';
+      messageDiv.style.cssText = 'margin-top: 1rem; font-size: 1.1rem; color: #333; font-weight: 500;';
+      messageDiv.textContent = message || 'Navigating to Tracker...';
+      
+      overlay.appendChild(spinner);
+      overlay.appendChild(messageDiv);
+      document.body.appendChild(overlay);
+    } else {
+      // Update message if overlay exists
+      var msgDiv = document.getElementById('navigation-loading-message');
+      if (msgDiv && message) {
+        msgDiv.textContent = message;
+      }
+      overlay.style.display = 'flex';
+    }
+    console.log('🔄 Showing navigation loading overlay');
+  } else {
+    // Hide overlay
+    if (overlay) {
+      overlay.style.display = 'none';
+      console.log('✅ Hiding navigation loading overlay');
+    }
+  }
+}
+
+/**
+ * Close any open Bootstrap dropdown menus
+ */
+function closeAllDropdowns() {
+  // Close Bootstrap 5 dropdowns
+  var openDropdowns = document.querySelectorAll('.dropdown-menu.show');
+  openDropdowns.forEach(function(dropdown) {
+    dropdown.classList.remove('show');
+  });
+  
+  // Also remove 'show' class from dropdown toggles
+  var dropdownToggles = document.querySelectorAll('.nav-link[aria-expanded="true"]');
+  dropdownToggles.forEach(function(toggle) {
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.classList.remove('show');
+  });
+  
+  // Click elsewhere to close dropdowns (fallback)
+  document.body.click();
+  
+  console.log('📂 Closed dropdown menus');
+}
+
+/**
+ * Custom message handler to handle navigation from Dashboard to Tracker Management
+ * First switches to the Tracker Management tab, then sets the reporting effort dropdown
+ * and triggers row highlighting
+ */
+Shiny.addCustomMessageHandler('dashboardNavToTracker', function(message) {
+  try {
+    console.log('📍 Dashboard navigation to tracker:', message);
+
+    var reportingEffortId = message.reporting_effort_id;
+    var itemCode = message.item_code;
+
+    if (!reportingEffortId) {
+      console.warn('No reporting_effort_id provided for navigation');
+      return;
+    }
+
+    // Show loading overlay immediately
+    showNavigationLoadingOverlay(true, 'Navigating to Tracker Management...');
+
+    // Step 1: Switch to the Tracker Management tab
+    // The tab is nested inside "Reporting Management" nav_menu (Bootstrap 5 dropdown)
+    // We need to find and click on the specific tab
+    
+    var switchToTrackerTab = function() {
+      // First, try to find Tracker Management tab in the navbar
+      // In bslib page_navbar with nav_menu, the dropdown items are structured differently
+      
+      // Try multiple selectors to find the Tracker Management link/button
+      var trackerTab = null;
+      
+      // Check for visible Tracker Management tab first
+      var visibleTab = document.querySelector('a.nav-link[data-value="reporting_effort_tracker_tab"], button.nav-link[data-value="reporting_effort_tracker_tab"]');
+      if (visibleTab) {
+        trackerTab = visibleTab;
+        console.log('🎯 Found Tracker Management tab by data-value');
+      }
+      
+      // If not found, look inside dropdown menu
+      if (!trackerTab) {
+        // Look for dropdown items with Tracker Management text
+        var dropdownItems = document.querySelectorAll('.dropdown-menu .nav-link, .dropdown-menu a');
+        dropdownItems.forEach(function(item) {
+          if (item.textContent.includes('Tracker Management')) {
+            trackerTab = item;
+            console.log('🎯 Found Tracker Management tab in dropdown');
+          }
+        });
+      }
+      
+      // If still not found, we need to open the Reporting Management dropdown first
+      if (!trackerTab) {
+        console.log('🔓 Opening Reporting Management dropdown first');
+        
+        // Find the Reporting Management dropdown toggle
+        var dropdownToggle = null;
+        document.querySelectorAll('.nav-link').forEach(function(link) {
+          if (link.textContent.includes('Reporting Management')) {
+            dropdownToggle = link;
+          }
+        });
+        
+        if (dropdownToggle) {
+          // Click to open dropdown
+          dropdownToggle.click();
+          
+          // Wait for dropdown to open, then find and click Tracker Management
+          setTimeout(function() {
+            var items = document.querySelectorAll('.dropdown-menu .nav-link, .dropdown-menu a, .nav-link');
+            items.forEach(function(item) {
+              if (item.textContent.includes('Tracker Management')) {
+                console.log('🎯 Clicking Tracker Management tab after dropdown opened');
+                item.click();
+                
+                // Close the dropdown after clicking the tab
+                setTimeout(closeAllDropdowns, 100);
+              }
+            });
+          }, 200);
+        } else {
+          console.warn('❌ Could not find Reporting Management dropdown');
+          showNavigationLoadingOverlay(false);
+        }
+      } else {
+        // Click the found tab
+        console.log('🎯 Clicking Tracker Management tab');
+        trackerTab.click();
+        
+        // Close the dropdown after clicking the tab
+        setTimeout(closeAllDropdowns, 100);
+      }
+    };
+    
+    // Update loading message
+    showNavigationLoadingOverlay(true, 'Switching to Tracker Management...');
+    
+    // Switch tab first
+    switchToTrackerTab();
+
+    // Step 2: After tab switch, send the reporting effort ID to Shiny
+    // Use a longer delay to ensure the tab has fully loaded
+    setTimeout(function() {
+      // Update loading message
+      showNavigationLoadingOverlay(true, 'Loading tracker data...');
+      
+      if (window.Shiny && window.Shiny.setInputValue) {
+        console.log('📤 Sending dashboard_nav_select to Shiny');
+        Shiny.setInputValue('reporting_effort_tracker-dashboard_nav_select', {
+          reporting_effort_id: reportingEffortId,
+          item_code: itemCode,
+          timestamp: Date.now()
+        }, { priority: 'event' });
+      }
+    }, 800);
+
+  } catch (e) {
+    console.error('❌ Error in dashboard navigation to tracker:', e);
+    showNavigationLoadingOverlay(false);
+  }
+});
+
+/**
+ * Custom message handler to filter and highlight a specific row in the Tracker table
+ * Called after navigation from Dashboard to Tracker Management
+ * Now filters the table first, then highlights the matching row
+ */
+Shiny.addCustomMessageHandler('highlightTrackerRow', function(message) {
+  try {
+    console.log('✨ Filter and highlight tracker row:', message);
+
+    var itemCode = message.item_code;
+    if (!itemCode) {
+      console.warn('No item_code provided for filtering/highlighting');
+      showNavigationLoadingOverlay(false);
+      return;
+    }
+
+    // Update loading message to show filtering in progress
+    showNavigationLoadingOverlay(true, 'Filtering for ' + itemCode + '...');
+
+    // Clear previous highlights
+    $('table.dataTable tr').removeClass('highlight-row');
+
+    // Wait for table to render, then filter and highlight
+    setTimeout(function() {
+      // Find all DataTables on the page
+      var tables = $.fn.dataTable.tables();
+      var found = false;
+
+      // Apply filter to each DataTable
+      $(tables).each(function() {
+        var table = $(this).DataTable();
+        
+        // Apply search filter with the item code
+        table.search(itemCode).draw();
+        console.log('🔍 Applied search filter for:', itemCode);
+      });
+
+      // After filtering, wait a moment then highlight and scroll
+      setTimeout(function() {
+        var $rows = $('table.dataTable tbody tr');
+        
+        $rows.each(function() {
+          var $row = $(this);
+          var rowText = $row.text();
+
+          // Check if this row contains the item code
+          if (rowText.indexOf(itemCode) !== -1) {
+            $row.addClass('highlight-row');
+
+            // Scroll row into view
+            var rowOffset = $row.offset();
+            if (rowOffset) {
+              $('html, body').animate({
+                scrollTop: rowOffset.top - 200
+              }, 300);
+            }
+
+            console.log('✅ Row filtered and highlighted for item:', itemCode);
+            found = true;
+            return false; // Break the loop
+          }
+        });
+
+        if (!found) {
+          console.log('⚠️ No row found containing:', itemCode);
+        }
+
+        // Hide the loading overlay - navigation complete
+        showNavigationLoadingOverlay(false);
+
+        // Remove highlight after 8 seconds, but keep filter
+        setTimeout(function() {
+          $('table.dataTable tr').removeClass('highlight-row');
+        }, 8000);
+
+      }, 300); // Wait for filter to apply
+
+    }, 800); // Wait for table to render
+
+  } catch (e) {
+    console.error('❌ Error filtering/highlighting tracker row:', e);
+    showNavigationLoadingOverlay(false);
+  }
+});
+
 console.log('✅ Simplified shiny_handlers.js loaded - legacy periodic refresh system removed');

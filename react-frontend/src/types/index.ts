@@ -27,8 +27,11 @@ export interface ReportingEffort {
 export interface User {
   id: number
   username: string
+  email?: string
   role: 'ADMIN' | 'EDITOR' | 'VIEWER'
   department?: string
+  auth_provider?: string
+  is_active: boolean
   created_at: string
   updated_at: string
 }
@@ -138,6 +141,22 @@ export interface ReportingEffortItem {
 export type TrackerStatus = 'not_started' | 'in_progress' | 'completed' | 'on_hold' | 'failed'
 export type Priority = 'critical' | 'high' | 'medium' | 'low'
 
+export interface TrackerTag {
+  id: number
+  name: string
+  color: string
+  description?: string
+  created_at: string
+  updated_at: string
+  usage_count?: number
+}
+
+export interface TrackerTagSummary {
+  id: number
+  name: string
+  color: string
+}
+
 export interface ReportingEffortItemTracker {
   id: number
   reporting_effort_item_id: number
@@ -153,12 +172,14 @@ export interface ReportingEffortItemTracker {
   // Expanded fields
   item_code?: string
   item_description?: string
+  item_title?: string
   item_type?: ItemType
   item_subtype?: ItemSubtype
   production_programmer?: User
   qc_programmer?: User
   comment_count?: number
   unresolved_comment_count?: number
+  tags?: TrackerTagSummary[]
 }
 
 // ==================== Comment Types ====================

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { FileText, Plus, Edit, Trash2, RefreshCw, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { textElementsApi } from '@/api'
+import { getErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -100,7 +101,7 @@ export function TFLProperties() {
       setDialogOpen(false)
       resetForm()
     },
-    onError: () => toast.error('Failed to create text element'),
+    onError: (error) => toast.error(`Failed to create text element: ${getErrorMessage(error)}`),
   })
 
   const updateElement = useMutation({
@@ -112,7 +113,7 @@ export function TFLProperties() {
       setDialogOpen(false)
       resetForm()
     },
-    onError: () => toast.error('Failed to update text element'),
+    onError: (error) => toast.error(`Failed to update text element: ${getErrorMessage(error)}`),
   })
 
   const deleteElement = useMutation({
@@ -122,7 +123,7 @@ export function TFLProperties() {
       queryClient.invalidateQueries({ queryKey: ['text-elements'] })
       setSelectedElement(null)
     },
-    onError: () => toast.error('Failed to delete text element'),
+    onError: (error) => toast.error(`Failed to delete text element: ${getErrorMessage(error)}`),
   })
 
   const resetForm = () => {

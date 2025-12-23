@@ -3,6 +3,7 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from sqlalchemy import select, and_, or_, func
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker
@@ -61,9 +62,22 @@ class ReportingEffortItemTrackerCRUD:
         skip: int = 0,
         limit: int = 100
     ) -> List[ReportingEffortItemTracker]:
-        """Get multiple trackers."""
+        """Get multiple trackers with item details and full hierarchy."""
+        from app.models.reporting_effort_item import ReportingEffortItem
+        from app.models.reporting_effort import ReportingEffort
+        
         result = await db.execute(
             select(ReportingEffortItemTracker)
+            .options(
+                selectinload(ReportingEffortItemTracker.item)
+                .selectinload(ReportingEffortItem.reporting_effort)
+                .selectinload(ReportingEffort.study)
+            )
+            .options(
+                selectinload(ReportingEffortItemTracker.item)
+                .selectinload(ReportingEffortItem.reporting_effort)
+                .selectinload(ReportingEffort.database_release)
+            )
             .offset(skip)
             .limit(limit)
         )
@@ -76,14 +90,26 @@ class ReportingEffortItemTrackerCRUD:
         user_id: int,
         role: str = "production"  # "production" or "qc"
     ) -> List[ReportingEffortItemTracker]:
-        """Get all trackers assigned to a specific programmer."""
+        """Get all trackers assigned to a specific programmer with full hierarchy."""
+        from app.models.reporting_effort_item import ReportingEffortItem
+        from app.models.reporting_effort import ReportingEffort
+
         if role == "production":
             filter_clause = ReportingEffortItemTracker.production_programmer_id == user_id
         else:
             filter_clause = ReportingEffortItemTracker.qc_programmer_id == user_id
-        
+
+        # Eager load item with full hierarchy
         result = await db.execute(
             select(ReportingEffortItemTracker)
+            .options(
+                selectinload(ReportingEffortItemTracker.item)
+                .selectinload(ReportingEffortItem.reporting_effort)
+                .selectinload(ReportingEffort.database_release),
+                selectinload(ReportingEffortItemTracker.item)
+                .selectinload(ReportingEffortItem.reporting_effort)
+                .selectinload(ReportingEffort.study)
+            )
             .where(filter_clause)
             .order_by(ReportingEffortItemTracker.priority, ReportingEffortItemTracker.due_date)
         )
@@ -96,18 +122,33 @@ class ReportingEffortItemTrackerCRUD:
         production_status: Optional[str] = None,
         qc_status: Optional[str] = None
     ) -> List[ReportingEffortItemTracker]:
-        """Get trackers by status."""
-        query = select(ReportingEffortItemTracker)
+        """Get trackers by status with item details and full hierarchy."""
+        from app.models.reporting_effort_item import ReportingEffortItem
+        from app.models.reporting_effort import ReportingEffort
         
+        query = (
+            select(ReportingEffortItemTracker)
+            .options(
+                selectinload(ReportingEffortItemTracker.item)
+                .selectinload(ReportingEffortItem.reporting_effort)
+                .selectinload(ReportingEffort.study)
+            )
+            .options(
+                selectinload(ReportingEffortItemTracker.item)
+                .selectinload(ReportingEffortItem.reporting_effort)
+                .selectinload(ReportingEffort.database_release)
+            )
+        )
+
         filters = []
         if production_status:
             filters.append(ReportingEffortItemTracker.production_status == production_status)
         if qc_status:
             filters.append(ReportingEffortItemTracker.qc_status == qc_status)
-        
+
         if filters:
             query = query.where(and_(*filters))
-        
+
         result = await db.execute(query)
         return list(result.scalars().all())
     
@@ -255,16 +296,21 @@ class ReportingEffortItemTrackerCRUD:
         """
         Get all trackers for a reporting effort with item and programmer details.
         Optimized to minimize N+1 queries by joining related data.
+        Includes TLF title from text_elements for TLF items.
         """
         from app.models.reporting_effort_item import ReportingEffortItem
+        from app.models.reporting_effort_tlf_details import ReportingEffortTlfDetails
+        from app.models.text_element import TextElement
         from app.models.user import User
         from sqlalchemy.orm import aliased
         
         # Create aliases for users to handle production and QC programmers
         prod_user = aliased(User)
         qc_user = aliased(User)
+        # Alias for title text element
+        title_element = aliased(TextElement)
         
-        # Single query to get all trackers with related data
+        # Single query to get all trackers with related data including TLF title
         query = select(
             ReportingEffortItemTracker,
             ReportingEffortItem.id.label('item_id'),
@@ -272,7 +318,8 @@ class ReportingEffortItemTrackerCRUD:
             ReportingEffortItem.item_type.label('item_type'),
             ReportingEffortItem.item_subtype.label('item_subtype'),
             prod_user.username.label('prod_programmer_username'),
-            qc_user.username.label('qc_programmer_username')
+            qc_user.username.label('qc_programmer_username'),
+            title_element.label.label('item_title')
         ).select_from(
             ReportingEffortItemTracker
         ).join(
@@ -284,6 +331,12 @@ class ReportingEffortItemTrackerCRUD:
         ).outerjoin(
             qc_user,  
             ReportingEffortItemTracker.qc_programmer_id == qc_user.id
+        ).outerjoin(
+            ReportingEffortTlfDetails,
+            ReportingEffortItem.id == ReportingEffortTlfDetails.reporting_effort_item_id
+        ).outerjoin(
+            title_element,
+            ReportingEffortTlfDetails.title_id == title_element.id
         ).where(
             ReportingEffortItem.reporting_effort_id == reporting_effort_id
         )
@@ -291,11 +344,37 @@ class ReportingEffortItemTrackerCRUD:
         result = await db.execute(query)
         rows = result.all()
         
+        # Get all tracker IDs for bulk tag loading
+        tracker_ids = [row.ReportingEffortItemTracker.id for row in rows]
+        
+        # Fetch tags for all trackers in one query
+        from app.models.tracker_tag import TrackerTag, TrackerItemTag
+        tags_by_tracker: Dict[int, List[Dict[str, Any]]] = {tid: [] for tid in tracker_ids}
+        
+        if tracker_ids:
+            tag_result = await db.execute(
+                select(TrackerItemTag, TrackerTag)
+                .join(TrackerTag, TrackerItemTag.tag_id == TrackerTag.id)
+                .where(TrackerItemTag.tracker_id.in_(tracker_ids))
+                .order_by(TrackerItemTag.tracker_id, TrackerTag.name)
+            )
+            tag_rows = tag_result.all()
+            
+            for tag_row in tag_rows:
+                tracker_id = tag_row.TrackerItemTag.tracker_id
+                tag_dict = {
+                    'id': tag_row.TrackerTag.id,
+                    'name': tag_row.TrackerTag.name,
+                    'color': tag_row.TrackerTag.color
+                }
+                tags_by_tracker[tracker_id].append(tag_dict)
+        
         # Convert to list of dictionaries with combined data
         trackers = []
         for row in rows:
+            tracker_id = row.ReportingEffortItemTracker.id
             tracker_dict = {
-                'id': row.ReportingEffortItemTracker.id,
+                'id': tracker_id,
                 'reporting_effort_item_id': row.ReportingEffortItemTracker.reporting_effort_item_id,
                 'production_status': row.ReportingEffortItemTracker.production_status,
                 'qc_status': row.ReportingEffortItemTracker.qc_status,
@@ -305,6 +384,7 @@ class ReportingEffortItemTrackerCRUD:
                 'qc_completion_date': row.ReportingEffortItemTracker.qc_completion_date,
                 'production_programmer_id': row.ReportingEffortItemTracker.production_programmer_id,
                 'qc_programmer_id': row.ReportingEffortItemTracker.qc_programmer_id,
+                'unresolved_comment_count': row.ReportingEffortItemTracker.unresolved_comment_count,
                 'created_at': row.ReportingEffortItemTracker.created_at,
                 'updated_at': row.ReportingEffortItemTracker.updated_at,
                 # Item details
@@ -312,9 +392,12 @@ class ReportingEffortItemTrackerCRUD:
                 'item_code': row.item_code,
                 'item_type': row.item_type,
                 'item_subtype': row.item_subtype,
+                'item_title': row.item_title,  # TLF title from text_elements
                 # Programmer usernames
                 'prod_programmer_username': row.prod_programmer_username,
-                'qc_programmer_username': row.qc_programmer_username
+                'qc_programmer_username': row.qc_programmer_username,
+                # Tags
+                'tags': tags_by_tracker.get(tracker_id, [])
             }
             trackers.append(tracker_dict)
         

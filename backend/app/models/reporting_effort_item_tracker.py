@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from app.models.reporting_effort_item import ReportingEffortItem
     from app.models.user import User
     from app.models.tracker_comment import TrackerComment
+    from app.models.tracker_tag import TrackerItemTag
 
 
 class ReportingEffortItemTracker(Base, TimestampMixin):
@@ -132,6 +133,11 @@ class ReportingEffortItemTracker(Base, TimestampMixin):
         back_populates="tracker",
         cascade="all, delete-orphan",
         order_by="TrackerComment.created_at.desc()"
+    )
+    tag_associations: Mapped[List["TrackerItemTag"]] = relationship(
+        "TrackerItemTag",
+        back_populates="tracker",
+        cascade="all, delete-orphan"
     )
     
     # Unique constraint

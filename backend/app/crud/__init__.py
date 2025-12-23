@@ -11,6 +11,7 @@ from app.crud.reporting_effort_item import reporting_effort_item
 from app.crud.reporting_effort_item_tracker import reporting_effort_item_tracker
 from app.crud.audit_log import audit_log
 from app.crud.tracker_comment import tracker_comment
+from app.crud.tracker_tag import tracker_tag, tracker_item_tag
 
 __all__ = [
     "study", 
@@ -23,5 +24,7 @@ __all__ = [
     "reporting_effort_item",
     "reporting_effort_item_tracker",
     "audit_log",
-    "tracker_comment"
+    "tracker_comment",
+    "tracker_tag",
+    "tracker_item_tag"
 ]

@@ -29,6 +29,11 @@ from app.schemas.tracker_comment import (
     TrackerComment, TrackerCommentCreate, TrackerCommentInDB, 
     TrackerCommentUpdate, TrackerCommentSummary, CommentWithUserInfo
 )
+from app.schemas.tracker_tag import (
+    TrackerTag, TrackerTagCreate, TrackerTagUpdate, TrackerTagWithCount,
+    TrackerItemTag, TrackerItemTagCreate, TrackerItemTagWithDetails,
+    BulkTagAssignment, BulkTagRemoval, BulkOperationResult, TagSummary
+)
 
 __all__ = [
     # Study schemas
@@ -60,5 +65,9 @@ __all__ = [
     "AuditLog", "AuditLogCreate", "AuditLogInDB", "AuditLogWithDetails",
     # TrackerComment schemas
     "TrackerComment", "TrackerCommentCreate", "TrackerCommentInDB", 
-    "TrackerCommentUpdate", "TrackerCommentSummary", "CommentWithUserInfo"
+    "TrackerCommentUpdate", "TrackerCommentSummary", "CommentWithUserInfo",
+    # TrackerTag schemas
+    "TrackerTag", "TrackerTagCreate", "TrackerTagUpdate", "TrackerTagWithCount",
+    "TrackerItemTag", "TrackerItemTagCreate", "TrackerItemTagWithDetails",
+    "BulkTagAssignment", "BulkTagRemoval", "BulkOperationResult", "TagSummary"
 ]

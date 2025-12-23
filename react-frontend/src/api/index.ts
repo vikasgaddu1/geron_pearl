@@ -8,5 +8,7 @@ export { packagesApi } from './endpoints/packages'
 export { reportingEffortItemsApi } from './endpoints/reporting-effort-items'
 export { trackerApi } from './endpoints/tracker'
 export { trackerCommentsApi } from './endpoints/tracker-comments'
+export { trackerTagsApi } from './endpoints/tracker-tags'
 export { databaseBackupApi } from './endpoints/database-backup'
+
 
