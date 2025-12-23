@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ClipboardCheck, RefreshCw, Users, CheckCircle, MessageSquare, Edit, Trash2, Send, X, Tag, Plus, Reply, Filter } from 'lucide-react'
 import { toast } from 'sonner'
-import { reportingEffortsApi, trackerApi, trackerCommentsApi, trackerTagsApi, usersApi } from '@/api'
+import { reportingEffortsApi, trackerApi, trackerCommentsApi, trackerTagsApi, usersApi, studiesApi, databaseReleasesApi } from '@/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -76,6 +76,8 @@ const TAG_COLORS = [
 
 export function TrackerManagement() {
   const queryClient = useQueryClient()
+  const [selectedStudyId, setSelectedStudyId] = useState<string>('')
+  const [selectedReleaseId, setSelectedReleaseId] = useState<string>('')
   const [selectedEffortId, setSelectedEffortId] = useState<string>('')
   const [activeTab, setActiveTab] = useState('tlf')
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set())
@@ -109,6 +111,16 @@ export function TrackerManagement() {
   const [editingTag, setEditingTag] = useState<TrackerTag | null>(null)
 
   // Queries
+  const { data: studies = [], isLoading: studiesLoading } = useQuery({
+    queryKey: ['studies'],
+    queryFn: studiesApi.getAll,
+  })
+
+  const { data: allReleases = [] } = useQuery({
+    queryKey: ['database-releases'],
+    queryFn: databaseReleasesApi.getAll,
+  })
+
   const { data: efforts = [], isLoading: effortsLoading } = useQuery({
     queryKey: ['reporting-efforts'],
     queryFn: reportingEffortsApi.getAll,
@@ -118,6 +130,17 @@ export function TrackerManagement() {
     queryKey: ['users'],
     queryFn: usersApi.getAll,
   })
+
+  // Filtered data based on cascaded selections
+  const filteredReleases = useMemo(() => {
+    if (!selectedStudyId) return []
+    return allReleases.filter(r => r.study_id === Number(selectedStudyId))
+  }, [allReleases, selectedStudyId])
+
+  const filteredEfforts = useMemo(() => {
+    if (!selectedReleaseId) return []
+    return efforts.filter(e => e.database_release_id === Number(selectedReleaseId))
+  }, [efforts, selectedReleaseId])
 
   const { data: trackers = [], isLoading: trackersLoading } = useQuery({
     queryKey: ['trackers', selectedEffortId],
@@ -683,21 +706,78 @@ export function TrackerManagement() {
         </CardHeader>
         <CardContent>
           <div className="flex gap-4 mb-4 flex-wrap">
-            <div className="w-80">
-              <Label>Reporting Effort</Label>
-              <Select value={selectedEffortId} onValueChange={(v) => { setSelectedEffortId(v); setSelectedRows(new Set()) }}>
+            <div className="w-56">
+              <Label className="text-sm font-medium mb-1.5 block">Study</Label>
+              <Select 
+                value={selectedStudyId} 
+                onValueChange={(v) => { 
+                  setSelectedStudyId(v)
+                  setSelectedReleaseId('')
+                  setSelectedEffortId('')
+                  setSelectedRows(new Set())
+                }}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a reporting effort" />
+                  <SelectValue placeholder="Select a study" />
                 </SelectTrigger>
                 <SelectContent>
-                  {efforts.map((effort) => (
-                    <SelectItem key={effort.id} value={String(effort.id)}>
-                      {effort.database_release_label}
+                  {studies.map((study) => (
+                    <SelectItem key={study.id} value={String(study.id)}>
+                      {study.study_label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
+            {selectedStudyId && (
+              <div className="w-56">
+                <Label className="text-sm font-medium mb-1.5 block">Database Release</Label>
+                <Select 
+                  value={selectedReleaseId} 
+                  onValueChange={(v) => { 
+                    setSelectedReleaseId(v)
+                    setSelectedEffortId('')
+                    setSelectedRows(new Set())
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a database release" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredReleases.map((release) => (
+                      <SelectItem key={release.id} value={String(release.id)}>
+                        {release.database_release_label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {selectedReleaseId && (
+              <div className="w-56">
+                <Label className="text-sm font-medium mb-1.5 block">Reporting Effort</Label>
+                <Select 
+                  value={selectedEffortId} 
+                  onValueChange={(v) => { 
+                    setSelectedEffortId(v)
+                    setSelectedRows(new Set())
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a reporting effort" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredEfforts.map((effort) => (
+                      <SelectItem key={effort.id} value={String(effort.id)}>
+                        {effort.database_release_label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             
             {/* Filters */}
             {selectedEffortId && (

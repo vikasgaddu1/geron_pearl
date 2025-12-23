@@ -18,10 +18,14 @@ export interface DatabaseRelease {
 
 export interface ReportingEffort {
   id: number
+  study_id: number
   database_release_id: number
   database_release_label: string
   created_at: string
   updated_at: string
+  // Expanded fields for better filtering
+  study_label?: string
+  database_release_label_full?: string
 }
 
 export interface User {
@@ -255,6 +259,7 @@ export interface DatabaseReleaseFormData {
 }
 
 export interface ReportingEffortFormData {
+  study_id: number
   database_release_id: number
   database_release_label: string
 }

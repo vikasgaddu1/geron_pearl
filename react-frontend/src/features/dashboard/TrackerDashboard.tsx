@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -49,6 +50,19 @@ export function TrackerDashboard() {
     queryKey: ['trackers-dashboard', selectedEffortId],
     queryFn: () => (selectedEffortId && selectedEffortId !== 'all' ? trackerApi.getByEffortBulk(Number(selectedEffortId)) : trackerApi.getAll()),
   })
+
+  // Group efforts by study and database release for better display
+  const groupedEfforts = useMemo(() => {
+    const groups: Record<string, Record<string, typeof efforts>> = {}
+    efforts.forEach(effort => {
+      const studyLabel = effort.study_label || 'Unknown Study'
+      const dbLabel = effort.database_release_label_full || 'Unknown DB'
+      if (!groups[studyLabel]) groups[studyLabel] = {}
+      if (!groups[studyLabel][dbLabel]) groups[studyLabel][dbLabel] = []
+      groups[studyLabel][dbLabel].push(effort)
+    })
+    return groups
+  }, [efforts])
 
   // Calculate statistics
   const totalItems = trackers.length
@@ -106,24 +120,31 @@ export function TrackerDashboard() {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Filter className="h-5 w-5" />
-              Select Reporting Effort
+              Filter by Reporting Effort
             </CardTitle>
           </div>
         </CardHeader>
         <CardContent>
-          <Select value={selectedEffortId} onValueChange={setSelectedEffortId}>
-            <SelectTrigger className="w-full md:w-96">
-              <SelectValue placeholder="All Reporting Efforts" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Reporting Efforts</SelectItem>
-              {efforts.map((effort) => (
-                <SelectItem key={effort.id} value={String(effort.id)}>
-                  {effort.database_release_label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="w-full md:w-[600px]">
+            <Label className="text-sm font-medium mb-1.5 block">Reporting Effort</Label>
+            <Select value={selectedEffortId} onValueChange={setSelectedEffortId}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Reporting Efforts" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Reporting Efforts</SelectItem>
+                {Object.entries(groupedEfforts).map(([studyLabel, dbGroups]) => (
+                  Object.entries(dbGroups).map(([dbLabel, effortsList]) => (
+                    effortsList.map((effort) => (
+                      <SelectItem key={effort.id} value={String(effort.id)}>
+                        {studyLabel} → {dbLabel} → {effort.database_release_label}
+                      </SelectItem>
+                    ))
+                  ))
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 
@@ -335,4 +356,5 @@ export function TrackerDashboard() {
     </div>
   )
 }
+
 

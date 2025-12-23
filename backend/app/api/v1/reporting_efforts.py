@@ -1,6 +1,6 @@
 """Reporting Efforts API endpoints."""
 
-from typing import List
+from typing import List, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,21 @@ from app.schemas.reporting_effort import ReportingEffort, ReportingEffortCreate,
 from app.api.v1.websocket import broadcast_reporting_effort_created, broadcast_reporting_effort_updated, broadcast_reporting_effort_deleted
 
 router = APIRouter()
+
+
+def serialize_reporting_effort(effort) -> Dict[str, Any]:
+    """Serialize reporting effort with expanded study and database release details."""
+    data = {
+        "id": effort.id,
+        "study_id": effort.study_id,
+        "database_release_id": effort.database_release_id,
+        "database_release_label": effort.database_release_label,
+        "created_at": effort.created_at.isoformat() if effort.created_at else None,
+        "updated_at": effort.updated_at.isoformat() if effort.updated_at else None,
+        "study_label": effort.study.study_label if effort.study else None,
+        "database_release_label_full": effort.database_release.database_release_label if effort.database_release else None,
+    }
+    return data
 
 
 @router.post("/", response_model=ReportingEffort, status_code=status.HTTP_201_CREATED)
@@ -80,7 +95,7 @@ async def create_reporting_effort(
         )
 
 
-@router.get("/", response_model=List[ReportingEffort])
+@router.get("/")
 async def read_reporting_efforts(
     *,
     db: AsyncSession = Depends(get_db),
@@ -88,23 +103,26 @@ async def read_reporting_efforts(
     limit: int = 100,
     study_id: int = Query(None, description="Filter by study ID"),
     database_release_id: int = Query(None, description="Filter by database release ID"),
-) -> List[ReportingEffort]:
+) -> List[Dict[str, Any]]:
     """
     Retrieve reporting efforts with optional filtering and pagination.
+    Returns expanded data with study and database release labels.
     """
     try:
         if study_id and database_release_id:
-            return await reporting_effort.get_by_study_and_database_release(
+            efforts = await reporting_effort.get_by_study_and_database_release(
                 db, study_id=study_id, database_release_id=database_release_id
             )
         elif study_id:
-            return await reporting_effort.get_by_study(db, study_id=study_id, skip=skip, limit=limit)
+            efforts = await reporting_effort.get_by_study(db, study_id=study_id, skip=skip, limit=limit)
         elif database_release_id:
-            return await reporting_effort.get_by_database_release(
+            efforts = await reporting_effort.get_by_database_release(
                 db, database_release_id=database_release_id, skip=skip, limit=limit
             )
         else:
-            return await reporting_effort.get_multi(db, skip=skip, limit=limit)
+            efforts = await reporting_effort.get_multi(db, skip=skip, limit=limit)
+        
+        return [serialize_reporting_effort(e) for e in efforts]
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -112,14 +130,14 @@ async def read_reporting_efforts(
         )
 
 
-@router.get("/{reporting_effort_id}", response_model=ReportingEffort)
+@router.get("/{reporting_effort_id}")
 async def read_reporting_effort(
     *,
     db: AsyncSession = Depends(get_db),
     reporting_effort_id: int,
-) -> ReportingEffort:
+) -> Dict[str, Any]:
     """
-    Get a specific reporting effort by ID.
+    Get a specific reporting effort by ID with expanded details.
     """
     try:
         db_reporting_effort = await reporting_effort.get(db, id=reporting_effort_id)
@@ -128,7 +146,7 @@ async def read_reporting_effort(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reporting effort not found"
             )
-        return db_reporting_effort
+        return serialize_reporting_effort(db_reporting_effort)
     except HTTPException:
         raise
     except Exception:

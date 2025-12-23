@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ClipboardList, Plus, Edit, Trash2, RefreshCw, Search, Copy, Upload, CheckSquare } from 'lucide-react'
 import { toast } from 'sonner'
-import { reportingEffortsApi, reportingEffortItemsApi, packagesApi } from '@/api'
+import { reportingEffortsApi, reportingEffortItemsApi, packagesApi, studiesApi, databaseReleasesApi } from '@/api'
 import { getErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -49,6 +49,8 @@ type TabType = 'tlf' | 'sdtm' | 'adam'
 
 export function ReportingEffortItems() {
   const queryClient = useQueryClient()
+  const [selectedStudyId, setSelectedStudyId] = useState<string>('')
+  const [selectedReleaseId, setSelectedReleaseId] = useState<string>('')
   const [selectedEffortId, setSelectedEffortId] = useState<string>('')
   const [activeTab, setActiveTab] = useState<TabType>('tlf')
   const [search, setSearch] = useState('')
@@ -70,6 +72,16 @@ export function ReportingEffortItems() {
   })
 
   // Queries
+  const { data: studies = [], isLoading: studiesLoading } = useQuery({
+    queryKey: ['studies'],
+    queryFn: studiesApi.getAll,
+  })
+
+  const { data: allReleases = [] } = useQuery({
+    queryKey: ['database-releases'],
+    queryFn: databaseReleasesApi.getAll,
+  })
+
   const { data: efforts = [], isLoading: effortsLoading } = useQuery({
     queryKey: ['reporting-efforts'],
     queryFn: reportingEffortsApi.getAll,
@@ -79,6 +91,17 @@ export function ReportingEffortItems() {
     queryKey: ['packages'],
     queryFn: packagesApi.getAll,
   })
+
+  // Filtered data based on cascaded selections
+  const filteredReleases = useMemo(() => {
+    if (!selectedStudyId) return []
+    return allReleases.filter(r => r.study_id === Number(selectedStudyId))
+  }, [allReleases, selectedStudyId])
+
+  const filteredEfforts = useMemo(() => {
+    if (!selectedReleaseId) return []
+    return efforts.filter(e => e.database_release_id === Number(selectedReleaseId))
+  }, [efforts, selectedReleaseId])
 
   const { data: items = [], isLoading: itemsLoading } = useQuery({
     queryKey: ['reporting-effort-items', selectedEffortId],
@@ -321,35 +344,109 @@ export function ReportingEffortItems() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4 mb-4">
-            <div className="w-80">
-              <Select value={selectedEffortId} onValueChange={(v) => { setSelectedEffortId(v); setSelectedRows(new Set()) }}>
+          <div className="flex gap-4 mb-4 flex-wrap">
+            <div className="w-64">
+              <Label className="text-sm font-medium mb-1.5 block">Study</Label>
+              <Select 
+                value={selectedStudyId} 
+                onValueChange={(v) => { 
+                  setSelectedStudyId(v)
+                  setSelectedReleaseId('')
+                  setSelectedEffortId('')
+                  setSelectedRows(new Set())
+                }}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a reporting effort" />
+                  <SelectValue placeholder="Select a study" />
                 </SelectTrigger>
                 <SelectContent>
-                  {efforts.map((effort) => (
-                    <SelectItem key={effort.id} value={String(effort.id)}>
-                      {effort.database_release_label}
+                  {studies.map((study) => (
+                    <SelectItem key={study.id} value={String(study.id)}>
+                      {study.study_label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
+            {selectedStudyId && (
+              <div className="w-64">
+                <Label className="text-sm font-medium mb-1.5 block">Database Release</Label>
+                <Select 
+                  value={selectedReleaseId} 
+                  onValueChange={(v) => { 
+                    setSelectedReleaseId(v)
+                    setSelectedEffortId('')
+                    setSelectedRows(new Set())
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a database release" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredReleases.map((release) => (
+                      <SelectItem key={release.id} value={String(release.id)}>
+                        {release.database_release_label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {selectedReleaseId && (
+              <div className="w-64">
+                <Label className="text-sm font-medium mb-1.5 block">Reporting Effort</Label>
+                <Select 
+                  value={selectedEffortId} 
+                  onValueChange={(v) => { 
+                    setSelectedEffortId(v)
+                    setSelectedRows(new Set())
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a reporting effort" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredEfforts.map((effort) => (
+                      <SelectItem key={effort.id} value={String(effort.id)}>
+                        {effort.database_release_label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {selectedEffortId && (
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search items..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
-                />
+              <div className="relative flex-1 min-w-64">
+                <Label className="text-sm font-medium mb-1.5 block">Search</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search items..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
               </div>
             )}
           </div>
 
-          {!selectedEffortId ? (
+          {!selectedStudyId ? (
+            <EmptyState
+              icon={ClipboardList}
+              title="Select a study"
+              description="Choose a study to begin filtering reporting efforts."
+            />
+          ) : !selectedReleaseId ? (
+            <EmptyState
+              icon={ClipboardList}
+              title="Select a database release"
+              description="Choose a database release to continue."
+            />
+          ) : !selectedEffortId ? (
             <EmptyState
               icon={ClipboardList}
               title="Select a reporting effort"

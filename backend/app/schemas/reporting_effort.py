@@ -36,5 +36,9 @@ class ReportingEffortInDB(ReportingEffortBase):
 
 
 class ReportingEffort(ReportingEffortInDB):
-    """Schema for ReportingEffort response."""
-    pass
+    """Schema for ReportingEffort response with expanded details."""
+    # Optional expanded fields for better UI filtering
+    study_label: Optional[str] = Field(None, description="Label of the associated study")
+    database_release_label_full: Optional[str] = Field(None, description="Label of the associated database release")
+    
+    model_config = ConfigDict(from_attributes=True)
