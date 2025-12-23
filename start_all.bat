@@ -1,6 +1,6 @@
 @echo off
 REM PEARL Full Stack Starter
-REM Starts both backend (FastAPI) and frontend (R Shiny) servers
+REM Starts both backend (FastAPI) and frontend (React) servers
 
 echo ========================================
 echo   PEARL Full Stack Starter
@@ -16,8 +16,8 @@ echo Waiting for backend to initialize...
 timeout /t 5 >nul
 
 REM Start frontend in a new window
-echo Starting Frontend Server (R Shiny on port 3838)...
-start "PEARL Frontend" cmd /k "%~dp0start_frontend.bat"
+echo Starting Frontend Server (React on port 5173)...
+start "PEARL React Frontend" cmd /k "%~dp0start_react_frontend.bat"
 
 echo.
 echo ========================================
@@ -25,7 +25,7 @@ echo   Both servers are starting...
 echo ========================================
 echo.
 echo   Backend:  http://localhost:8000
-echo   Frontend: http://localhost:3838
+echo   Frontend: http://localhost:5173
 echo   API Docs: http://localhost:8000/docs
 echo.
 echo   Close the server windows to stop them,

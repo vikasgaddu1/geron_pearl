@@ -7,7 +7,7 @@ A full-stack research data management platform with real-time collaboration feat
 PEARL is a comprehensive system for managing clinical study packages and reporting efforts, featuring:
 
 - **Backend**: FastAPI with async PostgreSQL and real-time WebSocket broadcasting
-- **Frontend**: Modern R Shiny with bslib UI and cross-browser synchronization
+- **Frontend**: Modern React with TypeScript, Tailwind CSS, and shadcn/ui components
 - **Real-time**: Live data synchronization across multiple users and browser sessions
 - **Enterprise Features**: Audit logging, role-based access, bulk operations
 
@@ -15,7 +15,7 @@ PEARL is a comprehensive system for managing clinical study packages and reporti
 
 ### Prerequisites
 - Python 3.11+ with [UV package manager](https://docs.astral.sh/uv/)
-- R 4.2.2+ with renv
+- Node.js 18+ with npm
 - PostgreSQL 13+
 
 ### 1. Start Backend (Terminal 1)
@@ -28,13 +28,13 @@ uv run python run.py
 
 ### 2. Start Frontend (Terminal 2)
 ```bash
-cd admin-frontend
-Rscript setup_environment.R
-Rscript run_app.R
+cd react-frontend
+npm install
+npm run dev
 ```
 
 ### 3. Access Applications
-- **Frontend UI**: http://localhost:3838
+- **Frontend UI**: http://localhost:5173
 - **Backend API**: http://localhost:8000
 - **API Documentation**: http://localhost:8000/docs
 
@@ -46,10 +46,11 @@ PEARL/
 │   ├── app/api/v1/            # REST endpoints + real-time broadcasting  
 │   ├── tests/                 # Individual test scripts
 │   └── [README.md, CLAUDE.md] # Backend documentation
-├── admin-frontend/            # R Shiny + bslib + WebSocket clients
-│   ├── modules/               # UI/server components + API integration
-│   ├── www/                   # JavaScript WebSocket + CRUD manager
-│   └── [README.md, CLAUDE.md] # Frontend documentation
+├── react-frontend/            # React + TypeScript + Tailwind CSS
+│   ├── src/api/               # API client and endpoints
+│   ├── src/components/        # Reusable UI components
+│   ├── src/features/          # Feature modules
+│   └── README.md              # Frontend documentation
 └── CLAUDE.md                  # Primary development guide
 ```
 
@@ -96,10 +97,11 @@ uv run alembic upgrade head              # Apply migrations
 
 **Frontend Development:**
 ```bash
-cd admin-frontend  
-Rscript run_app.R                        # Start Shiny app
-renv::restore()                          # Restore R packages
-npm test                                 # Run Playwright tests
+cd react-frontend  
+npm run dev                              # Start development server
+npm install                              # Install dependencies
+npm run build                            # Build for production
+npm run lint                             # Lint code
 ```
 
 ### Critical Development Constraints
@@ -121,7 +123,7 @@ For detailed information, see component-specific documentation:
 
 - **[CLAUDE.md](CLAUDE.md)** - Primary development guide with patterns and constraints
 - **[Backend](backend/README.md)** - FastAPI setup, API endpoints, database schema
-- **[Frontend](admin-frontend/README.md)** - R Shiny setup, module architecture, WebSocket integration
+- **[Frontend](react-frontend/README.md)** - React setup, component architecture, WebSocket integration
 - **[Testing](backend/tests/README.md)** - Test suite setup and troubleshooting
 
 ## Technology Stack
@@ -134,11 +136,12 @@ For detailed information, see component-specific documentation:
 - **Alembic** for database migrations
 
 ### Frontend  
-- **R Shiny** with modular UI/server architecture
-- **bslib** for Bootstrap 5 theming and responsive design
-- **httr2** for robust HTTP API communication
-- **DT** for interactive data tables
-- **WebSocket** dual clients (JavaScript + R) for real-time updates
+- **React 18** with TypeScript for type-safe development
+- **Vite** for fast development and optimized builds
+- **Tailwind CSS** with shadcn/ui for modern component design
+- **TanStack Query** for data fetching and caching
+- **TanStack Table** for advanced data tables with filtering
+- **WebSocket** client for real-time updates
 
 ### Database Schema
 ```

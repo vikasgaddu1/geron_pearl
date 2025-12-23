@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PEARL is a **full-stack research data management system** with real-time WebSocket updates:
 - **Backend**: FastAPI + async PostgreSQL + WebSocket broadcasting
-- **Frontend**: Modern R Shiny + bslib + dual WebSocket clients
+- **Frontend**: Modern React + TypeScript + Tailwind CSS + shadcn/ui
 - **Real-time**: Live data synchronization across multiple users and browsers
 
 ## Quick Start
@@ -19,11 +19,11 @@ uv run python -m app.db.init_db
 uv run python run.py
 
 # Frontend (Terminal 2)
-cd admin-frontend
-Rscript setup_environment.R
-Rscript run_app.R
+cd react-frontend
+npm install
+npm run dev
 
-# Access: Backend http://localhost:8000 | Frontend http://localhost:3838 | Docs http://localhost:8000/docs
+# Access: Backend http://localhost:8000 | Frontend http://localhost:5173 | Docs http://localhost:8000/docs
 ```
 
 ## Critical Constraints
@@ -64,16 +64,17 @@ uv run python tests/validator/run_model_validation.py  # Validate models (run af
 
 ### Frontend
 ```bash
-cd admin-frontend
-Rscript run_app.R                         # Start app
-renv::restore()                           # Restore packages
-renv::install("package") && renv::snapshot()  # Add new package
+cd react-frontend
+npm run dev                               # Start development server
+npm install                               # Install dependencies
+npm run build                             # Build for production
+npm run lint                              # Lint code
 ```
 
 ### Stop Processes (Windows)
 ```bash
 netstat -ano | findstr :8000              # Find backend PID
-netstat -ano | findstr :3838              # Find frontend PID
+netstat -ano | findstr :5173              # Find frontend PID
 powershell -Command "Stop-Process -Id <PID> -Force"
 ```
 
@@ -87,10 +88,11 @@ PEARL/
 │   ├── app/models/     # SQLAlchemy ORM models
 │   ├── app/schemas/    # Pydantic validation schemas
 │   └── tests/          # Individual test scripts
-├── admin-frontend/
-│   ├── modules/        # UI (*_ui.R) + Server (*_server.R) modules
-│   ├── www/            # JavaScript WebSocket client
-│   └── app.R           # Main application entry
+├── react-frontend/
+│   ├── src/api/        # API client and endpoints
+│   ├── src/components/ # Reusable UI components
+│   ├── src/features/   # Feature modules
+│   └── src/stores/     # Zustand state management
 ```
 
 ### Database Schema
@@ -111,19 +113,12 @@ User (admin, analyst, viewer roles)
 - **WebSocket**: SQLAlchemy models require Pydantic conversion for broadcasts
 - **UV Package Manager**: Use `uv run` for all Python operations
 
-### Frontend (R Shiny)
-- **Environment Variables**: All API endpoints use `Sys.getenv()`
-- **Form Validation**: Use shinyvalidate with deferred validation (only on Save/Submit)
-- **Module Pattern**: UI/Server separation for all components
-- **WebSocket Events**: Module observers listen for `input$crud_refresh`
-
-### Cross-Browser WebSocket Sync (Universal CRUD Manager)
-```r
-# In module server - Shiny strips module prefix automatically
-observeEvent(input$crud_refresh, {  # NOT input$module-crud_refresh
-  load_data()
-})
-```
+### Frontend (React)
+- **Environment Variables**: Use `VITE_` prefix for environment variables
+- **Form Validation**: React Hook Form + Zod for type-safe validation
+- **Component Pattern**: Functional components with custom hooks
+- **State Management**: Zustand for global state, TanStack Query for server state
+- **WebSocket Events**: Real-time updates via WebSocket manager
 
 ### Database Migrations
 ```bash
@@ -136,7 +131,7 @@ uv run python tests/validator/run_model_validation.py
 ## Adding a New Entity
 
 1. **Backend**: Create model → schema → CRUD class → API endpoints with WebSocket broadcasts
-2. **Frontend**: Create UI module → server module → add to api_client.R
+2. **Frontend**: Create API endpoint → feature component → add to routing
 3. **WebSocket**: Add broadcast functions and event types
 4. **Testing**: Create functional test script like `test_crud_simple.sh`
 
@@ -144,11 +139,11 @@ uv run python tests/validator/run_model_validation.py
 
 | Issue | Solution |
 |-------|----------|
-| WebSocket not updating | Check browser console; verify message type matches module pattern |
-| Module observer not triggering | Shiny strips module prefix; use `input$crud_refresh` not `input$module-crud_refresh` |
+| WebSocket not updating | Check browser console; verify WebSocket connection and message types |
+| React component not re-rendering | Check TanStack Query cache invalidation and dependencies |
 | Batch tests failing | Expected behavior; use individual test scripts |
 | Model validation errors | Run `uv run python tests/validator/run_model_validation.py` |
-| JavaScript timing errors | Always check `window.Shiny && window.Shiny.setInputValue` before use |
+| TypeScript errors | Run `npm run build` to check type errors |
 
 ## Technology Stack
 
@@ -160,13 +155,14 @@ uv run python tests/validator/run_model_validation.py
 - Black + isort + flake8 + mypy
 
 ### Frontend
-- R 4.2.2 with renv
-- Shiny + bslib (Bootstrap 5)
-- httr2, shinyvalidate, DT
-- Dual WebSocket clients (JS primary, R secondary)
+- React 18 with TypeScript
+- Vite for development and builds
+- Tailwind CSS + shadcn/ui components
+- TanStack Query + TanStack Table
+- WebSocket client for real-time updates
 
 ## Component Documentation
 
 - **Backend**: [backend/CLAUDE.md](backend/CLAUDE.md) and [backend/README.md](backend/README.md)
-- **Frontend**: [admin-frontend/CLAUDE.md](admin-frontend/CLAUDE.md) and [admin-frontend/README.md](admin-frontend/README.md)
+- **Frontend**: [react-frontend/README.md](react-frontend/README.md)
 - **Testing**: [backend/tests/README.md](backend/tests/README.md)
