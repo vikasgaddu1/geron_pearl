@@ -300,6 +300,14 @@ test-results/
 playwright-report/
 test-results.xml
 
+# Playwright MCP screenshots and artifacts
+.playwright-mcp/
+*.playwright-mcp.png
+
+# Windows reserved filenames (nul, con, prn, aux, etc.)
+nul
+**/nul
+
 # Backup files
 *.bak
 *.backup 
