@@ -74,6 +74,7 @@ export function DataTable<T>({
   const [selectFilters, setSelectFilters] = useState<Record<string, string[]>>({})
   const [dateFilters, setDateFilters] = useState<Record<string, DateRange>>({})
   const [pageSize, setPageSize] = useState(defaultPageSize)
+  const [pageIndex, setPageIndex] = useState(0)
   const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false)
   const [isScrolledRight, setIsScrolledRight] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -262,15 +263,14 @@ export function DataTable<T>({
     state: {
       sorting,
       columnFilters,
-      pagination: enablePagination ? { pageIndex: 0, pageSize } : undefined,
+      pagination: enablePagination ? { pageIndex, pageSize } : undefined,
     },
     onPaginationChange: enablePagination 
       ? (updater) => {
           if (typeof updater === 'function') {
-            const newState = updater({ pageIndex: table.getState().pagination.pageIndex, pageSize })
-            if (newState.pageSize !== pageSize) {
-              setPageSize(newState.pageSize)
-            }
+            const newState = updater({ pageIndex, pageSize })
+            setPageIndex(newState.pageIndex)
+            setPageSize(newState.pageSize)
           }
         }
       : undefined,
@@ -439,7 +439,7 @@ export function DataTable<T>({
                 onValueChange={(value) => {
                   const newSize = Number(value)
                   setPageSize(newSize)
-                  table.setPageSize(newSize)
+                  setPageIndex(0) // Reset to first page when changing page size
                 }}
               >
                 <SelectTrigger className="h-8 w-[70px]">
