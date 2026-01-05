@@ -12,3 +12,6 @@ export const useWebSocketStore = create<WebSocketState>((set) => ({
   setStatus: (status) => set({ status }),
 }))
 
+
+
+

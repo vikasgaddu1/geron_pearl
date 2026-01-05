@@ -3,7 +3,7 @@
 import json
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
@@ -75,6 +75,8 @@ class BulkAssignStatusRequest(BaseModel):
     # Status fields (optional)
     production_status: Optional[str] = Field(None, description="New production status")
     qc_status: Optional[str] = Field(None, description="New QC status")
+    # Due date (optional - auto-set to today+7 if not provided when assigning production programmer)
+    due_date: Optional[date] = Field(None, description="Due date for the task")
     
 class BulkAssignStatusResponse(BaseModel):
     """Response for bulk assign/status operations."""
@@ -369,11 +371,20 @@ async def update_tracker(
                         detail="Cannot update QC status without a QC programmer assigned"
                     )
         
+        # Auto-set due_date when assigning production programmer (if not already set)
+        if 'production_programmer_id' in update_data and update_data['production_programmer_id']:
+            if not db_tracker.due_date and 'due_date' not in update_data:
+                update_data['due_date'] = date.today() + timedelta(days=7)
+        
+        # Auto-set qc_completion_date when QC status changes to completed
+        if 'qc_status' in update_data and update_data['qc_status'] == 'completed':
+            update_data['qc_completion_date'] = date.today()
+        
         # Store original data for audit
         original_data = sqlalchemy_to_dict(db_tracker)
         
         updated_tracker = await reporting_effort_item_tracker.update(
-            db, db_obj=db_tracker, obj_in=tracker_in
+            db, db_obj=db_tracker, obj_in=update_data
         )
         print(f"Tracker updated successfully: ID {updated_tracker.id}")
         
@@ -901,6 +912,12 @@ async def bulk_assign_and_update_status(
             # Handle assignments first
             if data.production_programmer_id is not None:
                 update_data["production_programmer_id"] = data.production_programmer_id
+                # Auto-set due_date to today + 7 days if not already set and not provided
+                if not db_tracker.due_date and data.due_date is None:
+                    update_data["due_date"] = date.today() + timedelta(days=7)
+                elif data.due_date is not None:
+                    update_data["due_date"] = data.due_date
+                    
             if data.qc_programmer_id is not None:
                 update_data["qc_programmer_id"] = data.qc_programmer_id
             
@@ -922,6 +939,9 @@ async def bulk_assign_and_update_status(
                         errors.append(f"Tracker {tracker_id}: Cannot update QC status without assigning a QC programmer")
                         continue
                 update_data["qc_status"] = data.qc_status
+                # Auto-set qc_completion_date when QC status is completed
+                if data.qc_status == 'completed':
+                    update_data["qc_completion_date"] = date.today()
             
             # Apply the update if there's data
             if update_data:

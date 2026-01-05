@@ -132,3 +132,6 @@ def is_provider_configured(provider: str) -> bool:
     """Check if an OAuth provider is configured."""
     return hasattr(oauth, provider)
 
+
+
+

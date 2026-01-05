@@ -97,11 +97,19 @@ export function TrackerManagement() {
   const [tagManageOpen, setTagManageOpen] = useState(false)
   const [bulkTagOpen, setBulkTagOpen] = useState(false)
   const [selectedTracker, setSelectedTracker] = useState<ReportingEffortItemTracker | null>(null)
+  // Helper to get default due date (today + 7 days)
+  const getDefaultDueDate = () => {
+    const d = new Date()
+    d.setDate(d.getDate() + 7)
+    return d.toISOString().split('T')[0]
+  }
+  
   const [bulkData, setBulkData] = useState({
     production_programmer_id: '',
     qc_programmer_id: '',
     production_status: '' as ProductionStatus | '',
     qc_status: '' as QCStatus | '',
+    due_date: '',
   })
   const [editFormData, setEditFormData] = useState({
     production_programmer_id: '',
@@ -212,6 +220,7 @@ export function TrackerManagement() {
         qc_programmer_id: '',
         production_status: '',
         qc_status: '',
+        due_date: '',
       })
     },
     onError: (error) => toast.error(`Failed to update: ${getErrorMessage(error)}`),
@@ -381,6 +390,10 @@ export function TrackerManagement() {
     // Only include fields that are set
     if (bulkData.production_programmer_id) {
       data.production_programmer_id = Number(bulkData.production_programmer_id)
+      // Include due_date if set (will be auto-set on backend if not provided)
+      if (bulkData.due_date) {
+        data.due_date = bulkData.due_date
+      }
     }
     if (bulkData.qc_programmer_id) {
       data.qc_programmer_id = Number(bulkData.qc_programmer_id)
@@ -401,7 +414,8 @@ export function TrackerManagement() {
       bulkData.production_programmer_id ||
       bulkData.qc_programmer_id ||
       bulkData.production_status ||
-      bulkData.qc_status
+      bulkData.qc_status ||
+      bulkData.due_date
     )
   }, [bulkData])
 
@@ -1459,6 +1473,7 @@ export function TrackerManagement() {
             qc_programmer_id: '',
             production_status: '',
             qc_status: '',
+            due_date: '',
           })
         }
       }}>
@@ -1512,6 +1527,21 @@ export function TrackerManagement() {
                     </p>
                   )}
                 </div>
+                {/* Due Date - shown when assigning production programmer */}
+                {bulkData.production_programmer_id && (
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs text-muted-foreground">Due Date</Label>
+                    <Input
+                      type="date"
+                      value={bulkData.due_date || getDefaultDueDate()}
+                      onChange={(e) => setBulkData((prev) => ({ ...prev, due_date: e.target.value }))}
+                      className="h-9"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Default: today + 7 days. Will only update trackers without an existing due date.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
             
