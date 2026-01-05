@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     auth, studies, database_releases, reporting_efforts, websocket, text_elements, packages, users,
     reporting_effort_items, reporting_effort_tracker, tracker_comments, tracker_tags,
-    audit_trail, database_backup
+    audit_trail, database_backup, settings
 )
 
 api_router = APIRouter()
@@ -31,3 +31,4 @@ api_router.include_router(tracker_tags.router, prefix="/tracker-tags", tags=["tr
 # Admin endpoints
 api_router.include_router(audit_trail.router, prefix="/audit-trail", tags=["audit-trail"])
 api_router.include_router(database_backup.router, prefix="/database-backup", tags=["database-backup"])
+api_router.include_router(settings.router, prefix="/settings", tags=["settings"])

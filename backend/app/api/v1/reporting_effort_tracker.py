@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
-from app.crud import reporting_effort_item_tracker, reporting_effort_item, user, audit_log
+from app.crud import reporting_effort_item_tracker, reporting_effort_item, user, audit_log, app_settings
 from app.db.session import get_db
 
 logger = logging.getLogger(__name__)
@@ -376,7 +376,8 @@ async def update_tracker(
         # Auto-set due_date when assigning production programmer (if not already set)
         if 'production_programmer_id' in update_data and update_data['production_programmer_id']:
             if not db_tracker.due_date and 'due_date' not in update_data:
-                update_data['due_date'] = date.today() + timedelta(days=7)
+                due_date_offset = await app_settings.get_default_due_date_offset(db)
+                update_data['due_date'] = date.today() + timedelta(days=due_date_offset)
         
         # Auto-set qc_completion_date when QC status changes to completed
         if 'qc_status' in update_data and update_data['qc_status'] == 'completed':
@@ -914,9 +915,10 @@ async def bulk_assign_and_update_status(
             # Handle assignments first
             if data.production_programmer_id is not None:
                 update_data["production_programmer_id"] = data.production_programmer_id
-                # Auto-set due_date to today + 7 days if not already set and not provided
+                # Auto-set due_date using configurable offset if not already set and not provided
                 if not db_tracker.due_date and data.due_date is None:
-                    update_data["due_date"] = date.today() + timedelta(days=7)
+                    due_date_offset = await app_settings.get_default_due_date_offset(db)
+                    update_data["due_date"] = date.today() + timedelta(days=due_date_offset)
                 elif data.due_date is not None:
                     update_data["due_date"] = data.due_date
                     

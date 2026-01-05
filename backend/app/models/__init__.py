@@ -21,6 +21,7 @@ from app.models.audit_log import AuditLog
 from app.models.tracker_comment import TrackerComment
 from app.models.tracker_tag import TrackerTag, TrackerItemTag
 from app.models.tracker_status_history import TrackerStatusHistory
+from app.models.app_settings import AppSettings
 
 __all__ = [
     "Study", 
@@ -51,5 +52,6 @@ __all__ = [
     "TrackerComment",
     "TrackerTag",
     "TrackerItemTag",
-    "TrackerStatusHistory"
+    "TrackerStatusHistory",
+    "AppSettings"
 ]

@@ -276,6 +276,21 @@ export interface WebSocketMessage {
   timestamp: string
 }
 
+// ==================== Application Settings Types ====================
+
+export interface AppSettings {
+  id: number
+  default_due_date_offset: number
+  updated_by_user_id?: number
+  updated_by_username?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface AppSettingsUpdate {
+  default_due_date_offset?: number
+}
+
 // ==================== Form Types ====================
 
 export interface StudyFormData {

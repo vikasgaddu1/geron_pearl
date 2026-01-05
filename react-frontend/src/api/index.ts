@@ -10,5 +10,6 @@ export { trackerApi } from './endpoints/tracker'
 export { trackerCommentsApi } from './endpoints/tracker-comments'
 export { trackerTagsApi } from './endpoints/tracker-tags'
 export { databaseBackupApi } from './endpoints/database-backup'
+export { settingsApi, useAppSettings, useDefaultDueDateOffset, useUpdateSettings, settingsKeys } from './endpoints/settings'
 
 

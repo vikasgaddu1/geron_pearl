@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   ChevronDown,
   ChevronRight,
+  Settings,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -37,6 +38,7 @@ const navigation: (NavItem | NavGroup)[] = [
       { title: 'TFL Properties', href: '/tfl-properties', icon: FileText },
       { title: 'User Management', href: '/users', icon: Users },
       { title: 'Database Backup', href: '/database-backup', icon: Database },
+      { title: 'Settings', href: '/settings', icon: Settings },
     ],
   },
   {

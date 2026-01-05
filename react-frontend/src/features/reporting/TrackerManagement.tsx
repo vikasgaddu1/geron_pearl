@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ClipboardCheck, RefreshCw, Users, CheckCircle, MessageSquare, Edit, Trash2, Send, X, Tag, Plus, Reply, LayoutList, Kanban, UserCheck } from 'lucide-react'
 import { toast } from 'sonner'
-import { reportingEffortsApi, trackerApi, trackerCommentsApi, trackerTagsApi, usersApi, studiesApi, databaseReleasesApi } from '@/api'
+import { reportingEffortsApi, trackerApi, trackerCommentsApi, trackerTagsApi, usersApi, studiesApi, databaseReleasesApi, useDefaultDueDateOffset } from '@/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -88,12 +88,16 @@ export function TrackerManagement() {
   const [tagManageOpen, setTagManageOpen] = useState(false)
   const [bulkTagOpen, setBulkTagOpen] = useState(false)
   const [selectedTracker, setSelectedTracker] = useState<ReportingEffortItemTracker | null>(null)
-  // Helper to get default due date (today + 7 days)
-  const getDefaultDueDate = () => {
+
+  // Get default due date offset from settings
+  const { data: dueDateOffset = 7 } = useDefaultDueDateOffset()
+
+  // Helper to get default due date (today + configurable offset)
+  const getDefaultDueDate = useCallback(() => {
     const d = new Date()
-    d.setDate(d.getDate() + 7)
+    d.setDate(d.getDate() + dueDateOffset)
     return d.toISOString().split('T')[0]
-  }
+  }, [dueDateOffset])
   
   const [bulkData, setBulkData] = useState({
     production_programmer_id: '',

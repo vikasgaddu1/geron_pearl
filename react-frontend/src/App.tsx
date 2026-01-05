@@ -14,6 +14,7 @@ import { LoginPage } from '@/features/auth/LoginPage'
 import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
+import { SettingsPage } from '@/features/settings/SettingsPage'
 
 function App() {
   return (
@@ -67,6 +68,14 @@ function App() {
             element={
               <ProtectedRoute requiredRole="ADMIN">
                 <DatabaseBackup />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="settings"
+            element={
+              <ProtectedRoute requiredRole="ADMIN">
+                <SettingsPage />
               </ProtectedRoute>
             }
           />

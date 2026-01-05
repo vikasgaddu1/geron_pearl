@@ -34,6 +34,9 @@ from app.schemas.tracker_tag import (
     TrackerItemTag, TrackerItemTagCreate, TrackerItemTagWithDetails,
     BulkTagAssignment, BulkTagRemoval, BulkOperationResult, TagSummary
 )
+from app.schemas.app_settings import (
+    AppSettings, AppSettingsInDB, AppSettingsUpdate
+)
 
 __all__ = [
     # Study schemas
@@ -69,5 +72,7 @@ __all__ = [
     # TrackerTag schemas
     "TrackerTag", "TrackerTagCreate", "TrackerTagUpdate", "TrackerTagWithCount",
     "TrackerItemTag", "TrackerItemTagCreate", "TrackerItemTagWithDetails",
-    "BulkTagAssignment", "BulkTagRemoval", "BulkOperationResult", "TagSummary"
+    "BulkTagAssignment", "BulkTagRemoval", "BulkOperationResult", "TagSummary",
+    # AppSettings schemas
+    "AppSettings", "AppSettingsInDB", "AppSettingsUpdate"
 ]
