@@ -3,6 +3,7 @@
 import os
 import subprocess
 import json
+import shutil
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from pathlib import Path
@@ -385,10 +386,7 @@ async def get_backup_status(
             "total_size_bytes": total_size,
             "total_size_mb": round(total_size / (1024 * 1024), 2),
             "latest_backup": latest_backup,
-            "pg_dump_available": subprocess.run(
-                ["which", "pg_dump"],
-                capture_output=True
-            ).returncode == 0
+            "pg_dump_available": shutil.which("pg_dump") is not None
         }
         
     except Exception as e:
