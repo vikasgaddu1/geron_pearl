@@ -1,112 +1,239 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
-import { reportingEffortsApi, trackerApi, usersApi } from '@/api'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
-import { Filter, BarChart3, PieChartIcon, Users } from 'lucide-react'
-import type { TrackerStatus } from '@/types'
+import { TooltipWrapper } from '@/components/common/TooltipWrapper'
+import { reportingEffortsApi, trackerApi, studiesApi, databaseReleasesApi } from '@/api'
+import {
+  ChevronDown,
+  ChevronRight,
+  BarChart3,
+  FolderOpen,
+  Database,
+  FileText,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Pause,
+  XCircle,
+  CircleDot
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import type { ReportingEffortItemTracker } from '@/types'
 
-const STATUS_COLORS: Record<string, string> = {
-  not_started: '#6b7280',
-  in_progress: '#3b82f6',
-  ready_for_qc: '#8b5cf6',
-  completed: '#22c55e',
-  on_hold: '#eab308',
-  failed: '#ef4444',
+const STATUS_CONFIG = {
+  not_started: { label: 'Not Started', color: 'bg-gray-400', icon: CircleDot },
+  in_progress: { label: 'In Progress', color: 'bg-blue-500', icon: Clock },
+  ready_for_qc: { label: 'Ready for QC', color: 'bg-purple-500', icon: AlertCircle },
+  completed: { label: 'Completed', color: 'bg-green-500', icon: CheckCircle2 },
+  on_hold: { label: 'On Hold', color: 'bg-yellow-500', icon: Pause },
+  failed: { label: 'Failed', color: 'bg-red-500', icon: XCircle },
+}
+
+interface ProgressStats {
+  total: number
+  not_started: number
+  in_progress: number
+  ready_for_qc: number
+  completed: number
+  on_hold: number
+  failed: number
+}
+
+function calculateStats(trackers: ReportingEffortItemTracker[]): ProgressStats {
+  const stats: ProgressStats = {
+    total: trackers.length,
+    not_started: 0,
+    in_progress: 0,
+    ready_for_qc: 0,
+    completed: 0,
+    on_hold: 0,
+    failed: 0,
+  }
+
+  trackers.forEach(t => {
+    // Use production_status as the primary indicator
+    const status = t.production_status as keyof typeof STATUS_CONFIG
+    if (status in stats) {
+      stats[status]++
+    }
+  })
+
+  return stats
+}
+
+function ProgressBar({ stats, showLabels = false }: { stats: ProgressStats; showLabels?: boolean }) {
+  if (stats.total === 0) return null
+
+  const segments = [
+    { key: 'completed', ...STATUS_CONFIG.completed, count: stats.completed },
+    { key: 'ready_for_qc', ...STATUS_CONFIG.ready_for_qc, count: stats.ready_for_qc },
+    { key: 'in_progress', ...STATUS_CONFIG.in_progress, count: stats.in_progress },
+    { key: 'on_hold', ...STATUS_CONFIG.on_hold, count: stats.on_hold },
+    { key: 'failed', ...STATUS_CONFIG.failed, count: stats.failed },
+    { key: 'not_started', ...STATUS_CONFIG.not_started, count: stats.not_started },
+  ].filter(s => s.count > 0)
+
+  return (
+    <div className="space-y-1">
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
+        {segments.map((segment) => (
+          <TooltipWrapper
+            key={segment.key}
+            content={`${segment.label}: ${segment.count} (${Math.round((segment.count / stats.total) * 100)}%)`}
+          >
+            <div
+              className={cn(segment.color, 'h-full transition-all')}
+              style={{ width: `${(segment.count / stats.total) * 100}%` }}
+            />
+          </TooltipWrapper>
+        ))}
+      </div>
+      {showLabels && (
+        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+          {segments.map((segment) => (
+            <div key={segment.key} className="flex items-center gap-1">
+              <div className={cn('h-2 w-2 rounded-full', segment.color)} />
+              <span>{segment.label}: {segment.count}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CompletionBadge({ stats }: { stats: ProgressStats }) {
+  if (stats.total === 0) return <Badge variant="secondary">No items</Badge>
+
+  const completionRate = Math.round((stats.completed / stats.total) * 100)
+
+  if (completionRate === 100) {
+    return <Badge className="bg-green-500">100% Complete</Badge>
+  } else if (completionRate >= 75) {
+    return <Badge className="bg-green-600">{completionRate}%</Badge>
+  } else if (completionRate >= 50) {
+    return <Badge className="bg-blue-500">{completionRate}%</Badge>
+  } else if (completionRate >= 25) {
+    return <Badge className="bg-yellow-500">{completionRate}%</Badge>
+  } else {
+    return <Badge variant="secondary">{completionRate}%</Badge>
+  }
 }
 
 export function TrackerDashboard() {
-  const [selectedEffortId, setSelectedEffortId] = useState<string>('all')
+  const [expandedStudies, setExpandedStudies] = useState<Set<number>>(new Set())
+  const [expandedReleases, setExpandedReleases] = useState<Set<number>>(new Set())
+
+  const { data: studies = [] } = useQuery({
+    queryKey: ['studies'],
+    queryFn: studiesApi.getAll,
+  })
+
+  const { data: releases = [] } = useQuery({
+    queryKey: ['database-releases'],
+    queryFn: databaseReleasesApi.getAll,
+  })
 
   const { data: efforts = [] } = useQuery({
     queryKey: ['reporting-efforts'],
     queryFn: reportingEffortsApi.getAll,
   })
 
-  const { data: users = [] } = useQuery({
-    queryKey: ['users'],
-    queryFn: usersApi.getAll,
-  })
-
   const { data: trackers = [], isLoading } = useQuery({
-    queryKey: ['trackers-dashboard', selectedEffortId],
-    queryFn: () => (selectedEffortId && selectedEffortId !== 'all' ? trackerApi.getByEffortBulk(Number(selectedEffortId)) : trackerApi.getAll()),
+    queryKey: ['trackers-all'],
+    queryFn: trackerApi.getAll,
   })
 
-  // Group efforts by study and database release for better display
-  const groupedEfforts = useMemo(() => {
-    const groups: Record<string, Record<string, typeof efforts>> = {}
-    efforts.forEach(effort => {
-      const studyLabel = effort.study_label || 'Unknown Study'
-      const dbLabel = effort.database_release_label_full || 'Unknown DB'
-      if (!groups[studyLabel]) groups[studyLabel] = {}
-      if (!groups[studyLabel][dbLabel]) groups[studyLabel][dbLabel] = []
-      groups[studyLabel][dbLabel].push(effort)
+  // Build hierarchical data structure
+  const hierarchicalData = useMemo(() => {
+    // Group trackers by reporting effort
+    const trackersByEffort = new Map<number, ReportingEffortItemTracker[]>()
+    trackers.forEach(t => {
+      const effortId = t.reporting_effort_id
+      if (effortId === undefined) return
+      if (!trackersByEffort.has(effortId)) {
+        trackersByEffort.set(effortId, [])
+      }
+      trackersByEffort.get(effortId)!.push(t)
     })
-    return groups
-  }, [efforts])
 
-  // Calculate statistics
-  const totalItems = trackers.length
-  const completed = trackers.filter((t) => t.production_status === 'completed' && t.qc_status === 'completed').length
-  const completionRate = totalItems > 0 ? Math.round((completed / totalItems) * 100) : 0
+    // Build study hierarchy
+    return studies.map(study => {
+      const studyReleases = releases.filter(r => r.study_id === study.id)
+      const studyTrackers: ReportingEffortItemTracker[] = []
 
-  // Status breakdown for pie chart
-  const productionStatusData = Object.entries(
-    trackers.reduce((acc, t) => {
-      acc[t.production_status] = (acc[t.production_status] || 0) + 1
-      return acc
-    }, {} as Record<string, number>)
-  ).map(([name, value]) => ({ name: name.replace('_', ' '), value }))
+      const releaseData = studyReleases.map(release => {
+        const releaseEfforts = efforts.filter(e => e.database_release_id === release.id)
+        const releaseTrackers: ReportingEffortItemTracker[] = []
 
-  const qcStatusData = Object.entries(
-    trackers.reduce((acc, t) => {
-      acc[t.qc_status] = (acc[t.qc_status] || 0) + 1
-      return acc
-    }, {} as Record<string, number>)
-  ).map(([name, value]) => ({ name: name.replace('_', ' '), value }))
+        const effortData = releaseEfforts.map(effort => {
+          const effortTrackers = trackersByEffort.get(effort.id) || []
+          releaseTrackers.push(...effortTrackers)
+          return {
+            effort,
+            trackers: effortTrackers,
+            stats: calculateStats(effortTrackers),
+          }
+        })
 
-  // Task type breakdown for bar chart
-  const taskTypeData = Object.entries(
-    trackers.reduce((acc, t) => {
-      const type = t.item_subtype || t.item_type || 'Unknown'
-      if (!acc[type]) acc[type] = { total: 0, completed: 0, inProgress: 0 }
-      acc[type].total++
-      if (t.production_status === 'completed') acc[type].completed++
-      if (t.production_status === 'in_progress') acc[type].inProgress++
-      return acc
-    }, {} as Record<string, { total: number; completed: number; inProgress: number }>)
-  ).map(([name, data]) => ({ name, ...data }))
+        studyTrackers.push(...releaseTrackers)
+        return {
+          release,
+          efforts: effortData,
+          trackers: releaseTrackers,
+          stats: calculateStats(releaseTrackers),
+        }
+      })
 
-  // Programmer workload
-  const workloadData = users
-    .filter((u) => ['EDITOR', 'ADMIN'].includes(u.role))
-    .map((user) => {
-      const primary = trackers.filter((t) => Number(t.production_programmer_id) === Number(user.id)).length
-      const qc = trackers.filter((t) => Number(t.qc_programmer_id) === Number(user.id)).length
-      return { name: user.username, primary, qc, total: primary + qc }
+      return {
+        study,
+        releases: releaseData,
+        trackers: studyTrackers,
+        stats: calculateStats(studyTrackers),
+      }
+    }).filter(s => s.trackers.length > 0) // Only show studies with trackers
+  }, [studies, releases, efforts, trackers])
+
+  // Overall stats
+  const overallStats = useMemo(() => calculateStats(trackers), [trackers])
+
+  const toggleStudy = (studyId: number) => {
+    setExpandedStudies(prev => {
+      const next = new Set(prev)
+      if (next.has(studyId)) {
+        next.delete(studyId)
+      } else {
+        next.add(studyId)
+      }
+      return next
     })
-    .filter((w) => w.total > 0)
-    .sort((a, b) => b.total - a.total)
+  }
+
+  const toggleRelease = (releaseId: number) => {
+    setExpandedReleases(prev => {
+      const next = new Set(prev)
+      if (next.has(releaseId)) {
+        next.delete(releaseId)
+      } else {
+        next.add(releaseId)
+      }
+      return next
+    })
+  }
+
+  const expandAll = () => {
+    setExpandedStudies(new Set(hierarchicalData.map(s => s.study.id)))
+    setExpandedReleases(new Set(hierarchicalData.flatMap(s => s.releases.map(r => r.release.id))))
+  }
+
+  const collapseAll = () => {
+    setExpandedStudies(new Set())
+    setExpandedReleases(new Set())
+  }
 
   if (isLoading) {
     return <PageLoader text="Loading dashboard..." />
@@ -114,247 +241,198 @@ export function TrackerDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Effort Selector */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filter by Reporting Effort
-            </CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="w-full md:w-[600px]">
-            <Label className="text-sm font-medium mb-1.5 block">Reporting Effort</Label>
-            <Select value={selectedEffortId} onValueChange={setSelectedEffortId}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Reporting Efforts" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Reporting Efforts</SelectItem>
-                {Object.entries(groupedEfforts).map(([studyLabel, dbGroups]) => (
-                  Object.entries(dbGroups).map(([dbLabel, effortsList]) => (
-                    effortsList.map((effort) => (
-                      <SelectItem key={effort.id} value={String(effort.id)}>
-                        {studyLabel} → {dbLabel} → {effort.database_release_label}
-                      </SelectItem>
-                    ))
-                  ))
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Metrics Row */}
-      <div className="grid gap-4 md:grid-cols-4">
+      {/* Overview Summary */}
+      <div className="grid gap-4 md:grid-cols-5">
         <Card>
           <CardContent className="pt-6">
-            <p className="text-3xl font-bold text-primary">{efforts.length}</p>
-            <p className="text-sm text-muted-foreground">Total Studies</p>
+            <p className="text-3xl font-bold text-primary">{hierarchicalData.length}</p>
+            <p className="text-sm text-muted-foreground">Active Studies</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-3xl font-bold text-primary">{totalItems}</p>
-            <p className="text-sm text-muted-foreground">Active Trackers</p>
+            <p className="text-3xl font-bold text-primary">
+              {hierarchicalData.reduce((sum, s) => sum + s.releases.length, 0)}
+            </p>
+            <p className="text-sm text-muted-foreground">DB Releases</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-3xl font-bold text-primary">{totalItems}</p>
-            <p className="text-sm text-muted-foreground">Total Items</p>
+            <p className="text-3xl font-bold text-primary">
+              {hierarchicalData.reduce((sum, s) => sum + s.releases.reduce((rs, r) => rs + r.efforts.length, 0), 0)}
+            </p>
+            <p className="text-sm text-muted-foreground">Reporting Efforts</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-3xl font-bold text-green-500">{completionRate}%</p>
-            <p className="text-sm text-muted-foreground">Completion Rate</p>
+            <p className="text-3xl font-bold text-primary">{overallStats.total}</p>
+            <p className="text-sm text-muted-foreground">Total Trackers</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-3xl font-bold text-green-500">
+              {overallStats.total > 0 ? Math.round((overallStats.completed / overallStats.total) * 100) : 0}%
+            </p>
+            <p className="text-sm text-muted-foreground">Overall Completion</p>
           </CardContent>
         </Card>
       </div>
 
-      {trackers.length === 0 ? (
+      {/* Overall Progress */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Overall Progress
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ProgressBar stats={overallStats} showLabels />
+        </CardContent>
+      </Card>
+
+      {hierarchicalData.length === 0 ? (
         <EmptyState
           icon={BarChart3}
-          title="No data available"
-          description="Select a reporting effort or add tracker data to see analytics."
+          title="No tracker data available"
+          description="Add reporting efforts and tracker items to see progress analytics."
         />
       ) : (
-        <>
-          {/* Task Type Breakdown */}
-          <Card>
-            <CardHeader>
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Task Type Breakdown
+                <FolderOpen className="h-5 w-5" />
+                Progress by Study
               </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={taskTypeData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="completed" fill="#22c55e" name="Completed" />
-                      <Bar dataKey="inProgress" fill="#3b82f6" name="In Progress" />
-                      <Bar dataKey="total" fill="#6b7280" name="Total" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Type</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
-                        <TableHead className="text-right">Completed</TableHead>
-                        <TableHead className="text-right">In Progress</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {taskTypeData.map((row) => (
-                        <TableRow key={row.name}>
-                          <TableCell className="font-medium">{row.name}</TableCell>
-                          <TableCell className="text-right">{row.total}</TableCell>
-                          <TableCell className="text-right text-green-600">{row.completed}</TableCell>
-                          <TableCell className="text-right text-blue-600">{row.inProgress}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={expandAll}>
+                  Expand All
+                </Button>
+                <Button variant="outline" size="sm" onClick={collapseAll}>
+                  Collapse All
+                </Button>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Status Charts */}
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <PieChartIcon className="h-5 w-5" />
-                  Production Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={productionStatusData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                      >
-                        {productionStatusData.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={STATUS_COLORS[entry.name.replace(' ', '_') as TrackerStatus] || '#6b7280'}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {hierarchicalData.map(({ study, releases, stats }) => (
+              <div key={study.id} className="border rounded-lg">
+                {/* Study Row */}
+                <div
+                  className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => toggleStudy(study.id)}
+                >
+                  <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
+                    {expandedStudies.has(study.id) ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <FolderOpen className="h-5 w-5 text-primary shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-semibold truncate">{study.study_label}</span>
+                      <CompletionBadge stats={stats} />
+                      <span className="text-sm text-muted-foreground">
+                        ({stats.total} items)
+                      </span>
+                    </div>
+                    <ProgressBar stats={stats} />
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <PieChartIcon className="h-5 w-5" />
-                  QC Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={qcStatusData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                      >
-                        {qcStatusData.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={STATUS_COLORS[entry.name.replace(' ', '_') as TrackerStatus] || '#6b7280'}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                {/* Database Releases */}
+                {expandedStudies.has(study.id) && releases.length > 0 && (
+                  <div className="border-t bg-muted/20">
+                    {releases.map(({ release, efforts, stats: releaseStats }) => (
+                      <div key={release.id} className="border-b last:border-b-0">
+                        {/* Release Row */}
+                        <div
+                          className="flex items-center gap-3 p-3 pl-10 cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() => toggleRelease(release.id)}
+                        >
+                          <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
+                            {expandedReleases.has(release.id) ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Database className="h-4 w-4 text-blue-500 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium truncate">
+                                {release.database_release_label}
+                              </span>
+                              <CompletionBadge stats={releaseStats} />
+                              <span className="text-sm text-muted-foreground">
+                                ({releaseStats.total} items)
+                              </span>
+                            </div>
+                            <ProgressBar stats={releaseStats} />
+                          </div>
+                        </div>
 
-          {/* Programmer Workload */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Programmer Workload
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {workloadData.length === 0 ? (
-                <EmptyState
-                  icon={Users}
-                  title="No workload data"
-                  description="Assign programmers to trackers to see workload distribution."
-                />
-              ) : (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Programmer</TableHead>
-                        <TableHead className="text-right">Primary</TableHead>
-                        <TableHead className="text-right">QC</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {workloadData.map((row) => (
-                        <TableRow key={row.name}>
-                          <TableCell className="font-medium">{row.name}</TableCell>
-                          <TableCell className="text-right">
-                            <Badge variant="default">{row.primary}</Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Badge variant="outline">{row.qc}</Badge>
-                          </TableCell>
-                          <TableCell className="text-right font-bold">{row.total}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </>
+                        {/* Reporting Efforts */}
+                        {expandedReleases.has(release.id) && efforts.length > 0 && (
+                          <div className="bg-muted/30">
+                            {efforts.map(({ effort, stats: effortStats }) => (
+                              <div
+                                key={effort.id}
+                                className="flex items-center gap-3 p-3 pl-20 border-t border-muted"
+                              >
+                                <FileText className="h-4 w-4 text-purple-500 shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-sm font-medium truncate">
+                                      {effort.database_release_label}
+                                    </span>
+                                    <CompletionBadge stats={effortStats} />
+                                    <span className="text-xs text-muted-foreground">
+                                      ({effortStats.total} items)
+                                    </span>
+                                  </div>
+                                  <ProgressBar stats={effortStats} />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       )}
+
+      {/* Status Legend */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium">Status Legend</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-4">
+            {Object.entries(STATUS_CONFIG).map(([key, config]) => {
+              const Icon = config.icon
+              return (
+                <div key={key} className="flex items-center gap-2">
+                  <div className={cn('h-3 w-3 rounded-full', config.color)} />
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">{config.label}</span>
+                </div>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
-
-
