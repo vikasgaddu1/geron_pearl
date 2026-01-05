@@ -43,9 +43,40 @@ interface ProgressStats {
   failed: number
 }
 
-function calculateStats(trackers: ReportingEffortItemTracker[]): ProgressStats {
+// Determine tracker type from item: TLF, SDTM, or ADAM
+function getTrackerType(item: ReportingEffortItemTracker): 'TLF' | 'SDTM' | 'ADAM' {
+  if (item.item_type === 'TLF') return 'TLF'
+  if (item.item_subtype === 'SDTM') return 'SDTM'
+  if (item.item_subtype === 'ADaM') return 'ADAM'
+  // Default based on item_type
+  return item.item_type === 'Dataset' ? 'SDTM' : 'TLF'
+}
+
+interface TrackerGroup {
+  type: 'TLF' | 'SDTM' | 'ADAM'
+  items: ReportingEffortItemTracker[]
+  stats: ProgressStats
+}
+
+function groupItemsIntoTrackers(items: ReportingEffortItemTracker[]): TrackerGroup[] {
+  const grouped: Record<string, ReportingEffortItemTracker[]> = {}
+
+  items.forEach(item => {
+    const type = getTrackerType(item)
+    if (!grouped[type]) grouped[type] = []
+    grouped[type].push(item)
+  })
+
+  return Object.entries(grouped).map(([type, typeItems]) => ({
+    type: type as 'TLF' | 'SDTM' | 'ADAM',
+    items: typeItems,
+    stats: calculateStats(typeItems),
+  }))
+}
+
+function calculateStats(items: ReportingEffortItemTracker[]): ProgressStats {
   const stats: ProgressStats = {
-    total: trackers.length,
+    total: items.length,
     not_started: 0,
     in_progress: 0,
     ready_for_qc: 0,
@@ -54,7 +85,7 @@ function calculateStats(trackers: ReportingEffortItemTracker[]): ProgressStats {
     failed: 0,
   }
 
-  trackers.forEach(t => {
+  items.forEach(t => {
     // Use production_status as the primary indicator
     const status = t.production_status as keyof typeof STATUS_CONFIG
     if (status in stats) {
@@ -150,56 +181,69 @@ export function TrackerDashboard() {
 
   // Build hierarchical data structure
   const hierarchicalData = useMemo(() => {
-    // Group trackers by reporting effort
-    const trackersByEffort = new Map<number, ReportingEffortItemTracker[]>()
+    // Group items by reporting effort
+    const itemsByEffort = new Map<number, ReportingEffortItemTracker[]>()
     trackers.forEach(t => {
       const effortId = t.reporting_effort_id
       if (effortId === undefined) return
-      if (!trackersByEffort.has(effortId)) {
-        trackersByEffort.set(effortId, [])
+      if (!itemsByEffort.has(effortId)) {
+        itemsByEffort.set(effortId, [])
       }
-      trackersByEffort.get(effortId)!.push(t)
+      itemsByEffort.get(effortId)!.push(t)
     })
 
     // Build study hierarchy
     return studies.map(study => {
       const studyReleases = releases.filter(r => r.study_id === study.id)
-      const studyTrackers: ReportingEffortItemTracker[] = []
+      const studyItems: ReportingEffortItemTracker[] = []
+      let studyTrackerCount = 0
 
       const releaseData = studyReleases.map(release => {
         const releaseEfforts = efforts.filter(e => e.database_release_id === release.id)
-        const releaseTrackers: ReportingEffortItemTracker[] = []
+        const releaseItems: ReportingEffortItemTracker[] = []
+        let releaseTrackerCount = 0
 
         const effortData = releaseEfforts.map(effort => {
-          const effortTrackers = trackersByEffort.get(effort.id) || []
-          releaseTrackers.push(...effortTrackers)
+          const effortItems = itemsByEffort.get(effort.id) || []
+          const trackerGroups = groupItemsIntoTrackers(effortItems)
+          releaseItems.push(...effortItems)
+          releaseTrackerCount += trackerGroups.length
           return {
             effort,
-            trackers: effortTrackers,
-            stats: calculateStats(effortTrackers),
+            items: effortItems,
+            trackerGroups,
+            trackerCount: trackerGroups.length,
+            stats: calculateStats(effortItems),
           }
         })
 
-        studyTrackers.push(...releaseTrackers)
+        studyItems.push(...releaseItems)
+        studyTrackerCount += releaseTrackerCount
         return {
           release,
           efforts: effortData,
-          trackers: releaseTrackers,
-          stats: calculateStats(releaseTrackers),
+          items: releaseItems,
+          trackerCount: releaseTrackerCount,
+          stats: calculateStats(releaseItems),
         }
       })
 
       return {
         study,
         releases: releaseData,
-        trackers: studyTrackers,
-        stats: calculateStats(studyTrackers),
+        items: studyItems,
+        trackerCount: studyTrackerCount,
+        stats: calculateStats(studyItems),
       }
-    }).filter(s => s.trackers.length > 0) // Only show studies with trackers
+    }).filter(s => s.items.length > 0) // Only show studies with items
   }, [studies, releases, efforts, trackers])
 
-  // Overall stats
+  // Overall stats - items and trackers
   const overallStats = useMemo(() => calculateStats(trackers), [trackers])
+  const totalTrackerCount = useMemo(() =>
+    hierarchicalData.reduce((sum, s) => sum + s.trackerCount, 0),
+    [hierarchicalData]
+  )
 
   const toggleStudy = (studyId: number) => {
     setExpandedStudies(prev => {
@@ -242,7 +286,7 @@ export function TrackerDashboard() {
   return (
     <div className="space-y-6">
       {/* Overview Summary */}
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-6">
         <Card>
           <CardContent className="pt-6">
             <p className="text-3xl font-bold text-primary">{hierarchicalData.length}</p>
@@ -267,8 +311,14 @@ export function TrackerDashboard() {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-3xl font-bold text-primary">{overallStats.total}</p>
+            <p className="text-3xl font-bold text-primary">{totalTrackerCount}</p>
             <p className="text-sm text-muted-foreground">Total Trackers</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-3xl font-bold text-primary">{overallStats.total}</p>
+            <p className="text-sm text-muted-foreground">Total Items</p>
           </CardContent>
         </Card>
         <Card>
@@ -276,7 +326,7 @@ export function TrackerDashboard() {
             <p className="text-3xl font-bold text-green-500">
               {overallStats.total > 0 ? Math.round((overallStats.completed / overallStats.total) * 100) : 0}%
             </p>
-            <p className="text-sm text-muted-foreground">Overall Completion</p>
+            <p className="text-sm text-muted-foreground">Items Completed</p>
           </CardContent>
         </Card>
       </div>
@@ -381,23 +431,59 @@ export function TrackerDashboard() {
                         {/* Reporting Efforts */}
                         {expandedReleases.has(release.id) && efforts.length > 0 && (
                           <div className="bg-muted/30">
-                            {efforts.map(({ effort, stats: effortStats }) => (
-                              <div
-                                key={effort.id}
-                                className="flex items-center gap-3 p-3 pl-20 border-t border-muted"
-                              >
-                                <FileText className="h-4 w-4 text-purple-500 shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-sm font-medium truncate">
-                                      {effort.database_release_label}
-                                    </span>
-                                    <CompletionBadge stats={effortStats} />
-                                    <span className="text-xs text-muted-foreground">
-                                      ({effortStats.total} items)
-                                    </span>
+                            {efforts.map(({ effort, trackerGroups, trackerCount, stats: effortStats }) => (
+                              <div key={effort.id} className="border-t border-muted">
+                                <div className="flex items-center gap-3 p-3 pl-20">
+                                  <FileText className="h-4 w-4 text-purple-500 shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-sm font-medium truncate">
+                                        {effort.database_release_label}
+                                      </span>
+                                      <Badge variant="outline" className="text-xs">
+                                        {trackerCount} trackers
+                                      </Badge>
+                                      <CompletionBadge stats={effortStats} />
+                                      <span className="text-xs text-muted-foreground">
+                                        ({effortStats.total} items)
+                                      </span>
+                                    </div>
+                                    <ProgressBar stats={effortStats} />
                                   </div>
-                                  <ProgressBar stats={effortStats} />
+                                </div>
+                                {/* Tracker Groups (TLF, SDTM, ADAM) */}
+                                <div className="pl-28 pb-2 space-y-1">
+                                  {trackerGroups.map((group) => (
+                                    <div
+                                      key={group.type}
+                                      className="flex items-center gap-2 text-xs text-muted-foreground"
+                                    >
+                                      <Badge
+                                        variant="secondary"
+                                        className={cn(
+                                          'text-xs min-w-[50px] justify-center',
+                                          group.type === 'TLF' && 'bg-blue-100 text-blue-700',
+                                          group.type === 'SDTM' && 'bg-green-100 text-green-700',
+                                          group.type === 'ADAM' && 'bg-purple-100 text-purple-700'
+                                        )}
+                                      >
+                                        {group.type}
+                                      </Badge>
+                                      <span>{group.items.length} items</span>
+                                      <span className="text-muted-foreground/60">•</span>
+                                      <span className="text-green-600">
+                                        {group.stats.completed} done
+                                      </span>
+                                      {group.stats.in_progress > 0 && (
+                                        <>
+                                          <span className="text-muted-foreground/60">•</span>
+                                          <span className="text-blue-600">
+                                            {group.stats.in_progress} in progress
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
                             ))}
