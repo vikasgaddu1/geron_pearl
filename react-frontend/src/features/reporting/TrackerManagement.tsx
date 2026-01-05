@@ -1724,8 +1724,6 @@ function CommentItem({
   onReply: (comment: TrackerComment) => void
   isNested?: boolean
 }) {
-  }
-
   return (
     <div className={`p-3 rounded-lg border ${comment.is_resolved ? 'bg-muted/50 opacity-70' : 'bg-card'} ${isNested ? 'ml-6 mt-2' : ''}`}>
       <div className="flex items-start justify-between gap-2">
