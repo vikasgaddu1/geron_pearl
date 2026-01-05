@@ -1,14 +1,10 @@
 import { apiClient } from '../client'
-import type { 
-  Package, 
-  PackageFormData, 
+import type {
+  Package,
+  PackageFormData,
   PackageItem,
   PackageItemCreateWithDetails,
   PackageItemUpdateWithDetails,
-  TLFDetails,
-  DatasetDetails,
-  PackageItemFootnote,
-  PackageItemAcronym
 } from '@/types'
 
 const BASE_PATH = '/api/v1/packages'

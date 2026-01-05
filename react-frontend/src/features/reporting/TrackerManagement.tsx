@@ -28,13 +28,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu'
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -142,7 +135,7 @@ export function TrackerManagement() {
   const [editingTag, setEditingTag] = useState<TrackerTag | null>(null)
 
   // Queries
-  const { data: studies = [], isLoading: studiesLoading } = useQuery({
+  const { data: studies = [] } = useQuery({
     queryKey: ['studies'],
     queryFn: studiesApi.getAll,
   })
@@ -1300,7 +1293,7 @@ export function TrackerManagement() {
             {!replyingTo && (() => {
               const isProductionProgrammer = currentUser && selectedTracker?.production_programmer_id === currentUser.id
               const isQCProgrammer = currentUser && selectedTracker?.qc_programmer_id === currentUser.id
-              const isAdmin = currentUser?.role === 'admin'
+              const isAdmin = currentUser?.role === 'ADMIN'
               const showProduction = isProductionProgrammer || isAdmin
               const showQC = isQCProgrammer || isAdmin
               

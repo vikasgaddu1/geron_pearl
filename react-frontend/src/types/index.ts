@@ -48,6 +48,7 @@ export interface TextElement {
   id: number
   type: TextElementType
   label: string
+  content?: string
   created_at: string
   updated_at: string
 }
@@ -305,6 +306,7 @@ export interface UserFormData {
 export interface TextElementFormData {
   type: TextElementType
   label: string
+  content?: string
 }
 
 export interface PackageFormData {

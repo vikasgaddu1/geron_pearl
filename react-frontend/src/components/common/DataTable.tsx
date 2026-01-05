@@ -119,10 +119,10 @@ export function DataTable<T>({
         const columnId = col.id
         
         // Check if filter is active
-        const isFilterActive = 
+        const isFilterActive =
           (textFilters[columnId] && textFilters[columnId].length > 0) ||
           (selectFilters[columnId] && selectFilters[columnId].length > 0) ||
-          (dateFilters[columnId] && (dateFilters[columnId].from || dateFilters[columnId].to))
+          !!(dateFilters[columnId] && (dateFilters[columnId].from || dateFilters[columnId].to))
 
         const handleTextFilterChange = (value: string) => {
           setTextFilters((prev) => ({ ...prev, [columnId]: value }))
@@ -222,7 +222,7 @@ export function DataTable<T>({
         }
         return value as ReactNode
       },
-      filterFn: (row, columnId, filterValue) => {
+      filterFn: (row, columnId, _filterValue) => {
         const value = row.getValue(columnId) as string
         const col = columns.find((c) => c.id === columnId)
         

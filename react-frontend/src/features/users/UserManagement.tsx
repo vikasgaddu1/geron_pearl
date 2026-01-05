@@ -32,7 +32,7 @@ import { TooltipWrapper } from '@/components/common/TooltipWrapper'
 import { HelpIcon } from '@/components/common/HelpIcon'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
 import type { User, UserFormData } from '@/types'
-import { formatDateTime, getErrorMessage, generateSecurePassword, isValidEmail } from '@/lib/utils'
+import { getErrorMessage, generateSecurePassword, isValidEmail } from '@/lib/utils'
 
 const ROLES = ['ADMIN', 'EDITOR', 'VIEWER'] as const
 

@@ -336,7 +336,7 @@ export function TFLProperties() {
                 <div className="mb-4 p-3 bg-muted/50 rounded-md flex items-start gap-2">
                   <FileText className="h-4 w-4 mt-0.5 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">
-                    {getTypeDescription(type)}
+                    {getTypeDescription(type.value)}
                   </p>
                 </div>
                 {filteredElements.length === 0 ? (

@@ -21,7 +21,7 @@ import { Badge } from '@/components/ui/badge'
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
 import { reportingEffortsApi, trackerApi, usersApi } from '@/api'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { Filter, BarChart3, PieChartIcon, Users } from 'lucide-react'
 import type { TrackerStatus } from '@/types'
 
@@ -68,7 +68,6 @@ export function TrackerDashboard() {
   // Calculate statistics
   const totalItems = trackers.length
   const completed = trackers.filter((t) => t.production_status === 'completed' && t.qc_status === 'completed').length
-  const _inProgress = trackers.filter((t) => t.production_status === 'in_progress' || t.qc_status === 'in_progress').length
   const completionRate = totalItems > 0 ? Math.round((completed / totalItems) * 100) : 0
 
   // Status breakdown for pie chart

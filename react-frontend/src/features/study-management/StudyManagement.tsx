@@ -193,7 +193,9 @@ export function StudyManagement() {
         database_release_date: formData.date,
       })
     } else if (dialogMode === 'add-effort' && selectedNode?.type === 'release') {
+      const release = selectedNode.data as DatabaseRelease
       createEffort.mutate({
+        study_id: release.study_id,
         database_release_id: selectedNode.id,
         database_release_label: formData.label,
       })

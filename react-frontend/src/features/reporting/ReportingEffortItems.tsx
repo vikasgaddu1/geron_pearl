@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ClipboardList, Plus, Edit, Trash2, RefreshCw, Search, Copy, Upload, CheckSquare } from 'lucide-react'
+import { ClipboardList, Plus, Edit, Trash2, RefreshCw, Search, Copy, CheckSquare } from 'lucide-react'
 import { toast } from 'sonner'
 import { reportingEffortsApi, reportingEffortItemsApi, packagesApi, studiesApi, databaseReleasesApi } from '@/api'
 import { getErrorMessage } from '@/lib/utils'
@@ -72,7 +72,7 @@ export function ReportingEffortItems() {
   })
 
   // Queries
-  const { data: studies = [], isLoading: studiesLoading } = useQuery({
+  const { data: studies = [] } = useQuery({
     queryKey: ['studies'],
     queryFn: studiesApi.getAll,
   })

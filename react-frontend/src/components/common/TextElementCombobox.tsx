@@ -1,8 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Check, X, Plus, Loader2, ChevronDown } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { textElementsApi } from '@/api'
@@ -39,7 +38,7 @@ export function TextElementCombobox({
   const queryClient = useQueryClient()
 
   // Fetch all text elements of this type
-  const { data: textElements = [], isLoading, error: fetchError } = useQuery({
+  const { data: textElements = [], isLoading } = useQuery({
     queryKey: ['text-elements', type],
     queryFn: () => textElementsApi.getByType(type),
   })

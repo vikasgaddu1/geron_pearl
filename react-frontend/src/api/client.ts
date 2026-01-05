@@ -123,7 +123,8 @@ apiClient.interceptors.response.use(
     // Handle other errors
     if (error.response) {
       // Server responded with error
-      const message = error.response.data?.detail || error.response.data?.message || 'An error occurred'
+      const errorData = error.response.data as { detail?: string; message?: string } | undefined
+      const message = errorData?.detail || errorData?.message || 'An error occurred'
       console.error('API Error:', message)
     } else if (error.request) {
       // Request made but no response
