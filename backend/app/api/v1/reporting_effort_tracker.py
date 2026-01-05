@@ -344,6 +344,29 @@ async def update_tracker(
                 detail="Tracker not found"
             )
         
+        # Convert to dict for validation
+        update_data = tracker_in.model_dump(exclude_unset=True) if hasattr(tracker_in, 'model_dump') else tracker_in.dict(exclude_unset=True)
+        
+        # Validate: Cannot change production status without production programmer
+        if 'production_status' in update_data and update_data['production_status']:
+            # Check if there will be a production programmer after this update
+            new_prod_programmer = update_data.get('production_programmer_id', db_tracker.production_programmer_id)
+            if not new_prod_programmer:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot update production status without a production programmer assigned"
+                )
+        
+        # Validate: Cannot change QC status without QC programmer
+        if 'qc_status' in update_data and update_data['qc_status']:
+            # Check if there will be a QC programmer after this update
+            new_qc_programmer = update_data.get('qc_programmer_id', db_tracker.qc_programmer_id)
+            if not new_qc_programmer:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot update QC status without a QC programmer assigned"
+                )
+        
         # Store original data for audit
         original_data = sqlalchemy_to_dict(db_tracker)
         

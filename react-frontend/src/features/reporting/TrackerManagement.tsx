@@ -421,6 +421,21 @@ export function TrackerManagement() {
 
   const handleEditSubmit = () => {
     if (!selectedTracker) return
+    
+    // Validate: Cannot change production status without production programmer
+    const newProdProgrammer = editFormData.production_programmer_id || selectedTracker.production_programmer_id
+    if (editFormData.production_status && editFormData.production_status !== 'not_started' && !newProdProgrammer) {
+      toast.error('Cannot update production status without a production programmer assigned')
+      return
+    }
+    
+    // Validate: Cannot change QC status without QC programmer
+    const newQcProgrammer = editFormData.qc_programmer_id || selectedTracker.qc_programmer_id
+    if (editFormData.qc_status && editFormData.qc_status !== 'not_started' && !newQcProgrammer) {
+      toast.error('Cannot update QC status without a QC programmer assigned')
+      return
+    }
+    
     updateTracker.mutate({
       id: selectedTracker.id,
       data: {
