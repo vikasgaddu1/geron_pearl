@@ -14,7 +14,6 @@ import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
-import { TooltipWrapper } from '@/components/common/TooltipWrapper'
 import { trackerApi } from '@/api'
 import { useAuthStore } from '@/stores/authStore'
 import {
@@ -166,16 +165,6 @@ export function ProgrammerDashboard() {
     }))
   }, [myTrackers, userId])
 
-  // Chart data - Item type breakdown
-  const typeData = useMemo(() => {
-    const typeCounts: Record<string, number> = {}
-    myTrackers.forEach((t) => {
-      const type = t.item_subtype || t.item_type || 'Unknown'
-      typeCounts[type] = (typeCounts[type] || 0) + 1
-    })
-    return Object.entries(typeCounts).map(([name, value]) => ({ name, value }))
-  }, [myTrackers])
-
   // Chart data - Priority breakdown
   const priorityData = useMemo(() => {
     const priorityCounts: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0 }
@@ -216,8 +205,6 @@ export function ProgrammerDashboard() {
     medium: '#eab308',
     low: '#22c55e',
   }
-
-  const TYPE_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981']
 
   if (isLoading) {
     return <PageLoader text="Loading your assignments..." />
@@ -351,21 +338,21 @@ export function ProgrammerDashboard() {
             </CardContent>
           </Card>
 
-          {/* Priority & Type Distribution */}
+          {/* Priority Distribution */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <BarChart3 className="h-4 w-4" />
-                By Priority & Type
+                By Priority
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-40">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={typeData}
+                    data={priorityData}
                     layout="vertical"
-                    margin={{ left: 0, right: 10 }}
+                    margin={{ left: 10, right: 10 }}
                   >
                     <XAxis type="number" hide />
                     <YAxis
@@ -381,8 +368,8 @@ export function ProgrammerDashboard() {
                       contentStyle={{ borderRadius: '8px', fontSize: '12px' }}
                     />
                     <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                      {typeData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={TYPE_COLORS[index % TYPE_COLORS.length]} />
+                      {priorityData.map((entry) => (
+                        <Cell key={entry.key} fill={PRIORITY_COLORS[entry.key] || '#6b7280'} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -390,15 +377,13 @@ export function ProgrammerDashboard() {
               </div>
               <div className="flex justify-center gap-3 mt-2">
                 {priorityData.map((entry) => (
-                  <TooltipWrapper key={entry.key} content={`${entry.value} items`}>
-                    <div className="flex items-center gap-1 text-xs">
-                      <div
-                        className="h-2 w-2 rounded-full"
-                        style={{ backgroundColor: PRIORITY_COLORS[entry.key] }}
-                      />
-                      <span className="text-muted-foreground">{entry.name}</span>
-                    </div>
-                  </TooltipWrapper>
+                  <div key={entry.key} className="flex items-center gap-1 text-xs">
+                    <div
+                      className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: PRIORITY_COLORS[entry.key] }}
+                    />
+                    <span className="text-muted-foreground">{entry.name}: {entry.value}</span>
+                  </div>
                 ))}
               </div>
             </CardContent>
