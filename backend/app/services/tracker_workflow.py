@@ -12,6 +12,7 @@ from app.models.reporting_effort_item_tracker import (
     QCStatus,
 )
 from app.models.tracker_status_history import TrackerStatusHistory
+from app.models.user import User, UserRole
 
 
 class TrackerWorkflowService:
@@ -139,6 +140,94 @@ class TrackerWorkflowService:
             ])
         
         return base_statuses
+
+    # =========================================================================
+    # PERMISSION CHECKING METHODS
+    # =========================================================================
+
+    @staticmethod
+    def check_status_change_permission(
+        user: User,
+        tracker: ReportingEffortItemTracker,
+        status_field: str
+    ) -> Tuple[bool, str]:
+        """
+        Check if a user has permission to change a status field.
+        
+        Rules:
+        - Admin: Can change any task's status
+        - Editor: Can only change status for tasks they are assigned to
+        - Viewer: Cannot change any status
+        
+        Args:
+            user: The user attempting the change
+            tracker: The tracker being modified
+            status_field: 'production_status' or 'qc_status'
+            
+        Returns:
+            Tuple of (has_permission, error_message)
+        """
+        # Admin can do anything
+        if user.role == UserRole.ADMIN:
+            return True, ""
+        
+        # Viewer cannot modify
+        if user.role == UserRole.VIEWER:
+            return False, "Viewers do not have permission to change status"
+        
+        # Editor can only change status for tasks they're assigned to
+        if status_field == "production_status":
+            if tracker.production_programmer_id != user.id:
+                return False, "You can only update production status for tasks assigned to you"
+        elif status_field == "qc_status":
+            if tracker.qc_programmer_id != user.id:
+                return False, "You can only update QC status for tasks assigned to you"
+        else:
+            return False, f"Invalid status field: {status_field}"
+        
+        return True, ""
+
+    @staticmethod
+    def can_user_modify_tracker(
+        user: User,
+        tracker: ReportingEffortItemTracker
+    ) -> Dict[str, bool]:
+        """
+        Get which parts of a tracker a user can modify.
+        
+        Returns a dict indicating which fields the user can change.
+        Used for frontend to enable/disable UI controls.
+        
+        Args:
+            user: The user
+            tracker: The tracker
+            
+        Returns:
+            Dict with boolean flags for each modifiable field
+        """
+        if user.role == UserRole.ADMIN:
+            return {
+                "production_status": True,
+                "qc_status": True,
+                "in_production_flag": True,
+            }
+        
+        if user.role == UserRole.VIEWER:
+            return {
+                "production_status": False,
+                "qc_status": False,
+                "in_production_flag": False,
+            }
+        
+        # Editor
+        return {
+            "production_status": tracker.production_programmer_id == user.id,
+            "qc_status": tracker.qc_programmer_id == user.id,
+            "in_production_flag": (
+                tracker.production_programmer_id == user.id or 
+                tracker.qc_programmer_id == user.id
+            ),
+        }
 
     # =========================================================================
     # AUTO-TRANSITION METHODS

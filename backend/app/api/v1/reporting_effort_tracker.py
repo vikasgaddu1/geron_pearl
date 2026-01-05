@@ -19,7 +19,9 @@ from app.schemas.reporting_effort_item_tracker import (
     ReportingEffortItemTrackerWithDetails
 )
 from app.models.reporting_effort_item_tracker import ProductionStatus, QCStatus
-from app.models.user import UserRole
+from app.models.user import UserRole, User as UserModel
+from app.models.tracker_status_history import TrackerStatusHistory
+from app.services.tracker_workflow import TrackerWorkflowService
 from app.utils import sqlalchemy_to_dict
 from app.api.v1.websocket import (
     manager, 
@@ -70,6 +72,22 @@ class WorkloadSummary(BaseModel):
     in_progress: int
     completed: int
     by_programmer: List[Dict[str, Any]]
+
+class CommentWithStatusRequest(BaseModel):
+    """Schema for creating a comment with optional status update."""
+    comment_text: str = Field(..., min_length=1, description="Comment content")
+    production_status: Optional[str] = Field(None, description="New production status")
+    qc_status: Optional[str] = Field(None, description="New QC status")
+
+class StatusHistoryResponse(BaseModel):
+    """Schema for status history entry response."""
+    id: int
+    status_field: str
+    status_value: str
+    entered_at: datetime
+    exited_at: Optional[datetime]
+    duration_seconds: Optional[float]
+    changed_by_username: Optional[str]
 
 # CRUD Endpoints
 @router.post("/", response_model=ReportingEffortItemTracker, status_code=status.HTTP_201_CREATED)
@@ -1221,4 +1239,369 @@ async def get_trackers_bulk(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve trackers: {str(e)}"
+        )
+
+
+# ========================================================================
+# PHASE 3: Workflow Endpoints with Validation and Permissions
+# ========================================================================
+
+@router.post("/{tracker_id}/comment-with-status", response_model=Dict[str, Any])
+async def create_comment_with_status(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    tracker_id: int,
+    data: CommentWithStatusRequest,
+) -> Dict[str, Any]:
+    """
+    Create a comment with optional status update.
+    
+    This is the primary endpoint for the unified comment/status workflow.
+    It atomically creates a comment and updates status (if provided).
+    
+    Validation:
+    - Status changes require programmer assignment
+    - Production cannot be set to COMPLETED directly
+    - QC FAILED/COMPLETED requires Production to be READY_FOR_QC
+    
+    Permissions:
+    - Admin: Can change any status
+    - Editor: Can only change status for tasks they're assigned to
+    - Viewer: Cannot change status
+    """
+    from app.crud import tracker_comment
+    from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker as TrackerModel
+    
+    try:
+        # Get tracker
+        db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
+        if not db_tracker:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tracker not found"
+            )
+        
+        # Get current user from request state (set by auth middleware)
+        current_user_id = getattr(request.state, 'user_id', None)
+        if not current_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not authenticated"
+            )
+        
+        current_user = await user.get(db, id=current_user_id)
+        if not current_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found"
+            )
+        
+        # Store original statuses for history tracking
+        original_prod_status = db_tracker.production_status
+        original_qc_status = db_tracker.qc_status
+        
+        # Process status updates if provided
+        status_updates = {}
+        
+        if data.production_status:
+            # Check permission
+            has_permission, perm_error = TrackerWorkflowService.check_status_change_permission(
+                current_user, db_tracker, "production_status"
+            )
+            if not has_permission:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=perm_error
+                )
+            
+            # Validate transition
+            is_valid, val_error = TrackerWorkflowService.validate_status_change(
+                db_tracker, "production_status", data.production_status
+            )
+            if not is_valid:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=val_error
+                )
+            
+            # Get all updates including auto-transitions
+            status_updates.update(
+                TrackerWorkflowService.apply_status_transition(
+                    db_tracker, "production_status", data.production_status
+                )
+            )
+        
+        if data.qc_status:
+            # Check permission
+            has_permission, perm_error = TrackerWorkflowService.check_status_change_permission(
+                current_user, db_tracker, "qc_status"
+            )
+            if not has_permission:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=perm_error
+                )
+            
+            # Validate transition
+            is_valid, val_error = TrackerWorkflowService.validate_status_change(
+                db_tracker, "qc_status", data.qc_status
+            )
+            if not is_valid:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=val_error
+                )
+            
+            # Get all updates including auto-transitions
+            status_updates.update(
+                TrackerWorkflowService.apply_status_transition(
+                    db_tracker, "qc_status", data.qc_status
+                )
+            )
+        
+        # Apply status updates if any
+        if status_updates:
+            for field, value in status_updates.items():
+                setattr(db_tracker, field, value)
+            db_tracker.updated_at = datetime.utcnow()
+            db.add(db_tracker)
+            
+            # Create history entries
+            history_entries = TrackerWorkflowService.create_history_entries(
+                tracker_id=tracker_id,
+                updates=status_updates,
+                previous_production_status=original_prod_status,
+                previous_qc_status=original_qc_status,
+                user_id=current_user_id
+            )
+            
+            # Close out previous history entries
+            if history_entries:
+                from sqlalchemy import select, and_
+                now = datetime.utcnow()
+                
+                for entry in history_entries:
+                    # Find the previous open entry for this field and close it
+                    prev_result = await db.execute(
+                        select(TrackerStatusHistory)
+                        .where(and_(
+                            TrackerStatusHistory.tracker_id == tracker_id,
+                            TrackerStatusHistory.status_field == entry.status_field,
+                            TrackerStatusHistory.exited_at.is_(None)
+                        ))
+                    )
+                    prev_entry = prev_result.scalar_one_or_none()
+                    if prev_entry:
+                        prev_entry.exited_at = now
+                        db.add(prev_entry)
+                    
+                    # Add the new entry
+                    db.add(entry)
+        
+        # Create the comment
+        new_comment = await tracker_comment.create_comment(
+            db,
+            tracker_id=tracker_id,
+            user_id=current_user_id,
+            comment_text=data.comment_text,
+            parent_comment_id=None
+        )
+        
+        await db.commit()
+        await db.refresh(db_tracker)
+        
+        # Broadcast update
+        try:
+            await broadcast_tracker_updated(db_tracker)
+        except Exception:
+            pass
+        
+        return {
+            "success": True,
+            "comment_id": new_comment.id,
+            "status_updates": status_updates,
+            "tracker": sqlalchemy_to_dict(db_tracker)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in comment-with-status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create comment with status: {str(e)}"
+        )
+
+
+@router.get("/{tracker_id}/status-history", response_model=List[StatusHistoryResponse])
+async def get_status_history(
+    *,
+    db: AsyncSession = Depends(get_db),
+    tracker_id: int,
+    status_field: Optional[str] = Query(None, description="Filter by 'production' or 'qc'"),
+) -> List[StatusHistoryResponse]:
+    """
+    Get status change history for a tracker.
+    
+    Returns a timeline of status changes with duration tracking.
+    """
+    from sqlalchemy import select
+    
+    try:
+        # Verify tracker exists
+        db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
+        if not db_tracker:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tracker not found"
+            )
+        
+        # Build query
+        query = (
+            select(TrackerStatusHistory)
+            .where(TrackerStatusHistory.tracker_id == tracker_id)
+            .order_by(TrackerStatusHistory.entered_at.desc())
+        )
+        
+        if status_field:
+            query = query.where(TrackerStatusHistory.status_field == status_field)
+        
+        result = await db.execute(query)
+        history_entries = result.scalars().all()
+        
+        # Build response with user info
+        response = []
+        for entry in history_entries:
+            username = None
+            if entry.changed_by_user_id:
+                changed_user = await user.get(db, id=entry.changed_by_user_id)
+                if changed_user:
+                    username = changed_user.username
+            
+            response.append(StatusHistoryResponse(
+                id=entry.id,
+                status_field=entry.status_field,
+                status_value=entry.status_value,
+                entered_at=entry.entered_at,
+                exited_at=entry.exited_at,
+                duration_seconds=entry.duration_seconds,
+                changed_by_username=username
+            ))
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting status history: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get status history: {str(e)}"
+        )
+
+
+@router.get("/{tracker_id}/permissions", response_model=Dict[str, bool])
+async def get_tracker_permissions(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    tracker_id: int,
+) -> Dict[str, bool]:
+    """
+    Get the current user's permissions for a tracker.
+    
+    Returns a dict indicating which fields the user can modify.
+    Used by frontend to enable/disable UI controls.
+    """
+    try:
+        # Get tracker
+        db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
+        if not db_tracker:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tracker not found"
+            )
+        
+        # Get current user
+        current_user_id = getattr(request.state, 'user_id', None)
+        if not current_user_id:
+            return {
+                "production_status": False,
+                "qc_status": False,
+                "in_production_flag": False,
+            }
+        
+        current_user = await user.get(db, id=current_user_id)
+        if not current_user:
+            return {
+                "production_status": False,
+                "qc_status": False,
+                "in_production_flag": False,
+            }
+        
+        return TrackerWorkflowService.can_user_modify_tracker(current_user, db_tracker)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting permissions: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get permissions: {str(e)}"
+        )
+
+
+@router.put("/{tracker_id}/production-flag", response_model=ReportingEffortItemTracker)
+async def update_production_flag(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    tracker_id: int,
+    value: bool = Query(..., description="New value for in_production_flag"),
+) -> ReportingEffortItemTracker:
+    """
+    Update the in_production_flag for a tracker.
+    
+    The flag can only be True when both production and QC are completed.
+    """
+    try:
+        # Get tracker
+        db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
+        if not db_tracker:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tracker not found"
+            )
+        
+        # Validate the flag change
+        is_valid, error = TrackerWorkflowService.validate_prod_flag(db_tracker, value)
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error
+            )
+        
+        # Update the flag
+        db_tracker.in_production_flag = value
+        db_tracker.updated_at = datetime.utcnow()
+        db.add(db_tracker)
+        await db.commit()
+        await db.refresh(db_tracker)
+        
+        # Broadcast update
+        try:
+            await broadcast_tracker_updated(db_tracker)
+        except Exception:
+            pass
+        
+        return db_tracker
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating production flag: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update production flag: {str(e)}"
         )
