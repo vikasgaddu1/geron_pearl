@@ -347,25 +347,27 @@ async def update_tracker(
         # Convert to dict for validation
         update_data = tracker_in.model_dump(exclude_unset=True) if hasattr(tracker_in, 'model_dump') else tracker_in.dict(exclude_unset=True)
         
-        # Validate: Cannot change production status without production programmer
+        # Validate: Cannot change production status without production programmer (except not_started)
         if 'production_status' in update_data and update_data['production_status']:
-            # Check if there will be a production programmer after this update
-            new_prod_programmer = update_data.get('production_programmer_id', db_tracker.production_programmer_id)
-            if not new_prod_programmer:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot update production status without a production programmer assigned"
-                )
+            # Allow not_started without programmer - it's the reset/initial state
+            if update_data['production_status'] != 'not_started':
+                new_prod_programmer = update_data.get('production_programmer_id', db_tracker.production_programmer_id)
+                if not new_prod_programmer:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Cannot update production status without a production programmer assigned"
+                    )
         
-        # Validate: Cannot change QC status without QC programmer
+        # Validate: Cannot change QC status without QC programmer (except not_started)
         if 'qc_status' in update_data and update_data['qc_status']:
-            # Check if there will be a QC programmer after this update
-            new_qc_programmer = update_data.get('qc_programmer_id', db_tracker.qc_programmer_id)
-            if not new_qc_programmer:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot update QC status without a QC programmer assigned"
-                )
+            # Allow not_started without programmer - it's the reset/initial state
+            if update_data['qc_status'] != 'not_started':
+                new_qc_programmer = update_data.get('qc_programmer_id', db_tracker.qc_programmer_id)
+                if not new_qc_programmer:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Cannot update QC status without a QC programmer assigned"
+                    )
         
         # Store original data for audit
         original_data = sqlalchemy_to_dict(db_tracker)
@@ -902,21 +904,23 @@ async def bulk_assign_and_update_status(
             if data.qc_programmer_id is not None:
                 update_data["qc_programmer_id"] = data.qc_programmer_id
             
-            # Validate status updates - programmer must be assigned
+            # Validate status updates - programmer must be assigned (except for not_started)
             if data.production_status is not None:
-                # Check if production programmer is/will be assigned
-                prod_programmer_id = update_data.get("production_programmer_id", db_tracker.production_programmer_id)
-                if not prod_programmer_id:
-                    errors.append(f"Tracker {tracker_id}: Cannot update production status without assigning a production programmer")
-                    continue
+                # Allow not_started without programmer (it's the reset/initial state)
+                if data.production_status != 'not_started':
+                    prod_programmer_id = update_data.get("production_programmer_id", db_tracker.production_programmer_id)
+                    if not prod_programmer_id:
+                        errors.append(f"Tracker {tracker_id}: Cannot update production status without assigning a production programmer")
+                        continue
                 update_data["production_status"] = data.production_status
                 
             if data.qc_status is not None:
-                # Check if QC programmer is/will be assigned
-                qc_programmer_id = update_data.get("qc_programmer_id", db_tracker.qc_programmer_id)
-                if not qc_programmer_id:
-                    errors.append(f"Tracker {tracker_id}: Cannot update QC status without assigning a QC programmer")
-                    continue
+                # Allow not_started without programmer (it's the reset/initial state)
+                if data.qc_status != 'not_started':
+                    qc_programmer_id = update_data.get("qc_programmer_id", db_tracker.qc_programmer_id)
+                    if not qc_programmer_id:
+                        errors.append(f"Tracker {tracker_id}: Cannot update QC status without assigning a QC programmer")
+                        continue
                 update_data["qc_status"] = data.qc_status
             
             # Apply the update if there's data
