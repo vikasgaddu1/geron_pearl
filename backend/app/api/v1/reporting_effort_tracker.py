@@ -907,7 +907,7 @@ async def bulk_assign_and_update_status(
                 # Check if production programmer is/will be assigned
                 prod_programmer_id = update_data.get("production_programmer_id", db_tracker.production_programmer_id)
                 if not prod_programmer_id:
-                    errors.append(f"Tracker {tracker_id} ({db_tracker.item_code}): Cannot update production status without assigning a production programmer")
+                    errors.append(f"Tracker {tracker_id}: Cannot update production status without assigning a production programmer")
                     continue
                 update_data["production_status"] = data.production_status
                 
@@ -915,7 +915,7 @@ async def bulk_assign_and_update_status(
                 # Check if QC programmer is/will be assigned
                 qc_programmer_id = update_data.get("qc_programmer_id", db_tracker.qc_programmer_id)
                 if not qc_programmer_id:
-                    errors.append(f"Tracker {tracker_id} ({db_tracker.item_code}): Cannot update QC status without assigning a QC programmer")
+                    errors.append(f"Tracker {tracker_id}: Cannot update QC status without assigning a QC programmer")
                     continue
                 update_data["qc_status"] = data.qc_status
             
