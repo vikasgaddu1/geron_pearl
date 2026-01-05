@@ -189,6 +189,12 @@ export interface ReportingEffortItemTracker {
   comment_count?: number
   unresolved_comment_count?: number
   tags?: TrackerTagSummary[]
+  // Study/Reporting Effort context (returned by getAll API)
+  reporting_effort_id?: number
+  reporting_effort_label?: string
+  study_id?: number
+  study_label?: string
+  database_release_label?: string
 }
 
 // Status history for time tracking

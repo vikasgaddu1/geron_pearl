@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -9,17 +10,21 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
 import { trackerApi } from '@/api'
 import { useAuthStore } from '@/stores/authStore'
-import { ClipboardList, Clock, AlertTriangle, CheckCircle, PlayCircle } from 'lucide-react'
+import { ClipboardList, Clock, AlertTriangle, PlayCircle, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react'
 import type { ReportingEffortItemTracker } from '@/types'
+import { useState, useMemo } from 'react'
 
 export function ProgrammerDashboard() {
   const { currentUser } = useAuthStore()
   const userId = currentUser?.id
+  const navigate = useNavigate()
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
 
   const { data: allTrackers = [], isLoading } = useQuery({
     queryKey: ['all-trackers'],
@@ -34,6 +39,67 @@ export function ProgrammerDashboard() {
       )
     : []
 
+  // Group trackers by Study > Reporting Effort
+  const groupedTrackers = useMemo(() => {
+    const groups: Record<string, {
+      studyLabel: string
+      studyId?: number
+      reportingEfforts: Record<string, {
+        reportingEffortLabel: string
+        reportingEffortId?: number
+        databaseReleaseLabel?: string
+        trackers: ReportingEffortItemTracker[]
+      }>
+    }> = {}
+
+    myTrackers.forEach((tracker) => {
+      const studyKey = tracker.study_label || 'Unknown Study'
+      const reKey = tracker.reporting_effort_label || 'Unknown Reporting Effort'
+
+      if (!groups[studyKey]) {
+        groups[studyKey] = {
+          studyLabel: studyKey,
+          studyId: tracker.study_id,
+          reportingEfforts: {}
+        }
+      }
+
+      if (!groups[studyKey].reportingEfforts[reKey]) {
+        groups[studyKey].reportingEfforts[reKey] = {
+          reportingEffortLabel: reKey,
+          reportingEffortId: tracker.reporting_effort_id,
+          databaseReleaseLabel: tracker.database_release_label,
+          trackers: []
+        }
+      }
+
+      groups[studyKey].reportingEfforts[reKey].trackers.push(tracker)
+    })
+
+    return groups
+  }, [myTrackers])
+
+  const toggleGroup = (key: string) => {
+    setCollapsedGroups(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(key)) {
+        newSet.delete(key)
+      } else {
+        newSet.add(key)
+      }
+      return newSet
+    })
+  }
+
+  // Navigate to tracker management with pre-selected filters
+  const navigateToTracker = (tracker: ReportingEffortItemTracker) => {
+    // Navigate to tracker management - the page will need to handle the query params
+    const params = new URLSearchParams()
+    if (tracker.study_id) params.set('studyId', String(tracker.study_id))
+    if (tracker.reporting_effort_id) params.set('effortId', String(tracker.reporting_effort_id))
+    navigate(`/tracker-management?${params.toString()}`)
+  }
+
   // Calculate metrics
   const totalAssignments = myTrackers.length
   const notStarted = myTrackers.filter(
@@ -41,9 +107,6 @@ export function ProgrammerDashboard() {
   ).length
   const inProgress = myTrackers.filter(
     (t) => t.production_status === 'in_progress' || t.qc_status === 'in_progress'
-  ).length
-  const completed = myTrackers.filter(
-    (t) => t.production_status === 'completed' && t.qc_status === 'completed'
   ).length
 
   // Overdue items (items past due date that are not completed)
@@ -104,7 +167,7 @@ export function ProgrammerDashboard() {
         />
       </div>
 
-      {/* Assignments Table */}
+      {/* Assignments Grouped by Study/Reporting Effort */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -120,58 +183,118 @@ export function ProgrammerDashboard() {
               description="You don't have any tracker assignments yet."
             />
           ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item Code</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Due Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {myTrackers.slice(0, 20).map((tracker) => {
-                    const isPrimary = Number(tracker.production_programmer_id) === Number(userId)
-                    const isQC = Number(tracker.qc_programmer_id) === Number(userId)
-                    const role = isPrimary && isQC ? 'Both' : isPrimary ? 'Primary' : 'QC'
-                    const status = isPrimary ? tracker.production_status : tracker.qc_status
-                    const dueDate = tracker.due_date
+            <div className="space-y-4">
+              {Object.entries(groupedTrackers).map(([studyKey, studyGroup]) => (
+                <div key={studyKey} className="border rounded-lg overflow-hidden">
+                  {/* Study Header */}
+                  <div 
+                    className="bg-muted/50 px-4 py-2 flex items-center justify-between cursor-pointer hover:bg-muted/70"
+                    onClick={() => toggleGroup(studyKey)}
+                  >
+                    <div className="flex items-center gap-2">
+                      {collapsedGroups.has(studyKey) ? (
+                        <ChevronRight className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                      <span className="font-semibold text-sm">{studyGroup.studyLabel}</span>
+                      <Badge variant="outline" className="text-xs">
+                        {Object.values(studyGroup.reportingEfforts).reduce((sum, re) => sum + re.trackers.length, 0)} items
+                      </Badge>
+                    </div>
+                  </div>
 
-                    return (
-                      <TableRow key={tracker.id}>
-                        <TableCell className="font-medium">{tracker.item_code}</TableCell>
-                        <TableCell className="max-w-xs truncate">
-                          {tracker.item_description || '-'}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={tracker.item_type === 'TLF' ? 'default' : 'secondary'}>
-                            {tracker.item_subtype || tracker.item_type}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={role === 'Primary' ? 'default' : 'outline'}>
-                            {role}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={status} />
-                        </TableCell>
-                        <TableCell>
-                          {dueDate ? new Date(dueDate).toLocaleDateString() : '-'}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-              {myTrackers.length > 20 && (
-                <div className="p-4 text-center text-sm text-muted-foreground">
-                  Showing 20 of {myTrackers.length} assignments
+                  {!collapsedGroups.has(studyKey) && (
+                    <div className="divide-y">
+                      {Object.entries(studyGroup.reportingEfforts).map(([reKey, reGroup]) => (
+                        <div key={reKey}>
+                          {/* Reporting Effort Sub-header */}
+                          <div className="bg-muted/30 px-6 py-1.5 flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <span>{reGroup.reportingEffortLabel}</span>
+                              {reGroup.databaseReleaseLabel && (
+                                <span className="text-xs">({reGroup.databaseReleaseLabel})</span>
+                              )}
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="h-6 text-xs"
+                              onClick={() => {
+                                const firstTracker = reGroup.trackers[0]
+                                if (firstTracker) navigateToTracker(firstTracker)
+                              }}
+                            >
+                              <ExternalLink className="h-3 w-3 mr-1" />
+                              Open Tracker
+                            </Button>
+                          </div>
+
+                          {/* Trackers Table */}
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="hover:bg-transparent">
+                                <TableHead className="w-32">Item Code</TableHead>
+                                <TableHead>Title</TableHead>
+                                <TableHead className="w-20">Type</TableHead>
+                                <TableHead className="w-24">Role</TableHead>
+                                <TableHead className="w-28">Status</TableHead>
+                                <TableHead className="w-28">Due Date</TableHead>
+                                <TableHead className="w-16"></TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {reGroup.trackers.map((tracker) => {
+                                const isProd = Number(tracker.production_programmer_id) === Number(userId)
+                                const isQC = Number(tracker.qc_programmer_id) === Number(userId)
+                                const role = isProd && isQC ? 'Both' : isProd ? 'Production' : 'QC'
+                                const status = isProd ? tracker.production_status : tracker.qc_status
+                                const dueDate = tracker.due_date
+
+                                return (
+                                  <TableRow key={tracker.id} className="hover:bg-muted/30">
+                                    <TableCell className="font-medium">{tracker.item_code}</TableCell>
+                                    <TableCell className="max-w-xs truncate text-sm">
+                                      {tracker.item_description || tracker.item_title || '-'}
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge variant={tracker.item_type === 'TLF' ? 'default' : 'secondary'} className="text-xs">
+                                        {tracker.item_subtype || tracker.item_type}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge variant={role === 'Production' ? 'default' : 'outline'} className="text-xs">
+                                        {role}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                      <StatusBadge status={status} />
+                                    </TableCell>
+                                    <TableCell className="text-sm">
+                                      {dueDate ? new Date(dueDate).toLocaleDateString() : '-'}
+                                    </TableCell>
+                                    <TableCell>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7"
+                                        onClick={() => navigateToTracker(tracker)}
+                                        title="Go to tracker"
+                                      >
+                                        <ExternalLink className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                )
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
+              ))}
             </div>
           )}
         </CardContent>
