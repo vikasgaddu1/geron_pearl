@@ -14,6 +14,7 @@ class ProductionStatus(str, Enum):
     """Production status enum."""
     NOT_STARTED = "not_started"
     IN_PROGRESS = "in_progress"
+    READY_FOR_QC = "ready_for_qc"
     COMPLETED = "completed"
     ON_HOLD = "on_hold"
 
@@ -22,8 +23,9 @@ class QCStatus(str, Enum):
     """QC status enum."""
     NOT_STARTED = "not_started"
     IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
     FAILED = "failed"
+    COMPLETED = "completed"
+    ON_HOLD = "on_hold"
 
 if TYPE_CHECKING:
     from app.models.reporting_effort_item import ReportingEffortItem
@@ -66,7 +68,7 @@ class ReportingEffortItemTracker(Base, TimestampMixin):
         String(50),
         default="not_started",
         nullable=False,
-        doc="Status: not_started, in_progress, completed, on_hold"
+        doc="Status: not_started, in_progress, ready_for_qc, completed, on_hold"
     )
     qc_status: Mapped[str] = mapped_column(
         String(50),
