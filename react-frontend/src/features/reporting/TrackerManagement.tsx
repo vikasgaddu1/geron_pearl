@@ -450,6 +450,12 @@ export function TrackerManagement() {
       return
     }
     
+    // Validate: Due date is required when production programmer is assigned
+    if (newProdProgrammer && !editFormData.due_date && !selectedTracker.due_date) {
+      toast.error('Due date is required when a production programmer is assigned')
+      return
+    }
+    
     updateTracker.mutate({
       id: selectedTracker.id,
       data: {
@@ -1067,7 +1073,19 @@ export function TrackerManagement() {
                 <Label>Production Programmer</Label>
                 <Select
                   value={editFormData.production_programmer_id || 'none'}
-                  onValueChange={(v) => setEditFormData((prev) => ({ ...prev, production_programmer_id: v === 'none' ? '' : v }))}
+                  onValueChange={(v) => {
+                    const newProgrammerId = v === 'none' ? '' : v
+                    // Auto-set due date when assigning production programmer (if not already set)
+                    if (newProgrammerId && !editFormData.due_date && !selectedTracker?.due_date) {
+                      setEditFormData((prev) => ({ 
+                        ...prev, 
+                        production_programmer_id: newProgrammerId,
+                        due_date: getDefaultDueDate()
+                      }))
+                    } else {
+                      setEditFormData((prev) => ({ ...prev, production_programmer_id: newProgrammerId }))
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select programmer" />
@@ -1159,19 +1177,25 @@ export function TrackerManagement() {
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label>Due Date</Label>
+                <Label>Due Date {editFormData.production_programmer_id && <span className="text-destructive">*</span>}</Label>
                 <Input
                   type="date"
                   value={editFormData.due_date}
                   onChange={(e) => setEditFormData((prev) => ({ ...prev, due_date: e.target.value }))}
+                  className={editFormData.production_programmer_id && !editFormData.due_date ? 'border-destructive' : ''}
                 />
+                {editFormData.production_programmer_id && !editFormData.due_date && (
+                  <p className="text-xs text-destructive">Required when production programmer is assigned</p>
+                )}
               </div>
               <div className="grid gap-2">
-                <Label>QC Completion Date</Label>
+                <Label>QC Completion Date <span className="text-muted-foreground text-xs">(auto)</span></Label>
                 <Input
                   type="date"
                   value={editFormData.qc_completion_date}
-                  onChange={(e) => setEditFormData((prev) => ({ ...prev, qc_completion_date: e.target.value }))}
+                  disabled
+                  className="bg-muted"
+                  title="Auto-set when QC status is completed"
                 />
               </div>
             </div>
