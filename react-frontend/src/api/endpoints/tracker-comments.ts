@@ -30,7 +30,7 @@ export const trackerCommentsApi = {
   },
 
   create: async (data: CreateCommentData): Promise<TrackerComment> => {
-    const response = await apiClient.post(BASE_PATH, data)
+    const response = await apiClient.post(`${BASE_PATH}/`, data)
     return response.data
   },
 
