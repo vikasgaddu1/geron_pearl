@@ -66,6 +66,23 @@ class BulkStatusUpdateRequest(BaseModel):
         description="List of updates with tracker_id and status fields"
     )
 
+class BulkAssignStatusRequest(BaseModel):
+    """Unified schema for bulk assign and status update operations."""
+    tracker_ids: List[int] = Field(..., description="List of tracker IDs to update")
+    # Assignment fields (optional)
+    production_programmer_id: Optional[int] = Field(None, description="Production programmer to assign")
+    qc_programmer_id: Optional[int] = Field(None, description="QC programmer to assign")
+    # Status fields (optional)
+    production_status: Optional[str] = Field(None, description="New production status")
+    qc_status: Optional[str] = Field(None, description="New QC status")
+    
+class BulkAssignStatusResponse(BaseModel):
+    """Response for bulk assign/status operations."""
+    updated: int = Field(..., description="Number of trackers updated")
+    failed: int = Field(0, description="Number of failed updates")
+    errors: List[str] = Field(default_factory=list, description="List of error messages")
+    trackers: List[ReportingEffortItemTracker] = Field(default_factory=list, description="Updated trackers")
+
 class WorkloadSummary(BaseModel):
     """Schema for workload summary response."""
     total_items: int
@@ -820,6 +837,117 @@ async def bulk_update_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Bulk status update failed: {str(e)}"
         )
+
+
+@router.post("/bulk-assign-status", response_model=BulkAssignStatusResponse)
+async def bulk_assign_and_update_status(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    data: BulkAssignStatusRequest,
+) -> BulkAssignStatusResponse:
+    """
+    Unified endpoint to bulk assign programmers and update statuses.
+    Validates that status cannot be changed without an assigned programmer.
+    """
+    updated_trackers = []
+    errors = []
+    
+    # Validate at least one action is specified
+    has_assignment = data.production_programmer_id is not None or data.qc_programmer_id is not None
+    has_status_update = data.production_status is not None or data.qc_status is not None
+    
+    if not has_assignment and not has_status_update:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one assignment or status update must be specified"
+        )
+    
+    for tracker_id in data.tracker_ids:
+        try:
+            # Get the tracker
+            db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
+            if not db_tracker:
+                errors.append(f"Tracker {tracker_id} not found")
+                continue
+            
+            update_data = {}
+            
+            # Handle assignments first
+            if data.production_programmer_id is not None:
+                update_data["production_programmer_id"] = data.production_programmer_id
+            if data.qc_programmer_id is not None:
+                update_data["qc_programmer_id"] = data.qc_programmer_id
+            
+            # Validate status updates - programmer must be assigned
+            if data.production_status is not None:
+                # Check if production programmer is/will be assigned
+                prod_programmer_id = update_data.get("production_programmer_id", db_tracker.production_programmer_id)
+                if not prod_programmer_id:
+                    errors.append(f"Tracker {tracker_id} ({db_tracker.item_code}): Cannot update production status without assigning a production programmer")
+                    continue
+                update_data["production_status"] = data.production_status
+                
+            if data.qc_status is not None:
+                # Check if QC programmer is/will be assigned
+                qc_programmer_id = update_data.get("qc_programmer_id", db_tracker.qc_programmer_id)
+                if not qc_programmer_id:
+                    errors.append(f"Tracker {tracker_id} ({db_tracker.item_code}): Cannot update QC status without assigning a QC programmer")
+                    continue
+                update_data["qc_status"] = data.qc_status
+            
+            # Apply the update if there's data
+            if update_data:
+                updated_tracker = await reporting_effort_item_tracker.update(
+                    db, db_obj=db_tracker, obj_in=update_data
+                )
+                updated_trackers.append(updated_tracker)
+                
+                # Broadcast update
+                try:
+                    await broadcast_tracker_updated(updated_tracker)
+                except Exception:
+                    pass
+                    
+        except Exception as e:
+            errors.append(f"Tracker {tracker_id}: {str(e)}")
+    
+    # Log audit trail
+    try:
+        await audit_log.log_action(
+            db,
+            table_name="reporting_effort_item_tracker",
+            record_id=0,
+            action="BULK_ASSIGN_STATUS",
+            user_id=getattr(request.state, 'user_id', None),
+            changes={
+                "tracker_ids": data.tracker_ids,
+                "production_programmer_id": data.production_programmer_id,
+                "qc_programmer_id": data.qc_programmer_id,
+                "production_status": data.production_status,
+                "qc_status": data.qc_status,
+                "updated_count": len(updated_trackers),
+                "errors": errors
+            },
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent")
+        )
+    except Exception as audit_error:
+        print(f"Audit logging error: {audit_error}")
+    
+    # Convert trackers to dict for response
+    tracker_dicts = []
+    for t in updated_trackers:
+        tracker_dict = sqlalchemy_to_dict(t)
+        tracker_dicts.append(ReportingEffortItemTracker(**tracker_dict))
+    
+    return BulkAssignStatusResponse(
+        updated=len(updated_trackers),
+        failed=len(errors),
+        errors=errors,
+        trackers=tracker_dicts
+    )
+
 
 # Workload Management
 @router.get("/workload-summary", response_model=WorkloadSummary)

@@ -34,6 +34,22 @@ export interface BulkStatusUpdateData {
   status_type: 'production' | 'qc'
 }
 
+// Unified bulk assign and status update
+export interface BulkAssignStatusData {
+  tracker_ids: number[]
+  production_programmer_id?: number
+  qc_programmer_id?: number
+  production_status?: ProductionStatus
+  qc_status?: QCStatus
+}
+
+export interface BulkAssignStatusResponse {
+  updated: number
+  failed: number
+  errors: string[]
+  trackers: ReportingEffortItemTracker[]
+}
+
 export interface CommentWithStatusData {
   comment_text: string
   production_status?: ProductionStatus
@@ -105,6 +121,12 @@ export const trackerApi = {
 
   bulkStatusUpdate: async (data: BulkStatusUpdateData): Promise<BulkOperationResult> => {
     const response = await apiClient.post(`${BASE_PATH}/bulk-status-update`, data)
+    return response.data
+  },
+
+  // Unified bulk assign and status update
+  bulkAssignStatus: async (data: BulkAssignStatusData): Promise<BulkAssignStatusResponse> => {
+    const response = await apiClient.post(`${BASE_PATH}/bulk-assign-status`, data)
     return response.data
   },
 

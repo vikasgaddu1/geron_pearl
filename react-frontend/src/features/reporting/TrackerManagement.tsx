@@ -90,15 +90,19 @@ export function TrackerManagement() {
   const [selectedEffortId, setSelectedEffortId] = useState<string>('')
   const [activeTab, setActiveTab] = useState('tlf')
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set())
-  const [bulkAssignOpen, setBulkAssignOpen] = useState(false)
-  const [bulkStatusOpen, setBulkStatusOpen] = useState(false)
+  const [bulkAssignStatusOpen, setBulkAssignStatusOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [commentDialogOpen, setCommentDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [tagManageOpen, setTagManageOpen] = useState(false)
   const [bulkTagOpen, setBulkTagOpen] = useState(false)
   const [selectedTracker, setSelectedTracker] = useState<ReportingEffortItemTracker | null>(null)
-  const [bulkData, setBulkData] = useState({ programmerId: '', status: 'in_progress' as TrackerStatus, assignmentType: 'primary' as 'primary' | 'qc' })
+  const [bulkData, setBulkData] = useState({
+    production_programmer_id: '',
+    qc_programmer_id: '',
+    production_status: '' as ProductionStatus | '',
+    qc_status: '' as QCStatus | '',
+  })
   const [editFormData, setEditFormData] = useState({
     production_programmer_id: '',
     qc_programmer_id: '',
@@ -188,26 +192,29 @@ export function TrackerManagement() {
   useWebSocketRefresh(['reporting_effort_tracker', 'comment', 'tracker_tag'], refetch)
 
   // Mutations
-  const bulkAssign = useMutation({
-    mutationFn: trackerApi.bulkAssign,
+  const bulkAssignStatus = useMutation({
+    mutationFn: trackerApi.bulkAssignStatus,
     onSuccess: (result) => {
-      toast.success(`Updated ${result.updated} trackers`)
+      if (result.failed > 0) {
+        toast.warning(`Updated ${result.updated} trackers, ${result.failed} failed`, {
+          description: result.errors.slice(0, 3).join('\n'),
+          duration: 8000,
+        })
+      } else {
+        toast.success(`Updated ${result.updated} trackers`)
+      }
       queryClient.invalidateQueries({ queryKey: ['trackers', selectedEffortId] })
-      setBulkAssignOpen(false)
+      setBulkAssignStatusOpen(false)
       setSelectedRows(new Set())
+      // Reset form
+      setBulkData({
+        production_programmer_id: '',
+        qc_programmer_id: '',
+        production_status: '',
+        qc_status: '',
+      })
     },
-    onError: (error) => toast.error(`Failed to assign programmers: ${getErrorMessage(error)}`),
-  })
-
-  const bulkStatusUpdate = useMutation({
-    mutationFn: trackerApi.bulkStatusUpdate,
-    onSuccess: (result) => {
-      toast.success(`Updated ${result.updated} trackers`)
-      queryClient.invalidateQueries({ queryKey: ['trackers', selectedEffortId] })
-      setBulkStatusOpen(false)
-      setSelectedRows(new Set())
-    },
-    onError: (error) => toast.error(`Failed to update status: ${getErrorMessage(error)}`),
+    onError: (error) => toast.error(`Failed to update: ${getErrorMessage(error)}`),
   })
 
   const updateTracker = useMutation({
@@ -366,21 +373,37 @@ export function TrackerManagement() {
     setSelectedRows(newSelected)
   }
 
-  const handleBulkAssign = () => {
-    bulkAssign.mutate({
+  const handleBulkAssignStatus = () => {
+    const data: Parameters<typeof trackerApi.bulkAssignStatus>[0] = {
       tracker_ids: Array.from(selectedRows),
-      programmer_id: Number(bulkData.programmerId),
-      assignment_type: bulkData.assignmentType,
-    })
+    }
+    
+    // Only include fields that are set
+    if (bulkData.production_programmer_id) {
+      data.production_programmer_id = Number(bulkData.production_programmer_id)
+    }
+    if (bulkData.qc_programmer_id) {
+      data.qc_programmer_id = Number(bulkData.qc_programmer_id)
+    }
+    if (bulkData.production_status) {
+      data.production_status = bulkData.production_status as ProductionStatus
+    }
+    if (bulkData.qc_status) {
+      data.qc_status = bulkData.qc_status as QCStatus
+    }
+    
+    bulkAssignStatus.mutate(data)
   }
-
-  const handleBulkStatus = () => {
-    bulkStatusUpdate.mutate({
-      tracker_ids: Array.from(selectedRows),
-      status: bulkData.status,
-      status_type: bulkData.assignmentType === 'primary' ? 'production' : 'qc',
-    })
-  }
+  
+  // Check if bulk form has any changes
+  const hasBulkChanges = useMemo(() => {
+    return !!(
+      bulkData.production_programmer_id ||
+      bulkData.qc_programmer_id ||
+      bulkData.production_status ||
+      bulkData.qc_status
+    )
+  }, [bulkData])
 
   const handleEdit = (tracker: ReportingEffortItemTracker) => {
     setSelectedTracker(tracker)
@@ -744,16 +767,10 @@ export function TrackerManagement() {
                     Tag ({selectedRows.size})
                   </Button>
                 </TooltipWrapper>
-                <TooltipWrapper content={`Assign programmer to ${selectedRows.size} selected trackers`}>
-                  <Button variant="outline" size="sm" onClick={() => setBulkAssignOpen(true)}>
-                    <Users className="h-4 w-4 mr-2" />
-                    Assign ({selectedRows.size})
-                  </Button>
-                </TooltipWrapper>
-                <TooltipWrapper content={`Update status for ${selectedRows.size} selected trackers`}>
-                  <Button variant="outline" size="sm" onClick={() => setBulkStatusOpen(true)}>
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Update Status
+                <TooltipWrapper content={`Assign programmers and update status for ${selectedRows.size} selected trackers`}>
+                  <Button variant="outline" size="sm" onClick={() => setBulkAssignStatusOpen(true)}>
+                    <UserCheck className="h-4 w-4 mr-2" />
+                    Assign & Update ({selectedRows.size})
                   </Button>
                 </TooltipWrapper>
               </>
@@ -1418,92 +1435,124 @@ export function TrackerManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Bulk Assign Dialog */}
-      <Dialog open={bulkAssignOpen} onOpenChange={setBulkAssignOpen}>
-        <DialogContent>
+      {/* Unified Bulk Assign & Status Dialog */}
+      <Dialog open={bulkAssignStatusOpen} onOpenChange={(open) => {
+        setBulkAssignStatusOpen(open)
+        if (!open) {
+          setBulkData({
+            production_programmer_id: '',
+            qc_programmer_id: '',
+            production_status: '',
+            qc_status: '',
+          })
+        }
+      }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Bulk Assign Programmer</DialogTitle>
+            <DialogTitle>Assign & Update Status</DialogTitle>
             <DialogDescription>
-              Assign a programmer to {selectedRows.size} selected tracker(s).
+              Update {selectedRows.size} selected tracker(s). Assign programmers and/or update their statuses.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>Assignment Type</Label>
-              <Select
-                value={bulkData.assignmentType}
-                onValueChange={(v: 'primary' | 'qc') => setBulkData((prev) => ({ ...prev, assignmentType: v }))}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="primary">Production Programmer</SelectItem>
-                  <SelectItem value="qc">QC Programmer</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="grid gap-6 py-4">
+            {/* Production Section */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Production
+              </h4>
+              <div className="grid gap-3 pl-6">
+                <div className="grid gap-1.5">
+                  <Label className="text-xs text-muted-foreground">Programmer</Label>
+                  <Select
+                    value={bulkData.production_programmer_id}
+                    onValueChange={(v) => setBulkData((prev) => ({ ...prev, production_programmer_id: v }))}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select production programmer (optional)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">-- No change --</SelectItem>
+                      {programmers.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>{p.username}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label className="text-xs text-muted-foreground">Status</Label>
+                  <Select
+                    value={bulkData.production_status}
+                    onValueChange={(v: ProductionStatus | '') => setBulkData((prev) => ({ ...prev, production_status: v }))}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select status (optional)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">-- No change --</SelectItem>
+                      {PRODUCTION_STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {bulkData.production_status && !bulkData.production_programmer_id && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      ⚠ Status will only update for trackers that already have a production programmer assigned
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="grid gap-2">
-              <Label>Programmer</Label>
-              <Select
-                value={bulkData.programmerId}
-                onValueChange={(v) => setBulkData((prev) => ({ ...prev, programmerId: v }))}
-              >
-                <SelectTrigger><SelectValue placeholder="Select programmer" /></SelectTrigger>
-                <SelectContent>
-                  {programmers.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>{p.username}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            
+            {/* QC Section */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <CheckCircle className="h-4 w-4" />
+                QC
+              </h4>
+              <div className="grid gap-3 pl-6">
+                <div className="grid gap-1.5">
+                  <Label className="text-xs text-muted-foreground">Programmer</Label>
+                  <Select
+                    value={bulkData.qc_programmer_id}
+                    onValueChange={(v) => setBulkData((prev) => ({ ...prev, qc_programmer_id: v }))}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select QC programmer (optional)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">-- No change --</SelectItem>
+                      {programmers.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>{p.username}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label className="text-xs text-muted-foreground">Status</Label>
+                  <Select
+                    value={bulkData.qc_status}
+                    onValueChange={(v: QCStatus | '') => setBulkData((prev) => ({ ...prev, qc_status: v }))}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select status (optional)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">-- No change --</SelectItem>
+                      {QC_STATUSES_READY.map((s) => (
+                        <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {bulkData.qc_status && !bulkData.qc_programmer_id && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      ⚠ Status will only update for trackers that already have a QC programmer assigned
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkAssignOpen(false)}>Cancel</Button>
-            <Button onClick={handleBulkAssign} disabled={!bulkData.programmerId}>Assign</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Bulk Status Dialog */}
-      <Dialog open={bulkStatusOpen} onOpenChange={setBulkStatusOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Bulk Update Status</DialogTitle>
-            <DialogDescription>
-              Update status for {selectedRows.size} selected tracker(s).
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>Status Type</Label>
-              <Select
-                value={bulkData.assignmentType}
-                onValueChange={(v: 'primary' | 'qc') => setBulkData((prev) => ({ ...prev, assignmentType: v }))}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="primary">Production Status</SelectItem>
-                  <SelectItem value="qc">QC Status</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label>New Status</Label>
-              <Select
-                value={bulkData.status}
-                onValueChange={(v: TrackerStatus) => setBulkData((prev) => ({ ...prev, status: v }))}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {TRACKER_STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkStatusOpen(false)}>Cancel</Button>
-            <Button onClick={handleBulkStatus}>Update Status</Button>
+            <Button variant="outline" onClick={() => setBulkAssignStatusOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={handleBulkAssignStatus} 
+              disabled={!hasBulkChanges || bulkAssignStatus.isPending}
+            >
+              {bulkAssignStatus.isPending ? 'Updating...' : 'Apply Changes'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
