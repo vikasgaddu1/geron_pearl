@@ -240,7 +240,6 @@ export function ProgrammerDashboard() {
                                 <TableHead className="w-24">Role</TableHead>
                                 <TableHead className="w-28">Status</TableHead>
                                 <TableHead className="w-28">Due Date</TableHead>
-                                <TableHead className="w-16"></TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -272,17 +271,6 @@ export function ProgrammerDashboard() {
                                     </TableCell>
                                     <TableCell className="text-sm">
                                       {dueDate ? new Date(dueDate).toLocaleDateString() : '-'}
-                                    </TableCell>
-                                    <TableCell>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7"
-                                        onClick={() => navigateToTracker(tracker)}
-                                        title="Go to tracker"
-                                      >
-                                        <ExternalLink className="h-3.5 w-3.5" />
-                                      </Button>
                                     </TableCell>
                                   </TableRow>
                                 )
