@@ -22,7 +22,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_ready_for_qc'
-down_revision = 'add_comment_type_to_tracker_comments'
+down_revision = 'a1b2c3d4e5f6'
 branch_labels = None
 depends_on = None
 
