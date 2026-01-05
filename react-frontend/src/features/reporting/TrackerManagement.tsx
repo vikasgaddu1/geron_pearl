@@ -1363,21 +1363,6 @@ export function TrackerManagement() {
               </div>
             )}
             
-            <div className="flex gap-2 mb-2">
-              <Select
-                value={newComment.type}
-                onValueChange={(v: CommentType) => setNewComment((prev) => ({ ...prev, type: v }))}
-              >
-                <SelectTrigger className="w-44">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {COMMENT_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="flex gap-2">
               <Textarea
                 placeholder={replyingTo ? "Write your reply..." : "Add a comment..."}
