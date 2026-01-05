@@ -110,7 +110,6 @@ export function TrackerManagement() {
     qc_status: 'not_started' as QCStatus,
     priority: 'medium' as Priority,
     due_date: '',
-    qc_completion_date: '',
   })
   const [newComment, setNewComment] = useState({ 
     text: '', 
@@ -455,7 +454,6 @@ export function TrackerManagement() {
       qc_status: tracker.qc_status || 'not_started',
       priority: (tracker.priority as Priority) || 'medium',
       due_date: tracker.due_date || '',
-      qc_completion_date: tracker.qc_completion_date || '',
     })
     setEditDialogOpen(true)
   }
@@ -492,7 +490,6 @@ export function TrackerManagement() {
         qc_status: editFormData.qc_status,
         priority: editFormData.priority,
         due_date: editFormData.due_date || null,
-        qc_completion_date: editFormData.qc_completion_date || null,
       },
     })
   }
@@ -1223,16 +1220,6 @@ export function TrackerManagement() {
                 {editFormData.production_programmer_id && !editFormData.due_date && (
                   <p className="text-xs text-destructive">Required when production programmer is assigned</p>
                 )}
-              </div>
-              <div className="grid gap-2">
-                <Label>QC Completion Date <span className="text-muted-foreground text-xs">(auto)</span></Label>
-                <Input
-                  type="date"
-                  value={editFormData.qc_completion_date}
-                  disabled
-                  className="bg-muted"
-                  title="Auto-set when QC status is completed"
-                />
               </div>
             </div>
           </div>
