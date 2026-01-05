@@ -1308,60 +1308,74 @@ export function TrackerManagement() {
               </div>
             )}
             
-            {/* Status Update Section - Only show for top-level comments */}
-            {!replyingTo && (
-              <div className="grid grid-cols-2 gap-4 mb-4 p-3 bg-muted/30 rounded-lg">
-                <div className="space-y-1">
-                  <Label className="text-xs font-medium text-muted-foreground">
-                    Update Production Status (optional)
-                  </Label>
-                  <Select
-                    value={newComment.production_status || '__none__'}
-                    onValueChange={(v) => setNewComment((prev) => ({ 
-                      ...prev, 
-                      production_status: v === '__none__' ? undefined : v as ProductionStatus 
-                    }))}
-                  >
-                    <SelectTrigger className="h-8">
-                      <SelectValue placeholder="No change" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">No change</SelectItem>
-                      {PRODUCTION_STATUSES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            {/* Status Update Section - Only show for top-level comments and relevant role */}
+            {!replyingTo && (() => {
+              const isProductionProgrammer = currentUser && selectedTracker?.production_programmer_id === currentUser.id
+              const isQCProgrammer = currentUser && selectedTracker?.qc_programmer_id === currentUser.id
+              const isAdmin = currentUser?.role === 'admin'
+              const showProduction = isProductionProgrammer || isAdmin
+              const showQC = isQCProgrammer || isAdmin
+              
+              if (!showProduction && !showQC) return null
+              
+              return (
+                <div className={`grid gap-4 mb-4 p-3 bg-muted/30 rounded-lg ${showProduction && showQC ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {showProduction && (
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium text-muted-foreground">
+                        Update Production Status (optional)
+                      </Label>
+                      <Select
+                        value={newComment.production_status || '__none__'}
+                        onValueChange={(v) => setNewComment((prev) => ({ 
+                          ...prev, 
+                          production_status: v === '__none__' ? undefined : v as ProductionStatus 
+                        }))}
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue placeholder="No change" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No change</SelectItem>
+                          {PRODUCTION_STATUSES.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {showQC && (
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium text-muted-foreground">
+                        Update QC Status (optional)
+                      </Label>
+                      <Select
+                        value={newComment.qc_status || '__none__'}
+                        onValueChange={(v) => setNewComment((prev) => ({ 
+                          ...prev, 
+                          qc_status: v === '__none__' ? undefined : v as QCStatus 
+                        }))}
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue placeholder="No change" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No change</SelectItem>
+                          {/* Show full QC statuses when production is ready_for_qc */}
+                          {(selectedTracker?.production_status === 'ready_for_qc' ? QC_STATUSES_READY : QC_STATUSES).map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-medium text-muted-foreground">
-                    Update QC Status (optional)
-                  </Label>
-                  <Select
-                    value={newComment.qc_status || '__none__'}
-                    onValueChange={(v) => setNewComment((prev) => ({ 
-                      ...prev, 
-                      qc_status: v === '__none__' ? undefined : v as QCStatus 
-                    }))}
-                  >
-                    <SelectTrigger className="h-8">
-                      <SelectValue placeholder="No change" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">No change</SelectItem>
-                      {/* Show full QC statuses when production is ready_for_qc */}
-                      {(selectedTracker?.production_status === 'ready_for_qc' ? QC_STATUSES_READY : QC_STATUSES).map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            )}
+              )
+            })()}
             
             <div className="flex gap-2">
               <Textarea
