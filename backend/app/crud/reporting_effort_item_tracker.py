@@ -1,6 +1,6 @@
 """CRUD operations for ReportingEffortItemTracker."""
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import selectinload
@@ -157,10 +157,14 @@ class ReportingEffortItemTrackerCRUD:
         db: AsyncSession,
         *,
         db_obj: ReportingEffortItemTracker,
-        obj_in: ReportingEffortItemTrackerUpdate
+        obj_in: Union[ReportingEffortItemTrackerUpdate, Dict[str, Any]]
     ) -> ReportingEffortItemTracker:
         """Update a tracker entry."""
-        update_data = obj_in.model_dump(exclude_unset=True)
+        # Handle both Pydantic models and dicts
+        if isinstance(obj_in, dict):
+            update_data = obj_in
+        else:
+            update_data = obj_in.model_dump(exclude_unset=True) if hasattr(obj_in, 'model_dump') else obj_in.dict(exclude_unset=True)
         
         for field, value in update_data.items():
             setattr(db_obj, field, value)
