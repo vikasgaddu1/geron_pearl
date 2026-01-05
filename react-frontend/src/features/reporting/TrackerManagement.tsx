@@ -1465,12 +1465,12 @@ export function TrackerManagement() {
                 <div className="grid gap-1.5">
                   <Label className="text-xs text-muted-foreground">Programmer</Label>
                   <Select
-                    value={bulkData.production_programmer_id}
-                    onValueChange={(v) => setBulkData((prev) => ({ ...prev, production_programmer_id: v }))}
+                    value={bulkData.production_programmer_id || '__none__'}
+                    onValueChange={(v) => setBulkData((prev) => ({ ...prev, production_programmer_id: v === '__none__' ? '' : v }))}
                   >
                     <SelectTrigger><SelectValue placeholder="Select production programmer (optional)" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">-- No change --</SelectItem>
+                      <SelectItem value="__none__">-- No change --</SelectItem>
                       {programmers.map((p) => (
                         <SelectItem key={p.id} value={String(p.id)}>{p.username}</SelectItem>
                       ))}
@@ -1480,12 +1480,12 @@ export function TrackerManagement() {
                 <div className="grid gap-1.5">
                   <Label className="text-xs text-muted-foreground">Status</Label>
                   <Select
-                    value={bulkData.production_status}
-                    onValueChange={(v: ProductionStatus | '') => setBulkData((prev) => ({ ...prev, production_status: v }))}
+                    value={bulkData.production_status || '__none__'}
+                    onValueChange={(v) => setBulkData((prev) => ({ ...prev, production_status: v === '__none__' ? '' : v as ProductionStatus }))}
                   >
                     <SelectTrigger><SelectValue placeholder="Select status (optional)" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">-- No change --</SelectItem>
+                      <SelectItem value="__none__">-- No change --</SelectItem>
                       {PRODUCTION_STATUSES.map((s) => (
                         <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>
                       ))}
@@ -1510,12 +1510,12 @@ export function TrackerManagement() {
                 <div className="grid gap-1.5">
                   <Label className="text-xs text-muted-foreground">Programmer</Label>
                   <Select
-                    value={bulkData.qc_programmer_id}
-                    onValueChange={(v) => setBulkData((prev) => ({ ...prev, qc_programmer_id: v }))}
+                    value={bulkData.qc_programmer_id || '__none__'}
+                    onValueChange={(v) => setBulkData((prev) => ({ ...prev, qc_programmer_id: v === '__none__' ? '' : v }))}
                   >
                     <SelectTrigger><SelectValue placeholder="Select QC programmer (optional)" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">-- No change --</SelectItem>
+                      <SelectItem value="__none__">-- No change --</SelectItem>
                       {programmers.map((p) => (
                         <SelectItem key={p.id} value={String(p.id)}>{p.username}</SelectItem>
                       ))}
@@ -1525,12 +1525,12 @@ export function TrackerManagement() {
                 <div className="grid gap-1.5">
                   <Label className="text-xs text-muted-foreground">Status</Label>
                   <Select
-                    value={bulkData.qc_status}
-                    onValueChange={(v: QCStatus | '') => setBulkData((prev) => ({ ...prev, qc_status: v }))}
+                    value={bulkData.qc_status || '__none__'}
+                    onValueChange={(v) => setBulkData((prev) => ({ ...prev, qc_status: v === '__none__' ? '' : v as QCStatus }))}
                   >
                     <SelectTrigger><SelectValue placeholder="Select status (optional)" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">-- No change --</SelectItem>
+                      <SelectItem value="__none__">-- No change --</SelectItem>
                       {QC_STATUSES_READY.map((s) => (
                         <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>
                       ))}
