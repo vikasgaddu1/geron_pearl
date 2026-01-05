@@ -314,19 +314,40 @@ async def restore_backup(
 async def perform_restore(db_url: str, backup_path: Path):
     """Perform the actual database restore."""
     try:
-        # Run psql to restore
+        # First, drop and recreate the public schema to clear all data
+        # This ensures a clean restore
+        drop_schema_sql = """
+        DROP SCHEMA public CASCADE;
+        CREATE SCHEMA public;
+        GRANT ALL ON SCHEMA public TO postgres;
+        GRANT ALL ON SCHEMA public TO public;
+        """
+
+        print("Dropping existing schema...")
+        drop_result = subprocess.run(
+            ["psql", db_url, "-c", drop_schema_sql],
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+
+        if drop_result.returncode != 0:
+            print(f"Warning: Schema drop had issues: {drop_result.stderr}")
+
+        # Now restore from backup
+        print(f"Restoring from {backup_path}...")
         result = subprocess.run(
             ["psql", db_url, "-f", str(backup_path)],
             capture_output=True,
             text=True,
             timeout=600  # 10 minute timeout
         )
-        
+
         if result.returncode != 0:
             print(f"Restore error: {result.stderr}")
         else:
             print(f"Database restored successfully from {backup_path}")
-            
+
     except subprocess.TimeoutExpired:
         print("Database restore timed out after 10 minutes")
     except Exception as e:
