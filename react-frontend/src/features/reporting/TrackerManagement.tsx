@@ -687,6 +687,30 @@ export function TrackerManagement() {
       ),
     })
 
+    // Priority column
+    baseColumns.push({
+      id: 'priority',
+      header: 'Priority',
+      accessorKey: 'priority',
+      filterType: 'select',
+      filterOptions: PRIORITIES,
+      helpText: 'Task priority level.',
+      cell: (value) => {
+        const priority = (value as string) || 'medium'
+        const priorityColors: Record<string, string> = {
+          critical: 'bg-red-500 text-white',
+          high: 'bg-orange-500 text-white',
+          medium: 'bg-yellow-500 text-black',
+          low: 'bg-green-500 text-white',
+        }
+        return (
+          <Badge className={`text-xs ${priorityColors[priority]}`}>
+            {priority.charAt(0).toUpperCase() + priority.slice(1)}
+          </Badge>
+        )
+      },
+    })
+
     // Rest of columns
     baseColumns.push(
       {
