@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ClipboardCheck, RefreshCw, Users, CheckCircle, MessageSquare, Edit, Trash2, Send, X, Tag, Plus, Reply, LayoutList, Kanban, UserCheck } from 'lucide-react'
 import { toast } from 'sonner'
@@ -85,9 +86,11 @@ const TAG_COLORS = [
 
 export function TrackerManagement() {
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [selectedStudyId, setSelectedStudyId] = useState<string>('')
   const [selectedReleaseId, setSelectedReleaseId] = useState<string>('')
   const [selectedEffortId, setSelectedEffortId] = useState<string>('')
+  const [urlParamsApplied, setUrlParamsApplied] = useState(false)
   const [activeTab, setActiveTab] = useState('tlf')
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set())
   const [bulkAssignStatusOpen, setBulkAssignStatusOpen] = useState(false)
@@ -198,6 +201,36 @@ export function TrackerManagement() {
   }, [queryClient, selectedEffortId])
 
   useWebSocketRefresh(['reporting_effort_tracker', 'comment', 'tracker_tag'], refetch)
+
+  // Handle URL query parameters for deep linking from dashboard
+  useEffect(() => {
+    if (urlParamsApplied) return
+    
+    const studyIdParam = searchParams.get('studyId')
+    const effortIdParam = searchParams.get('effortId')
+    
+    if (!studyIdParam || studies.length === 0 || efforts.length === 0 || allReleases.length === 0) {
+      return
+    }
+    
+    // Find the effort to get the release ID
+    const effort = efforts.find(e => e.id === Number(effortIdParam))
+    if (!effort) return
+    
+    // Set the study
+    setSelectedStudyId(studyIdParam)
+    
+    // Set the release
+    setSelectedReleaseId(String(effort.database_release_id))
+    
+    // Set the effort (with a small delay to let the cascade work)
+    setTimeout(() => {
+      setSelectedEffortId(effortIdParam || '')
+      // Clear the URL params after applying
+      setSearchParams({}, { replace: true })
+      setUrlParamsApplied(true)
+    }, 100)
+  }, [searchParams, studies, efforts, allReleases, urlParamsApplied, setSearchParams])
 
   // Mutations
   const bulkAssignStatus = useMutation({
