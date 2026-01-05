@@ -25,12 +25,13 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Filter, BarChart3, PieChartIcon, Users } from 'lucide-react'
 import type { TrackerStatus } from '@/types'
 
-const STATUS_COLORS: Record<TrackerStatus, string> = {
-  NOT_STARTED: '#6b7280',
-  IN_PROGRESS: '#3b82f6',
-  COMPLETED: '#22c55e',
-  ON_HOLD: '#eab308',
-  FAILED: '#ef4444',
+const STATUS_COLORS: Record<string, string> = {
+  not_started: '#6b7280',
+  in_progress: '#3b82f6',
+  ready_for_qc: '#8b5cf6',
+  completed: '#22c55e',
+  on_hold: '#eab308',
+  failed: '#ef4444',
 }
 
 export function TrackerDashboard() {
@@ -66,8 +67,8 @@ export function TrackerDashboard() {
 
   // Calculate statistics
   const totalItems = trackers.length
-  const completed = trackers.filter((t) => t.production_status === 'COMPLETED' && t.qc_status === 'COMPLETED').length
-  const inProgress = trackers.filter((t) => t.production_status === 'IN_PROGRESS' || t.qc_status === 'IN_PROGRESS').length
+  const completed = trackers.filter((t) => t.production_status === 'completed' && t.qc_status === 'completed').length
+  const _inProgress = trackers.filter((t) => t.production_status === 'in_progress' || t.qc_status === 'in_progress').length
   const completionRate = totalItems > 0 ? Math.round((completed / totalItems) * 100) : 0
 
   // Status breakdown for pie chart
@@ -91,17 +92,17 @@ export function TrackerDashboard() {
       const type = t.item_subtype || t.item_type || 'Unknown'
       if (!acc[type]) acc[type] = { total: 0, completed: 0, inProgress: 0 }
       acc[type].total++
-      if (t.production_status === 'COMPLETED') acc[type].completed++
-      if (t.production_status === 'IN_PROGRESS') acc[type].inProgress++
+      if (t.production_status === 'completed') acc[type].completed++
+      if (t.production_status === 'in_progress') acc[type].inProgress++
       return acc
     }, {} as Record<string, { total: number; completed: number; inProgress: number }>)
   ).map(([name, data]) => ({ name, ...data }))
 
   // Programmer workload
   const workloadData = users
-    .filter((u) => ['programmer', 'lead', 'analyst'].includes(u.role))
+    .filter((u) => ['EDITOR', 'ADMIN'].includes(u.role))
     .map((user) => {
-      const primary = trackers.filter((t) => t.primary_programmer_id === user.id).length
+      const primary = trackers.filter((t) => t.production_programmer_id === user.id).length
       const qc = trackers.filter((t) => t.qc_programmer_id === user.id).length
       return { name: user.username, primary, qc, total: primary + qc }
     })

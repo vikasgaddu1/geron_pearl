@@ -1,5 +1,13 @@
 import { apiClient } from '../client'
-import type { ReportingEffortItemTracker, TrackerFormData, BulkOperationResult } from '@/types'
+import type { 
+  ReportingEffortItemTracker, 
+  TrackerFormData, 
+  BulkOperationResult,
+  TrackerStatusHistory,
+  TrackerPermissions,
+  ProductionStatus,
+  QCStatus
+} from '@/types'
 
 const BASE_PATH = '/api/v1/reporting-effort-tracker'
 
@@ -24,6 +32,19 @@ export interface BulkStatusUpdateData {
   tracker_ids: number[]
   status: string
   status_type: 'production' | 'qc'
+}
+
+export interface CommentWithStatusData {
+  comment_text: string
+  production_status?: ProductionStatus
+  qc_status?: QCStatus
+}
+
+export interface CommentWithStatusResult {
+  success: boolean
+  comment_id: number
+  status_updates: Record<string, string>
+  tracker: ReportingEffortItemTracker
 }
 
 export const trackerApi = {
@@ -111,5 +132,42 @@ export const trackerApi = {
     )
     return response.data
   },
+
+  // ===== Phase 3: New Workflow Endpoints =====
+
+  // Create a comment with optional status update (atomic operation)
+  createCommentWithStatus: async (
+    trackerId: number, 
+    data: CommentWithStatusData
+  ): Promise<CommentWithStatusResult> => {
+    const response = await apiClient.post(`${BASE_PATH}/${trackerId}/comment-with-status`, data)
+    return response.data
+  },
+
+  // Get status change history for time tracking
+  getStatusHistory: async (
+    trackerId: number, 
+    statusField?: 'production' | 'qc'
+  ): Promise<TrackerStatusHistory[]> => {
+    const params = statusField ? `?status_field=${statusField}` : ''
+    const response = await apiClient.get(`${BASE_PATH}/${trackerId}/status-history${params}`)
+    return response.data
+  },
+
+  // Get current user's permissions for a tracker
+  getPermissions: async (trackerId: number): Promise<TrackerPermissions> => {
+    const response = await apiClient.get(`${BASE_PATH}/${trackerId}/permissions`)
+    return response.data
+  },
+
+  // Update the in_production_flag
+  updateProductionFlag: async (trackerId: number, value: boolean): Promise<ReportingEffortItemTracker> => {
+    const response = await apiClient.put(`${BASE_PATH}/${trackerId}/production-flag?value=${value}`)
+    return response.data
+  },
 }
+
+
+
+
 

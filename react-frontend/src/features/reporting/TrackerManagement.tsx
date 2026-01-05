@@ -48,9 +48,16 @@ import { TooltipWrapper } from '@/components/common/TooltipWrapper'
 import { HelpIcon } from '@/components/common/HelpIcon'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
 import { formatDate, formatDateTime, getErrorMessage } from '@/lib/utils'
-import type { ReportingEffortItemTracker, TrackerStatus, TrackerComment, CommentType, Priority, TrackerTag, TrackerTagSummary } from '@/types'
+import type { ReportingEffortItemTracker, TrackerStatus, TrackerComment, CommentType, Priority, TrackerTag, TrackerTagSummary, ProductionStatus, QCStatus } from '@/types'
 
-const TRACKER_STATUSES: TrackerStatus[] = ['not_started', 'in_progress', 'completed', 'on_hold', 'failed']
+// Separate status arrays for Production and QC
+const PRODUCTION_STATUSES: ProductionStatus[] = ['not_started', 'in_progress', 'ready_for_qc', 'on_hold']
+// Note: 'completed' is excluded because it's auto-set by QC completion
+const QC_STATUSES: QCStatus[] = ['not_started', 'in_progress', 'on_hold']
+// Note: 'failed' and 'completed' are only allowed when production is ready_for_qc
+const QC_STATUSES_READY: QCStatus[] = ['not_started', 'in_progress', 'failed', 'completed', 'on_hold']
+// Legacy combined list for backward compatibility
+const TRACKER_STATUSES: TrackerStatus[] = ['not_started', 'in_progress', 'ready_for_qc', 'completed', 'on_hold', 'failed']
 const PRIORITIES: Priority[] = ['critical', 'high', 'medium', 'low']
 // Simplified comment types for programmer/QC communication (backend only accepts programming/biostat)
 const COMMENT_TYPES: { value: CommentType; label: string }[] = [
@@ -93,13 +100,20 @@ export function TrackerManagement() {
   const [editFormData, setEditFormData] = useState({
     production_programmer_id: '',
     qc_programmer_id: '',
-    production_status: 'not_started' as TrackerStatus,
-    qc_status: 'not_started' as TrackerStatus,
+    production_status: 'not_started' as ProductionStatus,
+    qc_status: 'not_started' as QCStatus,
     priority: 'medium' as Priority,
     due_date: '',
     qc_completion_date: '',
   })
-  const [newComment, setNewComment] = useState({ text: '', type: 'PROGRAMMING' as CommentType, parentId: null as number | null })
+  const [newComment, setNewComment] = useState({ 
+    text: '', 
+    type: 'PROGRAMMING' as CommentType, 
+    parentId: null as number | null,
+    // New: status updates in comment dialog
+    production_status: undefined as ProductionStatus | undefined,
+    qc_status: undefined as QCStatus | undefined,
+  })
   const [replyingTo, setReplyingTo] = useState<TrackerComment | null>(null)
   
   // Filter states
@@ -216,7 +230,7 @@ export function TrackerManagement() {
     onSuccess: () => {
       toast.success('Comment added')
       refetchComments()
-      setNewComment({ text: '', type: 'PROGRAMMING', parentId: null })
+      setNewComment({ text: '', type: 'PROGRAMMING', parentId: null, production_status: undefined, qc_status: undefined })
       setReplyingTo(null)
       queryClient.invalidateQueries({ queryKey: ['trackers', selectedEffortId] })
     },
@@ -386,16 +400,41 @@ export function TrackerManagement() {
     setCommentDialogOpen(true)
   }
 
-  const handleAddComment = () => {
+  const handleAddComment = async () => {
     if (!selectedTracker || !newComment.text.trim()) return
-    // Convert uppercase CommentType to lowercase for API (backend expects 'programming' or 'biostat')
-    const apiCommentType = newComment.type.toLowerCase() as 'programming' | 'biostat'
-    createComment.mutate({
-      tracker_id: selectedTracker.id,
-      comment_text: newComment.text.trim(),
-      comment_type: apiCommentType,
-      parent_comment_id: newComment.parentId,
-    })
+    
+    // If status updates are included and it's a top-level comment, use the new endpoint
+    if ((newComment.production_status || newComment.qc_status) && !newComment.parentId) {
+      try {
+        const result = await trackerApi.createCommentWithStatus(selectedTracker.id, {
+          comment_text: newComment.text.trim(),
+          production_status: newComment.production_status,
+          qc_status: newComment.qc_status,
+        })
+        
+        toast.success('Comment added and status updated')
+        queryClient.invalidateQueries({ queryKey: ['trackerComments', selectedTracker.id] })
+        queryClient.invalidateQueries({ queryKey: ['trackers'] })
+        setNewComment({ text: '', type: 'PROGRAMMING', parentId: null, production_status: undefined, qc_status: undefined })
+        
+        // Update selected tracker with new data
+        if (result.tracker) {
+          setSelectedTracker(result.tracker)
+        }
+      } catch (error) {
+        toast.error(getErrorMessage(error))
+      }
+    } else {
+      // Regular comment without status update
+      // Convert uppercase CommentType to lowercase for API (backend expects 'programming' or 'biostat')
+      const apiCommentType = newComment.type.toLowerCase() as 'programming' | 'biostat'
+      createComment.mutate({
+        tracker_id: selectedTracker.id,
+        comment_text: newComment.text.trim(),
+        comment_type: apiCommentType,
+        parent_comment_id: newComment.parentId,
+      })
+    }
   }
 
   const handleReply = (comment: TrackerComment) => {
@@ -918,14 +957,22 @@ export function TrackerManagement() {
                 <Label>Production Status</Label>
                 <Select
                   value={editFormData.production_status}
-                  onValueChange={(v: TrackerStatus) => setEditFormData((prev) => ({ ...prev, production_status: v }))}
+                  onValueChange={(v: ProductionStatus) => setEditFormData((prev) => ({ ...prev, production_status: v }))}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {TRACKER_STATUSES.map((s) => (
-                      <SelectItem key={s} value={s}>{s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</SelectItem>
+                    {/* Show PRODUCTION_STATUSES plus completed (for display when already completed) */}
+                    {[...PRODUCTION_STATUSES, 'completed' as ProductionStatus].map((s) => (
+                      <SelectItem 
+                        key={s} 
+                        value={s}
+                        disabled={s === 'completed'} // Completed is auto-set by QC
+                      >
+                        {s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                        {s === 'completed' && ' (auto)'}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -934,13 +981,14 @@ export function TrackerManagement() {
                 <Label>QC Status</Label>
                 <Select
                   value={editFormData.qc_status}
-                  onValueChange={(v: TrackerStatus) => setEditFormData((prev) => ({ ...prev, qc_status: v }))}
+                  onValueChange={(v: QCStatus) => setEditFormData((prev) => ({ ...prev, qc_status: v }))}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {TRACKER_STATUSES.map((s) => (
+                    {/* Show full QC statuses when production is ready_for_qc */}
+                    {(selectedTracker?.production_status === 'ready_for_qc' ? QC_STATUSES_READY : QC_STATUSES).map((s) => (
                       <SelectItem key={s} value={s}>{s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</SelectItem>
                     ))}
                   </SelectContent>
@@ -989,8 +1037,8 @@ export function TrackerManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Comments Dialog */}
-      <Dialog open={commentDialogOpen} onOpenChange={(open) => { setCommentDialogOpen(open); if (!open) { setReplyingTo(null); setNewComment({ text: '', type: 'PROGRAMMING', parentId: null }) } }}>
+      {/* Comments Dialog - Enhanced with status update capability */}
+      <Dialog open={commentDialogOpen} onOpenChange={(open) => { setCommentDialogOpen(open); if (!open) { setReplyingTo(null); setNewComment({ text: '', type: 'PROGRAMMING', parentId: null, production_status: undefined, qc_status: undefined }) } }}>
         <DialogContent className="max-w-2xl max-h-[85vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1024,7 +1072,7 @@ export function TrackerManagement() {
             )}
           </ScrollArea>
 
-          {/* Add Comment Form */}
+          {/* Add Comment Form with Status Update */}
           <div className="border-t pt-4 mt-4">
             {replyingTo && (
               <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded text-sm">
@@ -1035,6 +1083,62 @@ export function TrackerManagement() {
                 </Button>
               </div>
             )}
+            
+            {/* Status Update Section - Only show for top-level comments */}
+            {!replyingTo && (
+              <div className="grid grid-cols-2 gap-4 mb-4 p-3 bg-muted/30 rounded-lg">
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Update Production Status (optional)
+                  </Label>
+                  <Select
+                    value={newComment.production_status || ''}
+                    onValueChange={(v) => setNewComment((prev) => ({ 
+                      ...prev, 
+                      production_status: v === '' ? undefined : v as ProductionStatus 
+                    }))}
+                  >
+                    <SelectTrigger className="h-8">
+                      <SelectValue placeholder="No change" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No change</SelectItem>
+                      {PRODUCTION_STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Update QC Status (optional)
+                  </Label>
+                  <Select
+                    value={newComment.qc_status || ''}
+                    onValueChange={(v) => setNewComment((prev) => ({ 
+                      ...prev, 
+                      qc_status: v === '' ? undefined : v as QCStatus 
+                    }))}
+                  >
+                    <SelectTrigger className="h-8">
+                      <SelectValue placeholder="No change" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No change</SelectItem>
+                      {/* Show full QC statuses when production is ready_for_qc */}
+                      {(selectedTracker?.production_status === 'ready_for_qc' ? QC_STATUSES_READY : QC_STATUSES).map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+            
             <div className="flex gap-2 mb-2">
               <Select
                 value={newComment.type}
@@ -1062,6 +1166,11 @@ export function TrackerManagement() {
                 <Send className="h-4 w-4" />
               </Button>
             </div>
+            {(newComment.production_status || newComment.qc_status) && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Status will be updated when you submit this comment.
+              </p>
+            )}
           </div>
         </DialogContent>
       </Dialog>

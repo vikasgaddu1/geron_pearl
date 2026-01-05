@@ -1,13 +1,16 @@
 import { Badge } from "@/components/ui/badge"
-import type { TrackerStatus, Priority } from "@/types"
+import type { TrackerStatus, Priority, ProductionStatus, QCStatus } from "@/types"
 
 interface StatusBadgeProps {
-  status: TrackerStatus
+  status: TrackerStatus | ProductionStatus | QCStatus
+  type?: 'production' | 'qc'
 }
 
-const statusConfig: Record<TrackerStatus, { label: string; variant: "default" | "secondary" | "success" | "warning" | "destructive" | "info" }> = {
+// Combined status config for all possible statuses
+const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "success" | "warning" | "destructive" | "info" }> = {
   not_started: { label: "Not Started", variant: "secondary" },
   in_progress: { label: "In Progress", variant: "info" },
+  ready_for_qc: { label: "Ready for QC", variant: "default" },
   completed: { label: "Completed", variant: "success" },
   on_hold: { label: "On Hold", variant: "warning" },
   failed: { label: "Failed", variant: "destructive" },
@@ -58,4 +61,8 @@ export function RoleBadge({ role }: RoleBadgeProps) {
     </span>
   )
 }
+
+
+
+
 

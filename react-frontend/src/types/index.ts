@@ -142,7 +142,11 @@ export interface ReportingEffortItem {
 
 // ==================== Tracker Types ====================
 
-export type TrackerStatus = 'not_started' | 'in_progress' | 'completed' | 'on_hold' | 'failed'
+// Production statuses: not_started → in_progress → ready_for_qc → completed (auto)
+// QC statuses: not_started → in_progress → failed/completed
+export type ProductionStatus = 'not_started' | 'in_progress' | 'ready_for_qc' | 'completed' | 'on_hold'
+export type QCStatus = 'not_started' | 'in_progress' | 'failed' | 'completed' | 'on_hold'
+export type TrackerStatus = ProductionStatus | QCStatus  // Union type for backward compatibility
 export type Priority = 'critical' | 'high' | 'medium' | 'low'
 
 export interface TrackerTag {
@@ -166,11 +170,12 @@ export interface ReportingEffortItemTracker {
   reporting_effort_item_id: number
   production_programmer_id?: number
   qc_programmer_id?: number
-  production_status: TrackerStatus
-  qc_status: TrackerStatus
+  production_status: ProductionStatus
+  qc_status: QCStatus
   priority?: Priority
   due_date?: string
   qc_completion_date?: string
+  in_production_flag?: boolean
   created_at: string
   updated_at: string
   // Expanded fields
@@ -184,6 +189,24 @@ export interface ReportingEffortItemTracker {
   comment_count?: number
   unresolved_comment_count?: number
   tags?: TrackerTagSummary[]
+}
+
+// Status history for time tracking
+export interface TrackerStatusHistory {
+  id: number
+  status_field: 'production' | 'qc'
+  status_value: string
+  entered_at: string
+  exited_at?: string
+  duration_seconds?: number
+  changed_by_username?: string
+}
+
+// Permissions for a tracker (what the current user can modify)
+export interface TrackerPermissions {
+  production_status: boolean
+  qc_status: boolean
+  in_production_flag: boolean
 }
 
 // ==================== Comment Types ====================
