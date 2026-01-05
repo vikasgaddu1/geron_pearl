@@ -14,9 +14,32 @@ import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
+import { TooltipWrapper } from '@/components/common/TooltipWrapper'
 import { trackerApi } from '@/api'
 import { useAuthStore } from '@/stores/authStore'
-import { ClipboardList, Clock, AlertTriangle, PlayCircle, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react'
+import {
+  ClipboardList,
+  Clock,
+  AlertTriangle,
+  PlayCircle,
+  ExternalLink,
+  ChevronDown,
+  ChevronRight,
+  PieChart as PieChartIcon,
+  BarChart3,
+  Target
+} from 'lucide-react'
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+} from 'recharts'
 import type { ReportingEffortItemTracker } from '@/types'
 import { useState, useMemo } from 'react'
 
@@ -128,6 +151,74 @@ export function ProgrammerDashboard() {
     return false
   }).length
 
+  // Chart data - Status breakdown
+  const statusData = useMemo(() => {
+    const statusCounts: Record<string, number> = {}
+    myTrackers.forEach((t) => {
+      const isProd = Number(t.production_programmer_id) === Number(userId)
+      const status = isProd ? t.production_status : t.qc_status
+      statusCounts[status] = (statusCounts[status] || 0) + 1
+    })
+    return Object.entries(statusCounts).map(([name, value]) => ({
+      name: name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      value,
+      key: name,
+    }))
+  }, [myTrackers, userId])
+
+  // Chart data - Item type breakdown
+  const typeData = useMemo(() => {
+    const typeCounts: Record<string, number> = {}
+    myTrackers.forEach((t) => {
+      const type = t.item_subtype || t.item_type || 'Unknown'
+      typeCounts[type] = (typeCounts[type] || 0) + 1
+    })
+    return Object.entries(typeCounts).map(([name, value]) => ({ name, value }))
+  }, [myTrackers])
+
+  // Chart data - Priority breakdown
+  const priorityData = useMemo(() => {
+    const priorityCounts: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0 }
+    myTrackers.forEach((t) => {
+      const priority = t.priority || 'medium'
+      priorityCounts[priority] = (priorityCounts[priority] || 0) + 1
+    })
+    return Object.entries(priorityCounts)
+      .filter(([_, value]) => value > 0)
+      .map(([name, value]) => ({
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        value,
+        key: name,
+      }))
+  }, [myTrackers])
+
+  // Completion rate
+  const completedCount = myTrackers.filter((t) => {
+    const isProd = Number(t.production_programmer_id) === Number(userId)
+    const status = isProd ? t.production_status : t.qc_status
+    return status === 'completed'
+  }).length
+  const completionRate = totalAssignments > 0 ? Math.round((completedCount / totalAssignments) * 100) : 0
+
+  // Color schemes
+  const STATUS_COLORS: Record<string, string> = {
+    not_started: '#6b7280',
+    in_progress: '#3b82f6',
+    ready_for_qc: '#8b5cf6',
+    completed: '#22c55e',
+    on_hold: '#eab308',
+    failed: '#ef4444',
+  }
+
+  const PRIORITY_COLORS: Record<string, string> = {
+    critical: '#ef4444',
+    high: '#f97316',
+    medium: '#eab308',
+    low: '#22c55e',
+  }
+
+  const TYPE_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981']
+
   if (isLoading) {
     return <PageLoader text="Loading your assignments..." />
   }
@@ -166,6 +257,154 @@ export function ProgrammerDashboard() {
           variant={dueSoon > 0 ? 'warning' : 'default'}
         />
       </div>
+
+      {/* Charts Row */}
+      {myTrackers.length > 0 && (
+        <div className="grid gap-6 md:grid-cols-3">
+          {/* Completion Ring */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Target className="h-4 w-4" />
+                My Completion Rate
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="relative h-40 flex items-center justify-center">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Completed', value: completedCount },
+                        { name: 'Remaining', value: totalAssignments - completedCount },
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={60}
+                      dataKey="value"
+                      startAngle={90}
+                      endAngle={-270}
+                    >
+                      <Cell fill="#22c55e" />
+                      <Cell fill="#e5e7eb" />
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-3xl font-bold text-green-500">{completionRate}%</span>
+                  <span className="text-xs text-muted-foreground">Complete</span>
+                </div>
+              </div>
+              <div className="text-center text-sm text-muted-foreground mt-2">
+                {completedCount} of {totalAssignments} items completed
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Status Distribution */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <PieChartIcon className="h-4 w-4" />
+                Status Breakdown
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={statusData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={35}
+                      outerRadius={55}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {statusData.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={STATUS_COLORS[entry.key] || '#6b7280'}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number) => [`${value} items`, '']}
+                      contentStyle={{ borderRadius: '8px', fontSize: '12px' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-2">
+                {statusData.map((entry) => (
+                  <div key={entry.key} className="flex items-center gap-1 text-xs">
+                    <div
+                      className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: STATUS_COLORS[entry.key] || '#6b7280' }}
+                    />
+                    <span className="text-muted-foreground">{entry.name}: {entry.value}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Priority & Type Distribution */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BarChart3 className="h-4 w-4" />
+                By Priority & Type
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={typeData}
+                    layout="vertical"
+                    margin={{ left: 0, right: 10 }}
+                  >
+                    <XAxis type="number" hide />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={60}
+                      tick={{ fontSize: 11 }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip
+                      formatter={(value: number) => [`${value} items`, '']}
+                      contentStyle={{ borderRadius: '8px', fontSize: '12px' }}
+                    />
+                    <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                      {typeData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={TYPE_COLORS[index % TYPE_COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex justify-center gap-3 mt-2">
+                {priorityData.map((entry) => (
+                  <TooltipWrapper key={entry.key} content={`${entry.value} items`}>
+                    <div className="flex items-center gap-1 text-xs">
+                      <div
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: PRIORITY_COLORS[entry.key] }}
+                      />
+                      <span className="text-muted-foreground">{entry.name}</span>
+                    </div>
+                  </TooltipWrapper>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Assignments Grouped by Study/Reporting Effort */}
       <Card>
