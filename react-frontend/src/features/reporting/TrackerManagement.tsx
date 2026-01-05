@@ -113,6 +113,7 @@ export function TrackerManagement() {
     production_status: '' as ProductionStatus | '',
     qc_status: '' as QCStatus | '',
     due_date: '',
+    priority: '' as Priority | '',
   })
   const [editFormData, setEditFormData] = useState({
     production_programmer_id: '',
@@ -254,6 +255,7 @@ export function TrackerManagement() {
         production_status: '',
         qc_status: '',
         due_date: '',
+        priority: '',
       })
     },
     onError: (error) => toast.error(`Failed to update: ${getErrorMessage(error)}`),
@@ -437,6 +439,9 @@ export function TrackerManagement() {
     if (bulkData.qc_status) {
       data.qc_status = bulkData.qc_status as QCStatus
     }
+    if (bulkData.priority) {
+      data.priority = bulkData.priority as Priority
+    }
     
     bulkAssignStatus.mutate(data)
   }
@@ -448,7 +453,8 @@ export function TrackerManagement() {
       bulkData.qc_programmer_id ||
       bulkData.production_status ||
       bulkData.qc_status ||
-      bulkData.due_date
+      bulkData.due_date ||
+      bulkData.priority
     )
   }, [bulkData])
 
@@ -1531,6 +1537,7 @@ export function TrackerManagement() {
             production_status: '',
             qc_status: '',
             due_date: '',
+            priority: '',
           })
         }
       }}>
@@ -1644,6 +1651,27 @@ export function TrackerManagement() {
                     </p>
                   )}
                 </div>
+              </div>
+            </div>
+            
+            {/* Priority Section */}
+            <div className="border-t pt-4 mt-2">
+              <div className="grid gap-1.5">
+                <Label className="text-sm font-medium">Priority (optional)</Label>
+                <Select
+                  value={bulkData.priority || '__none__'}
+                  onValueChange={(v) => setBulkData((prev) => ({ ...prev, priority: v === '__none__' ? '' : v as Priority }))}
+                >
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">-- No change --</SelectItem>
+                    {PRIORITIES.map((p) => (
+                      <SelectItem key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>

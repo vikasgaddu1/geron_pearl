@@ -42,6 +42,7 @@ export interface BulkAssignStatusData {
   production_status?: ProductionStatus
   qc_status?: QCStatus
   due_date?: string  // ISO date string, auto-set to today+7 if not provided when assigning prod programmer
+  priority?: 'critical' | 'high' | 'medium' | 'low'
 }
 
 export interface BulkAssignStatusResponse {

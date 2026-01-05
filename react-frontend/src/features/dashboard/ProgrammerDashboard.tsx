@@ -237,6 +237,7 @@ export function ProgrammerDashboard() {
                                 <TableHead className="w-32">Item Code</TableHead>
                                 <TableHead>Title</TableHead>
                                 <TableHead className="w-20">Type</TableHead>
+                                <TableHead className="w-20">Priority</TableHead>
                                 <TableHead className="w-24">Role</TableHead>
                                 <TableHead className="w-28">Status</TableHead>
                                 <TableHead className="w-28">Due Date</TableHead>
@@ -249,6 +250,12 @@ export function ProgrammerDashboard() {
                                 const role = isProd && isQC ? 'Both' : isProd ? 'Production' : 'QC'
                                 const status = isProd ? tracker.production_status : tracker.qc_status
                                 const dueDate = tracker.due_date
+                                const priorityColors: Record<string, string> = {
+                                  critical: 'bg-red-500 text-white',
+                                  high: 'bg-orange-500 text-white',
+                                  medium: 'bg-yellow-500 text-black',
+                                  low: 'bg-green-500 text-white',
+                                }
 
                                 return (
                                   <TableRow key={tracker.id} className="hover:bg-muted/30">
@@ -259,6 +266,11 @@ export function ProgrammerDashboard() {
                                     <TableCell>
                                       <Badge variant={tracker.item_type === 'TLF' ? 'default' : 'secondary'} className="text-xs">
                                         {tracker.item_subtype || tracker.item_type}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge className={`text-xs ${priorityColors[tracker.priority || 'medium']}`}>
+                                        {(tracker.priority || 'medium').charAt(0).toUpperCase() + (tracker.priority || 'medium').slice(1)}
                                       </Badge>
                                     </TableCell>
                                     <TableCell>

@@ -77,6 +77,8 @@ class BulkAssignStatusRequest(BaseModel):
     qc_status: Optional[str] = Field(None, description="New QC status")
     # Due date (optional - auto-set to today+7 if not provided when assigning production programmer)
     due_date: Optional[date] = Field(None, description="Due date for the task")
+    # Priority (optional)
+    priority: Optional[str] = Field(None, description="Priority level (critical, high, medium, low)")
     
 class BulkAssignStatusResponse(BaseModel):
     """Response for bulk assign/status operations."""
@@ -942,6 +944,10 @@ async def bulk_assign_and_update_status(
                 # Auto-set qc_completion_date when QC status is completed
                 if data.qc_status == 'completed':
                     update_data["qc_completion_date"] = date.today()
+            
+            # Handle priority
+            if data.priority is not None:
+                update_data["priority"] = data.priority
             
             # Apply the update if there's data
             if update_data:
