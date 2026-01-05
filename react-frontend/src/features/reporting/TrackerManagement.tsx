@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ClipboardCheck, RefreshCw, Users, CheckCircle, MessageSquare, Edit, Trash2, Send, X, Tag, Plus, Reply, Filter } from 'lucide-react'
+import { ClipboardCheck, RefreshCw, Users, CheckCircle, MessageSquare, Edit, Trash2, Send, X, Tag, Plus, Reply, LayoutList, Kanban, UserCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { reportingEffortsApi, trackerApi, trackerCommentsApi, trackerTagsApi, usersApi, studiesApi, databaseReleasesApi } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -48,7 +48,9 @@ import { TooltipWrapper } from '@/components/common/TooltipWrapper'
 import { HelpIcon } from '@/components/common/HelpIcon'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
 import { formatDate, formatDateTime, getErrorMessage } from '@/lib/utils'
-import type { ReportingEffortItemTracker, TrackerStatus, TrackerComment, CommentType, Priority, TrackerTag, TrackerTagSummary, ProductionStatus, QCStatus } from '@/types'
+import type { ReportingEffortItemTracker, TrackerStatus, TrackerComment, CommentType, Priority, TrackerTag, ProductionStatus, QCStatus } from '@/types'
+import { KanbanBoard } from '@/components/tracker'
+import { useAuthStore } from '@/stores/authStore'
 
 // Separate status arrays for Production and QC
 const PRODUCTION_STATUSES: ProductionStatus[] = ['not_started', 'in_progress', 'ready_for_qc', 'on_hold']
@@ -119,6 +121,10 @@ export function TrackerManagement() {
   // Filter states
   const [commentFilter, setCommentFilter] = useState<'all' | 'has_comments' | 'has_unresolved'>('all')
   const [tagFilter, setTagFilter] = useState<number | null>(null)
+  
+  // View and filter mode states
+  const [viewMode, setViewMode] = useState<'list' | 'kanban-prod' | 'kanban-qc'>('list')
+  const [taskFilter, setTaskFilter] = useState<'all' | 'my-tasks'>('all')
   
   // Tag management state
   const [newTag, setNewTag] = useState({ name: '', color: '#3B82F6', description: '' })
@@ -320,9 +326,20 @@ export function TrackerManagement() {
     return true
   }
 
+  // Get current user for My Tasks filter
+  const { currentUser } = useAuthStore()
+  
   // Apply all filters
   const filteredTrackers = useMemo(() => {
     let result = trackers.filter(filterByTab)
+    
+    // My Tasks filter
+    if (taskFilter === 'my-tasks' && currentUser) {
+      result = result.filter(t => 
+        t.production_programmer_id === currentUser.id || 
+        t.qc_programmer_id === currentUser.id
+      )
+    }
     
     // Comment filter
     if (commentFilter === 'has_comments') {
@@ -337,7 +354,7 @@ export function TrackerManagement() {
     }
     
     return result
-  }, [trackers, activeTab, commentFilter, tagFilter])
+  }, [trackers, activeTab, commentFilter, tagFilter, taskFilter, currentUser])
 
   const handleSelectRow = (id: number, checked: boolean) => {
     const newSelected = new Set(selectedRows)
@@ -866,6 +883,87 @@ export function TrackerManagement() {
           ) : trackersLoading ? (
             <PageLoader text="Loading trackers..." />
           ) : (
+            <>
+              {/* View Toggle and My Tasks Filter */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={taskFilter === 'all' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setTaskFilter('all')}
+                  >
+                    <Users className="h-4 w-4 mr-1" />
+                    All Tasks
+                  </Button>
+                  <Button
+                    variant={taskFilter === 'my-tasks' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setTaskFilter('my-tasks')}
+                  >
+                    <UserCheck className="h-4 w-4 mr-1" />
+                    My Tasks
+                  </Button>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={viewMode === 'list' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('list')}
+                  >
+                    <LayoutList className="h-4 w-4 mr-1" />
+                    List
+                  </Button>
+                  <Button
+                    variant={viewMode === 'kanban-prod' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('kanban-prod')}
+                  >
+                    <Kanban className="h-4 w-4 mr-1" />
+                    Prod Kanban
+                  </Button>
+                  <Button
+                    variant={viewMode === 'kanban-qc' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('kanban-qc')}
+                  >
+                    <Kanban className="h-4 w-4 mr-1" />
+                    QC Kanban
+                  </Button>
+                </div>
+              </div>
+
+              {/* Kanban Views */}
+              {viewMode === 'kanban-prod' && (
+                <div className="mb-4">
+                  <h3 className="text-lg font-medium mb-2">Production Kanban</h3>
+                  <KanbanBoard 
+                    trackers={filteredTrackers} 
+                    statusField="production"
+                    onCardClick={(tracker) => {
+                      setSelectedTracker(tracker)
+                      setCommentDialogOpen(true)
+                    }}
+                  />
+                </div>
+              )}
+              
+              {viewMode === 'kanban-qc' && (
+                <div className="mb-4">
+                  <h3 className="text-lg font-medium mb-2">QC Kanban</h3>
+                  <KanbanBoard 
+                    trackers={filteredTrackers} 
+                    statusField="qc"
+                    onCardClick={(tracker) => {
+                      setSelectedTracker(tracker)
+                      setCommentDialogOpen(true)
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* List View */}
+              {viewMode === 'list' && (
             <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedRows(new Set()) }}>
               <TabsList className="mb-4">
                 <TabsTrigger value="tlf">
@@ -902,6 +1000,8 @@ export function TrackerManagement() {
                 </TabsContent>
               ))}
             </Tabs>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
