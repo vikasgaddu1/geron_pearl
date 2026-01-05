@@ -62,11 +62,6 @@ const QC_STATUSES_READY: QCStatus[] = ['not_started', 'in_progress', 'failed', '
 // Legacy combined list for backward compatibility
 const TRACKER_STATUSES: TrackerStatus[] = ['not_started', 'in_progress', 'ready_for_qc', 'completed', 'on_hold', 'failed']
 const PRIORITIES: Priority[] = ['critical', 'high', 'medium', 'low']
-// Simplified comment types for programmer/QC communication (backend only accepts programming/biostat)
-const COMMENT_TYPES: { value: CommentType; label: string }[] = [
-  { value: 'PROGRAMMING', label: 'Programmer' },
-  { value: 'BIOSTAT', label: 'QC Programmer' },
-]
 
 // Preset colors for tags
 const TAG_COLORS = [
@@ -587,12 +582,6 @@ export function TrackerManagement() {
     if (!id) return '-'
     const user = users.find((u) => u.id === id)
     return user?.username || '-'
-  }
-
-  // Get comment type label
-  const getCommentTypeLabel = (type: CommentType) => {
-    const found = COMMENT_TYPES.find(t => t.value === type)
-    return found?.label || type
   }
 
   // Define table columns - changes based on active tab
@@ -1288,7 +1277,6 @@ export function TrackerManagement() {
                     comment={comment} 
                     onResolve={() => resolveComment.mutate(comment.id)}
                     onReply={handleReply}
-                    getCommentTypeLabel={getCommentTypeLabel}
                     isNested={false}
                   />
                 ))}
@@ -1301,7 +1289,7 @@ export function TrackerManagement() {
             {replyingTo && (
               <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded text-sm">
                 <Reply className="h-4 w-4" />
-                <span>Replying to {replyingTo.user?.username || 'Unknown'}</span>
+                <span>Replying to {(replyingTo as any).username || replyingTo.user?.username || 'Unknown'}</span>
                 <Button variant="ghost" size="sm" className="ml-auto h-6" onClick={cancelReply}>
                   <X className="h-3 w-3" />
                 </Button>
@@ -1729,21 +1717,13 @@ function CommentItem({
   comment, 
   onResolve, 
   onReply,
-  getCommentTypeLabel,
   isNested = false
 }: { 
   comment: TrackerComment
   onResolve: () => void
   onReply: (comment: TrackerComment) => void
-  getCommentTypeLabel: (type: CommentType) => string
   isNested?: boolean
 }) {
-  const typeColors: Record<string, string> = {
-    'PROGRAMMING': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    'BIOSTAT': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-    'QUESTION': 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
-    'ISSUE': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-    'RESPONSE': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
   }
 
   return (
@@ -1751,10 +1731,7 @@ function CommentItem({
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="font-semibold text-sm">{comment.user?.username || 'Unknown'}</span>
-            <Badge variant="outline" className={`text-xs ${typeColors[comment.comment_type] || ''}`}>
-              {getCommentTypeLabel(comment.comment_type)}
-            </Badge>
+            <span className="font-semibold text-sm">{(comment as any).username || comment.user?.username || 'Unknown'}</span>
             {comment.is_resolved && <Badge variant="secondary" className="text-xs">Resolved</Badge>}
             <span className="text-xs text-muted-foreground">{formatDateTime(comment.created_at)}</span>
           </div>
@@ -1782,7 +1759,6 @@ function CommentItem({
               comment={reply} 
               onResolve={() => {}}
               onReply={() => {}}
-              getCommentTypeLabel={getCommentTypeLabel}
               isNested={true}
             />
           ))}
