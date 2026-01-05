@@ -272,6 +272,157 @@ class TestAllowedStatusesMethods:
         assert QCStatus.COMPLETED.value in allowed
 
 
+class TestAutoTransitions:
+    """Test automatic status transitions between Production and QC."""
+
+    def test_qc_fail_auto_sets_production_in_progress(self):
+        """When QC→FAILED, production should auto-set to IN_PROGRESS."""
+        tracker = MagicMock()
+        tracker.production_programmer_id = 1
+        tracker.qc_programmer_id = 1
+        tracker.production_status = ProductionStatus.READY_FOR_QC.value
+        tracker.qc_status = QCStatus.IN_PROGRESS.value
+
+        updates = TrackerWorkflowService.apply_status_transition(
+            tracker, "qc_status", QCStatus.FAILED.value
+        )
+
+        assert updates["qc_status"] == QCStatus.FAILED.value
+        assert updates["production_status"] == ProductionStatus.IN_PROGRESS.value
+
+    def test_qc_complete_auto_sets_production_complete(self):
+        """When QC→COMPLETED, production should auto-set to COMPLETED."""
+        tracker = MagicMock()
+        tracker.production_programmer_id = 1
+        tracker.qc_programmer_id = 1
+        tracker.production_status = ProductionStatus.READY_FOR_QC.value
+        tracker.qc_status = QCStatus.IN_PROGRESS.value
+
+        updates = TrackerWorkflowService.apply_status_transition(
+            tracker, "qc_status", QCStatus.COMPLETED.value
+        )
+
+        assert updates["qc_status"] == QCStatus.COMPLETED.value
+        assert updates["production_status"] == ProductionStatus.COMPLETED.value
+
+    def test_production_reopen_auto_sets_qc_in_progress(self):
+        """When production COMPLETED→IN_PROGRESS, QC should auto-set to IN_PROGRESS."""
+        tracker = MagicMock()
+        tracker.production_programmer_id = 1
+        tracker.qc_programmer_id = 1
+        tracker.production_status = ProductionStatus.COMPLETED.value
+        tracker.qc_status = QCStatus.COMPLETED.value
+        tracker.in_production_flag = True
+
+        updates = TrackerWorkflowService.apply_status_transition(
+            tracker, "production_status", ProductionStatus.IN_PROGRESS.value
+        )
+
+        assert updates["production_status"] == ProductionStatus.IN_PROGRESS.value
+        assert updates["qc_status"] == QCStatus.IN_PROGRESS.value
+
+    def test_production_reopen_clears_prod_flag(self):
+        """When production reopens from COMPLETED, in_production_flag should clear."""
+        tracker = MagicMock()
+        tracker.production_programmer_id = 1
+        tracker.qc_programmer_id = 1
+        tracker.production_status = ProductionStatus.COMPLETED.value
+        tracker.qc_status = QCStatus.COMPLETED.value
+        tracker.in_production_flag = True
+
+        updates = TrackerWorkflowService.apply_status_transition(
+            tracker, "production_status", ProductionStatus.IN_PROGRESS.value
+        )
+
+        assert updates["in_production_flag"] is False
+
+    def test_production_ready_resets_qc_from_failed(self):
+        """When production→READY_FOR_QC and QC is FAILED, QC should auto-set to IN_PROGRESS."""
+        tracker = MagicMock()
+        tracker.production_programmer_id = 1
+        tracker.qc_programmer_id = 1
+        tracker.production_status = ProductionStatus.IN_PROGRESS.value
+        tracker.qc_status = QCStatus.FAILED.value
+
+        updates = TrackerWorkflowService.apply_status_transition(
+            tracker, "production_status", ProductionStatus.READY_FOR_QC.value
+        )
+
+        assert updates["production_status"] == ProductionStatus.READY_FOR_QC.value
+        assert updates["qc_status"] == QCStatus.IN_PROGRESS.value
+
+    def test_no_auto_transition_for_simple_status_change(self):
+        """Simple status changes should not trigger auto-transitions."""
+        tracker = MagicMock()
+        tracker.production_programmer_id = 1
+        tracker.qc_programmer_id = 1
+        tracker.production_status = ProductionStatus.NOT_STARTED.value
+        tracker.qc_status = QCStatus.NOT_STARTED.value
+
+        updates = TrackerWorkflowService.apply_status_transition(
+            tracker, "production_status", ProductionStatus.IN_PROGRESS.value
+        )
+
+        assert updates == {"production_status": ProductionStatus.IN_PROGRESS.value}
+        assert "qc_status" not in updates
+
+
+class TestStatusHistoryCreation:
+    """Test creation of status history entries."""
+
+    def test_status_change_creates_history_entry(self):
+        """Every status change should create a history entry."""
+        updates = {"production_status": ProductionStatus.IN_PROGRESS.value}
+
+        entries = TrackerWorkflowService.create_history_entries(
+            tracker_id=1,
+            updates=updates,
+            previous_production_status=ProductionStatus.NOT_STARTED.value,
+            previous_qc_status=QCStatus.NOT_STARTED.value,
+            user_id=1
+        )
+
+        assert len(entries) == 1
+        assert entries[0].status_field == "production"
+        assert entries[0].status_value == ProductionStatus.IN_PROGRESS.value
+        assert entries[0].tracker_id == 1
+        assert entries[0].changed_by_user_id == 1
+
+    def test_cascading_changes_create_multiple_history_entries(self):
+        """Auto-transitions should create history entries for all changed statuses."""
+        updates = {
+            "qc_status": QCStatus.COMPLETED.value,
+            "production_status": ProductionStatus.COMPLETED.value  # Auto-set
+        }
+
+        entries = TrackerWorkflowService.create_history_entries(
+            tracker_id=1,
+            updates=updates,
+            previous_production_status=ProductionStatus.READY_FOR_QC.value,
+            previous_qc_status=QCStatus.IN_PROGRESS.value,
+            user_id=1
+        )
+
+        assert len(entries) == 2
+        status_fields = [e.status_field for e in entries]
+        assert "production" in status_fields
+        assert "qc" in status_fields
+
+    def test_no_history_entry_if_status_unchanged(self):
+        """No history entry if the status value is the same."""
+        updates = {"production_status": ProductionStatus.IN_PROGRESS.value}
+
+        entries = TrackerWorkflowService.create_history_entries(
+            tracker_id=1,
+            updates=updates,
+            previous_production_status=ProductionStatus.IN_PROGRESS.value,  # Same!
+            previous_qc_status=QCStatus.NOT_STARTED.value,
+            user_id=1
+        )
+
+        assert len(entries) == 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 

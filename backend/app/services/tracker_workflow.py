@@ -5,11 +5,13 @@ Business logic for Production/QC status transitions, validation, and auto-update
 """
 
 from typing import Tuple, Dict, Any, Optional
+from datetime import datetime
 from app.models.reporting_effort_item_tracker import (
     ReportingEffortItemTracker,
     ProductionStatus,
     QCStatus,
 )
+from app.models.tracker_status_history import TrackerStatusHistory
 
 
 class TrackerWorkflowService:
@@ -137,6 +139,111 @@ class TrackerWorkflowService:
             ])
         
         return base_statuses
+
+    # =========================================================================
+    # AUTO-TRANSITION METHODS
+    # =========================================================================
+
+    @staticmethod
+    def apply_status_transition(
+        tracker: ReportingEffortItemTracker,
+        status_field: str,
+        new_status: str
+    ) -> Dict[str, Any]:
+        """
+        Apply a status change and calculate any cascading auto-updates.
+        
+        Auto-transition rules:
+        1. QC → FAILED: Production → IN_PROGRESS
+        2. QC → COMPLETED: Production → COMPLETED
+        3. Production COMPLETED → IN_PROGRESS: QC → IN_PROGRESS, in_production_flag = False
+        4. Production → READY_FOR_QC (when QC = FAILED): QC → IN_PROGRESS
+        
+        Args:
+            tracker: The tracker instance
+            status_field: 'production_status' or 'qc_status'
+            new_status: The new status value to set
+            
+        Returns:
+            Dict of all fields that need to be updated (including auto-transitions)
+        """
+        updates: Dict[str, Any] = {status_field: new_status}
+        
+        if status_field == "qc_status":
+            # Rule 1: QC → FAILED triggers Production → IN_PROGRESS
+            if (new_status == QCStatus.FAILED.value and 
+                tracker.production_status == ProductionStatus.READY_FOR_QC.value):
+                updates["production_status"] = ProductionStatus.IN_PROGRESS.value
+            
+            # Rule 2: QC → COMPLETED triggers Production → COMPLETED
+            elif new_status == QCStatus.COMPLETED.value:
+                updates["production_status"] = ProductionStatus.COMPLETED.value
+        
+        elif status_field == "production_status":
+            # Rule 3: Production COMPLETED → IN_PROGRESS triggers QC → IN_PROGRESS + flag off
+            if (tracker.production_status == ProductionStatus.COMPLETED.value and 
+                new_status == ProductionStatus.IN_PROGRESS.value):
+                updates["qc_status"] = QCStatus.IN_PROGRESS.value
+                updates["in_production_flag"] = False
+            
+            # Rule 4: Production → READY_FOR_QC when QC is FAILED triggers QC → IN_PROGRESS
+            elif (new_status == ProductionStatus.READY_FOR_QC.value and 
+                  tracker.qc_status == QCStatus.FAILED.value):
+                updates["qc_status"] = QCStatus.IN_PROGRESS.value
+        
+        return updates
+
+    @staticmethod
+    def create_history_entries(
+        tracker_id: int,
+        updates: Dict[str, Any],
+        previous_production_status: str,
+        previous_qc_status: str,
+        user_id: Optional[int] = None
+    ) -> list:
+        """
+        Create TrackerStatusHistory entries for status changes.
+        
+        Args:
+            tracker_id: ID of the tracker
+            updates: Dict of fields being updated
+            previous_production_status: Previous production status value
+            previous_qc_status: Previous QC status value
+            user_id: ID of user making the change
+            
+        Returns:
+            List of TrackerStatusHistory objects to be added to the session
+        """
+        history_entries = []
+        now = datetime.utcnow()
+        
+        # Check if production status is changing
+        if "production_status" in updates:
+            new_status = updates["production_status"]
+            if new_status != previous_production_status:
+                # Create new entry for entering the new status
+                history_entries.append(TrackerStatusHistory(
+                    tracker_id=tracker_id,
+                    status_field="production",
+                    status_value=new_status,
+                    entered_at=now,
+                    changed_by_user_id=user_id
+                ))
+        
+        # Check if QC status is changing
+        if "qc_status" in updates:
+            new_status = updates["qc_status"]
+            if new_status != previous_qc_status:
+                # Create new entry for entering the new status
+                history_entries.append(TrackerStatusHistory(
+                    tracker_id=tracker_id,
+                    status_field="qc",
+                    status_value=new_status,
+                    entered_at=now,
+                    changed_by_user_id=user_id
+                ))
+        
+        return history_entries
 
 
 # Create a singleton instance for easy import
