@@ -315,3 +315,7 @@ nul
 
 # Utility scripts (local development tools)
 scripts/
+
+# Database backups
+backend/backups/*.sql
+backend/backups/*.json
