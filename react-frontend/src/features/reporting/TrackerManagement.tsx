@@ -758,27 +758,6 @@ export function TrackerManagement() {
         cell: (value) => value ? formatDate(value as string) : '-',
       },
       {
-        id: 'comments',
-        header: 'Comments',
-        accessorKey: 'unresolved_comment_count',
-        filterType: 'none',
-        enableSorting: true,
-        cell: (_, tracker) => (
-          <TooltipWrapper 
-            content={`${tracker.comment_count || 0} total, ${tracker.unresolved_comment_count || 0} unresolved`}
-          >
-            <Button variant="ghost" size="sm" onClick={() => handleOpenComments(tracker)}>
-              <MessageSquare className="h-4 w-4" />
-              {(tracker.unresolved_comment_count || 0) > 0 ? (
-                <Badge variant="destructive" className="ml-1">{tracker.unresolved_comment_count}</Badge>
-              ) : tracker.comment_count ? (
-                <Badge variant="secondary" className="ml-1">{tracker.comment_count}</Badge>
-              ) : null}
-            </Button>
-          </TooltipWrapper>
-        ),
-      },
-      {
         id: 'actions',
         header: 'Actions',
         accessorKey: 'id',
@@ -786,6 +765,18 @@ export function TrackerManagement() {
         enableSorting: false,
         cell: (_, tracker) => (
           <div className="flex justify-end gap-1">
+            <TooltipWrapper 
+              content={`Comments: ${tracker.comment_count || 0} total, ${tracker.unresolved_comment_count || 0} unresolved`}
+            >
+              <Button variant="ghost" size="icon" onClick={() => handleOpenComments(tracker)} className="relative">
+                <MessageSquare className="h-4 w-4" />
+                {(tracker.unresolved_comment_count || 0) > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                    {tracker.unresolved_comment_count}
+                  </span>
+                )}
+              </Button>
+            </TooltipWrapper>
             <TooltipWrapper content="Edit tracker">
               <Button variant="ghost" size="icon" onClick={() => handleEdit(tracker)}>
                 <Edit className="h-4 w-4" />
