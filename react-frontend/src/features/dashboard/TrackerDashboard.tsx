@@ -102,8 +102,8 @@ export function TrackerDashboard() {
   const workloadData = users
     .filter((u) => ['EDITOR', 'ADMIN'].includes(u.role))
     .map((user) => {
-      const primary = trackers.filter((t) => t.production_programmer_id === user.id).length
-      const qc = trackers.filter((t) => t.qc_programmer_id === user.id).length
+      const primary = trackers.filter((t) => Number(t.production_programmer_id) === Number(user.id)).length
+      const qc = trackers.filter((t) => Number(t.qc_programmer_id) === Number(user.id)).length
       return { name: user.username, primary, qc, total: primary + qc }
     })
     .filter((w) => w.total > 0)

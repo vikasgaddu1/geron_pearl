@@ -27,9 +27,10 @@ export function ProgrammerDashboard() {
   })
 
   // Filter trackers for the logged-in user
+  // Use Number() to ensure type consistency (API might return string IDs)
   const myTrackers = userId
     ? allTrackers.filter(
-        (t) => t.production_programmer_id === userId || t.qc_programmer_id === userId
+        (t) => Number(t.production_programmer_id) === Number(userId) || Number(t.qc_programmer_id) === Number(userId)
       )
     : []
 
@@ -133,8 +134,8 @@ export function ProgrammerDashboard() {
                 </TableHeader>
                 <TableBody>
                   {myTrackers.slice(0, 20).map((tracker) => {
-                    const isPrimary = tracker.production_programmer_id === userId
-                    const isQC = tracker.qc_programmer_id === userId
+                    const isPrimary = Number(tracker.production_programmer_id) === Number(userId)
+                    const isQC = Number(tracker.qc_programmer_id) === Number(userId)
                     const role = isPrimary && isQC ? 'Both' : isPrimary ? 'Primary' : 'QC'
                     const status = isPrimary ? tracker.production_status : tracker.qc_status
                     const dueDate = tracker.due_date
