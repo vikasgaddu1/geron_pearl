@@ -31,10 +31,10 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-purple-600/5 p-4">
+    <div className="min-h-screen flex items-center justify-center gradient-primary-subtle p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+          <CardTitle className="text-3xl font-bold gradient-primary-text">
             Welcome to PEARL
           </CardTitle>
           <CardDescription>

@@ -11,7 +11,7 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="rounded-lg bg-gradient-to-r from-primary to-purple-600 p-6 text-white">
+      <div className="rounded-lg gradient-primary p-6 text-white">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">Dashboard</h1>

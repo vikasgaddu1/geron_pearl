@@ -1,14 +1,18 @@
 import { useEffect } from 'react'
-import { useUIStore, applyTheme } from '@/stores/uiStore'
+import { useUIStore, applyTheme, applyColorTheme } from '@/stores/uiStore'
 import { usePrefersDarkMode } from '@/hooks/useMediaQuery'
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const { theme } = useUIStore()
+  const { theme, colorTheme } = useUIStore()
   const prefersDark = usePrefersDarkMode()
 
   useEffect(() => {
     applyTheme(theme)
   }, [theme])
+
+  useEffect(() => {
+    applyColorTheme(colorTheme)
+  }, [colorTheme])
 
   useEffect(() => {
     if (theme === 'system') {

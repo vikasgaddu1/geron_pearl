@@ -24,6 +24,7 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
+    --gradient-to: 271 91% 65%;
   }
 
   .dark {
@@ -46,7 +47,70 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 224.3 76.3% 48%;
+    --gradient-to: 271 91% 70%;
   }
+
+}
+
+/* Color Theme Overrides - Outside @layer for higher specificity */
+/* Theme: Teal - Fresh, professional, data-focused */
+.theme-teal {
+  --primary: 175 84% 32%;
+  --ring: 175 84% 32%;
+  --gradient-to: 187 85% 43%;
+}
+.theme-teal.dark {
+  --primary: 175 77% 45%;
+  --ring: 175 77% 45%;
+  --gradient-to: 187 85% 53%;
+}
+
+/* Theme: Emerald - Research, growth, calming */
+.theme-emerald {
+  --primary: 152 69% 31%;
+  --ring: 152 69% 31%;
+  --gradient-to: 142 71% 45%;
+}
+.theme-emerald.dark {
+  --primary: 152 69% 45%;
+  --ring: 152 69% 45%;
+  --gradient-to: 142 71% 55%;
+}
+
+/* Theme: Coral - Warm, energetic, modern */
+.theme-coral {
+  --primary: 16 85% 57%;
+  --ring: 16 85% 57%;
+  --gradient-to: 35 92% 55%;
+}
+.theme-coral.dark {
+  --primary: 16 85% 62%;
+  --ring: 16 85% 62%;
+  --gradient-to: 35 92% 60%;
+}
+
+/* Theme: Slate - Sophisticated, neutral */
+.theme-slate {
+  --primary: 215 25% 35%;
+  --ring: 215 25% 35%;
+  --gradient-to: 215 30% 50%;
+}
+.theme-slate.dark {
+  --primary: 215 25% 55%;
+  --ring: 215 25% 55%;
+  --gradient-to: 215 30% 60%;
+}
+
+/* Theme: Indigo - Bold, distinctive */
+.theme-indigo {
+  --primary: 243 75% 59%;
+  --ring: 243 75% 59%;
+  --gradient-to: 258 90% 66%;
+}
+.theme-indigo.dark {
+  --primary: 243 75% 68%;
+  --ring: 243 75% 68%;
+  --gradient-to: 258 90% 72%;
 }
 
 @layer base {
@@ -100,6 +164,22 @@
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--muted-foreground) / 0.2) transparent;
+}
+
+/* Theme gradient utilities */
+.gradient-primary {
+  background-image: linear-gradient(to right, hsl(var(--primary)), hsl(var(--gradient-to)));
+}
+
+.gradient-primary-text {
+  background-image: linear-gradient(to right, hsl(var(--primary)), hsl(var(--gradient-to)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.gradient-primary-subtle {
+  background-image: linear-gradient(to bottom right, hsl(var(--primary) / 0.05), transparent, hsl(var(--gradient-to) / 0.05));
 }
 
 

@@ -14,6 +14,7 @@ import { useWebSocketStore } from '@/stores/websocketStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useAuth } from '@/hooks/useAuth'
 import { RoleBadge } from '@/components/common/StatusBadge'
+import { ThemeSelector } from '@/components/layout/ThemeSelector'
 import { cn } from '@/lib/utils'
 import { useEffect } from 'react'
 
@@ -45,7 +46,7 @@ export function Navbar() {
 
         <Link to="/" className="flex items-center gap-2 font-semibold">
           <Database className="h-6 w-6 text-primary" />
-          <span className="hidden sm:inline-block bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+          <span className="hidden sm:inline-block gradient-primary-text">
             PEARL Admin
           </span>
         </Link>
@@ -53,7 +54,10 @@ export function Navbar() {
         <div className="flex-1" />
 
         <div className="flex items-center gap-2">
-          {/* Theme Toggle */}
+          {/* Color Theme Selector */}
+          <ThemeSelector />
+
+          {/* Light/Dark Mode Toggle */}
           <Button variant="ghost" size="icon" onClick={toggleTheme}>
             {theme === 'dark' ? (
               <Sun className="h-5 w-5" />

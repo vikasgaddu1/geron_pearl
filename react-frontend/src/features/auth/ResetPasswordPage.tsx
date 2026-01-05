@@ -68,7 +68,7 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-purple-600/5 p-4">
+    <div className="min-h-screen flex items-center justify-center gradient-primary-subtle p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
