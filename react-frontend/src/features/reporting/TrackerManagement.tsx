@@ -1262,17 +1262,17 @@ export function TrackerManagement() {
                     Update Production Status (optional)
                   </Label>
                   <Select
-                    value={newComment.production_status || ''}
+                    value={newComment.production_status || '__none__'}
                     onValueChange={(v) => setNewComment((prev) => ({ 
                       ...prev, 
-                      production_status: v === '' ? undefined : v as ProductionStatus 
+                      production_status: v === '__none__' ? undefined : v as ProductionStatus 
                     }))}
                   >
                     <SelectTrigger className="h-8">
                       <SelectValue placeholder="No change" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No change</SelectItem>
+                      <SelectItem value="__none__">No change</SelectItem>
                       {PRODUCTION_STATUSES.map((s) => (
                         <SelectItem key={s} value={s}>
                           {s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
@@ -1286,17 +1286,17 @@ export function TrackerManagement() {
                     Update QC Status (optional)
                   </Label>
                   <Select
-                    value={newComment.qc_status || ''}
+                    value={newComment.qc_status || '__none__'}
                     onValueChange={(v) => setNewComment((prev) => ({ 
                       ...prev, 
-                      qc_status: v === '' ? undefined : v as QCStatus 
+                      qc_status: v === '__none__' ? undefined : v as QCStatus 
                     }))}
                   >
                     <SelectTrigger className="h-8">
                       <SelectValue placeholder="No change" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No change</SelectItem>
+                      <SelectItem value="__none__">No change</SelectItem>
                       {/* Show full QC statuses when production is ready_for_qc */}
                       {(selectedTracker?.production_status === 'ready_for_qc' ? QC_STATUSES_READY : QC_STATUSES).map((s) => (
                         <SelectItem key={s} value={s}>
