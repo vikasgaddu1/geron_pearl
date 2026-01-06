@@ -25,7 +25,8 @@ from app.schemas.text_element import TextElementCreate
 from app.models.enums import ItemType, SourceType
 from app.models.reporting_effort_item import ReportingEffortItem as ReportingEffortItemModel
 from app.models.text_element import TextElementType
-from app.models.user import UserRole
+from app.models.user import UserRole, User as UserModel
+from app.core.security import get_current_user
 from app.utils import sqlalchemy_to_dict
 from app.api.v1.websocket import manager
 
@@ -489,10 +490,19 @@ async def update_reporting_effort_item(
     request: Request,
     item_id: int,
     item_in: ReportingEffortItemUpdate,
+    current_user: UserModel = Depends(get_current_user),
 ) -> dict:
     """
     Update an existing reporting effort item including dataset/TLF details.
+    Requires EDITOR or ADMIN role.
     """
+    # Permission check: Viewers cannot update items
+    if current_user.role == UserRole.VIEWER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Viewers do not have permission to update items"
+        )
+
     try:
         db_item = await reporting_effort_item.get(db, id=item_id)
         if not db_item:
@@ -518,7 +528,7 @@ async def update_reporting_effort_item(
                 table_name="reporting_effort_items",
                 record_id=updated_item.id,
                 action="UPDATE",
-                user_id=getattr(request.state, 'user_id', None),
+                user_id=current_user.id,
                 changes=changes,
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
@@ -663,16 +673,22 @@ async def bulk_create_tlf_items(
     request: Request,
     reporting_effort_id: int,
     items_in: List[BulkTLFItem],
-    # Note: In production, add user role authentication here
-    # current_user: User = Depends(get_current_admin_user)
+    current_user: UserModel = Depends(get_current_user),
 ) -> BulkUploadResponse:
     """
     Bulk create TLF items for a reporting effort.
     Admin only functionality.
     """
+    # Permission check: Only admin can perform bulk uploads
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can perform bulk TLF uploads"
+        )
+
     errors = []
     created_items = []
-    
+
     try:
         # Verify reporting effort exists
         db_effort = await reporting_effort.get(db, id=reporting_effort_id)
@@ -850,16 +866,22 @@ async def bulk_create_dataset_items(
     request: Request,
     reporting_effort_id: int,
     items_in: List[BulkDatasetItem],
-    # Note: In production, add user role authentication here
-    # current_user: User = Depends(get_current_admin_user)
+    current_user: UserModel = Depends(get_current_user),
 ) -> BulkUploadResponse:
     """
     Bulk create dataset items for a reporting effort.
     Admin only functionality.
     """
+    # Permission check: Only admin can perform bulk uploads
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can perform bulk dataset uploads"
+        )
+
     errors = []
     created_items = []
-    
+
     try:
         # Verify reporting effort exists
         db_effort = await reporting_effort.get(db, id=reporting_effort_id)
@@ -979,13 +1001,22 @@ async def copy_items_from_package(
     request: Request,
     reporting_effort_id: int,
     copy_request: CopyFromPackageRequest,
+    current_user: UserModel = Depends(get_current_user),
 ) -> CopyOperationResponse:
     """
     Copy items from a package to a reporting effort.
+    Admin only - bulk operation.
     """
+    # Permission check: Only admin can perform bulk copy operations
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can perform bulk copy operations"
+        )
+
     import logging
     logger = logging.getLogger(__name__)
-    
+
     try:
         logger.info(f"Starting copy operation: package_id={copy_request.package_id}, reporting_effort_id={reporting_effort_id}")
         
@@ -1024,7 +1055,7 @@ async def copy_items_from_package(
                 table_name="reporting_effort_items",
                 record_id=reporting_effort_id,
                 action="COPY_FROM_PACKAGE",
-                user_id=getattr(request.state, 'user_id', None),
+                user_id=current_user.id,
                 changes={
                     "copy_operation": {
                         "source_package_id": copy_request.package_id,
@@ -1039,7 +1070,7 @@ async def copy_items_from_package(
             )
         except Exception as audit_error:
             logger.error(f"Audit logging error: {audit_error}")
-        
+
         # Broadcast WebSocket events for each created item
         for item in copy_result['created_items']:
             try:
@@ -1290,13 +1321,22 @@ async def copy_items_from_reporting_effort(
     request: Request,
     reporting_effort_id: int,
     copy_request: CopyFromReportingEffortRequest,
+    current_user: UserModel = Depends(get_current_user),
 ) -> CopyOperationResponse:
     """
     Copy items from another reporting effort with graceful duplicate handling.
+    Admin only - bulk operation.
     """
+    # Permission check: Only admin can perform bulk copy operations
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can perform bulk copy operations"
+        )
+
     import logging
     logger = logging.getLogger(__name__)
-    
+
     try:
         logger.info(f"Starting copy operation: source_reporting_effort_id={copy_request.source_reporting_effort_id}, target_reporting_effort_id={reporting_effort_id}")
         # Verify target reporting effort exists
@@ -1338,7 +1378,7 @@ async def copy_items_from_reporting_effort(
                 table_name="reporting_effort_items",
                 record_id=reporting_effort_id,
                 action="COPY_FROM_REPORTING_EFFORT",
-                user_id=getattr(request.state, 'user_id', None),
+                user_id=current_user.id,
                 changes={
                     "copy_operation": {
                         "source_reporting_effort_id": copy_request.source_reporting_effort_id,
@@ -1354,7 +1394,7 @@ async def copy_items_from_reporting_effort(
             )
         except Exception as audit_error:
             logger.error(f"Audit logging error: {audit_error}")
-        
+
         # Broadcast WebSocket events for each created item
         for item in created_items:
             try:

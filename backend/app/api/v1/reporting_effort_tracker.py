@@ -473,10 +473,19 @@ async def delete_tracker(
     db: AsyncSession = Depends(get_db),
     request: Request,
     tracker_id: int,
+    current_user: UserModel = Depends(get_current_user),
 ) -> None:
     """
     Delete a tracker entry.
+    Admin only functionality.
     """
+    # Permission check: Only admin can delete trackers
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can delete trackers"
+        )
+
     try:
         # Verify tracker exists
         db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
@@ -682,10 +691,19 @@ async def unassign_programmer(
     request: Request,
     tracker_id: int,
     role: str = Query(..., description="Role to unassign: 'production' or 'qc'"),
+    current_user: UserModel = Depends(get_current_user),
 ) -> ReportingEffortItemTracker:
     """
     Unassign a programmer from a tracker.
+    Admin only functionality.
     """
+    # Permission check: Only admin can unassign programmers
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can unassign programmers"
+        )
+
     try:
         db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
         if not db_tracker:
@@ -896,6 +914,7 @@ async def bulk_update_status(
     """
     Bulk update status for multiple trackers.
     Only ADMIN users can perform bulk status updates.
+    Applies same validation rules as individual updates (unresolved comments, auto-transitions).
     """
     # Permission check: Only admin can perform bulk status updates
     if current_user.role != UserRole.ADMIN:
@@ -903,24 +922,63 @@ async def bulk_update_status(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only administrators can perform bulk status updates"
         )
-    
+
+    updated_trackers = []
+    errors = []
+
     try:
-        # Prepare updates for CRUD method
-        crud_updates = []
         for update in updates.updates:
-            if "id" not in update:
-                if "tracker_id" in update:
-                    update["id"] = update.pop("tracker_id")
-                else:
-                    continue  # Skip invalid updates
-            crud_updates.append(update)
-        
-        updated_trackers = await reporting_effort_item_tracker.bulk_update(
-            db, updates=crud_updates
-        )
-        
-        print(f"Bulk status update completed: {len(updated_trackers)} trackers updated")
-        
+            tracker_id = update.get("id") or update.get("tracker_id")
+            if not tracker_id:
+                continue
+
+            try:
+                # Get the tracker
+                db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
+                if not db_tracker:
+                    errors.append(f"Tracker {tracker_id} not found")
+                    continue
+
+                update_data = {k: v for k, v in update.items() if k not in ["id", "tracker_id"]}
+
+                # Validate: Cannot set QC status to completed if there are unresolved comments
+                if update_data.get("qc_status") == "completed":
+                    if db_tracker.unresolved_comment_count > 0:
+                        errors.append(f"Tracker {tracker_id}: Cannot mark QC as completed - {db_tracker.unresolved_comment_count} unresolved comment(s)")
+                        continue
+                    # Auto-set qc_completion_date
+                    update_data["qc_completion_date"] = date.today()
+
+                # Apply auto-transitions for status changes using workflow service
+                if update_data.get("production_status"):
+                    auto_updates = TrackerWorkflowService.apply_status_transition(
+                        db_tracker, "production_status", update_data["production_status"]
+                    )
+                    update_data.update(auto_updates)
+
+                if update_data.get("qc_status"):
+                    auto_updates = TrackerWorkflowService.apply_status_transition(
+                        db_tracker, "qc_status", update_data["qc_status"]
+                    )
+                    update_data.update(auto_updates)
+
+                # Apply the update
+                updated_tracker = await reporting_effort_item_tracker.update(
+                    db, db_obj=db_tracker, obj_in=update_data
+                )
+                updated_trackers.append(updated_tracker)
+
+                # Broadcast update
+                try:
+                    await broadcast_tracker_updated(updated_tracker)
+                except Exception:
+                    pass
+
+            except Exception as e:
+                errors.append(f"Tracker {tracker_id}: {str(e)}")
+
+        print(f"Bulk status update completed: {len(updated_trackers)} trackers updated, {len(errors)} errors")
+
         # Log bulk update audit trail
         try:
             await audit_log.log_action(
@@ -928,11 +986,13 @@ async def bulk_update_status(
                 table_name="reporting_effort_item_tracker",
                 record_id=0,  # Use 0 for bulk operations
                 action="BULK_STATUS_UPDATE",
-                user_id=getattr(request.state, 'user_id', None),
+                user_id=current_user.id,
                 changes={
                     "bulk_update": {
                         "updated_count": len(updated_trackers),
-                        "updates": updates.updates
+                        "error_count": len(errors),
+                        "updates": updates.updates,
+                        "errors": errors
                     }
                 },
                 ip_address=request.client.host if request.client else None,
@@ -940,16 +1000,9 @@ async def bulk_update_status(
             )
         except Exception as audit_error:
             print(f"Audit logging error: {audit_error}")
-        
-        # Broadcast updates
-        for tracker in updated_trackers:
-            try:
-                await broadcast_tracker_updated(tracker)
-            except Exception:
-                pass
-        
+
         return updated_trackers
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1043,11 +1096,27 @@ async def bulk_assign_and_update_status(
                     if not qc_programmer_id:
                         errors.append(f"Tracker {tracker_id}: Cannot update QC status without assigning a QC programmer")
                         continue
-                update_data["qc_status"] = data.qc_status
-                # Auto-set qc_completion_date when QC status is completed
+                # Validate: Cannot mark QC as completed if there are unresolved comments
                 if data.qc_status == 'completed':
+                    if db_tracker.unresolved_comment_count > 0:
+                        errors.append(f"Tracker {tracker_id}: Cannot mark QC as completed - {db_tracker.unresolved_comment_count} unresolved comment(s)")
+                        continue
                     update_data["qc_completion_date"] = date.today()
-            
+                update_data["qc_status"] = data.qc_status
+
+            # Apply auto-transitions for status changes using workflow service
+            if update_data.get("production_status"):
+                auto_updates = TrackerWorkflowService.apply_status_transition(
+                    db_tracker, "production_status", update_data["production_status"]
+                )
+                update_data.update(auto_updates)
+
+            if update_data.get("qc_status"):
+                auto_updates = TrackerWorkflowService.apply_status_transition(
+                    db_tracker, "qc_status", update_data["qc_status"]
+                )
+                update_data.update(auto_updates)
+
             # Handle priority
             if data.priority is not None:
                 update_data["priority"] = data.priority
@@ -1075,7 +1144,7 @@ async def bulk_assign_and_update_status(
             table_name="reporting_effort_item_tracker",
             record_id=0,
             action="BULK_ASSIGN_STATUS",
-            user_id=getattr(request.state, 'user_id', None),
+            user_id=current_user.id,
             changes={
                 "tracker_ids": data.tracker_ids,
                 "production_programmer_id": data.production_programmer_id,
@@ -1090,7 +1159,7 @@ async def bulk_assign_and_update_status(
         )
     except Exception as audit_error:
         print(f"Audit logging error: {audit_error}")
-    
+
     # Convert trackers to dict for response
     tracker_dicts = []
     for t in updated_trackers:
@@ -1367,14 +1436,23 @@ async def import_trackers(
     request: Request,
     reporting_effort_id: int,
     trackers: List[TrackerImportData],
-    update_existing: bool = Query(True, description="Update existing trackers or skip them")
+    update_existing: bool = Query(True, description="Update existing trackers or skip them"),
+    current_user: UserModel = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
     Import/update trackers for a reporting effort.
-    
+    Admin only functionality.
+
     The import matches items by item_code and updates the tracker information.
     Usernames are resolved to user IDs.
     """
+    # Permission check: Only admin can perform bulk imports
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can perform bulk imports"
+        )
+
     try:
         # Get all items for the reporting effort
         items = await reporting_effort_item.get_by_reporting_effort(
@@ -1467,13 +1545,13 @@ async def import_trackers(
                 table_name="reporting_effort_item_tracker",
                 record_id=reporting_effort_id,
                 action="BULK_IMPORT",
-                user_id=request.headers.get("X-User-Id"),
-                changes_json=json.dumps({
+                user_id=current_user.id,
+                changes={
                     "total_records": len(trackers),
                     "updated": updated,
                     "skipped": skipped,
                     "errors": len(errors)
-                }),
+                },
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )

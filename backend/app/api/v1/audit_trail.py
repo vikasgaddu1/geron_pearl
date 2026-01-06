@@ -10,21 +10,20 @@ from app.crud import audit_log as audit_crud, user
 from app.db.session import get_db
 from app.schemas.audit_log import AuditLog, AuditLogWithDetails
 from app.models.audit_log import AuditLog as AuditLogModel
-from app.models.user import UserRole
+from app.models.user import UserRole, User as UserModel
+from app.core.security import get_current_user
 
 router = APIRouter()
 
-def check_admin_access(request: Request):
-    """Check if user has admin access."""
-    # In production, get from session/token
-    # For now, check header
-    user_role = request.headers.get("X-User-Role", "viewer")
-    if user_role != "admin":
+
+def require_admin(current_user: UserModel = Depends(get_current_user)) -> UserModel:
+    """Dependency to check if user has admin access via JWT."""
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
         )
-    return True
+    return current_user
 
 @router.get("/", response_model=List[AuditLogWithDetails])
 async def get_audit_logs(
@@ -38,7 +37,7 @@ async def get_audit_logs(
     action: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    _: bool = Depends(check_admin_access)
+    current_user: UserModel = Depends(require_admin)
 ) -> List[AuditLogWithDetails]:
     """
     Get audit logs with filtering options (admin only).
@@ -119,7 +118,7 @@ async def get_audit_summary(
     db: AsyncSession = Depends(get_db),
     request: Request,
     days: int = Query(7, ge=1, le=365),
-    _: bool = Depends(check_admin_access)
+    current_user: UserModel = Depends(require_admin)
 ) -> Dict[str, Any]:
     """
     Get audit log summary for the last N days (admin only).
@@ -199,7 +198,7 @@ async def get_record_history(
     request: Request,
     table_name: str,
     record_id: int,
-    _: bool = Depends(check_admin_access)
+    current_user: UserModel = Depends(require_admin)
 ) -> List[AuditLogWithDetails]:
     """
     Get complete audit history for a specific record (admin only).
@@ -255,7 +254,7 @@ async def cleanup_old_logs(
     db: AsyncSession = Depends(get_db),
     request: Request,
     days_to_keep: int = Query(90, ge=30, le=365),
-    _: bool = Depends(check_admin_access)
+    current_user: UserModel = Depends(require_admin)
 ) -> Dict[str, Any]:
     """
     Delete audit logs older than specified days (admin only).

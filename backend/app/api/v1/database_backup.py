@@ -12,8 +12,9 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.models.user import UserRole
+from app.models.user import UserRole, User as UserModel
 from app.core.config import settings
+from app.core.security import get_current_user
 
 router = APIRouter()
 
@@ -21,17 +22,15 @@ router = APIRouter()
 BACKUP_DIR = Path("backups")
 BACKUP_DIR.mkdir(exist_ok=True)
 
-def check_admin_access(request: Request):
-    """Check if user has admin access."""
-    # In production, get from session/token
-    # For now, check header
-    user_role = request.headers.get("X-User-Role", "viewer")
-    if user_role != "admin":
+
+def require_admin(current_user: UserModel = Depends(get_current_user)) -> UserModel:
+    """Dependency to check if user has admin access via JWT."""
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
         )
-    return True
+    return current_user
 
 def get_db_connection_string():
     """Get database connection string for pg_dump."""
@@ -51,7 +50,7 @@ async def create_backup(
     request: Request,
     background_tasks: BackgroundTasks,
     description: Optional[str] = None,
-    _: bool = Depends(check_admin_access)
+    current_user: UserModel = Depends(require_admin)
 ) -> Dict[str, Any]:
     """
     Create a new database backup (admin only).
@@ -143,7 +142,7 @@ async def perform_backup(db_url: str, backup_path: Path, metadata_path: Path, me
 async def list_backups(
     *,
     request: Request,
-    _: bool = Depends(check_admin_access)
+    current_user: UserModel = Depends(require_admin)
 ) -> List[Dict[str, Any]]:
     """
     List all available backups (admin only).
@@ -186,7 +185,7 @@ async def download_backup(
     *,
     request: Request,
     filename: str,
-    _: bool = Depends(check_admin_access)
+    current_user: UserModel = Depends(require_admin)
 ):
     """
     Download a specific backup file (admin only).
@@ -227,7 +226,7 @@ async def delete_backup(
     *,
     request: Request,
     filename: str,
-    _: bool = Depends(check_admin_access)
+    current_user: UserModel = Depends(require_admin)
 ) -> Dict[str, str]:
     """
     Delete a specific backup file (admin only).
@@ -264,7 +263,7 @@ async def restore_backup(
     request: Request,
     background_tasks: BackgroundTasks,
     filename: str,
-    _: bool = Depends(check_admin_access)
+    current_user: UserModel = Depends(require_admin)
 ) -> Dict[str, Any]:
     """
     Restore database from a backup file (admin only).
@@ -358,7 +357,7 @@ async def perform_restore(db_url: str, backup_path: Path):
 async def get_backup_status(
     *,
     request: Request,
-    _: bool = Depends(check_admin_access)
+    current_user: UserModel = Depends(require_admin)
 ) -> Dict[str, Any]:
     """
     Get backup system status and statistics (admin only).
