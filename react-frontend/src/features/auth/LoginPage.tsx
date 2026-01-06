@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Eye, EyeOff, LogIn, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, LogIn, Loader2, Gem } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -33,10 +33,18 @@ export function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center gradient-primary-subtle p-4">
       <Card className="w-full max-w-md shadow-xl">
-        <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-3xl font-bold gradient-primary-text">
-            Welcome to PEARL
-          </CardTitle>
+        <CardHeader className="space-y-3 text-center">
+          <div className="flex justify-center">
+            <Gem className="h-12 w-12 text-primary" />
+          </div>
+          <div>
+            <CardTitle className="text-3xl font-bold gradient-primary-text">
+              PEARL
+            </CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Package, Effort, and Analysis Reporting Library
+            </p>
+          </div>
           <CardDescription>
             Sign in to your account to continue
           </CardDescription>

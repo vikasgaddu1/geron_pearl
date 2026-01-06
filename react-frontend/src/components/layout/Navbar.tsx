@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Database, Bell, Moon, Sun, Menu, LogOut, User } from 'lucide-react'
+import { Bell, Moon, Sun, Menu, LogOut, User, Gem } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -9,6 +9,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { useUIStore, applyTheme } from '@/stores/uiStore'
 import { useWebSocketStore } from '@/stores/websocketStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -44,12 +49,27 @@ export function Navbar() {
           <Menu className="h-5 w-5" />
         </Button>
 
-        <Link to="/" className="flex items-center gap-2 font-semibold">
-          <Database className="h-6 w-6 text-primary" />
-          <span className="hidden sm:inline-block gradient-primary-text">
-            PEARL Admin
-          </span>
-        </Link>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link to="/" className="flex items-center gap-2 font-semibold group">
+              <Gem className="h-6 w-6 text-primary group-hover:scale-110 transition-transform" />
+              <div className="hidden sm:flex flex-col leading-none">
+                <span className="text-lg font-bold tracking-tight gradient-primary-text">
+                  PEARL
+                </span>
+                <span className="text-[10px] text-muted-foreground font-normal tracking-wide">
+                  Clinical Research Management
+                </span>
+              </div>
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-xs">
+            <p className="font-semibold">Package, Effort, and Analysis Reporting Library</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Comprehensive clinical research data management system
+            </p>
+          </TooltipContent>
+        </Tooltip>
 
         <div className="flex-1" />
 
