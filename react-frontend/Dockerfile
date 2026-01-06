@@ -4,10 +4,10 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package.json only (not lock file to avoid Windows-specific deps)
+# Copy package.json only
 COPY package.json ./
 
-# Install dependencies fresh for Linux
+# Install dependencies
 RUN npm install
 
 # Copy source code
