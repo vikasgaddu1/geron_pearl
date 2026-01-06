@@ -11,5 +11,13 @@ export { trackerCommentsApi } from './endpoints/tracker-comments'
 export { trackerTagsApi } from './endpoints/tracker-tags'
 export { databaseBackupApi } from './endpoints/database-backup'
 export { settingsApi, useAppSettings, useDefaultDueDateOffset, useUpdateSettings, settingsKeys } from './endpoints/settings'
-
-
+export { phasesApi, milestonesApi } from './endpoints/milestones'
+export { 
+  igVersionsApi, 
+  igVersionKeys,
+  useIGVersions, 
+  useIGVersionsByType,
+  useCreateIGVersion, 
+  useUpdateIGVersion, 
+  useDeleteIGVersion 
+} from './endpoints/ig-versions'

@@ -81,6 +81,11 @@ class ReportingEffortItem(Base, TimestampMixin):
         nullable=False,
         doc="The actual TLF ID or dataset name"
     )
+    item_description: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        doc="Description of the item"
+    )
     
     # Status
     is_active: Mapped[bool] = mapped_column(

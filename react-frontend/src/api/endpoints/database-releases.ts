@@ -5,7 +5,7 @@ const BASE_PATH = '/api/v1/database-releases'
 
 export const databaseReleasesApi = {
   getAll: async (): Promise<DatabaseRelease[]> => {
-    const response = await apiClient.get(BASE_PATH)
+    const response = await apiClient.get(`${BASE_PATH}/`)
     return response.data
   },
 
@@ -15,12 +15,12 @@ export const databaseReleasesApi = {
   },
 
   getByStudyId: async (studyId: number): Promise<DatabaseRelease[]> => {
-    const response = await apiClient.get(`${BASE_PATH}?study_id=${studyId}`)
+    const response = await apiClient.get(`${BASE_PATH}/?study_id=${studyId}`)
     return response.data
   },
 
   create: async (data: DatabaseReleaseFormData): Promise<DatabaseRelease> => {
-    const response = await apiClient.post(BASE_PATH, data)
+    const response = await apiClient.post(`${BASE_PATH}/`, data)
     return response.data
   },
 
@@ -33,6 +33,7 @@ export const databaseReleasesApi = {
     await apiClient.delete(`${BASE_PATH}/${id}`)
   },
 }
+
 
 
 

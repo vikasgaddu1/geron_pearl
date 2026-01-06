@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
 import { TooltipWrapper } from '@/components/common/TooltipWrapper'
-import { reportingEffortsApi, trackerApi, studiesApi, databaseReleasesApi } from '@/api'
+import { MilestoneGantt } from '@/components/charts/MilestoneGantt'
+import { reportingEffortsApi, trackerApi, studiesApi, databaseReleasesApi, milestonesApi } from '@/api'
 import {
   ChevronDown,
   ChevronRight,
@@ -19,7 +20,8 @@ import {
   AlertCircle,
   Pause,
   XCircle,
-  CircleDot
+  CircleDot,
+  Calendar
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ReportingEffortItemTracker } from '@/types'
@@ -177,6 +179,12 @@ export function TrackerDashboard() {
   const { data: trackers = [], isLoading } = useQuery({
     queryKey: ['trackers-all'],
     queryFn: trackerApi.getAll,
+  })
+
+  // Fetch milestones for the Gantt chart
+  const { data: milestones = [] } = useQuery({
+    queryKey: ['milestones-dashboard'],
+    queryFn: () => milestonesApi.getForDashboard({ include_completed: true }),
   })
 
   // Build hierarchical data structure
@@ -343,6 +351,16 @@ export function TrackerDashboard() {
           <ProgressBar stats={overallStats} showLabels />
         </CardContent>
       </Card>
+
+      {/* Milestone Timeline */}
+      {milestones.length > 0 && (
+        <MilestoneGantt
+          milestones={milestones}
+          title="Project Milestones Timeline"
+          showLegend={true}
+          height={Math.min(400, Math.max(200, milestones.length * 30 + 80))}
+        />
+      )}
 
       {hierarchicalData.length === 0 ? (
         <EmptyState

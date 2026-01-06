@@ -22,6 +22,9 @@ from app.models.tracker_comment import TrackerComment
 from app.models.tracker_tag import TrackerTag, TrackerItemTag
 from app.models.tracker_status_history import TrackerStatusHistory
 from app.models.app_settings import AppSettings
+from app.models.reporting_effort_phase import ReportingEffortPhase
+from app.models.reporting_effort_milestone import ReportingEffortMilestone
+from app.models.ig_version import IGVersion, StandardType
 
 __all__ = [
     "Study", 
@@ -53,5 +56,9 @@ __all__ = [
     "TrackerTag",
     "TrackerItemTag",
     "TrackerStatusHistory",
-    "AppSettings"
+    "AppSettings",
+    "ReportingEffortPhase",
+    "ReportingEffortMilestone",
+    "IGVersion",
+    "StandardType"
 ]

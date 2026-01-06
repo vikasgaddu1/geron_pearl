@@ -1,8 +1,9 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ClipboardList, Plus, Edit, Trash2, RefreshCw, Search, Copy, CheckSquare } from 'lucide-react'
+import { ClipboardList, Plus, Edit, Trash2, RefreshCw, Search, Copy } from 'lucide-react'
 import { toast } from 'sonner'
-import { reportingEffortsApi, reportingEffortItemsApi, packagesApi, studiesApi, databaseReleasesApi } from '@/api'
+import { reportingEffortsApi, reportingEffortItemsApi, packagesApi, studiesApi, databaseReleasesApi, useIGVersions } from '@/api'
+import { useReportingSelectionStore } from '@/stores/reportingSelectionStore'
 import { getErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -43,21 +44,25 @@ import type { ReportingEffortItem, ItemType, ItemSubtype } from '@/types'
 const ITEM_TYPES: ItemType[] = ['TLF', 'Dataset']
 const TLF_SUBTYPES: ItemSubtype[] = ['Table', 'Listing', 'Figure']
 const DATASET_SUBTYPES: ItemSubtype[] = ['SDTM', 'ADaM']
-const ITEM_STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED'] as const
 
 type TabType = 'tlf' | 'sdtm' | 'adam'
 
 export function ReportingEffortItems() {
   const queryClient = useQueryClient()
-  const [selectedStudyId, setSelectedStudyId] = useState<string>('')
-  const [selectedReleaseId, setSelectedReleaseId] = useState<string>('')
-  const [selectedEffortId, setSelectedEffortId] = useState<string>('')
+  // Use persisted store for selection state
+  const { 
+    selectedStudyId, 
+    selectedReleaseId, 
+    selectedEffortId,
+    setSelectedStudyId,
+    setSelectedReleaseId,
+    setSelectedEffortId 
+  } = useReportingSelectionStore()
   const [activeTab, setActiveTab] = useState<TabType>('tlf')
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [copyDialogOpen, setCopyDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [bulkEditOpen, setBulkEditOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<ReportingEffortItem | null>(null)
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set())
   const [copySource, setCopySource] = useState<{ type: 'package' | 'effort'; id: string }>({ type: 'package', id: '' })
@@ -66,10 +71,11 @@ export function ReportingEffortItems() {
     item_description: '',
     item_type: 'TLF' as ItemType,
     item_subtype: 'Table' as ItemSubtype,
+    ig_version_id: undefined as number | undefined,
   })
-  const [bulkFormData, setBulkFormData] = useState({
-    item_status: '' as string,
-  })
+
+  // Fetch IG versions for the form
+  const { data: igVersions = [] } = useIGVersions({ active_only: true })
 
   // Queries
   const { data: studies = [] } = useQuery({
@@ -177,19 +183,46 @@ export function ReportingEffortItems() {
       item_description: '',
       item_type: 'TLF',
       item_subtype: 'Table',
+      ig_version_id: undefined,
     })
     setSelectedItem(null)
   }
 
+  // Get filtered IG versions based on subtype
+  const filteredIGVersions = useMemo(() => {
+    if (formData.item_type !== 'Dataset') return []
+    const standardType = formData.item_subtype === 'SDTM' ? 'SDTM' : 'ADaM'
+    return igVersions.filter(v => v.standard_type === standardType)
+  }, [igVersions, formData.item_type, formData.item_subtype])
+
+  // Get latest IG version for each standard type (for default selection)
+  const latestIGVersions = useMemo(() => {
+    const getLatestVersion = (standardType: 'SDTM' | 'ADaM') => {
+      const versions = igVersions.filter(v => v.standard_type === standardType)
+      if (versions.length === 0) return undefined
+      // Sort by version number descending and get the first one
+      return versions.sort((a, b) => {
+        const [aMajor, aMinor] = a.version.split('.').map(Number)
+        const [bMajor, bMinor] = b.version.split('.').map(Number)
+        if (bMajor !== aMajor) return bMajor - aMajor
+        return (bMinor || 0) - (aMinor || 0)
+      })[0]
+    }
+    return {
+      SDTM: getLatestVersion('SDTM'),
+      ADaM: getLatestVersion('ADaM'),
+    }
+  }, [igVersions])
+
   const handleAdd = () => {
     resetForm()
-    // Set default type based on active tab
+    // Set default type based on active tab, with latest IG version for Dataset items
     if (activeTab === 'tlf') {
-      setFormData(prev => ({ ...prev, item_type: 'TLF', item_subtype: 'Table' }))
+      setFormData(prev => ({ ...prev, item_type: 'TLF', item_subtype: 'Table', ig_version_id: undefined }))
     } else if (activeTab === 'sdtm') {
-      setFormData(prev => ({ ...prev, item_type: 'Dataset', item_subtype: 'SDTM' }))
+      setFormData(prev => ({ ...prev, item_type: 'Dataset', item_subtype: 'SDTM', ig_version_id: latestIGVersions.SDTM?.id }))
     } else {
-      setFormData(prev => ({ ...prev, item_type: 'Dataset', item_subtype: 'ADaM' }))
+      setFormData(prev => ({ ...prev, item_type: 'Dataset', item_subtype: 'ADaM', ig_version_id: latestIGVersions.ADaM?.id }))
     }
     setDialogOpen(true)
   }
@@ -201,6 +234,7 @@ export function ReportingEffortItems() {
       item_description: item.item_description || '',
       item_type: item.item_type,
       item_subtype: item.item_subtype || 'Table',
+      ig_version_id: item.dataset_details?.ig_version_id,
     })
     setDialogOpen(true)
   }
@@ -211,12 +245,20 @@ export function ReportingEffortItems() {
   }
 
   const handleSubmit = () => {
-    const data = {
+    const data: Record<string, unknown> = {
       item_code: formData.item_code,
       item_description: formData.item_description,
       item_type: formData.item_type,
       item_subtype: formData.item_subtype,
     }
+    
+    // Add dataset_details with ig_version_id for Dataset items
+    if (formData.item_type === 'Dataset' && formData.ig_version_id) {
+      data.dataset_details = {
+        ig_version_id: formData.ig_version_id,
+      }
+    }
+    
     if (selectedItem) {
       updateItem.mutate({ id: selectedItem.id, data })
     } else {
@@ -258,28 +300,6 @@ export function ReportingEffortItems() {
     setSelectedRows(newSelected)
   }
 
-  const handleBulkEdit = async () => {
-    if (!bulkFormData.item_status) {
-      toast.error('Please select a status')
-      return
-    }
-    
-    // Update each selected item
-    const promises = Array.from(selectedRows).map(id =>
-      reportingEffortItemsApi.update(id, { item_status: bulkFormData.item_status as ReportingEffortItem['item_status'] })
-    )
-    
-    try {
-      await Promise.all(promises)
-      toast.success(`Updated ${selectedRows.size} items`)
-      queryClient.invalidateQueries({ queryKey: ['reporting-effort-items', selectedEffortId] })
-      setBulkEditOpen(false)
-      setSelectedRows(new Set())
-      setBulkFormData({ item_status: '' })
-    } catch (error) {
-      toast.error(`Failed to update some items: ${getErrorMessage(error)}`)
-    }
-  }
 
   // Filter items by tab
   const filterByTab = (item: ReportingEffortItem) => {
@@ -331,12 +351,6 @@ export function ReportingEffortItems() {
               <Copy className="h-4 w-4 mr-2" />
               Copy Items
             </Button>
-            {selectedRows.size > 0 && (
-              <Button variant="outline" size="sm" onClick={() => setBulkEditOpen(true)}>
-                <CheckSquare className="h-4 w-4 mr-2" />
-                Bulk Edit ({selectedRows.size})
-              </Button>
-            )}
             <Button size="sm" onClick={handleAdd} disabled={!selectedEffortId}>
               <Plus className="h-4 w-4 mr-2" />
               Add Item
@@ -495,7 +509,9 @@ export function ReportingEffortItems() {
                             <TableHead>Description</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>Subtype</TableHead>
-                            <TableHead>Status</TableHead>
+                            {(activeTab === 'sdtm' || activeTab === 'adam') && (
+                              <TableHead>IG Version</TableHead>
+                            )}
                             <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -516,14 +532,17 @@ export function ReportingEffortItems() {
                                 </Badge>
                               </TableCell>
                               <TableCell>{item.item_subtype || '-'}</TableCell>
-                              <TableCell>
-                                <Badge variant={
-                                  item.item_status === 'COMPLETED' ? 'success' :
-                                  item.item_status === 'IN_PROGRESS' ? 'info' : 'secondary'
-                                }>
-                                  {item.item_status}
-                                </Badge>
-                              </TableCell>
+                              {(activeTab === 'sdtm' || activeTab === 'adam') && (
+                                <TableCell>
+                                  {item.dataset_details?.ig_version ? (
+                                    <Badge variant="outline">
+                                      v{item.dataset_details.ig_version.version}
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-muted-foreground">-</span>
+                                  )}
+                                </TableCell>
+                              )}
                               <TableCell className="text-right">
                                 <div className="flex justify-end gap-1">
                                   <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
@@ -585,6 +604,8 @@ export function ReportingEffortItems() {
                       ...prev,
                       item_type: value,
                       item_subtype: value === 'TLF' ? 'Table' : 'SDTM',
+                      // Auto-select latest SDTM version when switching to Dataset type
+                      ig_version_id: value === 'Dataset' ? latestIGVersions.SDTM?.id : undefined,
                     }))
                   }}
                 >
@@ -602,9 +623,13 @@ export function ReportingEffortItems() {
                 <Label>Subtype</Label>
                 <Select
                   value={formData.item_subtype}
-                  onValueChange={(value: ItemSubtype) =>
-                    setFormData((prev) => ({ ...prev, item_subtype: value }))
-                  }
+                  onValueChange={(value: ItemSubtype) => {
+                    // Auto-select latest IG version when switching between SDTM and ADaM
+                    const newIGVersionId = formData.item_type === 'Dataset' 
+                      ? (value === 'SDTM' ? latestIGVersions.SDTM?.id : latestIGVersions.ADaM?.id)
+                      : undefined
+                    setFormData((prev) => ({ ...prev, item_subtype: value, ig_version_id: newIGVersionId }))
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -617,6 +642,35 @@ export function ReportingEffortItems() {
                 </Select>
               </div>
             </div>
+            {formData.item_type === 'Dataset' && filteredIGVersions.length > 0 && (
+              <div className="grid gap-2">
+                <Label>IG Version</Label>
+                <Select
+                  value={formData.ig_version_id?.toString() || '__none__'}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ 
+                      ...prev, 
+                      ig_version_id: value === '__none__' ? undefined : parseInt(value) 
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select IG version" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {filteredIGVersions.map((version) => (
+                      <SelectItem key={version.id} value={String(version.id)}>
+                        v{version.version} {version.description && `- ${version.description}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {formData.item_subtype} Implementation Guide version
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
@@ -686,42 +740,6 @@ export function ReportingEffortItems() {
             <Button onClick={handleCopy} disabled={!copySource.id}>
               <Copy className="h-4 w-4 mr-2" />
               Copy Items
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Bulk Edit Dialog */}
-      <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Bulk Edit Items</DialogTitle>
-            <DialogDescription>
-              Update {selectedRows.size} selected item(s).
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>Status</Label>
-              <Select
-                value={bulkFormData.item_status}
-                onValueChange={(value) => setBulkFormData({ item_status: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ITEM_STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>{status.replace('_', ' ')}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkEditOpen(false)}>Cancel</Button>
-            <Button onClick={handleBulkEdit} disabled={!bulkFormData.item_status}>
-              Update {selectedRows.size} Items
             </Button>
           </DialogFooter>
         </DialogContent>

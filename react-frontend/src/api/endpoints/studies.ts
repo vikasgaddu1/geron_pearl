@@ -5,7 +5,7 @@ const BASE_PATH = '/api/v1/studies'
 
 export const studiesApi = {
   getAll: async (): Promise<Study[]> => {
-    const response = await apiClient.get(BASE_PATH)
+    const response = await apiClient.get(`${BASE_PATH}/`)
     return response.data
   },
 
@@ -15,7 +15,7 @@ export const studiesApi = {
   },
 
   create: async (data: StudyFormData): Promise<Study> => {
-    const response = await apiClient.post(BASE_PATH, data)
+    const response = await apiClient.post(`${BASE_PATH}/`, data)
     return response.data
   },
 
@@ -28,6 +28,7 @@ export const studiesApi = {
     await apiClient.delete(`${BASE_PATH}/${id}`)
   },
 }
+
 
 
 

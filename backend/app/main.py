@@ -52,6 +52,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
+    redirect_slashes=False,  # Don't redirect - auth headers get lost in redirects
 )
 
 # Add CORS middleware

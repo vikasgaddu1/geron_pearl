@@ -1,9 +1,10 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ClipboardCheck, RefreshCw, Users, CheckCircle, MessageSquare, Edit, Trash2, Send, X, Tag, Plus, Reply, LayoutList, Kanban, UserCheck } from 'lucide-react'
+import { ClipboardCheck, RefreshCw, Users, CheckCircle, MessageSquare, Edit, Trash2, Send, X, Tag, Plus, Reply, LayoutList, Kanban, UserCheck, Calendar } from 'lucide-react'
 import { toast } from 'sonner'
 import { reportingEffortsApi, trackerApi, trackerCommentsApi, trackerTagsApi, usersApi, studiesApi, databaseReleasesApi, useDefaultDueDateOffset } from '@/api'
+import { useReportingSelectionStore } from '@/stores/reportingSelectionStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -43,8 +44,15 @@ import { HelpIcon } from '@/components/common/HelpIcon'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
 import { formatDate, formatDateTime, getErrorMessage } from '@/lib/utils'
 import type { ReportingEffortItemTracker, TrackerStatus, TrackerComment, CommentType, Priority, TrackerTag, ProductionStatus, QCStatus } from '@/types'
-import { KanbanBoard } from '@/components/tracker'
+import { KanbanBoard, QCFailureCommentDialog } from '@/components/tracker'
 import { useAuthStore } from '@/stores/authStore'
+import { MilestoneEditor } from './MilestoneEditor'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 
 // Separate status arrays for Production and QC
 const PRODUCTION_STATUSES: ProductionStatus[] = ['not_started', 'in_progress', 'ready_for_qc', 'on_hold']
@@ -75,19 +83,31 @@ const TAG_COLORS = [
 export function TrackerManagement() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [selectedStudyId, setSelectedStudyId] = useState<string>('')
-  const [selectedReleaseId, setSelectedReleaseId] = useState<string>('')
-  const [selectedEffortId, setSelectedEffortId] = useState<string>('')
+  // Use persisted store for selection state (shared with ReportingEffortItems)
+  const { 
+    selectedStudyId, 
+    selectedReleaseId, 
+    selectedEffortId,
+    setSelectedStudyId,
+    setSelectedReleaseId,
+    setSelectedEffortId 
+  } = useReportingSelectionStore()
   const [urlParamsApplied, setUrlParamsApplied] = useState(false)
   const [activeTab, setActiveTab] = useState('tlf')
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set())
   const [bulkAssignStatusOpen, setBulkAssignStatusOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [commentDialogOpen, setCommentDialogOpen] = useState(false)
+  const [commentDialogContext, setCommentDialogContext] = useState<'list' | 'production' | 'qc'>('list') // Track where dialog was opened from
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [tagManageOpen, setTagManageOpen] = useState(false)
   const [bulkTagOpen, setBulkTagOpen] = useState(false)
   const [selectedTracker, setSelectedTracker] = useState<ReportingEffortItemTracker | null>(null)
+  
+  // QC Failure comment dialog state
+  const [qcFailureDialogOpen, setQcFailureDialogOpen] = useState(false)
+  const [qcFailureTrackerId, setQcFailureTrackerId] = useState<number | null>(null)
+  const [qcFailureTrackerCode, setQcFailureTrackerCode] = useState<string | undefined>(undefined)
 
   // Get default due date offset from settings
   const { data: dueDateOffset = 7 } = useDefaultDueDateOffset()
@@ -271,6 +291,16 @@ export function TrackerManagement() {
       setSelectedTracker(null)
     },
     onError: (error) => toast.error(`Failed to delete tracker: ${getErrorMessage(error)}`),
+  })
+
+  const updateProductionFlag = useMutation({
+    mutationFn: ({ trackerId, value }: { trackerId: number; value: boolean }) =>
+      trackerApi.updateProductionFlag(trackerId, value),
+    onSuccess: () => {
+      toast.success('Production flag updated')
+      queryClient.invalidateQueries({ queryKey: ['trackers', selectedEffortId] })
+    },
+    onError: (error) => toast.error(`Failed to update production flag: ${getErrorMessage(error)}`),
   })
 
   const createComment = useMutation({
@@ -485,26 +515,84 @@ export function TrackerManagement() {
       return
     }
     
+    // Validate: Cannot mark QC as completed if there are unresolved comments
+    if (editFormData.qc_status === 'completed' && (selectedTracker.unresolved_comment_count || 0) > 0) {
+      toast.error(`Cannot mark QC as completed: ${selectedTracker.unresolved_comment_count} unresolved comment(s) must be addressed first`)
+      return
+    }
+    
+    // Intercept QC status change to 'failed' - require comment
+    if (editFormData.qc_status === 'failed' && selectedTracker.qc_status !== 'failed') {
+      setEditDialogOpen(false)
+      setQcFailureTrackerId(selectedTracker.id)
+      setQcFailureTrackerCode(selectedTracker.item_code)
+      setQcFailureDialogOpen(true)
+      return
+    }
+    
+    // Build update data based on user permissions - only send what they can change
+    const isAdmin = currentUser?.role === 'ADMIN'
+    const isProductionProgrammer = currentUser && selectedTracker.production_programmer_id === currentUser.id
+    const isQCProgrammer = currentUser && selectedTracker.qc_programmer_id === currentUser.id
+    const canEditProduction = isAdmin || isProductionProgrammer
+    const canEditQC = isAdmin || isQCProgrammer
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updateData: any = {}
+    
+    // Admin can change everything
+    if (isAdmin) {
+      updateData.production_programmer_id = editFormData.production_programmer_id ? Number(editFormData.production_programmer_id) : null
+      updateData.qc_programmer_id = editFormData.qc_programmer_id ? Number(editFormData.qc_programmer_id) : null
+      updateData.production_status = editFormData.production_status
+      updateData.qc_status = editFormData.qc_status
+      updateData.priority = editFormData.priority
+      updateData.due_date = editFormData.due_date || null
+    } else {
+      // Non-admin: only send fields they have permission to change
+      if (canEditProduction) {
+        updateData.production_status = editFormData.production_status
+        updateData.priority = editFormData.priority
+        updateData.due_date = editFormData.due_date || null
+      }
+      if (canEditQC) {
+        updateData.qc_status = editFormData.qc_status
+      }
+    }
+    
     updateTracker.mutate({
       id: selectedTracker.id,
-      data: {
-        production_programmer_id: editFormData.production_programmer_id ? Number(editFormData.production_programmer_id) : null,
-        qc_programmer_id: editFormData.qc_programmer_id ? Number(editFormData.qc_programmer_id) : null,
-        production_status: editFormData.production_status,
-        qc_status: editFormData.qc_status,
-        priority: editFormData.priority,
-        due_date: editFormData.due_date || null,
-      },
+      data: updateData,
     })
   }
 
   const handleOpenComments = (tracker: ReportingEffortItemTracker) => {
     setSelectedTracker(tracker)
+    setCommentDialogContext('list') // From list view, show both status options
     setCommentDialogOpen(true)
+  }
+
+  const handleProductionFlagToggle = (trackerId: number, newValue: boolean) => {
+    const tracker = trackers.find(t => t.id === trackerId)
+    if (!tracker) return
+    
+    // Validate: can only set to true if both statuses are completed
+    if (newValue && (tracker.production_status !== 'completed' || tracker.qc_status !== 'completed')) {
+      toast.error('Both Production and QC must be Completed to set In Production flag')
+      return
+    }
+    
+    updateProductionFlag.mutate({ trackerId, value: newValue })
   }
 
   const handleAddComment = async () => {
     if (!selectedTracker || !newComment.text.trim()) return
+    
+    // Validate: Cannot mark QC as completed if there are unresolved comments
+    if (newComment.qc_status === 'completed' && (selectedTracker.unresolved_comment_count || 0) > 0) {
+      toast.error(`Cannot mark QC as completed: ${selectedTracker.unresolved_comment_count} unresolved comment(s) must be addressed first`)
+      return
+    }
     
     // If status updates are included and it's a top-level comment, use the new endpoint
     if ((newComment.production_status || newComment.qc_status) && !newComment.parentId) {
@@ -569,8 +657,11 @@ export function TrackerManagement() {
     })
   }
 
-  // All users can be assigned as programmers
-  const programmers = users
+  // Only ADMIN and EDITOR users can be assigned as programmers (not VIEWERs)
+  const programmers = useMemo(() => 
+    users.filter(u => u.role !== 'VIEWER'), 
+    [users]
+  )
 
   const getProgrammerName = (id?: number) => {
     if (!id) return '-'
@@ -963,6 +1054,26 @@ export function TrackerManagement() {
             )}
           </div>
 
+          {/* Milestones Section - shows when effort is selected */}
+          {selectedEffortId && (
+            <Accordion type="single" collapsible className="mb-4">
+              <AccordionItem value="milestones" className="border rounded-lg">
+                <AccordionTrigger className="px-4 hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    <span>Project Milestones</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <MilestoneEditor
+                    reportingEffortId={Number(selectedEffortId)}
+                    reportingEffortLabel={filteredEfforts.find(e => String(e.id) === selectedEffortId)?.database_release_label}
+                  />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
+
           {!selectedEffortId ? (
             <EmptyState
               icon={ClipboardCheck}
@@ -1030,9 +1141,43 @@ export function TrackerManagement() {
                     trackers={filteredTrackers} 
                     statusField="production"
                     onCardClick={(tracker) => {
+                      // Permission check: Only production programmer or admin can interact in Prod Kanban
+                      const isAdmin = currentUser?.role === 'ADMIN'
+                      const isProductionProgrammer = currentUser && tracker.production_programmer_id === currentUser.id
+                      if (!isAdmin && !isProductionProgrammer) {
+                        toast.error('Only the assigned production programmer can view/edit this task in Production Kanban')
+                        return
+                      }
                       setSelectedTracker(tracker)
+                      setCommentDialogContext('production')
                       setCommentDialogOpen(true)
                     }}
+                    onStatusChange={(trackerId, newStatus) => {
+                      // Find the tracker to validate the update
+                      const tracker = trackers.find(t => t.id === trackerId)
+                      if (!tracker) return
+                      
+                      // Permission check: Only production programmer or admin can change production status
+                      const isAdmin = currentUser?.role === 'ADMIN'
+                      const isProductionProgrammer = currentUser && tracker.production_programmer_id === currentUser.id
+                      if (!isAdmin && !isProductionProgrammer) {
+                        toast.error('Only the assigned production programmer can change production status')
+                        return
+                      }
+                      
+                      // Validate: production programmer must be assigned to change status (except not_started)
+                      if (newStatus !== 'not_started' && !tracker.production_programmer_id) {
+                        toast.error('Cannot change status without a production programmer assigned')
+                        return
+                      }
+                      
+                      // Update the tracker via API
+                      updateTracker.mutate({
+                        id: trackerId,
+                        data: { production_status: newStatus as ProductionStatus }
+                      })
+                    }}
+                    onProductionFlagToggle={handleProductionFlagToggle}
                   />
                 </div>
               )}
@@ -1044,9 +1189,57 @@ export function TrackerManagement() {
                     trackers={filteredTrackers} 
                     statusField="qc"
                     onCardClick={(tracker) => {
+                      // Permission check: Only QC programmer or admin can interact in QC Kanban
+                      const isAdmin = currentUser?.role === 'ADMIN'
+                      const isQCProgrammer = currentUser && tracker.qc_programmer_id === currentUser.id
+                      if (!isAdmin && !isQCProgrammer) {
+                        toast.error('Only the assigned QC programmer can view/edit this task in QC Kanban')
+                        return
+                      }
                       setSelectedTracker(tracker)
+                      setCommentDialogContext('qc')
                       setCommentDialogOpen(true)
                     }}
+                    onStatusChange={(trackerId, newStatus) => {
+                      // Find the tracker to validate the update
+                      const tracker = trackers.find(t => t.id === trackerId)
+                      if (!tracker) return
+                      
+                      // Permission check: Only QC programmer or admin can change QC status
+                      const isAdmin = currentUser?.role === 'ADMIN'
+                      const isQCProgrammer = currentUser && tracker.qc_programmer_id === currentUser.id
+                      if (!isAdmin && !isQCProgrammer) {
+                        toast.error('Only the assigned QC programmer can change QC status')
+                        return
+                      }
+                      
+                      // Validate: QC programmer must be assigned to change status (except not_started)
+                      if (newStatus !== 'not_started' && !tracker.qc_programmer_id) {
+                        toast.error('Cannot change status without a QC programmer assigned')
+                        return
+                      }
+                      
+                      // Validate: Cannot mark QC as completed if there are unresolved comments
+                      if (newStatus === 'completed' && (tracker.unresolved_comment_count || 0) > 0) {
+                        toast.error(`Cannot mark QC as completed: ${tracker.unresolved_comment_count} unresolved comment(s) must be addressed first`)
+                        return
+                      }
+                      
+                      // If changing to 'failed', show comment dialog instead of direct update
+                      if (newStatus === 'failed') {
+                        setQcFailureTrackerId(trackerId)
+                        setQcFailureTrackerCode(tracker.item_code)
+                        setQcFailureDialogOpen(true)
+                        return
+                      }
+                      
+                      // Update the tracker via API
+                      updateTracker.mutate({
+                        id: trackerId,
+                        data: { qc_status: newStatus as QCStatus }
+                      })
+                    }}
+                    onProductionFlagToggle={handleProductionFlagToggle}
                   />
                 </div>
               )}
@@ -1104,129 +1297,178 @@ export function TrackerManagement() {
               Update tracker for {selectedTracker?.item_code}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>Production Programmer</Label>
-                <Select
-                  value={editFormData.production_programmer_id || 'none'}
-                  onValueChange={(v) => {
-                    const newProgrammerId = v === 'none' ? '' : v
-                    // Auto-set due date when assigning production programmer (if not already set)
-                    if (newProgrammerId && !editFormData.due_date && !selectedTracker?.due_date) {
-                      setEditFormData((prev) => ({ 
-                        ...prev, 
-                        production_programmer_id: newProgrammerId,
-                        due_date: getDefaultDueDate()
-                      }))
-                    } else {
-                      setEditFormData((prev) => ({ ...prev, production_programmer_id: newProgrammerId }))
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select programmer" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">-- Unassigned --</SelectItem>
-                    {programmers.map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>{p.username}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>QC Programmer</Label>
-                <Select
-                  value={editFormData.qc_programmer_id || 'none'}
-                  onValueChange={(v) => setEditFormData((prev) => ({ ...prev, qc_programmer_id: v === 'none' ? '' : v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select programmer" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">-- Unassigned --</SelectItem>
-                    {programmers.map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>{p.username}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>Production Status</Label>
-                <Select
-                  value={editFormData.production_status}
-                  onValueChange={(v: ProductionStatus) => setEditFormData((prev) => ({ ...prev, production_status: v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {/* Show PRODUCTION_STATUSES plus completed (for display when already completed) */}
-                    {[...PRODUCTION_STATUSES, 'completed' as ProductionStatus].map((s) => (
-                      <SelectItem 
-                        key={s} 
-                        value={s}
-                        disabled={s === 'completed'} // Completed is auto-set by QC
+          {(() => {
+            // Permission checks for Edit Dialog
+            const isAdmin = currentUser?.role === 'ADMIN'
+            const isProductionProgrammer = currentUser && selectedTracker?.production_programmer_id === currentUser.id
+            const isQCProgrammer = currentUser && selectedTracker?.qc_programmer_id === currentUser.id
+            const canEditProduction = isAdmin || isProductionProgrammer
+            const canEditQC = isAdmin || isQCProgrammer
+            
+            // Determine which QC statuses to show - use editFormData for current state
+            // Show full QC statuses (including failed) when production is ready_for_qc OR if current QC status is already failed
+            const showFullQCStatuses = editFormData.production_status === 'ready_for_qc' || 
+                                       selectedTracker?.qc_status === 'failed' ||
+                                       editFormData.qc_status === 'failed'
+            
+            return (
+              <div className="grid gap-4 py-4">
+                {/* Programmer Assignment - Only Admin can change */}
+                {isAdmin && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label>Production Programmer</Label>
+                      <Select
+                        value={editFormData.production_programmer_id || 'none'}
+                        onValueChange={(v) => {
+                          const newProgrammerId = v === 'none' ? '' : v
+                          // Auto-set due date when assigning production programmer (if not already set)
+                          if (newProgrammerId && !editFormData.due_date && !selectedTracker?.due_date) {
+                            setEditFormData((prev) => ({ 
+                              ...prev, 
+                              production_programmer_id: newProgrammerId,
+                              due_date: getDefaultDueDate()
+                            }))
+                          } else {
+                            setEditFormData((prev) => ({ ...prev, production_programmer_id: newProgrammerId }))
+                          }
+                        }}
                       >
-                        {s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                        {s === 'completed' && ' (auto)'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>QC Status</Label>
-                <Select
-                  value={editFormData.qc_status}
-                  onValueChange={(v: QCStatus) => setEditFormData((prev) => ({ ...prev, qc_status: v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {/* Show full QC statuses when production is ready_for_qc */}
-                    {(selectedTracker?.production_status === 'ready_for_qc' ? QC_STATUSES_READY : QC_STATUSES).map((s) => (
-                      <SelectItem key={s} value={s}>{s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="grid gap-2">
-                <Label>Priority</Label>
-                <Select
-                  value={editFormData.priority}
-                  onValueChange={(v: Priority) => setEditFormData((prev) => ({ ...prev, priority: v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PRIORITIES.map((p) => (
-                      <SelectItem key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>Due Date {editFormData.production_programmer_id && <span className="text-destructive">*</span>}</Label>
-                <Input
-                  type="date"
-                  value={editFormData.due_date}
-                  onChange={(e) => setEditFormData((prev) => ({ ...prev, due_date: e.target.value }))}
-                  className={editFormData.production_programmer_id && !editFormData.due_date ? 'border-destructive' : ''}
-                />
-                {editFormData.production_programmer_id && !editFormData.due_date && (
-                  <p className="text-xs text-destructive">Required when production programmer is assigned</p>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select programmer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">-- Unassigned --</SelectItem>
+                          {programmers.map((p) => (
+                            <SelectItem key={p.id} value={String(p.id)}>{p.username}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>QC Programmer</Label>
+                      <Select
+                        value={editFormData.qc_programmer_id || 'none'}
+                        onValueChange={(v) => setEditFormData((prev) => ({ ...prev, qc_programmer_id: v === 'none' ? '' : v }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select programmer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">-- Unassigned --</SelectItem>
+                          {programmers.map((p) => (
+                            <SelectItem key={p.id} value={String(p.id)}>{p.username}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Status Updates - Permission based */}
+                <div className={`grid gap-4 ${canEditProduction && canEditQC ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {canEditProduction && (
+                    <div className="grid gap-2">
+                      <Label>Production Status</Label>
+                      <Select
+                        value={editFormData.production_status}
+                        onValueChange={(v: ProductionStatus) => setEditFormData((prev) => ({ ...prev, production_status: v }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {/* Show PRODUCTION_STATUSES plus completed (for display when already completed) */}
+                          {[...PRODUCTION_STATUSES, 'completed' as ProductionStatus].map((s) => (
+                            <SelectItem 
+                              key={s} 
+                              value={s}
+                              disabled={s === 'completed'} // Completed is auto-set by QC
+                            >
+                              {s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                              {s === 'completed' && ' (auto)'}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {canEditQC && (
+                    <div className="grid gap-2">
+                      <Label>QC Status</Label>
+                      <Select
+                        value={editFormData.qc_status}
+                        onValueChange={(v: QCStatus) => setEditFormData((prev) => ({ ...prev, qc_status: v }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {/* Show full QC statuses when production is ready_for_qc or current status is failed */}
+                          {(showFullQCStatuses ? QC_STATUSES_READY : QC_STATUSES).map((s) => (
+                            <SelectItem 
+                              key={s} 
+                              value={s}
+                              disabled={s === 'completed' && (selectedTracker?.unresolved_comment_count || 0) > 0}
+                            >
+                              {s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                              {s === 'completed' && (selectedTracker?.unresolved_comment_count || 0) > 0 && ' (resolve comments first)'}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {(selectedTracker?.unresolved_comment_count || 0) > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          {selectedTracker?.unresolved_comment_count} unresolved comment(s) must be addressed before QC can be completed
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                {/* No permission message */}
+                {!canEditProduction && !canEditQC && (
+                  <div className="text-center py-4 text-muted-foreground">
+                    You don't have permission to edit this tracker's status.
+                  </div>
+                )}
+                
+                {/* Priority and Due Date - Admin and Production Programmer can edit */}
+                {(isAdmin || canEditProduction) && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label>Priority</Label>
+                      <Select
+                        value={editFormData.priority}
+                        onValueChange={(v: Priority) => setEditFormData((prev) => ({ ...prev, priority: v }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PRIORITIES.map((p) => (
+                            <SelectItem key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Due Date {editFormData.production_programmer_id && <span className="text-destructive">*</span>}</Label>
+                      <Input
+                        type="date"
+                        value={editFormData.due_date}
+                        onChange={(e) => setEditFormData((prev) => ({ ...prev, due_date: e.target.value }))}
+                        className={editFormData.production_programmer_id && !editFormData.due_date ? 'border-destructive' : ''}
+                      />
+                      {editFormData.production_programmer_id && !editFormData.due_date && (
+                        <p className="text-xs text-destructive">Required when production programmer is assigned</p>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
-            </div>
-          </div>
+            )
+          })()}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleEditSubmit}>Save Changes</Button>
@@ -1280,71 +1522,141 @@ export function TrackerManagement() {
               </div>
             )}
             
-            {/* Status Update Section - Only show for top-level comments and relevant role */}
+            {/* Status Update Section - Filter based on dialog context */}
             {!replyingTo && (() => {
               const isProductionProgrammer = currentUser && selectedTracker?.production_programmer_id === currentUser.id
               const isQCProgrammer = currentUser && selectedTracker?.qc_programmer_id === currentUser.id
               const isAdmin = currentUser?.role === 'ADMIN'
-              const showProduction = isProductionProgrammer || isAdmin
-              const showQC = isQCProgrammer || isAdmin
+              
+              // Determine what to show based on context AND permissions
+              let showProduction = false
+              let showQC = false
+              
+              if (commentDialogContext === 'production') {
+                // From Prod Kanban: Only show production status if user has permission
+                showProduction = isProductionProgrammer || isAdmin
+              } else if (commentDialogContext === 'qc') {
+                // From QC Kanban: Only show QC status if user has permission
+                showQC = isQCProgrammer || isAdmin
+              } else {
+                // From List view: Show both based on permissions
+                showProduction = isProductionProgrammer || isAdmin
+                showQC = isQCProgrammer || isAdmin
+              }
               
               if (!showProduction && !showQC) return null
               
+              const hasStatusChange = newComment.production_status || newComment.qc_status
+              
               return (
-                <div className={`grid gap-4 mb-4 p-3 bg-muted/30 rounded-lg ${showProduction && showQC ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                  {showProduction && (
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium text-muted-foreground">
-                        Update Production Status (optional)
-                      </Label>
-                      <Select
-                        value={newComment.production_status || '__none__'}
-                        onValueChange={(v) => setNewComment((prev) => ({ 
-                          ...prev, 
-                          production_status: v === '__none__' ? undefined : v as ProductionStatus 
-                        }))}
+                <div className="mb-4 p-3 bg-muted/30 rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">
+                      {commentDialogContext === 'production' ? 'Update Production Status' : 
+                       commentDialogContext === 'qc' ? 'Update QC Status' : 
+                       'Update Status'}
+                    </Label>
+                    {hasStatusChange && (
+                      <Button 
+                        size="sm" 
+                        variant="secondary"
+                        onClick={() => {
+                          // Update status without requiring a comment
+                          if (!selectedTracker) return
+                          
+                          // Handle QC Failed specially
+                          if (newComment.qc_status === 'failed') {
+                            setQcFailureTrackerId(selectedTracker.id)
+                            setQcFailureTrackerCode(selectedTracker.item_code)
+                            setQcFailureDialogOpen(true)
+                            setCommentDialogOpen(false)
+                            return
+                          }
+                          
+                          const updateData: any = {}
+                          if (newComment.production_status) updateData.production_status = newComment.production_status
+                          if (newComment.qc_status) updateData.qc_status = newComment.qc_status
+                          
+                          updateTracker.mutate({
+                            id: selectedTracker.id,
+                            data: updateData
+                          }, {
+                            onSuccess: () => {
+                              setNewComment(prev => ({ ...prev, production_status: undefined, qc_status: undefined }))
+                              toast.success('Status updated')
+                            }
+                          })
+                        }}
                       >
-                        <SelectTrigger className="h-8">
-                          <SelectValue placeholder="No change" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">No change</SelectItem>
-                          {PRODUCTION_STATUSES.map((s) => (
-                            <SelectItem key={s} value={s}>
-                              {s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                  {showQC && (
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium text-muted-foreground">
-                        Update QC Status (optional)
-                      </Label>
-                      <Select
-                        value={newComment.qc_status || '__none__'}
-                        onValueChange={(v) => setNewComment((prev) => ({ 
-                          ...prev, 
-                          qc_status: v === '__none__' ? undefined : v as QCStatus 
-                        }))}
-                      >
-                        <SelectTrigger className="h-8">
-                          <SelectValue placeholder="No change" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">No change</SelectItem>
-                          {/* Show full QC statuses when production is ready_for_qc */}
-                          {(selectedTracker?.production_status === 'ready_for_qc' ? QC_STATUSES_READY : QC_STATUSES).map((s) => (
-                            <SelectItem key={s} value={s}>
-                              {s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
+                        Save Status
+                      </Button>
+                    )}
+                  </div>
+                  <div className={`grid gap-4 ${showProduction && showQC ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                    {showProduction && (
+                      <div className="space-y-1">
+                        <Label className="text-xs font-medium text-muted-foreground">
+                          Production Status
+                        </Label>
+                        <Select
+                          value={newComment.production_status || '__none__'}
+                          onValueChange={(v) => setNewComment((prev) => ({ 
+                            ...prev, 
+                            production_status: v === '__none__' ? undefined : v as ProductionStatus 
+                          }))}
+                        >
+                          <SelectTrigger className="h-8">
+                            <SelectValue placeholder="No change" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">No change</SelectItem>
+                            {PRODUCTION_STATUSES.map((s) => (
+                              <SelectItem key={s} value={s}>
+                                {s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    {showQC && (
+                      <div className="space-y-1">
+                        <Label className="text-xs font-medium text-muted-foreground">
+                          QC Status
+                        </Label>
+                        <Select
+                          value={newComment.qc_status || '__none__'}
+                          onValueChange={(v) => setNewComment((prev) => ({ 
+                            ...prev, 
+                            qc_status: v === '__none__' ? undefined : v as QCStatus 
+                          }))}
+                        >
+                          <SelectTrigger className="h-8">
+                            <SelectValue placeholder="No change" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">No change</SelectItem>
+                            {/* Show full QC statuses when production is ready_for_qc */}
+                            {(selectedTracker?.production_status === 'ready_for_qc' ? QC_STATUSES_READY : QC_STATUSES).map((s) => (
+                              <SelectItem 
+                                key={s} 
+                                value={s}
+                                disabled={s === 'completed' && (selectedTracker?.unresolved_comment_count || 0) > 0}
+                              >
+                                {s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                                {s === 'completed' && (selectedTracker?.unresolved_comment_count || 0) > 0 && ' (resolve comments first)'}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {(selectedTracker?.unresolved_comment_count || 0) > 0 && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Resolve {selectedTracker?.unresolved_comment_count} comment(s) to enable QC completion
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )
             })()}
@@ -1682,6 +1994,19 @@ export function TrackerManagement() {
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={() => { if (selectedTracker) deleteTracker.mutate(selectedTracker.id); setDeleteDialogOpen(false) }}
+      />
+
+      {/* QC Failure Comment Dialog */}
+      <QCFailureCommentDialog
+        trackerId={qcFailureTrackerId}
+        trackerItemCode={qcFailureTrackerCode}
+        effortId={selectedEffortId ? Number(selectedEffortId) : null}
+        isOpen={qcFailureDialogOpen}
+        onClose={() => {
+          setQcFailureDialogOpen(false)
+          setQcFailureTrackerId(null)
+          setQcFailureTrackerCode(undefined)
+        }}
       />
     </div>
   )

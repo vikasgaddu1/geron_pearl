@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from app.crud import reporting_effort_item_tracker, reporting_effort_item, user, audit_log, app_settings
 from app.db.session import get_db
+from app.core.security import get_current_user
 
 logger = logging.getLogger(__name__)
 from app.schemas.reporting_effort_item_tracker import (
@@ -336,6 +337,7 @@ async def update_tracker(
     request: Request,
     tracker_id: int,
     tracker_in: ReportingEffortItemTrackerUpdate,
+    current_user: UserModel = Depends(get_current_user),
 ) -> ReportingEffortItemTracker:
     """
     Update a tracker entry.
@@ -351,9 +353,18 @@ async def update_tracker(
         # Convert to dict for validation
         update_data = tracker_in.model_dump(exclude_unset=True) if hasattr(tracker_in, 'model_dump') else tracker_in.dict(exclude_unset=True)
         
-        # Validate: Cannot change production status without production programmer (except not_started)
+        # Check if user is admin
+        is_admin = current_user.role == UserRole.ADMIN
+        
+        # Permission check: Only production programmer or admin can change production status
         if 'production_status' in update_data and update_data['production_status']:
-            # Allow not_started without programmer - it's the reset/initial state
+            is_production_programmer = db_tracker.production_programmer_id == current_user.id
+            if not is_admin and not is_production_programmer:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only the assigned production programmer can change production status"
+                )
+            # Validate: Cannot change production status without production programmer (except not_started)
             if update_data['production_status'] != 'not_started':
                 new_prod_programmer = update_data.get('production_programmer_id', db_tracker.production_programmer_id)
                 if not new_prod_programmer:
@@ -362,9 +373,15 @@ async def update_tracker(
                         detail="Cannot update production status without a production programmer assigned"
                     )
         
-        # Validate: Cannot change QC status without QC programmer (except not_started)
+        # Permission check: Only QC programmer or admin can change QC status
         if 'qc_status' in update_data and update_data['qc_status']:
-            # Allow not_started without programmer - it's the reset/initial state
+            is_qc_programmer = db_tracker.qc_programmer_id == current_user.id
+            if not is_admin and not is_qc_programmer:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only the assigned QC programmer can change QC status"
+                )
+            # Validate: Cannot change QC status without QC programmer (except not_started)
             if update_data['qc_status'] != 'not_started':
                 new_qc_programmer = update_data.get('qc_programmer_id', db_tracker.qc_programmer_id)
                 if not new_qc_programmer:
@@ -379,9 +396,33 @@ async def update_tracker(
                 due_date_offset = await app_settings.get_default_due_date_offset(db)
                 update_data['due_date'] = date.today() + timedelta(days=due_date_offset)
         
-        # Auto-set qc_completion_date when QC status changes to completed
+        # Validation: Cannot set QC status to completed if there are unresolved comments
         if 'qc_status' in update_data and update_data['qc_status'] == 'completed':
+            if db_tracker.unresolved_comment_count > 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Cannot mark QC as completed: {db_tracker.unresolved_comment_count} unresolved comment(s) must be addressed first"
+                )
+            # Auto-set qc_completion_date when QC status changes to completed
             update_data['qc_completion_date'] = date.today()
+        
+        # Apply auto-transitions for status changes using workflow service
+        # This handles rules like: QC→FAILED triggers Production→IN_PROGRESS
+        # Note: Auto-transitions should ALWAYS apply to enforce workflow rules,
+        # even if the frontend sent the old status value (common in form submissions)
+        if 'production_status' in update_data and update_data['production_status']:
+            auto_updates = TrackerWorkflowService.apply_status_transition(
+                db_tracker, "production_status", update_data['production_status']
+            )
+            # Auto-transitions override any explicit values to enforce workflow rules
+            update_data.update(auto_updates)
+        
+        if 'qc_status' in update_data and update_data['qc_status']:
+            auto_updates = TrackerWorkflowService.apply_status_transition(
+                db_tracker, "qc_status", update_data['qc_status']
+            )
+            # Auto-transitions override any explicit values to enforce workflow rules
+            update_data.update(auto_updates)
         
         # Store original data for audit
         original_data = sqlalchemy_to_dict(db_tracker)
@@ -523,10 +564,19 @@ async def assign_programmer(
     request: Request,
     tracker_id: int,
     assignment: AssignProgrammerRequest,
+    current_user: UserModel = Depends(get_current_user),
 ) -> ReportingEffortItemTracker:
     """
     Assign a programmer to a tracker for production or QC work.
+    Admin only functionality.
     """
+    # Permission check: Only admin can assign programmers
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can assign programmers to tasks"
+        )
+    
     try:
         db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
         if not db_tracker:
@@ -543,7 +593,15 @@ async def assign_programmer(
                 detail="User not found"
             )
         
-        # Check user role (in production, verify user can be assigned to this role)
+        # Check that user is not a VIEWER (VIEWERs cannot be assigned to tasks)
+        from app.models.user import UserRole
+        if db_user.role == UserRole.VIEWER:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Users with VIEWER role cannot be assigned to tasks"
+            )
+        
+        # Check assignment role is valid
         if assignment.role not in ["production", "qc"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -721,13 +779,19 @@ async def bulk_assign_programmers(
     db: AsyncSession = Depends(get_db),
     request: Request,
     assignments: BulkAssignmentRequest,
-    # Note: In production, add admin role authentication here
-    # current_user: User = Depends(get_current_admin_user)
+    current_user: UserModel = Depends(get_current_user),
 ) -> List[ReportingEffortItemTracker]:
     """
     Bulk assign programmers to multiple trackers.
     Admin only functionality.
     """
+    # Permission check: Only admin can perform bulk assignments
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can perform bulk programmer assignments"
+        )
+    
     try:
         updated_trackers = []
         errors = []
@@ -752,6 +816,12 @@ async def bulk_assign_programmers(
                 db_user = await user.get(db, id=user_id)
                 if not db_user:
                     errors.append(f"User {user_id} not found")
+                    continue
+                
+                # Check that user is not a VIEWER
+                from app.models.user import UserRole
+                if db_user.role == UserRole.VIEWER:
+                    errors.append(f"User {user_id} has VIEWER role and cannot be assigned to tasks")
                     continue
                 
                 # Update the appropriate programmer field
@@ -821,10 +891,19 @@ async def bulk_update_status(
     db: AsyncSession = Depends(get_db),
     request: Request,
     updates: BulkStatusUpdateRequest,
+    current_user: UserModel = Depends(get_current_user),
 ) -> List[ReportingEffortItemTracker]:
     """
     Bulk update status for multiple trackers.
+    Only ADMIN users can perform bulk status updates.
     """
+    # Permission check: Only admin can perform bulk status updates
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can perform bulk status updates"
+        )
+    
     try:
         # Prepare updates for CRUD method
         crud_updates = []
@@ -884,11 +963,20 @@ async def bulk_assign_and_update_status(
     db: AsyncSession = Depends(get_db),
     request: Request,
     data: BulkAssignStatusRequest,
+    current_user: UserModel = Depends(get_current_user),
 ) -> BulkAssignStatusResponse:
     """
     Unified endpoint to bulk assign programmers and update statuses.
     Validates that status cannot be changed without an assigned programmer.
+    Only ADMIN users can perform bulk operations.
     """
+    # Permission check: Only admin can perform bulk operations
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can perform bulk assignment and status updates"
+        )
+    
     updated_trackers = []
     errors = []
     
@@ -911,6 +999,19 @@ async def bulk_assign_and_update_status(
                 continue
             
             update_data = {}
+            
+            # Validate that assigned users are not VIEWERs
+            from app.models.user import UserRole
+            if data.production_programmer_id is not None:
+                prod_user = await user.get(db, id=data.production_programmer_id)
+                if prod_user and prod_user.role == UserRole.VIEWER:
+                    errors.append(f"Tracker {tracker_id}: User {data.production_programmer_id} has VIEWER role and cannot be assigned to tasks")
+                    continue
+            if data.qc_programmer_id is not None:
+                qc_user = await user.get(db, id=data.qc_programmer_id)
+                if qc_user and qc_user.role == UserRole.VIEWER:
+                    errors.append(f"Tracker {tracker_id}: User {data.qc_programmer_id} has VIEWER role and cannot be assigned to tasks")
+                    continue
             
             # Handle assignments first
             if data.production_programmer_id is not None:
@@ -1433,7 +1534,7 @@ async def get_trackers_bulk(
 async def create_comment_with_status(
     *,
     db: AsyncSession = Depends(get_db),
-    request: Request,
+    current_user: UserModel = Depends(get_current_user),
     tracker_id: int,
     data: CommentWithStatusRequest,
 ) -> Dict[str, Any]:
@@ -1463,21 +1564,6 @@ async def create_comment_with_status(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Tracker not found"
-            )
-        
-        # Get current user from request state (set by auth middleware)
-        current_user_id = getattr(request.state, 'user_id', None)
-        if not current_user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not authenticated"
-            )
-        
-        current_user = await user.get(db, id=current_user_id)
-        if not current_user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
             )
         
         # Store original statuses for history tracking
@@ -1536,6 +1622,13 @@ async def create_comment_with_status(
                     detail=val_error
                 )
             
+            # Validation: Cannot set QC status to completed if there are unresolved comments
+            if data.qc_status == 'completed' and db_tracker.unresolved_comment_count > 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Cannot mark QC as completed: {db_tracker.unresolved_comment_count} unresolved comment(s) must be addressed first"
+                )
+            
             # Get all updates including auto-transitions
             status_updates.update(
                 TrackerWorkflowService.apply_status_transition(
@@ -1556,7 +1649,7 @@ async def create_comment_with_status(
                 updates=status_updates,
                 previous_production_status=original_prod_status,
                 previous_qc_status=original_qc_status,
-                user_id=current_user_id
+                user_id=current_user.id
             )
             
             # Close out previous history entries
@@ -1583,12 +1676,17 @@ async def create_comment_with_status(
                     db.add(entry)
         
         # Create the comment
-        new_comment = await tracker_comment.create_comment(
-            db,
+        from app.schemas.tracker_comment import TrackerCommentCreate
+        comment_data = TrackerCommentCreate(
             tracker_id=tracker_id,
-            user_id=current_user_id,
             comment_text=data.comment_text,
+            comment_type="programming",
             parent_comment_id=None
+        )
+        new_comment = await tracker_comment.create(
+            db,
+            obj_in=comment_data,
+            user_id=current_user.id
         )
         
         await db.commit()
@@ -1742,11 +1840,13 @@ async def update_production_flag(
     request: Request,
     tracker_id: int,
     value: bool = Query(..., description="New value for in_production_flag"),
+    current_user: UserModel = Depends(get_current_user),
 ) -> ReportingEffortItemTracker:
     """
     Update the in_production_flag for a tracker.
     
     The flag can only be True when both production and QC are completed.
+    Only ADMIN or the assigned production programmer can update this flag.
     """
     try:
         # Get tracker
@@ -1755,6 +1855,15 @@ async def update_production_flag(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Tracker not found"
+            )
+        
+        # Permission check: Only admin or production programmer can update in_production_flag
+        is_admin = current_user.role == UserRole.ADMIN
+        is_production_programmer = db_tracker.production_programmer_id == current_user.id
+        if not is_admin and not is_production_programmer:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only administrators or the assigned production programmer can update the in-production flag"
             )
         
         # Validate the flag change

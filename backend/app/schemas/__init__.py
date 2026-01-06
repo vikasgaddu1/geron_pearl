@@ -37,6 +37,14 @@ from app.schemas.tracker_tag import (
 from app.schemas.app_settings import (
     AppSettings, AppSettingsInDB, AppSettingsUpdate
 )
+from app.schemas.reporting_effort_phase import (
+    ReportingEffortPhase, ReportingEffortPhaseCreate, ReportingEffortPhaseInDB,
+    ReportingEffortPhaseUpdate, ReportingEffortPhaseWithMilestones
+)
+from app.schemas.reporting_effort_milestone import (
+    ReportingEffortMilestone, ReportingEffortMilestoneCreate, ReportingEffortMilestoneInDB,
+    ReportingEffortMilestoneUpdate, ReportingEffortMilestoneWithPhase
+)
 
 __all__ = [
     # Study schemas
@@ -74,5 +82,11 @@ __all__ = [
     "TrackerItemTag", "TrackerItemTagCreate", "TrackerItemTagWithDetails",
     "BulkTagAssignment", "BulkTagRemoval", "BulkOperationResult", "TagSummary",
     # AppSettings schemas
-    "AppSettings", "AppSettingsInDB", "AppSettingsUpdate"
+    "AppSettings", "AppSettingsInDB", "AppSettingsUpdate",
+    # ReportingEffortPhase schemas
+    "ReportingEffortPhase", "ReportingEffortPhaseCreate", "ReportingEffortPhaseInDB",
+    "ReportingEffortPhaseUpdate", "ReportingEffortPhaseWithMilestones",
+    # ReportingEffortMilestone schemas
+    "ReportingEffortMilestone", "ReportingEffortMilestoneCreate", "ReportingEffortMilestoneInDB",
+    "ReportingEffortMilestoneUpdate", "ReportingEffortMilestoneWithPhase"
 ]

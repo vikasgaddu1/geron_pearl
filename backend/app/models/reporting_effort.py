@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from app.models.study import Study
     from app.models.database_release import DatabaseRelease
     from app.models.reporting_effort_item import ReportingEffortItem
+    from app.models.reporting_effort_phase import ReportingEffortPhase
 
 
 class ReportingEffort(Base, TimestampMixin):
@@ -35,6 +36,12 @@ class ReportingEffort(Base, TimestampMixin):
         "ReportingEffortItem",
         back_populates="reporting_effort",
         cascade="all, delete-orphan"
+    )
+    phases: Mapped[List["ReportingEffortPhase"]] = relationship(
+        "ReportingEffortPhase",
+        back_populates="reporting_effort",
+        cascade="all, delete-orphan",
+        order_by="ReportingEffortPhase.display_order"
     )
     
     # Unique constraint to prevent duplicate reporting efforts for same database release with same label

@@ -5,6 +5,8 @@ interface KanbanBoardProps {
   trackers: ReportingEffortItemTracker[]
   statusField: 'production' | 'qc'
   onCardClick?: (tracker: ReportingEffortItemTracker) => void
+  onStatusChange?: (trackerId: number, newStatus: ProductionStatus | QCStatus) => void
+  onProductionFlagToggle?: (trackerId: number, newValue: boolean) => void
 }
 
 // Column configurations for each status field
@@ -24,7 +26,7 @@ const QC_COLUMNS: { status: QCStatus; title: string; colorClass: string }[] = [
   { status: 'on_hold', title: 'On Hold', colorClass: 'bg-yellow-200 text-yellow-800' },
 ]
 
-export function KanbanBoard({ trackers, statusField, onCardClick }: KanbanBoardProps) {
+export function KanbanBoard({ trackers, statusField, onCardClick, onStatusChange, onProductionFlagToggle }: KanbanBoardProps) {
   const columns = statusField === 'production' ? PRODUCTION_COLUMNS : QC_COLUMNS
 
   return (
@@ -38,9 +40,10 @@ export function KanbanBoard({ trackers, statusField, onCardClick }: KanbanBoardP
           statusField={statusField}
           colorClass={column.colorClass}
           onCardClick={onCardClick}
+          onStatusChange={onStatusChange}
+          onProductionFlagToggle={onProductionFlagToggle}
         />
       ))}
     </div>
   )
 }
-

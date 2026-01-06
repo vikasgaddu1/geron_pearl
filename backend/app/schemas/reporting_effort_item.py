@@ -19,6 +19,7 @@ class ReportingEffortItemBase(BaseModel):
     item_type: str = Field(..., description="Type of item: TLF or Dataset")
     item_subtype: str = Field(..., min_length=1, max_length=50, description="Subtype: Table/Listing/Figure for TLF, SDTM/ADaM for Dataset")
     item_code: str = Field(..., min_length=1, max_length=255, description="TLF ID or dataset name")
+    item_description: Optional[str] = Field(None, max_length=500, description="Description of the item")
     is_active: bool = Field(True, description="Whether the item is active")
     
     @field_validator('source_type')
@@ -62,12 +63,23 @@ class ReportingEffortItemCreate(ReportingEffortItemBase):
     pass
 
 
+class ReportingEffortDatasetDetailsUpdate(BaseModel):
+    """Schema for updating dataset details."""
+    
+    label: Optional[str] = Field(None, max_length=255, description="Dataset label")
+    sorting_order: Optional[int] = Field(None, description="Display order")
+    acronyms: Optional[str] = Field(None, description="JSON array of acronyms")
+    ig_version_id: Optional[int] = Field(None, description="Implementation Guide version ID")
+
+
 class ReportingEffortItemUpdate(BaseModel):
     """Schema for updating a ReportingEffortItem."""
     
     item_subtype: Optional[str] = Field(None, min_length=1, max_length=50, description="Subtype")
     item_code: Optional[str] = Field(None, min_length=1, max_length=255, description="Item code")
+    item_description: Optional[str] = Field(None, max_length=500, description="Description of the item")
     is_active: Optional[bool] = None
+    dataset_details: Optional[ReportingEffortDatasetDetailsUpdate] = Field(None, description="Dataset details to update")
 
 
 class ReportingEffortItemInDB(ReportingEffortItemBase):
@@ -116,6 +128,7 @@ class ReportingEffortDatasetDetailsBase(BaseModel):
     label: Optional[str] = Field(None, max_length=255, description="Dataset label")
     sorting_order: Optional[int] = Field(None, description="Display order")
     acronyms: Optional[str] = Field(None, description="JSON array of acronyms")
+    ig_version_id: Optional[int] = Field(None, description="Implementation Guide version ID")
 
 
 class ReportingEffortDatasetDetailsCreate(ReportingEffortDatasetDetailsBase):
@@ -123,11 +136,21 @@ class ReportingEffortDatasetDetailsCreate(ReportingEffortDatasetDetailsBase):
     pass
 
 
+class IGVersionSummary(BaseModel):
+    """Summary schema for IG version in responses."""
+    id: int
+    standard_type: str
+    version: str
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ReportingEffortDatasetDetailsInDB(ReportingEffortDatasetDetailsBase):
     """Schema for dataset details in database."""
     
     id: int = Field(..., description="Dataset details ID")
     reporting_effort_item_id: int = Field(..., description="Reporting effort item ID")
+    ig_version: Optional[IGVersionSummary] = Field(None, description="IG Version details")
     
     model_config = ConfigDict(from_attributes=True)
 

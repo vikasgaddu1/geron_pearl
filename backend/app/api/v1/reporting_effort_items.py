@@ -130,7 +130,6 @@ async def create_reporting_effort_item(
             db,
             obj_in=item_in
         )
-        
         logger.info(f"Reporting effort item created successfully: {created_item.item_code} (ID: {created_item.id})")
         
         # Log audit trail
@@ -388,6 +387,7 @@ async def read_items_by_reporting_effort(
                 "item_type": item.item_type.value if hasattr(item.item_type, 'value') else str(item.item_type),
                 "item_subtype": item.item_subtype,
                 "item_code": item.item_code,
+                "item_description": item.item_description,
                 "is_active": item.is_active,
                 "created_at": item.created_at.isoformat() if item.created_at else None,
                 "updated_at": item.updated_at.isoformat() if item.updated_at else None,
@@ -410,13 +410,23 @@ async def read_items_by_reporting_effort(
             
             # Add dataset details if present
             if hasattr(item, 'dataset_details') and item.dataset_details:
-                item_dict["dataset_details"] = {
+                dataset_dict = {
                     "id": item.dataset_details.id,
                     "reporting_effort_item_id": item.dataset_details.reporting_effort_item_id,
                     "label": item.dataset_details.label,
                     "sorting_order": item.dataset_details.sorting_order,
-                    "acronyms": item.dataset_details.acronyms
+                    "acronyms": item.dataset_details.acronyms,
+                    "ig_version_id": item.dataset_details.ig_version_id,
+                    "ig_version": None
                 }
+                # Add IG version details if present
+                if hasattr(item.dataset_details, 'ig_version') and item.dataset_details.ig_version:
+                    dataset_dict["ig_version"] = {
+                        "id": item.dataset_details.ig_version.id,
+                        "standard_type": item.dataset_details.ig_version.standard_type,
+                        "version": item.dataset_details.ig_version.version
+                    }
+                item_dict["dataset_details"] = dataset_dict
             
             # Add footnotes if present
             if hasattr(item, 'footnotes') and item.footnotes:
@@ -472,16 +482,16 @@ async def read_items_by_reporting_effort(
             detail="Failed to retrieve reporting effort items"
         )
 
-@router.put("/{item_id}", response_model=ReportingEffortItem)
+@router.put("/{item_id}", response_model=dict)
 async def update_reporting_effort_item(
     *,
     db: AsyncSession = Depends(get_db),
     request: Request,
     item_id: int,
     item_in: ReportingEffortItemUpdate,
-) -> ReportingEffortItem:
+) -> dict:
     """
-    Update an existing reporting effort item.
+    Update an existing reporting effort item including dataset/TLF details.
     """
     try:
         db_item = await reporting_effort_item.get(db, id=item_id)
@@ -522,11 +532,60 @@ async def update_reporting_effort_item(
         except Exception as ws_error:
             print(f"WebSocket broadcast error: {ws_error}")
         
-        return updated_item
+        # Build response with full details (similar to get_by_effort)
+        item_dict = {
+            "id": updated_item.id,
+            "reporting_effort_id": updated_item.reporting_effort_id,
+            "source_type": updated_item.source_type.value if updated_item.source_type and hasattr(updated_item.source_type, 'value') else None,
+            "source_id": updated_item.source_id,
+            "source_item_id": updated_item.source_item_id,
+            "item_type": updated_item.item_type.value if hasattr(updated_item.item_type, 'value') else str(updated_item.item_type),
+            "item_subtype": updated_item.item_subtype,
+            "item_code": updated_item.item_code,
+            "item_description": updated_item.item_description,
+            "is_active": updated_item.is_active,
+            "created_at": updated_item.created_at.isoformat() if updated_item.created_at else None,
+            "updated_at": updated_item.updated_at.isoformat() if updated_item.updated_at else None,
+            "tlf_details": None,
+            "dataset_details": None,
+        }
+        
+        # Add TLF details if present
+        if hasattr(updated_item, 'tlf_details') and updated_item.tlf_details:
+            item_dict["tlf_details"] = {
+                "id": updated_item.tlf_details.id,
+                "reporting_effort_item_id": updated_item.tlf_details.reporting_effort_item_id,
+                "title_id": updated_item.tlf_details.title_id,
+                "population_flag_id": updated_item.tlf_details.population_flag_id,
+                "ich_category_id": updated_item.tlf_details.ich_category_id
+            }
+        
+        # Add dataset details if present
+        if hasattr(updated_item, 'dataset_details') and updated_item.dataset_details:
+            dataset_dict = {
+                "id": updated_item.dataset_details.id,
+                "reporting_effort_item_id": updated_item.dataset_details.reporting_effort_item_id,
+                "label": updated_item.dataset_details.label,
+                "sorting_order": updated_item.dataset_details.sorting_order,
+                "acronyms": updated_item.dataset_details.acronyms,
+                "ig_version_id": updated_item.dataset_details.ig_version_id,
+                "ig_version": None
+            }
+            # Add IG version details if present
+            if hasattr(updated_item.dataset_details, 'ig_version') and updated_item.dataset_details.ig_version:
+                dataset_dict["ig_version"] = {
+                    "id": updated_item.dataset_details.ig_version.id,
+                    "standard_type": updated_item.dataset_details.ig_version.standard_type,
+                    "version": updated_item.dataset_details.ig_version.version
+                }
+            item_dict["dataset_details"] = dataset_dict
+        
+        return item_dict
         
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
+        logger.error(f"Failed to update reporting effort item: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update reporting effort item"

@@ -36,7 +36,7 @@ export interface BulkUploadResponse {
 
 export const packagesApi = {
   getAll: async (): Promise<Package[]> => {
-    const response = await apiClient.get(BASE_PATH)
+    const response = await apiClient.get(`${BASE_PATH}/`)
     return response.data
   },
 
@@ -46,7 +46,7 @@ export const packagesApi = {
   },
 
   create: async (data: PackageFormData): Promise<Package> => {
-    const response = await apiClient.post(BASE_PATH, data)
+    const response = await apiClient.post(`${BASE_PATH}/`, data)
     return response.data
   },
 
@@ -114,6 +114,7 @@ export const packagesApi = {
     return response.data
   },
 }
+
 
 
 

@@ -8,6 +8,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.reporting_effort_item import ReportingEffortItem
+    from app.models.ig_version import IGVersion
 
 
 class ReportingEffortDatasetDetails(Base):
@@ -25,6 +26,13 @@ class ReportingEffortDatasetDetails(Base):
         nullable=False,
         unique=True,
         index=True
+    )
+    ig_version_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("ig_versions.id"),
+        nullable=True,
+        index=True,
+        doc="Reference to the Implementation Guide version"
     )
     
     # Dataset details
@@ -48,6 +56,10 @@ class ReportingEffortDatasetDetails(Base):
     reporting_effort_item: Mapped["ReportingEffortItem"] = relationship(
         "ReportingEffortItem",
         back_populates="dataset_details"
+    )
+    ig_version: Mapped[Optional["IGVersion"]] = relationship(
+        "IGVersion",
+        lazy="joined"
     )
     
     def __repr__(self) -> str:

@@ -22,8 +22,8 @@ from app.schemas.reporting_effort_item import (
 class ReportingEffortItemCRUD:
     """CRUD operations for ReportingEffortItem."""
     
-    async def create(self, db: AsyncSession, *, obj_in: ReportingEffortItemCreate) -> ReportingEffortItem:
-        """Create a new reporting effort item."""
+    async def create(self, db: AsyncSession, *, obj_in: ReportingEffortItemCreate, auto_create_tracker: bool = True) -> ReportingEffortItem:
+        """Create a new reporting effort item with optional tracker auto-creation."""
         # Check for duplicate
         existing = await self.get_by_unique_key(
             db,
@@ -44,12 +44,31 @@ class ReportingEffortItemCRUD:
             item_type=obj_in.item_type,
             item_subtype=obj_in.item_subtype,
             item_code=obj_in.item_code,
+            item_description=getattr(obj_in, 'item_description', None),
             is_active=obj_in.is_active
         )
         db.add(db_obj)
+        await db.flush()  # Get the ID without committing yet
+        
+        # Auto-create tracker entry (same as create_with_details)
+        if auto_create_tracker:
+            tracker = ReportingEffortItemTracker(
+                reporting_effort_item_id=db_obj.id
+            )
+            db.add(tracker)
+        
         await db.commit()
         await db.refresh(db_obj)
-        return db_obj
+        
+        # Reload with relationships to avoid lazy loading issues
+        result = await db.execute(
+            select(ReportingEffortItem)
+            .options(
+                selectinload(ReportingEffortItem.tracker)
+            )
+            .where(ReportingEffortItem.id == db_obj.id)
+        )
+        return result.scalar_one()
     
     async def create_with_details(
         self,
@@ -135,7 +154,8 @@ class ReportingEffortItemCRUD:
                 reporting_effort_item_id=db_obj.id,
                 label=obj_in.dataset_details.label,
                 sorting_order=obj_in.dataset_details.sorting_order,
-                acronyms=obj_in.dataset_details.acronyms
+                acronyms=obj_in.dataset_details.acronyms,
+                ig_version_id=obj_in.dataset_details.ig_version_id
             )
             db.add(dataset_details)
         
@@ -171,7 +191,7 @@ class ReportingEffortItemCRUD:
             select(ReportingEffortItem)
             .options(
                 selectinload(ReportingEffortItem.tlf_details),
-                selectinload(ReportingEffortItem.dataset_details),
+                selectinload(ReportingEffortItem.dataset_details).selectinload(ReportingEffortDatasetDetails.ig_version),
                 selectinload(ReportingEffortItem.footnotes),
                 selectinload(ReportingEffortItem.acronyms),
                 selectinload(ReportingEffortItem.tracker)
@@ -203,7 +223,7 @@ class ReportingEffortItemCRUD:
             select(ReportingEffortItem)
             .options(
                 selectinload(ReportingEffortItem.tlf_details),
-                selectinload(ReportingEffortItem.dataset_details),
+                selectinload(ReportingEffortItem.dataset_details).selectinload(ReportingEffortDatasetDetails.ig_version),
                 selectinload(ReportingEffortItem.footnotes),
                 selectinload(ReportingEffortItem.acronyms),
                 selectinload(ReportingEffortItem.tracker)
@@ -258,7 +278,7 @@ class ReportingEffortItemCRUD:
             select(ReportingEffortItem)
             .options(
                 selectinload(ReportingEffortItem.tlf_details),
-                selectinload(ReportingEffortItem.dataset_details),
+                selectinload(ReportingEffortItem.dataset_details).selectinload(ReportingEffortDatasetDetails.ig_version),
                 selectinload(ReportingEffortItem.footnotes),
                 selectinload(ReportingEffortItem.acronyms),
                 selectinload(ReportingEffortItem.tracker)
@@ -275,13 +295,42 @@ class ReportingEffortItemCRUD:
         db_obj: ReportingEffortItem,
         obj_in: ReportingEffortItemUpdate
     ) -> ReportingEffortItem:
-        """Update a reporting effort item."""
+        """Update a reporting effort item including dataset/TLF details."""
         update_data = obj_in.model_dump(exclude_unset=True)
         
+        # Handle dataset_details separately
+        dataset_details_update = update_data.pop('dataset_details', None)
+        
+        # Update main item fields
         for field, value in update_data.items():
             setattr(db_obj, field, value)
         
         db.add(db_obj)
+        await db.flush()
+        
+        # Update dataset details if provided
+        if dataset_details_update is not None:
+            # Load existing dataset details
+            result = await db.execute(
+                select(ReportingEffortDatasetDetails)
+                .where(ReportingEffortDatasetDetails.reporting_effort_item_id == db_obj.id)
+            )
+            existing_details = result.scalar_one_or_none()
+            
+            if existing_details:
+                # Update existing dataset details
+                for field, value in dataset_details_update.items():
+                    if value is not None:
+                        setattr(existing_details, field, value)
+                db.add(existing_details)
+            elif db_obj.item_type == ItemType.Dataset:
+                # Create new dataset details if item is Dataset type and none exist
+                new_details = ReportingEffortDatasetDetails(
+                    reporting_effort_item_id=db_obj.id,
+                    **{k: v for k, v in dataset_details_update.items() if v is not None}
+                )
+                db.add(new_details)
+        
         await db.commit()
         await db.refresh(db_obj)
         
@@ -290,7 +339,7 @@ class ReportingEffortItemCRUD:
             select(ReportingEffortItem)
             .options(
                 selectinload(ReportingEffortItem.tlf_details),
-                selectinload(ReportingEffortItem.dataset_details),
+                selectinload(ReportingEffortItem.dataset_details).selectinload(ReportingEffortDatasetDetails.ig_version),
                 selectinload(ReportingEffortItem.footnotes),
                 selectinload(ReportingEffortItem.acronyms),
                 selectinload(ReportingEffortItem.tracker)
@@ -395,7 +444,8 @@ class ReportingEffortItemCRUD:
                 dataset_details = ReportingEffortDatasetDetailsCreate(
                     label=pkg_item.dataset_details.label,
                     sorting_order=pkg_item.dataset_details.sorting_order,
-                    acronyms=pkg_item.dataset_details.acronyms
+                    acronyms=pkg_item.dataset_details.acronyms,
+                    ig_version_id=getattr(pkg_item.dataset_details, 'ig_version_id', None)
                 )
             
             # Prepare footnotes
@@ -645,7 +695,8 @@ class ReportingEffortItemCRUD:
                 dataset_details = ReportingEffortDatasetDetailsCreate(
                     label=pkg_item.dataset_details.label,
                     sorting_order=pkg_item.dataset_details.sorting_order,
-                    acronyms=pkg_item.dataset_details.acronyms
+                    acronyms=pkg_item.dataset_details.acronyms,
+                    ig_version_id=getattr(pkg_item.dataset_details, 'ig_version_id', None)
                 )
             
             # Prepare footnotes
@@ -782,7 +833,8 @@ class ReportingEffortItemCRUD:
                 dataset_details = ReportingEffortDatasetDetailsCreate(
                     label=src_item.dataset_details.label,
                     sorting_order=src_item.dataset_details.sorting_order,
-                    acronyms=src_item.dataset_details.acronyms
+                    acronyms=src_item.dataset_details.acronyms,
+                    ig_version_id=src_item.dataset_details.ig_version_id
                 )
             
             # Prepare footnotes
@@ -1031,7 +1083,8 @@ class ReportingEffortItemCRUD:
                 dataset_details = ReportingEffortDatasetDetailsCreate(
                     label=src_item.dataset_details.label,
                     sorting_order=src_item.dataset_details.sorting_order,
-                    acronyms=src_item.dataset_details.acronyms
+                    acronyms=src_item.dataset_details.acronyms,
+                    ig_version_id=src_item.dataset_details.ig_version_id
                 )
             
             # Prepare footnotes

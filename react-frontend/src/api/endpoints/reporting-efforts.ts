@@ -5,7 +5,7 @@ const BASE_PATH = '/api/v1/reporting-efforts'
 
 export const reportingEffortsApi = {
   getAll: async (): Promise<ReportingEffort[]> => {
-    const response = await apiClient.get(BASE_PATH)
+    const response = await apiClient.get(`${BASE_PATH}/`)
     return response.data
   },
 
@@ -15,12 +15,12 @@ export const reportingEffortsApi = {
   },
 
   getByReleaseId: async (releaseId: number): Promise<ReportingEffort[]> => {
-    const response = await apiClient.get(`${BASE_PATH}?database_release_id=${releaseId}`)
+    const response = await apiClient.get(`${BASE_PATH}/?database_release_id=${releaseId}`)
     return response.data
   },
 
   create: async (data: ReportingEffortFormData): Promise<ReportingEffort> => {
-    const response = await apiClient.post(BASE_PATH, data)
+    const response = await apiClient.post(`${BASE_PATH}/`, data)
     return response.data
   },
 
@@ -33,6 +33,7 @@ export const reportingEffortsApi = {
     await apiClient.delete(`${BASE_PATH}/${id}`)
   },
 }
+
 
 
 

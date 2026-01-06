@@ -93,8 +93,11 @@ export interface TLFDetails {
 export interface DatasetDetails {
   id?: number
   package_item_id?: number
+  reporting_effort_item_id?: number
   label?: string
   sorting_order?: number
+  ig_version_id?: number
+  ig_version?: IGVersion
 }
 
 export interface PackageItemFootnote {
@@ -136,7 +139,20 @@ export interface ReportingEffortItem {
   item_description?: string
   item_type: ItemType
   item_subtype?: ItemSubtype
-  item_status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED'
+  dataset_details?: DatasetDetails
+  tlf_details?: TLFDetails
+  created_at: string
+  updated_at: string
+}
+
+// ==================== Implementation Guide Version Types ====================
+
+export interface IGVersion {
+  id: number
+  standard_type: 'SDTM' | 'ADaM'
+  version: string
+  description?: string
+  is_active: boolean
   created_at: string
   updated_at: string
 }
@@ -341,4 +357,51 @@ export interface TrackerFormData {
   qc_completion_date?: string
 }
 
+// ==================== Milestone Tracking Types ====================
+
+export interface ReportingEffortMilestone {
+  id: number
+  phase_id: number
+  name: string
+  due_date?: string
+  responsibility?: string
+  comments?: string
+  is_completed: boolean
+  completion_date?: string
+  display_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ReportingEffortPhase {
+  id: number
+  reporting_effort_id: number
+  name: string
+  display_order: number
+  created_at: string
+  updated_at: string
+  milestones?: ReportingEffortMilestone[]
+}
+
+export interface ReportingEffortMilestoneWithContext extends ReportingEffortMilestone {
+  phase_name?: string
+  reporting_effort_id?: number
+  reporting_effort_label?: string
+  study_id?: number
+  study_label?: string
+}
+
+export interface MilestoneFormData {
+  name: string
+  due_date?: string
+  responsibility?: string
+  comments?: string
+  is_completed?: boolean
+  display_order?: number
+}
+
+export interface PhaseFormData {
+  name: string
+  display_order?: number
+}
 
