@@ -13,21 +13,23 @@ pydantic-settings>=2.3.0
 # Database
 sqlalchemy>=2.0.30
 asyncpg>=0.29.0
-psycopg2-binary>=2.9.0  # Required for Alembic migrations
+psycopg2-binary>=2.9.0
 alembic>=1.13.0
+greenlet>=3.0.0
 
 # Environment & Utilities
 python-dotenv>=1.0.0
 python-multipart>=0.0.9
-httpx>=0.27.0  # HTTP client for OAuth and external API calls
+httpx>=0.27.0
+aiofiles>=23.0.0
 
 # Authentication
 authlib>=1.6.0
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.0
 email-validator>=2.0.0
-bcrypt==4.2.0  # Pin to 4.2.0 for passlib compatibility
+bcrypt==4.2.0
+itsdangerous>=2.1.0
 
 # MCP (Model Context Protocol) for AI integration
-# Note: fastapi-mcp is installed from git, see pyproject.toml
-# If needed manually: pip install git+https://github.com/tadata-org/fastapi_mcp.git
+fastapi-mcp @ git+https://github.com/tadata-org/fastapi_mcp.git
