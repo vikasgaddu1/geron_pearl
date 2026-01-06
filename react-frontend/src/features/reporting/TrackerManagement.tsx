@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ClipboardCheck, RefreshCw, Users, CheckCircle, MessageSquare, Edit, Trash2, Send, X, Tag, Plus, Reply, LayoutList, Kanban, UserCheck, Calendar } from 'lucide-react'
+import { ClipboardCheck, RefreshCw, Users, CheckCircle, MessageSquare, Edit, Trash2, Send, X, Tag, Plus, Reply, LayoutList, Kanban, UserCheck, Calendar, Factory } from 'lucide-react'
 import { toast } from 'sonner'
 import { reportingEffortsApi, trackerApi, trackerCommentsApi, trackerTagsApi, usersApi, studiesApi, databaseReleasesApi, useDefaultDueDateOffset } from '@/api'
 import { useReportingSelectionStore } from '@/stores/reportingSelectionStore'
@@ -83,6 +83,7 @@ const TAG_COLORS = [
 export function TrackerManagement() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
+  const { currentUser } = useAuthStore()
   // Use persisted store for selection state (shared with ReportingEffortItems)
   const { 
     selectedStudyId, 
@@ -205,6 +206,18 @@ export function TrackerManagement() {
     queryKey: ['tracker-tags'],
     queryFn: trackerTagsApi.getAll,
   })
+
+  // Study-scoped permissions for bulk operations
+  const { data: studyPermissions } = useQuery({
+    queryKey: ['study-permissions', selectedStudyId],
+    queryFn: () => studiesApi.getMyPermissions(Number(selectedStudyId)),
+    enabled: !!selectedStudyId,
+  })
+
+  // Check if current user can perform bulk operations
+  const canBulkAssign = currentUser?.is_admin || studyPermissions?.can_bulk_assign === true
+  const canBulkStatusUpdate = currentUser?.is_admin || studyPermissions?.can_bulk_status_update === true
+  const canDeleteTrackers = currentUser?.is_admin || studyPermissions?.can_delete_items === true
 
   // WebSocket refresh
   const refetch = useCallback(() => {
@@ -398,9 +411,6 @@ export function TrackerManagement() {
     return true
   }
 
-  // Get current user for My Tasks filter
-  const { currentUser } = useAuthStore()
-  
   // Apply all filters
   const filteredTrackers = useMemo(() => {
     let result = trackers.filter(filterByTab)
@@ -502,10 +512,23 @@ export function TrackerManagement() {
       return
     }
     
+    // Validate: Production status cannot be set to 'completed' directly - it's auto-set by QC completion
+    if (editFormData.production_status === 'completed' && selectedTracker.production_status !== 'completed') {
+      toast.error("Production status cannot be set to 'Completed' directly. It is automatically set when QC marks the item as completed.")
+      return
+    }
+    
     // Validate: Cannot change QC status without QC programmer
     const newQcProgrammer = editFormData.qc_programmer_id || selectedTracker.qc_programmer_id
     if (editFormData.qc_status && editFormData.qc_status !== 'not_started' && !newQcProgrammer) {
       toast.error('Cannot update QC status without a QC programmer assigned')
+      return
+    }
+    
+    // Validate: QC 'completed' or 'failed' only allowed when production is 'ready_for_qc'
+    if ((editFormData.qc_status === 'completed' || editFormData.qc_status === 'failed') && 
+        editFormData.production_status !== 'ready_for_qc' && selectedTracker.production_status !== 'ready_for_qc') {
+      toast.error(`QC can only be marked as '${editFormData.qc_status === 'completed' ? 'Completed' : 'Failed'}' when production status is 'Ready for QC'`)
       return
     }
     
@@ -531,7 +554,7 @@ export function TrackerManagement() {
     }
     
     // Build update data based on user permissions - only send what they can change
-    const isAdmin = currentUser?.role === 'ADMIN'
+    const isAdmin = currentUser?.is_admin
     const isProductionProgrammer = currentUser && selectedTracker.production_programmer_id === currentUser.id
     const isQCProgrammer = currentUser && selectedTracker.qc_programmer_id === currentUser.id
     const canEditProduction = isAdmin || isProductionProgrammer
@@ -587,6 +610,18 @@ export function TrackerManagement() {
 
   const handleAddComment = async () => {
     if (!selectedTracker || !newComment.text.trim()) return
+    
+    // Validate: Production status cannot be set to 'completed' directly
+    if (newComment.production_status === 'completed') {
+      toast.error("Production status cannot be set to 'Completed' directly. It is automatically set when QC marks the item as completed.")
+      return
+    }
+    
+    // Validate: QC 'completed' or 'failed' only allowed when production is 'ready_for_qc'
+    if ((newComment.qc_status === 'completed' || newComment.qc_status === 'failed') && selectedTracker.production_status !== 'ready_for_qc') {
+      toast.error(`QC can only be marked as '${newComment.qc_status === 'completed' ? 'Completed' : 'Failed'}' when production status is 'Ready for QC'`)
+      return
+    }
     
     // Validate: Cannot mark QC as completed if there are unresolved comments
     if (newComment.qc_status === 'completed' && (selectedTracker.unresolved_comment_count || 0) > 0) {
@@ -657,11 +692,8 @@ export function TrackerManagement() {
     })
   }
 
-  // Only ADMIN and EDITOR users can be assigned as programmers (not VIEWERs)
-  const programmers = useMemo(() => 
-    users.filter(u => u.role !== 'VIEWER'), 
-    [users]
-  )
+  // All users can be assigned as programmers - their access is determined by study roles
+  const programmers = useMemo(() => users, [users])
 
   const getProgrammerName = (id?: number) => {
     if (!id) return '-'
@@ -837,32 +869,80 @@ export function TrackerManagement() {
         accessorKey: 'id',
         filterType: 'none',
         enableSorting: false,
-        cell: (_, tracker) => (
-          <div className="flex justify-end gap-1">
-            <TooltipWrapper 
-              content={`Comments: ${tracker.comment_count || 0} total, ${tracker.unresolved_comment_count || 0} unresolved`}
-            >
-              <Button variant="ghost" size="icon" onClick={() => handleOpenComments(tracker)} className="relative">
-                <MessageSquare className="h-4 w-4" />
-                {(tracker.unresolved_comment_count || 0) > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                    {tracker.unresolved_comment_count}
-                  </span>
-                )}
-              </Button>
-            </TooltipWrapper>
-            <TooltipWrapper content="Edit tracker">
-              <Button variant="ghost" size="icon" onClick={() => handleEdit(tracker)}>
-                <Edit className="h-4 w-4" />
-              </Button>
-            </TooltipWrapper>
-            <TooltipWrapper content="Delete tracker">
-              <Button variant="ghost" size="icon" onClick={() => handleDelete(tracker)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            </TooltipWrapper>
-          </div>
-        ),
+        cell: (_, tracker) => {
+          const canToggleProd = tracker.production_status === 'completed' && tracker.qc_status === 'completed'
+          const isInProduction = tracker.in_production_flag
+          
+          return (
+            <div className="flex items-center justify-end gap-2">
+              {/* In Production Toggle */}
+              <TooltipWrapper 
+                content={canToggleProd 
+                  ? (isInProduction ? 'In Production - Click to toggle' : 'Not In Production - Click to toggle')
+                  : 'Both Prod and QC must be completed to toggle'}
+              >
+                <label className="flex cursor-pointer select-none items-center">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={isInProduction}
+                      onChange={(e) => {
+                        e.stopPropagation()
+                        if (!isInProduction && !canToggleProd) {
+                          toast.error('Both Production and QC must be Completed to set In Production flag')
+                          return
+                        }
+                        handleProductionFlagToggle(tracker.id, !isInProduction)
+                      }}
+                      className="sr-only"
+                      disabled={!canToggleProd && !isInProduction}
+                    />
+                    <div
+                      className={`box block h-5 w-9 rounded-full transition-colors ${
+                        isInProduction ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
+                      } ${!canToggleProd && !isInProduction ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    />
+                    <div
+                      className={`absolute left-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white shadow transition-transform ${
+                        isInProduction ? 'translate-x-4' : ''
+                      }`}
+                    >
+                      <Factory className={`h-2.5 w-2.5 ${isInProduction ? 'text-green-500' : 'text-gray-400'}`} />
+                    </div>
+                  </div>
+                </label>
+              </TooltipWrapper>
+
+              {/* Comments Button */}
+              <TooltipWrapper 
+                content={`Comments: ${tracker.comment_count || 0} total, ${tracker.unresolved_comment_count || 0} unresolved`}
+              >
+                <Button variant="ghost" size="icon" onClick={() => handleOpenComments(tracker)} className="relative h-8 w-8">
+                  <MessageSquare className="h-4 w-4" />
+                  {(tracker.unresolved_comment_count || 0) > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                      {tracker.unresolved_comment_count}
+                    </span>
+                  )}
+                </Button>
+              </TooltipWrapper>
+              
+              {/* Edit Button */}
+              <TooltipWrapper content="Edit tracker">
+                <Button variant="ghost" size="icon" onClick={() => handleEdit(tracker)} className="h-8 w-8">
+                  <Edit className="h-4 w-4" />
+                </Button>
+              </TooltipWrapper>
+              
+              {/* Delete Button */}
+              <TooltipWrapper content="Delete tracker">
+                <Button variant="ghost" size="icon" onClick={() => handleDelete(tracker)} className="h-8 w-8">
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </TooltipWrapper>
+            </div>
+          )
+        },
       }
     )
 
@@ -922,7 +1002,7 @@ export function TrackerManagement() {
                 Refresh
               </Button>
             </TooltipWrapper>
-            {selectedRows.size > 0 && (
+            {selectedRows.size > 0 && canBulkAssign && (
               <>
                 <TooltipWrapper content={`Assign tag to ${selectedRows.size} selected trackers`}>
                   <Button variant="outline" size="sm" onClick={() => setBulkTagOpen(true)}>
@@ -1083,7 +1163,31 @@ export function TrackerManagement() {
           ) : trackersLoading ? (
             <PageLoader text="Loading trackers..." />
           ) : (
-            <>
+            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedRows(new Set()) }}>
+              {/* Tabs Header - only in list view */}
+              {viewMode === 'list' && (
+                <TabsList className="mb-4">
+                  <TabsTrigger value="tlf">
+                    TLF Tracker
+                    <Badge variant="secondary" className="ml-2">
+                      {trackers.filter((t) => ['table', 'listing', 'figure'].includes(t.item_subtype?.toLowerCase() || '')).length}
+                    </Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="sdtm">
+                    SDTM Tracker
+                    <Badge variant="secondary" className="ml-2">
+                      {trackers.filter((t) => t.item_subtype?.toLowerCase() === 'sdtm').length}
+                    </Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="adam">
+                    ADaM Tracker
+                    <Badge variant="secondary" className="ml-2">
+                      {trackers.filter((t) => t.item_subtype?.toLowerCase() === 'adam').length}
+                    </Badge>
+                  </TabsTrigger>
+                </TabsList>
+              )}
+
               {/* View Toggle and My Tasks Filter */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -1142,7 +1246,7 @@ export function TrackerManagement() {
                     statusField="production"
                     onCardClick={(tracker) => {
                       // Permission check: Only production programmer or admin can interact in Prod Kanban
-                      const isAdmin = currentUser?.role === 'ADMIN'
+                      const isAdmin = currentUser?.is_admin
                       const isProductionProgrammer = currentUser && tracker.production_programmer_id === currentUser.id
                       if (!isAdmin && !isProductionProgrammer) {
                         toast.error('Only the assigned production programmer can view/edit this task in Production Kanban')
@@ -1158,7 +1262,7 @@ export function TrackerManagement() {
                       if (!tracker) return
                       
                       // Permission check: Only production programmer or admin can change production status
-                      const isAdmin = currentUser?.role === 'ADMIN'
+                      const isAdmin = currentUser?.is_admin
                       const isProductionProgrammer = currentUser && tracker.production_programmer_id === currentUser.id
                       if (!isAdmin && !isProductionProgrammer) {
                         toast.error('Only the assigned production programmer can change production status')
@@ -1168,6 +1272,12 @@ export function TrackerManagement() {
                       // Validate: production programmer must be assigned to change status (except not_started)
                       if (newStatus !== 'not_started' && !tracker.production_programmer_id) {
                         toast.error('Cannot change status without a production programmer assigned')
+                        return
+                      }
+                      
+                      // Validate: Cannot set production status to 'completed' directly - it's auto-set by QC completion
+                      if (newStatus === 'completed') {
+                        toast.error("Production status cannot be set to 'Completed' directly. It is automatically set when QC marks the item as completed.")
                         return
                       }
                       
@@ -1190,7 +1300,7 @@ export function TrackerManagement() {
                     statusField="qc"
                     onCardClick={(tracker) => {
                       // Permission check: Only QC programmer or admin can interact in QC Kanban
-                      const isAdmin = currentUser?.role === 'ADMIN'
+                      const isAdmin = currentUser?.is_admin
                       const isQCProgrammer = currentUser && tracker.qc_programmer_id === currentUser.id
                       if (!isAdmin && !isQCProgrammer) {
                         toast.error('Only the assigned QC programmer can view/edit this task in QC Kanban')
@@ -1206,7 +1316,7 @@ export function TrackerManagement() {
                       if (!tracker) return
                       
                       // Permission check: Only QC programmer or admin can change QC status
-                      const isAdmin = currentUser?.role === 'ADMIN'
+                      const isAdmin = currentUser?.is_admin
                       const isQCProgrammer = currentUser && tracker.qc_programmer_id === currentUser.id
                       if (!isAdmin && !isQCProgrammer) {
                         toast.error('Only the assigned QC programmer can change QC status')
@@ -1216,6 +1326,12 @@ export function TrackerManagement() {
                       // Validate: QC programmer must be assigned to change status (except not_started)
                       if (newStatus !== 'not_started' && !tracker.qc_programmer_id) {
                         toast.error('Cannot change status without a QC programmer assigned')
+                        return
+                      }
+                      
+                      // Validate: QC 'completed' or 'failed' only allowed when production is 'ready_for_qc'
+                      if ((newStatus === 'completed' || newStatus === 'failed') && tracker.production_status !== 'ready_for_qc') {
+                        toast.error(`QC can only be marked as '${newStatus === 'completed' ? 'Completed' : 'Failed'}' when production status is 'Ready for QC'`)
                         return
                       }
                       
@@ -1244,46 +1360,25 @@ export function TrackerManagement() {
                 </div>
               )}
 
-              {/* List View */}
+              {/* List View Content */}
               {viewMode === 'list' && (
-            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedRows(new Set()) }}>
-              <TabsList className="mb-4">
-                <TabsTrigger value="tlf">
-                  TLF Tracker
-                  <Badge variant="secondary" className="ml-2">
-                    {trackers.filter((t) => ['table', 'listing', 'figure'].includes(t.item_subtype?.toLowerCase() || '')).length}
-                  </Badge>
-                </TabsTrigger>
-                <TabsTrigger value="sdtm">
-                  SDTM Tracker
-                  <Badge variant="secondary" className="ml-2">
-                    {trackers.filter((t) => t.item_subtype?.toLowerCase() === 'sdtm').length}
-                  </Badge>
-                </TabsTrigger>
-                <TabsTrigger value="adam">
-                  ADaM Tracker
-                  <Badge variant="secondary" className="ml-2">
-                    {trackers.filter((t) => t.item_subtype?.toLowerCase() === 'adam').length}
-                  </Badge>
-                </TabsTrigger>
-              </TabsList>
-
-              {['tlf', 'sdtm', 'adam'].map((tab) => (
-                <TabsContent key={tab} value={tab}>
-                  {filteredTrackers.length === 0 ? (
-                    <EmptyState
-                      icon={ClipboardCheck}
-                      title="No trackers found"
-                      description={commentFilter !== 'all' || tagFilter !== null ? "No items match the current filters." : "No items in this tracker."}
-                    />
-                  ) : (
-                    <DataTable data={filteredTrackers} columns={columns} />
-                  )}
-                </TabsContent>
-              ))}
-            </Tabs>
+                <>
+                  {['tlf', 'sdtm', 'adam'].map((tab) => (
+                    <TabsContent key={tab} value={tab}>
+                      {filteredTrackers.length === 0 ? (
+                        <EmptyState
+                          icon={ClipboardCheck}
+                          title="No trackers found"
+                          description={commentFilter !== 'all' || tagFilter !== null ? "No items match the current filters." : "No items in this tracker."}
+                        />
+                      ) : (
+                        <DataTable data={filteredTrackers} columns={columns} />
+                      )}
+                    </TabsContent>
+                  ))}
+                </>
               )}
-            </>
+            </Tabs>
           )}
         </CardContent>
       </Card>
@@ -1299,7 +1394,7 @@ export function TrackerManagement() {
           </DialogHeader>
           {(() => {
             // Permission checks for Edit Dialog
-            const isAdmin = currentUser?.role === 'ADMIN'
+            const isAdmin = currentUser?.is_admin
             const isProductionProgrammer = currentUser && selectedTracker?.production_programmer_id === currentUser.id
             const isQCProgrammer = currentUser && selectedTracker?.qc_programmer_id === currentUser.id
             const canEditProduction = isAdmin || isProductionProgrammer
@@ -1307,9 +1402,15 @@ export function TrackerManagement() {
             
             // Determine which QC statuses to show - use editFormData for current state
             // Show full QC statuses (including failed) when production is ready_for_qc OR if current QC status is already failed
+            // Show full QC statuses (including failed/completed) when:
+            // - Production is ready_for_qc or completed
+            // - Current QC status is already failed (to allow changes)
             const showFullQCStatuses = editFormData.production_status === 'ready_for_qc' || 
+                                       editFormData.production_status === 'completed' ||
                                        selectedTracker?.qc_status === 'failed' ||
-                                       editFormData.qc_status === 'failed'
+                                       editFormData.qc_status === 'failed' ||
+                                       selectedTracker?.qc_status === 'completed' ||
+                                       editFormData.qc_status === 'completed'
             
             return (
               <div className="grid gap-4 py-4">
@@ -1526,7 +1627,7 @@ export function TrackerManagement() {
             {!replyingTo && (() => {
               const isProductionProgrammer = currentUser && selectedTracker?.production_programmer_id === currentUser.id
               const isQCProgrammer = currentUser && selectedTracker?.qc_programmer_id === currentUser.id
-              const isAdmin = currentUser?.role === 'ADMIN'
+              const isAdmin = currentUser?.is_admin
               
               // Determine what to show based on context AND permissions
               let showProduction = false

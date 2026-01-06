@@ -11,6 +11,13 @@ from pydantic import BaseModel, Field
 from app.crud import reporting_effort_item_tracker, reporting_effort_item, user, audit_log, app_settings
 from app.db.session import get_db
 from app.core.security import get_current_user
+from app.core.study_permissions import (
+    get_user_study_role, 
+    get_user_study_role_for_tracker,
+    is_study_admin,
+    can_modify_in_study
+)
+from app.models.user_study_role import StudyRole
 
 logger = logging.getLogger(__name__)
 from app.schemas.reporting_effort_item_tracker import (
@@ -20,7 +27,7 @@ from app.schemas.reporting_effort_item_tracker import (
     ReportingEffortItemTrackerWithDetails
 )
 from app.models.reporting_effort_item_tracker import ProductionStatus, QCStatus
-from app.models.user import UserRole, User as UserModel
+from app.models.user import User as UserModel
 from app.models.tracker_status_history import TrackerStatusHistory
 from app.services.tracker_workflow import TrackerWorkflowService
 from app.utils import sqlalchemy_to_dict
@@ -354,7 +361,7 @@ async def update_tracker(
         update_data = tracker_in.model_dump(exclude_unset=True) if hasattr(tracker_in, 'model_dump') else tracker_in.dict(exclude_unset=True)
         
         # Check if user is admin
-        is_admin = current_user.role == UserRole.ADMIN
+        is_admin = current_user.is_admin
         
         # Permission check: Only production programmer or admin can change production status
         if 'production_status' in update_data and update_data['production_status']:
@@ -372,6 +379,12 @@ async def update_tracker(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Cannot update production status without a production programmer assigned"
                     )
+            # Validate: Cannot set production status to 'completed' directly - it's auto-set by QC completion
+            if update_data['production_status'] == 'completed':
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Production status cannot be set to 'completed' directly. It is automatically set when QC marks the item as completed."
+                )
         
         # Permission check: Only QC programmer or admin can change QC status
         if 'qc_status' in update_data and update_data['qc_status']:
@@ -388,6 +401,13 @@ async def update_tracker(
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Cannot update QC status without a QC programmer assigned"
+                    )
+            # Validate: QC can only be set to 'completed' or 'failed' when production is 'ready_for_qc'
+            if update_data['qc_status'] in ['completed', 'failed']:
+                if db_tracker.production_status != 'ready_for_qc':
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"QC can only be marked as '{update_data['qc_status']}' when production status is 'Ready for QC'"
                     )
         
         # Auto-set due_date when assigning production programmer (if not already set)
@@ -477,14 +497,16 @@ async def delete_tracker(
 ) -> None:
     """
     Delete a tracker entry.
-    Admin only functionality.
+    Admin or Study Lead only functionality.
     """
-    # Permission check: Only admin can delete trackers
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can delete trackers"
-        )
+    # Permission check: Admin or Study Lead can delete trackers
+    if not current_user.is_admin:
+        study_role = await get_user_study_role_for_tracker(db, current_user, tracker_id)
+        if not is_study_admin(study_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only administrators or study leads can delete trackers"
+            )
 
     try:
         # Verify tracker exists
@@ -579,12 +601,14 @@ async def assign_programmer(
     Assign a programmer to a tracker for production or QC work.
     Admin only functionality.
     """
-    # Permission check: Only admin can assign programmers
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can assign programmers to tasks"
-        )
+    # Permission check: Only admin or study lead can assign programmers
+    if not current_user.is_admin:
+        study_role = await get_user_study_role_for_tracker(db, current_user, tracker_id)
+        if not is_study_admin(study_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only administrators or study leads can assign programmers to tasks"
+            )
     
     try:
         db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
@@ -602,13 +626,8 @@ async def assign_programmer(
                 detail="User not found"
             )
         
-        # Check that user is not a VIEWER (VIEWERs cannot be assigned to tasks)
-        from app.models.user import UserRole
-        if db_user.role == UserRole.VIEWER:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Users with VIEWER role cannot be assigned to tasks"
-            )
+        # Note: Any user can be assigned to tasks - their study-scoped role 
+        # determines what they can do (lead, editor, or viewer access)
         
         # Check assignment role is valid
         if assignment.role not in ["production", "qc"]:
@@ -697,12 +716,14 @@ async def unassign_programmer(
     Unassign a programmer from a tracker.
     Admin only functionality.
     """
-    # Permission check: Only admin can unassign programmers
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can unassign programmers"
-        )
+    # Permission check: Only admin or study lead can unassign programmers
+    if not current_user.is_admin:
+        study_role = await get_user_study_role_for_tracker(db, current_user, tracker_id)
+        if not is_study_admin(study_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only administrators or study leads can unassign programmers"
+            )
 
     try:
         db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
@@ -801,14 +822,22 @@ async def bulk_assign_programmers(
 ) -> List[ReportingEffortItemTracker]:
     """
     Bulk assign programmers to multiple trackers.
-    Admin only functionality.
+    Admin or Study Lead only functionality.
     """
-    # Permission check: Only admin can perform bulk assignments
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can perform bulk programmer assignments"
-        )
+    # Global Admin can do anything
+    is_global_admin = current_user.is_admin
+    
+    # For non-admins, verify study-level LEAD permissions for each tracker
+    if not is_global_admin:
+        for assignment in assignments.assignments:
+            tracker_id = assignment.get("tracker_id")
+            if tracker_id:
+                study_role = await get_user_study_role_for_tracker(db, current_user, tracker_id)
+                if not is_study_admin(study_role):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=f"You must be a study lead to perform bulk assignments on tracker {tracker_id}"
+                    )
     
     try:
         updated_trackers = []
@@ -836,11 +865,7 @@ async def bulk_assign_programmers(
                     errors.append(f"User {user_id} not found")
                     continue
                 
-                # Check that user is not a VIEWER
-                from app.models.user import UserRole
-                if db_user.role == UserRole.VIEWER:
-                    errors.append(f"User {user_id} has VIEWER role and cannot be assigned to tasks")
-                    continue
+                # Note: Any user can be assigned - their study role determines access
                 
                 # Update the appropriate programmer field
                 update_data = {}
@@ -913,15 +938,23 @@ async def bulk_update_status(
 ) -> List[ReportingEffortItemTracker]:
     """
     Bulk update status for multiple trackers.
-    Only ADMIN users can perform bulk status updates.
+    Only ADMIN or Study LEAD users can perform bulk status updates.
     Applies same validation rules as individual updates (unresolved comments, auto-transitions).
     """
-    # Permission check: Only admin can perform bulk status updates
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can perform bulk status updates"
-        )
+    # Global Admin can do anything
+    is_global_admin = current_user.is_admin
+    
+    # For non-admins, verify study-level LEAD permissions for each tracker
+    if not is_global_admin:
+        for update in updates.updates:
+            tracker_id = update.get("id") or update.get("tracker_id")
+            if tracker_id:
+                study_role = await get_user_study_role_for_tracker(db, current_user, tracker_id)
+                if not is_study_admin(study_role):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=f"You must be a study lead to perform bulk status updates on tracker {tracker_id}"
+                    )
 
     updated_trackers = []
     errors = []
@@ -1021,14 +1054,20 @@ async def bulk_assign_and_update_status(
     """
     Unified endpoint to bulk assign programmers and update statuses.
     Validates that status cannot be changed without an assigned programmer.
-    Only ADMIN users can perform bulk operations.
+    Only ADMIN or Study LEAD users can perform bulk operations.
     """
-    # Permission check: Only admin can perform bulk operations
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can perform bulk assignment and status updates"
-        )
+    # Global Admin can do anything
+    is_global_admin = current_user.is_admin
+    
+    # For non-admins, verify study-level LEAD permissions for each tracker
+    if not is_global_admin:
+        for tracker_id in data.tracker_ids:
+            study_role = await get_user_study_role_for_tracker(db, current_user, tracker_id)
+            if not is_study_admin(study_role):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"You must be a study lead to perform bulk operations on tracker {tracker_id}"
+                )
     
     updated_trackers = []
     errors = []
@@ -1053,18 +1092,7 @@ async def bulk_assign_and_update_status(
             
             update_data = {}
             
-            # Validate that assigned users are not VIEWERs
-            from app.models.user import UserRole
-            if data.production_programmer_id is not None:
-                prod_user = await user.get(db, id=data.production_programmer_id)
-                if prod_user and prod_user.role == UserRole.VIEWER:
-                    errors.append(f"Tracker {tracker_id}: User {data.production_programmer_id} has VIEWER role and cannot be assigned to tasks")
-                    continue
-            if data.qc_programmer_id is not None:
-                qc_user = await user.get(db, id=data.qc_programmer_id)
-                if qc_user and qc_user.role == UserRole.VIEWER:
-                    errors.append(f"Tracker {tracker_id}: User {data.qc_programmer_id} has VIEWER role and cannot be assigned to tasks")
-                    continue
+            # Note: Any user can be assigned - their study role determines access
             
             # Handle assignments first
             if data.production_programmer_id is not None:
@@ -1447,7 +1475,7 @@ async def import_trackers(
     Usernames are resolved to user IDs.
     """
     # Permission check: Only admin can perform bulk imports
-    if current_user.role != UserRole.ADMIN:
+    if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only administrators can perform bulk imports"
@@ -1936,7 +1964,7 @@ async def update_production_flag(
             )
         
         # Permission check: Only admin or production programmer can update in_production_flag
-        is_admin = current_user.role == UserRole.ADMIN
+        is_admin = current_user.is_admin
         is_production_programmer = db_tracker.production_programmer_id == current_user.id
         if not is_admin and not is_production_programmer:
             raise HTTPException(

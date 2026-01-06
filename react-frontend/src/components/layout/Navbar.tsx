@@ -13,7 +13,7 @@ import { useUIStore, applyTheme } from '@/stores/uiStore'
 import { useWebSocketStore } from '@/stores/websocketStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useAuth } from '@/hooks/useAuth'
-import { RoleBadge } from '@/components/common/StatusBadge'
+import { Badge } from '@/components/ui/badge'
 import { ThemeSelector } from '@/components/layout/ThemeSelector'
 import { cn } from '@/lib/utils'
 import { useEffect } from 'react'
@@ -111,7 +111,11 @@ export function Navbar() {
                 <Button variant="ghost" className="flex items-center gap-2">
                   <User className="h-4 w-4" />
                   <span className="hidden sm:inline-block font-medium">{currentUser.username}</span>
-                  <RoleBadge role={currentUser.role} />
+                  <Badge variant="outline" className={currentUser.is_admin 
+                    ? 'bg-primary/10 text-primary border-primary/20' 
+                    : 'bg-muted text-muted-foreground'}>
+                    {currentUser.is_admin ? 'Admin' : 'User'}
+                  </Badge>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
@@ -122,7 +126,11 @@ export function Navbar() {
                       <span className="text-xs text-muted-foreground">{currentUser.email}</span>
                     )}
                     <div className="pt-1">
-                      <RoleBadge role={currentUser.role} />
+                      <Badge variant="outline" className={currentUser.is_admin 
+                        ? 'bg-primary/10 text-primary border-primary/20' 
+                        : 'bg-muted text-muted-foreground'}>
+                        {currentUser.is_admin ? 'Global Admin' : 'User'}
+                      </Badge>
                     </div>
                   </div>
                 </DropdownMenuLabel>

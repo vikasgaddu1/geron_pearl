@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.crud import app_settings
 from app.db.session import get_db
 from app.schemas.app_settings import AppSettings, AppSettingsUpdate
-from app.core.security import get_current_user, require_role
-from app.models.user import User, UserRole
+from app.core.security import get_current_user, require_admin
+from app.models.user import User
 
 router = APIRouter()
 
@@ -50,7 +50,7 @@ async def update_settings(
     *,
     db: AsyncSession = Depends(get_db),
     settings_in: AppSettingsUpdate,
-    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    current_user: User = Depends(require_admin()),
 ) -> AppSettings:
     """
     Update application settings (Admin only).

@@ -32,12 +32,59 @@ export interface User {
   id: number
   username: string
   email?: string
-  role: 'ADMIN' | 'EDITOR' | 'VIEWER'
+  is_admin: boolean
   department?: string
   auth_provider?: string
   is_active: boolean
   created_at: string
   updated_at: string
+}
+
+// ==================== Study-Scoped Access Control Types ====================
+
+export type StudyRole = 'VIEWER' | 'EDITOR' | 'LEAD'
+
+export interface UserStudyRole {
+  id: number
+  user_id: number
+  study_id: number
+  role: StudyRole
+  created_at: string
+  updated_at: string
+}
+
+export interface StudyMember {
+  id: number
+  username: string
+  email?: string
+  role: StudyRole
+  is_admin: boolean
+  is_explicit_assignment: boolean
+  assigned_at?: string
+}
+
+export interface StudyMembersResponse {
+  study_id: number
+  study_label: string
+  members: StudyMember[]
+  total_count: number
+}
+
+export interface StudyPermissions {
+  study_id: number
+  role: StudyRole
+  can_view: boolean
+  can_edit: boolean
+  can_bulk_assign: boolean
+  can_bulk_status_update: boolean
+  can_delete_items: boolean
+  can_manage_members: boolean
+  can_bulk_copy: boolean
+}
+
+export interface AssignStudyRoleRequest {
+  user_id: number
+  role: StudyRole
 }
 
 // ==================== Text Element Types ====================
@@ -329,7 +376,7 @@ export interface UserFormData {
   username: string
   email: string
   password?: string  // Optional for updates
-  role: User['role']
+  is_admin: boolean
   department?: string
   generatePassword?: boolean
 }

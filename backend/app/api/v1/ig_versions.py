@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.crud import ig_version
 from app.db.session import get_db
 from app.schemas.ig_version import IGVersion, IGVersionCreate, IGVersionUpdate
-from app.core.security import get_current_user, require_role
-from app.models.user import User, UserRole
+from app.core.security import get_current_user, require_admin
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ async def create_ig_version(
     *,
     db: AsyncSession = Depends(get_db),
     version_in: IGVersionCreate,
-    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    current_user: User = Depends(require_admin()),
 ) -> IGVersion:
     """
     Create a new Implementation Guide version (Admin only).
@@ -87,7 +87,7 @@ async def update_ig_version(
     db: AsyncSession = Depends(get_db),
     version_id: int,
     version_in: IGVersionUpdate,
-    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    current_user: User = Depends(require_admin()),
 ) -> IGVersion:
     """
     Update an Implementation Guide version (Admin only).
@@ -123,7 +123,7 @@ async def delete_ig_version(
     *,
     db: AsyncSession = Depends(get_db),
     version_id: int,
-    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    current_user: User = Depends(require_admin()),
 ) -> None:
     """
     Delete an Implementation Guide version (Admin only).

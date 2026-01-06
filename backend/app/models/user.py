@@ -7,8 +7,11 @@ from app.db.mixins import TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.tracker_comment import TrackerComment
+    from app.models.user_study_role import UserStudyRole
 
 
+# Keeping UserRole for backwards compatibility during migration
+# TODO: Remove after migration is complete
 class UserRole(str, Enum):
     ADMIN = "ADMIN"
     EDITOR = "EDITOR"
@@ -37,7 +40,7 @@ class User(Base, TimestampMixin):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=True)  # Required for password reset
-    role = Column(SQLEnum(UserRole), nullable=False, default=UserRole.VIEWER)
+    is_admin = Column(Boolean, nullable=False, default=False, doc="Whether user has global admin privileges")
     department = Column(String(50), nullable=True)
     
     # Authentication fields
@@ -62,4 +65,11 @@ class User(Base, TimestampMixin):
         "TrackerComment",
         foreign_keys="TrackerComment.resolved_by_user_id",
         back_populates="resolved_by_user"
+    )
+    
+    # Study-scoped role assignments
+    study_roles = relationship(
+        "UserStudyRole",
+        back_populates="user",
+        cascade="all, delete-orphan"
     )

@@ -21,7 +21,7 @@ from app.core.security import (
 from app.core.oauth2 import oauth, get_user_info_from_token, is_provider_configured
 from app.core.config import settings
 from app.db.session import get_db
-from app.models.user import User, UserRole, AuthProvider
+from app.models.user import User, AuthProvider
 from app.schemas.auth import (
     LoginRequest,
     LoginResponse,
@@ -85,7 +85,7 @@ async def login(
     token_data = {
         "sub": str(user.id),  # JWT sub must be a string
         "username": user.username,
-        "role": user.role.value,
+        "is_admin": user.is_admin,
     }
     access_token = create_access_token(token_data)
     refresh_token = create_refresh_token({"sub": str(user.id)})
@@ -134,7 +134,7 @@ async def register(
         username=register_data.username,
         email=register_data.email,
         password_hash=get_password_hash(register_data.password),
-        role=register_data.role or UserRole.VIEWER,
+        is_admin=register_data.is_admin,
         department=register_data.department,
         auth_provider=AuthProvider.local,
         is_active=True,
@@ -165,8 +165,17 @@ async def refresh_token(
             detail="Invalid token type",
         )
     
-    user_id = payload.get("sub")
-    if not user_id:
+    user_id_str = payload.get("sub")
+    if not user_id_str:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+        )
+    
+    # Convert user_id from string to int (JWT sub is always a string)
+    try:
+        user_id = int(user_id_str)
+    except ValueError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
@@ -186,7 +195,7 @@ async def refresh_token(
     token_data = {
         "sub": str(user.id),  # JWT sub must be a string
         "username": user.username,
-        "role": user.role.value,
+        "is_admin": user.is_admin,
     }
     new_access_token = create_access_token(token_data)
     new_refresh_token = create_refresh_token({"sub": str(user.id)})
@@ -426,7 +435,7 @@ async def oauth_callback(
             user = User(
                 username=username,
                 email=user_info.get('email'),
-                role=UserRole.VIEWER,  # Default role for new OAuth users
+                is_admin=False,  # Default: non-admin for new OAuth users
                 auth_provider=AuthProvider[provider.upper()],
                 auth_provider_id=user_info['provider_id'],
                 is_active=True,
@@ -444,7 +453,7 @@ async def oauth_callback(
         token_data = {
             "sub": str(user.id),  # JWT sub must be a string
             "username": user.username,
-            "role": user.role.value,
+            "is_admin": user.is_admin,
         }
         access_token = create_access_token(token_data)
         refresh_token = create_refresh_token({"sub": str(user.id)})

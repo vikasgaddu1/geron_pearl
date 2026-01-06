@@ -12,7 +12,8 @@ from app.models.reporting_effort_item_tracker import (
     QCStatus,
 )
 from app.models.tracker_status_history import TrackerStatusHistory
-from app.models.user import User, UserRole
+from app.models.user import User
+from app.models.user_study_role import StudyRole
 
 
 class TrackerWorkflowService:
@@ -149,13 +150,15 @@ class TrackerWorkflowService:
     def check_status_change_permission(
         user: User,
         tracker: ReportingEffortItemTracker,
-        status_field: str
+        status_field: str,
+        study_role: Optional[StudyRole] = None
     ) -> Tuple[bool, str]:
         """
         Check if a user has permission to change a status field.
         
         Rules:
-        - Admin: Can change any task's status
+        - Global Admin: Can change any task's status
+        - Study Lead: Can change any task's status within that study
         - Editor: Can only change status for tasks they are assigned to
         - Viewer: Cannot change any status
         
@@ -163,17 +166,39 @@ class TrackerWorkflowService:
             user: The user attempting the change
             tracker: The tracker being modified
             status_field: 'production_status' or 'qc_status'
+            study_role: Optional study-specific role (takes precedence over global role)
             
         Returns:
             Tuple of (has_permission, error_message)
         """
-        # Admin can do anything
-        if user.role == UserRole.ADMIN:
+        # Global Admin can do anything
+        if user.is_admin:
             return True, ""
         
-        # Viewer cannot modify
-        if user.role == UserRole.VIEWER:
-            return False, "Viewers do not have permission to change status"
+        # If study_role is provided, use it for permission checks
+        if study_role is not None:
+            # Study Lead has full access within the study
+            if study_role == StudyRole.LEAD:
+                return True, ""
+            
+            # Study Viewer cannot modify
+            if study_role == StudyRole.VIEWER:
+                return False, "Viewers do not have permission to change status"
+            
+            # Study Editor can only change status for tasks they're assigned to
+            if study_role == StudyRole.EDITOR:
+                if status_field == "production_status":
+                    if tracker.production_programmer_id != user.id:
+                        return False, "You can only update production status for tasks assigned to you"
+                elif status_field == "qc_status":
+                    if tracker.qc_programmer_id != user.id:
+                        return False, "You can only update QC status for tasks assigned to you"
+                else:
+                    return False, f"Invalid status field: {status_field}"
+                return True, ""
+        
+        # Fallback to non-admin behavior
+        # Non-admins can only change status for tasks they're assigned to
         
         # Editor can only change status for tasks they're assigned to
         if status_field == "production_status":
@@ -190,7 +215,8 @@ class TrackerWorkflowService:
     @staticmethod
     def can_user_modify_tracker(
         user: User,
-        tracker: ReportingEffortItemTracker
+        tracker: ReportingEffortItemTracker,
+        study_role: Optional[StudyRole] = None
     ) -> Dict[str, bool]:
         """
         Get which parts of a tracker a user can modify.
@@ -201,25 +227,49 @@ class TrackerWorkflowService:
         Args:
             user: The user
             tracker: The tracker
+            study_role: Optional study-specific role (takes precedence over global role)
             
         Returns:
             Dict with boolean flags for each modifiable field
         """
-        if user.role == UserRole.ADMIN:
+        # Global Admin has full access
+        if user.is_admin:
             return {
                 "production_status": True,
                 "qc_status": True,
                 "in_production_flag": True,
             }
         
-        if user.role == UserRole.VIEWER:
-            return {
-                "production_status": False,
-                "qc_status": False,
-                "in_production_flag": False,
-            }
+        # If study_role is provided, use it for permission determination
+        if study_role is not None:
+            # Study Lead has full access within the study
+            if study_role == StudyRole.LEAD:
+                return {
+                    "production_status": True,
+                    "qc_status": True,
+                    "in_production_flag": True,
+                }
+            
+            # Study Viewer has no access
+            if study_role == StudyRole.VIEWER:
+                return {
+                    "production_status": False,
+                    "qc_status": False,
+                    "in_production_flag": False,
+                }
+            
+            # Study Editor can only modify assigned tasks
+            if study_role == StudyRole.EDITOR:
+                return {
+                    "production_status": tracker.production_programmer_id == user.id,
+                    "qc_status": tracker.qc_programmer_id == user.id,
+                    "in_production_flag": (
+                        tracker.production_programmer_id == user.id or 
+                        tracker.qc_programmer_id == user.id
+                    ),
+                }
         
-        # Editor
+        # Fallback to non-admin users - can only modify assigned tasks
         return {
             "production_status": tracker.production_programmer_id == user.id,
             "qc_status": tracker.qc_programmer_id == user.id,

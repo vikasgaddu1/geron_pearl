@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.models.user import UserRole, User as UserModel
+from app.models.user import User as UserModel
 from app.core.config import settings
 from app.core.security import get_current_user
 
@@ -25,7 +25,7 @@ BACKUP_DIR.mkdir(exist_ok=True)
 
 def require_admin(current_user: UserModel = Depends(get_current_user)) -> UserModel:
     """Dependency to check if user has admin access via JWT."""
-    if current_user.role != UserRole.ADMIN:
+    if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"

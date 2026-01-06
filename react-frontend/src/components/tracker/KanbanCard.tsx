@@ -29,6 +29,8 @@ export function KanbanCard({ tracker, statusField, onClick, isDraggable = true, 
     // Store the tracker ID and current status in the drag data
     e.dataTransfer.setData('trackerId', String(tracker.id))
     e.dataTransfer.setData('statusField', statusField)
+    // Include production status for QC workflow validation
+    e.dataTransfer.setData('sourceProductionStatus', tracker.production_status || '')
     e.dataTransfer.effectAllowed = 'move'
     
     // Add visual feedback

@@ -16,15 +16,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+// Select components no longer needed for role selection
+// import {
+//   Select,
+//   SelectContent,
+//   SelectItem,
+//   SelectTrigger,
+//   SelectValue,
+// } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
-import { RoleBadge } from '@/components/common/StatusBadge'
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
 import { DataTable, ColumnDef } from '@/components/common/DataTable'
@@ -33,8 +33,6 @@ import { HelpIcon } from '@/components/common/HelpIcon'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
 import type { User, UserFormData } from '@/types'
 import { getErrorMessage, generateSecurePassword, isValidEmail } from '@/lib/utils'
-
-const ROLES = ['ADMIN', 'EDITOR', 'VIEWER'] as const
 
 export function UserManagement() {
   const queryClient = useQueryClient()
@@ -48,7 +46,7 @@ export function UserManagement() {
     username: '',
     email: '',
     password: '',
-    role: 'VIEWER',
+    is_admin: false,
     department: 'Programming',
     generatePassword: false,
   })
@@ -122,7 +120,7 @@ export function UserManagement() {
       username: '',
       email: '',
       password: '',
-      role: 'VIEWER',
+      is_admin: false,
       department: 'Programming',
       generatePassword: false,
     })
@@ -143,7 +141,7 @@ export function UserManagement() {
       username: user.username,
       email: user.email || '',
       password: '', // Don't populate password for editing
-      role: user.role,
+      is_admin: user.is_admin,
       department: user.department || '',
       generatePassword: false,
     })
@@ -183,7 +181,7 @@ export function UserManagement() {
         username: formData.username,
         email: formData.email,
         password: formData.password || undefined, // Only include if provided
-        role: formData.role,
+        is_admin: formData.is_admin,
         department: formData.department,
       }
       // Remove password if empty (don't update password)
@@ -203,7 +201,7 @@ export function UserManagement() {
         username: formData.username,
         email: formData.email,
         password: passwordToUse,
-        role: formData.role,
+        is_admin: formData.is_admin,
         department: formData.department,
       }
       createUser.mutate(createData)
@@ -235,13 +233,19 @@ export function UserManagement() {
       cell: (value) => <span className="font-medium">{value}</span>,
     },
     {
-      id: 'role',
-      header: 'Role',
-      accessorKey: 'role',
+      id: 'is_admin',
+      header: 'Admin',
+      accessorKey: 'is_admin',
       filterType: 'select',
-      filterOptions: ['ADMIN', 'EDITOR', 'VIEWER'],
-      helpText: 'User permission level. ADMIN has full system access, EDITOR can modify content, and VIEWER has read-only access.',
-      cell: (value) => <RoleBadge role={value as User['role']} />,
+      filterOptions: ['true', 'false'],
+      helpText: 'Global admin status. Admins have full system access across all studies.',
+      cell: (value) => (
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+          value ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-muted text-muted-foreground'
+        }`}>
+          {value ? 'Admin' : 'User'}
+        </span>
+      ),
     },
     {
       id: 'department',
@@ -314,11 +318,16 @@ export function UserManagement() {
                 <div className="space-y-2">
                   <p>Manage all users in the system with role-based access control.</p>
                   <div className="space-y-1">
-                    <p className="font-semibold text-sm">User Roles:</p>
+                    <p className="font-semibold text-sm">Access Levels:</p>
                     <ul className="list-disc list-inside space-y-1 text-xs">
-                      <li><strong>ADMIN:</strong> Full system access and configuration</li>
-                      <li><strong>EDITOR:</strong> Can create and modify content</li>
-                      <li><strong>VIEWER:</strong> Read-only access</li>
+                      <li><strong>Admin:</strong> Global admin with full system access to all studies</li>
+                      <li><strong>User:</strong> Access determined by study-specific roles (Lead, Editor, Viewer)</li>
+                    </ul>
+                    <p className="font-semibold text-sm mt-2">Study Roles (for non-admin users):</p>
+                    <ul className="list-disc list-inside space-y-1 text-xs">
+                      <li><strong>Lead:</strong> Full access within a specific study</li>
+                      <li><strong>Editor:</strong> Can modify items in assigned studies</li>
+                      <li><strong>Viewer:</strong> Read-only access (default)</li>
                     </ul>
                   </div>
                 </div>
@@ -478,26 +487,29 @@ export function UserManagement() {
             )}
             <div className="grid gap-2">
               <div className="flex items-center gap-2">
-                <Label htmlFor="role">Role</Label>
+                <Label>Access Level</Label>
                 <HelpIcon
-                  content="Select the user's permission level. This determines what actions they can perform in the system."
+                  content="Admin users have full global access. Non-admin users get access based on study-specific roles (Lead, Editor, or Viewer per study)."
                 />
               </div>
-              <Select
-                value={formData.role}
-                onValueChange={(value) => setFormData((prev) => ({ ...prev, role: value as User['role'] }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLES.map((role) => (
-                    <SelectItem key={role} value={role} className="capitalize">
-                      {role}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center space-x-2 border rounded-md p-3 bg-muted/50">
+                <Checkbox
+                  id="is_admin"
+                  checked={formData.is_admin}
+                  onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, is_admin: checked === true }))}
+                />
+                <Label
+                  htmlFor="is_admin"
+                  className="text-sm font-normal cursor-pointer"
+                >
+                  Global Administrator
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {formData.is_admin 
+                  ? "This user will have full admin access to all studies and system settings."
+                  : "This user's access will be determined by study-specific role assignments (Lead, Editor, or Viewer)."}
+              </p>
             </div>
             <div className="grid gap-2">
               <div className="flex items-center gap-2">

@@ -2,7 +2,7 @@ from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, func
 from sqlalchemy.exc import IntegrityError
-from app.models.user import User, UserRole, AuthProvider
+from app.models.user import User, AuthProvider
 from app.schemas.user import UserCreate, UserUpdate
 from app.core.security import get_password_hash
 
@@ -54,7 +54,7 @@ class UserCRUD:
             username=obj_in.username,
             email=obj_in.email,
             password_hash=password_hash,
-            role=obj_in.role,
+            is_admin=obj_in.is_admin,
             department=obj_in.department,
             auth_provider=AuthProvider.local,
             is_active=True

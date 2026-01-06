@@ -1,6 +1,7 @@
 import { useState, DragEvent } from 'react'
 import { cn } from '@/lib/utils'
 import { KanbanCard } from './KanbanCard'
+import { toast } from 'sonner'
 import type { ReportingEffortItemTracker, ProductionStatus, QCStatus } from '@/types'
 
 interface KanbanColumnProps {
@@ -49,10 +50,29 @@ export function KanbanColumn({
 
     const trackerId = e.dataTransfer.getData('trackerId')
     const draggedStatusField = e.dataTransfer.getData('statusField')
+    const sourceProductionStatus = e.dataTransfer.getData('sourceProductionStatus')
 
     // Only allow dropping if the status field matches
     if (draggedStatusField !== statusField) {
       return
+    }
+
+    // Workflow validation for Production Kanban
+    if (statusField === 'production') {
+      // Cannot drag directly to 'completed' - it's auto-set by QC completion
+      if (status === 'completed') {
+        toast.error("Production status cannot be set to 'Completed' directly. It is automatically set when QC marks the item as completed.")
+        return
+      }
+    }
+
+    // Workflow validation for QC Kanban
+    if (statusField === 'qc') {
+      // Can only move to 'completed' or 'failed' when production is 'ready_for_qc'
+      if ((status === 'completed' || status === 'failed') && sourceProductionStatus !== 'ready_for_qc') {
+        toast.error(`QC can only be marked as '${status === 'completed' ? 'Completed' : 'Failed'}' when production status is 'Ready for QC'`)
+        return
+      }
     }
 
     if (trackerId && onStatusChange) {

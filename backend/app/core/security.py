@@ -180,25 +180,42 @@ async def get_current_active_user(
     return current_user
 
 
-def require_role(required_roles: list[UserRole]):
+def require_admin():
     """
-    Dependency factory to check if user has required role.
-    
-    Args:
-        required_roles: List of allowed roles
+    Dependency factory to check if user is an admin.
     
     Returns:
         FastAPI dependency function
     
     Example:
-        @router.get("/admin-only", dependencies=[Depends(require_role([UserRole.ADMIN]))])
+        @router.get("/admin-only", dependencies=[Depends(require_admin())])
     """
-    async def role_checker(current_user: User = Depends(get_current_user)) -> User:
-        if current_user.role not in required_roles:
+    async def admin_checker(current_user: User = Depends(get_current_user)) -> User:
+        if not current_user.is_admin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied. Required roles: {[r.value for r in required_roles]}",
+                detail="Access denied. Admin privileges required.",
             )
+        return current_user
+    
+    return admin_checker
+
+
+# Keep require_role for backwards compatibility during migration
+# TODO: Remove after migration is complete
+def require_role(required_roles: list[UserRole]):
+    """
+    DEPRECATED: Use require_admin() instead.
+    Dependency factory to check if user has required role.
+    """
+    async def role_checker(current_user: User = Depends(get_current_user)) -> User:
+        # Convert old role check to new is_admin check
+        if UserRole.ADMIN in required_roles and current_user.is_admin:
+            return current_user
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Admin privileges required.",
+        )
         return current_user
     
     return role_checker

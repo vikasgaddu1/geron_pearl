@@ -25,8 +25,13 @@ from app.schemas.text_element import TextElementCreate
 from app.models.enums import ItemType, SourceType
 from app.models.reporting_effort_item import ReportingEffortItem as ReportingEffortItemModel
 from app.models.text_element import TextElementType
-from app.models.user import UserRole, User as UserModel
+from app.models.user import User as UserModel
+from app.models.user_study_role import StudyRole
 from app.core.security import get_current_user
+from app.core.study_permissions import (
+    get_user_study_role_for_reporting_effort,
+    is_study_admin
+)
 from app.utils import sqlalchemy_to_dict
 from app.api.v1.websocket import manager
 
@@ -496,12 +501,18 @@ async def update_reporting_effort_item(
     Update an existing reporting effort item including dataset/TLF details.
     Requires EDITOR or ADMIN role.
     """
-    # Permission check: Viewers cannot update items
-    if current_user.role == UserRole.VIEWER:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Viewers do not have permission to update items"
-        )
+    # Permission check: Admin or users with at least EDITOR role can update items
+    if not current_user.is_admin:
+        # Get the item first to find its reporting effort
+        db_item = await reporting_effort_item.get(db, id=item_id)
+        if db_item:
+            study_role = await get_user_study_role_for_reporting_effort(db, current_user, db_item.reporting_effort_id)
+            from app.models.user_study_role import StudyRole
+            if study_role not in (StudyRole.EDITOR, StudyRole.LEAD):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Viewers do not have permission to update items"
+                )
 
     try:
         db_item = await reporting_effort_item.get(db, id=item_id)
@@ -677,14 +688,16 @@ async def bulk_create_tlf_items(
 ) -> BulkUploadResponse:
     """
     Bulk create TLF items for a reporting effort.
-    Admin only functionality.
+    Admin or Study Lead only functionality.
     """
-    # Permission check: Only admin can perform bulk uploads
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can perform bulk TLF uploads"
-        )
+    # Permission check: Admin or Study Lead can perform bulk uploads
+    if not current_user.is_admin:
+        study_role = await get_user_study_role_for_reporting_effort(db, current_user, reporting_effort_id)
+        if not is_study_admin(study_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only administrators or study leads can perform bulk TLF uploads"
+            )
 
     errors = []
     created_items = []
@@ -870,14 +883,16 @@ async def bulk_create_dataset_items(
 ) -> BulkUploadResponse:
     """
     Bulk create dataset items for a reporting effort.
-    Admin only functionality.
+    Admin or Study Lead only functionality.
     """
-    # Permission check: Only admin can perform bulk uploads
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can perform bulk dataset uploads"
-        )
+    # Permission check: Admin or Study Lead can perform bulk uploads
+    if not current_user.is_admin:
+        study_role = await get_user_study_role_for_reporting_effort(db, current_user, reporting_effort_id)
+        if not is_study_admin(study_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only administrators or study leads can perform bulk dataset uploads"
+            )
 
     errors = []
     created_items = []
@@ -1005,14 +1020,16 @@ async def copy_items_from_package(
 ) -> CopyOperationResponse:
     """
     Copy items from a package to a reporting effort.
-    Admin only - bulk operation.
+    Admin or Study Lead only - bulk operation.
     """
-    # Permission check: Only admin can perform bulk copy operations
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can perform bulk copy operations"
-        )
+    # Permission check: Admin or Study Lead can perform bulk copy operations
+    if not current_user.is_admin:
+        study_role = await get_user_study_role_for_reporting_effort(db, current_user, reporting_effort_id)
+        if not is_study_admin(study_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only administrators or study leads can perform bulk copy operations"
+            )
 
     import logging
     logger = logging.getLogger(__name__)
@@ -1325,14 +1342,16 @@ async def copy_items_from_reporting_effort(
 ) -> CopyOperationResponse:
     """
     Copy items from another reporting effort with graceful duplicate handling.
-    Admin only - bulk operation.
+    Admin or Study Lead only - bulk operation.
     """
-    # Permission check: Only admin can perform bulk copy operations
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can perform bulk copy operations"
-        )
+    # Permission check: Admin or Study Lead can perform bulk copy operations
+    if not current_user.is_admin:
+        study_role = await get_user_study_role_for_reporting_effort(db, current_user, reporting_effort_id)
+        if not is_study_admin(study_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only administrators or study leads can perform bulk copy operations"
+            )
 
     import logging
     logger = logging.getLogger(__name__)

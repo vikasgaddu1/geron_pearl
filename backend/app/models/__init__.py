@@ -25,6 +25,7 @@ from app.models.app_settings import AppSettings
 from app.models.reporting_effort_phase import ReportingEffortPhase
 from app.models.reporting_effort_milestone import ReportingEffortMilestone
 from app.models.ig_version import IGVersion, StandardType
+from app.models.user_study_role import UserStudyRole, StudyRole
 
 __all__ = [
     "Study", 
@@ -60,5 +61,7 @@ __all__ = [
     "ReportingEffortPhase",
     "ReportingEffortMilestone",
     "IGVersion",
-    "StandardType"
+    "StandardType",
+    "UserStudyRole",
+    "StudyRole"
 ]

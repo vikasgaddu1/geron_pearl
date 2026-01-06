@@ -389,6 +389,7 @@ class ReportingEffortItemTrackerCRUD:
                 'production_programmer_id': row.ReportingEffortItemTracker.production_programmer_id,
                 'qc_programmer_id': row.ReportingEffortItemTracker.qc_programmer_id,
                 'unresolved_comment_count': row.ReportingEffortItemTracker.unresolved_comment_count,
+                'in_production_flag': row.ReportingEffortItemTracker.in_production_flag,  # Include production flag
                 'created_at': row.ReportingEffortItemTracker.created_at,
                 'updated_at': row.ReportingEffortItemTracker.updated_at,
                 # Item details

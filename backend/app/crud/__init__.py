@@ -16,6 +16,7 @@ from app.crud.app_settings import app_settings
 from app.crud.reporting_effort_phase import reporting_effort_phase
 from app.crud.reporting_effort_milestone import reporting_effort_milestone
 from app.crud.ig_version import ig_version
+from app.crud.user_study_role import user_study_role
 
 __all__ = [
     "study", 
@@ -34,5 +35,6 @@ __all__ = [
     "app_settings",
     "reporting_effort_phase",
     "reporting_effort_milestone",
-    "ig_version"
+    "ig_version",
+    "user_study_role"
 ]

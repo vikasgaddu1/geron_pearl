@@ -4,6 +4,7 @@ import { ClipboardList, Plus, Edit, Trash2, RefreshCw, Search, Copy } from 'luci
 import { toast } from 'sonner'
 import { reportingEffortsApi, reportingEffortItemsApi, packagesApi, studiesApi, databaseReleasesApi, useIGVersions } from '@/api'
 import { useReportingSelectionStore } from '@/stores/reportingSelectionStore'
+import { useAuthStore } from '@/stores/authStore'
 import { getErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -49,6 +50,7 @@ type TabType = 'tlf' | 'sdtm' | 'adam'
 
 export function ReportingEffortItems() {
   const queryClient = useQueryClient()
+  const { currentUser } = useAuthStore()
   // Use persisted store for selection state
   const { 
     selectedStudyId, 
@@ -114,6 +116,17 @@ export function ReportingEffortItems() {
     queryFn: () => (selectedEffortId ? reportingEffortItemsApi.getByEffortId(Number(selectedEffortId)) : Promise.resolve([])),
     enabled: !!selectedEffortId,
   })
+
+  // Study-scoped permissions for bulk operations
+  const { data: studyPermissions } = useQuery({
+    queryKey: ['study-permissions', selectedStudyId],
+    queryFn: () => studiesApi.getMyPermissions(Number(selectedStudyId)),
+    enabled: !!selectedStudyId,
+  })
+
+  // Check if current user can perform copy/delete operations
+  const canBulkCopy = currentUser?.is_admin || studyPermissions?.can_bulk_copy === true
+  const canDeleteItems = currentUser?.is_admin || studyPermissions?.can_delete_items === true
 
   // WebSocket refresh
   const refetch = useCallback(() => {
@@ -347,7 +360,7 @@ export function ReportingEffortItems() {
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setCopyDialogOpen(true)} disabled={!selectedEffortId}>
+            <Button variant="outline" size="sm" onClick={() => setCopyDialogOpen(true)} disabled={!selectedEffortId || !canBulkCopy}>
               <Copy className="h-4 w-4 mr-2" />
               Copy Items
             </Button>
@@ -548,9 +561,11 @@ export function ReportingEffortItems() {
                                   <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
                                     <Edit className="h-4 w-4" />
                                   </Button>
-                                  <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
+                                  {canDeleteItems && (
+                                    <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  )}
                                 </div>
                               </TableCell>
                             </TableRow>

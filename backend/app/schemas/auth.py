@@ -3,7 +3,6 @@
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, validator
-from app.models.user import UserRole
 
 
 class Token(BaseModel):
@@ -95,7 +94,7 @@ class UserResponse(BaseModel):
     id: int
     username: str
     email: Optional[str] = None
-    role: UserRole
+    is_admin: bool
     department: Optional[str] = None
     auth_provider: Optional[str] = None
     is_active: bool
@@ -112,7 +111,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=100)
     confirm_password: str = Field(..., min_length=8, max_length=100)
-    role: Optional[UserRole] = UserRole.VIEWER
+    is_admin: bool = False
     department: Optional[str] = None
     
     @validator('confirm_password')

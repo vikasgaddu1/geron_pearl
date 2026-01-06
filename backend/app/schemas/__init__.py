@@ -45,6 +45,12 @@ from app.schemas.reporting_effort_milestone import (
     ReportingEffortMilestone, ReportingEffortMilestoneCreate, ReportingEffortMilestoneInDB,
     ReportingEffortMilestoneUpdate, ReportingEffortMilestoneWithPhase
 )
+from app.schemas.user_study_role import (
+    UserStudyRole, UserStudyRoleCreate, UserStudyRoleInDB, UserStudyRoleUpdate,
+    UserStudyRoleWithUser, UserStudyRoleWithStudy, AssignStudyRoleRequest,
+    BulkAssignStudyRolesRequest, StudyMember, StudyMembersResponse,
+    UserStudyRolesResponse, StudyPermissions
+)
 
 __all__ = [
     # Study schemas
@@ -88,5 +94,10 @@ __all__ = [
     "ReportingEffortPhaseUpdate", "ReportingEffortPhaseWithMilestones",
     # ReportingEffortMilestone schemas
     "ReportingEffortMilestone", "ReportingEffortMilestoneCreate", "ReportingEffortMilestoneInDB",
-    "ReportingEffortMilestoneUpdate", "ReportingEffortMilestoneWithPhase"
+    "ReportingEffortMilestoneUpdate", "ReportingEffortMilestoneWithPhase",
+    # UserStudyRole schemas
+    "UserStudyRole", "UserStudyRoleCreate", "UserStudyRoleInDB", "UserStudyRoleUpdate",
+    "UserStudyRoleWithUser", "UserStudyRoleWithStudy", "AssignStudyRoleRequest",
+    "BulkAssignStudyRolesRequest", "StudyMember", "StudyMembersResponse",
+    "UserStudyRolesResponse", "StudyPermissions"
 ]

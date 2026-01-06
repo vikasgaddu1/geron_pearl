@@ -42,7 +42,7 @@ function App() {
           <Route
             path="study-management"
             element={
-              <ProtectedRoute requiredRole="ADMIN">
+              <ProtectedRoute requireAdmin>
                 <StudyManagement />
               </ProtectedRoute>
             }
@@ -50,7 +50,7 @@ function App() {
           <Route
             path="tfl-properties"
             element={
-              <ProtectedRoute requiredRole="ADMIN">
+              <ProtectedRoute requireAdmin>
                 <TFLProperties />
               </ProtectedRoute>
             }
@@ -58,7 +58,7 @@ function App() {
           <Route
             path="users"
             element={
-              <ProtectedRoute requiredRole="ADMIN">
+              <ProtectedRoute requireAdmin>
                 <UserManagement />
               </ProtectedRoute>
             }
@@ -66,7 +66,7 @@ function App() {
           <Route
             path="database-backup"
             element={
-              <ProtectedRoute requiredRole="ADMIN">
+              <ProtectedRoute requireAdmin>
                 <DatabaseBackup />
               </ProtectedRoute>
             }
@@ -74,7 +74,7 @@ function App() {
           <Route
             path="settings"
             element={
-              <ProtectedRoute requiredRole="ADMIN">
+              <ProtectedRoute requireAdmin>
                 <SettingsPage />
               </ProtectedRoute>
             }
@@ -82,7 +82,7 @@ function App() {
           <Route
             path="packages"
             element={
-              <ProtectedRoute requiredRole="ADMIN">
+              <ProtectedRoute requireAdmin>
                 <PackagesList />
               </ProtectedRoute>
             }
@@ -90,7 +90,7 @@ function App() {
           <Route
             path="package-items"
             element={
-              <ProtectedRoute requiredRole="ADMIN">
+              <ProtectedRoute requireAdmin>
                 <PackageItems />
               </ProtectedRoute>
             }
@@ -98,17 +98,17 @@ function App() {
           <Route
             path="reporting-effort-items"
             element={
-              <ProtectedRoute requiredRole="ADMIN">
+              <ProtectedRoute requireAdmin>
                 <ReportingEffortItems />
               </ProtectedRoute>
             }
           />
           
-          {/* Accessible by EDITOR+ */}
+          {/* Accessible by all authenticated users - access based on study roles */}
           <Route
             path="tracker-management"
             element={
-              <ProtectedRoute requiredRole="EDITOR">
+              <ProtectedRoute>
                 <TrackerManagement />
               </ProtectedRoute>
             }

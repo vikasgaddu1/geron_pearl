@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { GitBranch, Plus, Edit, Trash2, RefreshCw, ChevronRight, ChevronDown, Folder, FolderOpen, FileText } from 'lucide-react'
+import { GitBranch, Plus, Edit, Trash2, RefreshCw, ChevronRight, ChevronDown, Folder, FolderOpen, FileText, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { studiesApi, databaseReleasesApi, reportingEffortsApi } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -19,7 +19,9 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
-import type { Study, DatabaseRelease, ReportingEffort } from '@/types'
+import { useAuthStore } from '@/stores/authStore'
+import { StudyMembersDialog } from './StudyMembersDialog'
+import type { Study, DatabaseRelease, ReportingEffort, StudyPermissions } from '@/types'
 import { cn, getErrorMessage } from '@/lib/utils'
 
 type NodeType = 'study' | 'release' | 'effort'
@@ -34,11 +36,13 @@ interface TreeNode {
 
 export function StudyManagement() {
   const queryClient = useQueryClient()
+  const currentUser = useAuthStore((state) => state.currentUser)
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [selectedNode, setSelectedNode] = useState<TreeNode | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<'add-study' | 'add-release' | 'add-effort' | 'edit'>('add-study')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [membersDialogOpen, setMembersDialogOpen] = useState(false)
   const [formData, setFormData] = useState({ label: '', date: '' })
 
   // Queries
@@ -56,6 +60,17 @@ export function StudyManagement() {
     queryKey: ['reporting-efforts'],
     queryFn: reportingEffortsApi.getAll,
   })
+
+  // Query for study permissions (when a study is selected)
+  const selectedStudyId = selectedNode?.type === 'study' ? selectedNode.id : null
+  const { data: studyPermissions } = useQuery({
+    queryKey: ['study-permissions', selectedStudyId],
+    queryFn: () => studiesApi.getMyPermissions(selectedStudyId!),
+    enabled: !!selectedStudyId && !!currentUser,
+  })
+
+  // Check if current user can manage members (LEAD or global ADMIN)
+  const canManageMembers = currentUser?.is_admin || studyPermissions?.can_manage_members
 
   // WebSocket refresh
   const refetch = useCallback(() => {
@@ -286,10 +301,18 @@ export function StudyManagement() {
               Add Study
             </Button>
             {selectedNode?.type === 'study' && (
-              <Button size="sm" variant="outline" onClick={() => handleAdd('add-release')}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Release
-              </Button>
+              <>
+                <Button size="sm" variant="outline" onClick={() => handleAdd('add-release')}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Release
+                </Button>
+                {canManageMembers && (
+                  <Button size="sm" variant="outline" onClick={() => setMembersDialogOpen(true)}>
+                    <Users className="h-4 w-4 mr-2" />
+                    Manage Members
+                  </Button>
+                )}
+              </>
             )}
             {selectedNode?.type === 'release' && (
               <Button size="sm" variant="outline" onClick={() => handleAdd('add-effort')}>
@@ -393,6 +416,13 @@ export function StudyManagement() {
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={handleDelete}
+      />
+
+      {/* Study Members Dialog */}
+      <StudyMembersDialog
+        study={selectedNode?.type === 'study' ? (selectedNode.data as Study) : null}
+        open={membersDialogOpen}
+        onOpenChange={setMembersDialogOpen}
       />
     </div>
   )
