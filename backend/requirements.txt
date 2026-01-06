@@ -32,4 +32,5 @@ bcrypt==4.2.0
 itsdangerous>=2.1.0
 
 # MCP (Model Context Protocol) for AI integration
-fastapi-mcp @ git+https://github.com/tadata-org/fastapi_mcp.git
+# fastapi-mcp - disabled for Railway deployment (requires git)
+# To enable locally: pip install git+https://github.com/tadata-org/fastapi_mcp.git

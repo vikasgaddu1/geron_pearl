@@ -13,7 +13,13 @@ from app.api.v1 import api_router
 from app.core.config import settings
 from app.db.init_db import init_db
 from app.db.session import engine
-from fastapi_mcp import FastApiMCP
+
+# MCP is optional - only load if available
+try:
+    from fastapi_mcp import FastApiMCP
+    MCP_AVAILABLE = True
+except ImportError:
+    MCP_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -64,9 +70,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add MCP integration
-mcp = FastApiMCP(app)
-mcp.mount()  # This mounts MCP server at /mcp endpoint
+# Add MCP integration (if available)
+if MCP_AVAILABLE:
+    mcp = FastApiMCP(app)
+    mcp.mount()  # This mounts MCP server at /mcp endpoint
+    logger.info("MCP integration enabled")
 
 
 # Global exception handler
