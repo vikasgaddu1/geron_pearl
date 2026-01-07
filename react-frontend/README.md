@@ -111,14 +111,6 @@ The frontend connects to the FastAPI backend. All API endpoints are defined in `
 
 Real-time updates are handled through WebSocket connection to `/api/v1/ws/studies`. The WebSocket manager automatically reconnects on disconnection.
 
-## Developer Documentation
-
-For detailed technical documentation, see the [`docs/`](./docs/) folder:
-
-- **[Filtering Implementation Guide](./docs/FILTERING_IMPLEMENTATION_GUIDE.md)** - Advanced table filtering with wildcards, regex, and multi-select
-- **[Implementation Status](./docs/IMPLEMENTATION_STATUS.md)** - Feature implementation status and testing checklist
-- **[Migration Complete](./docs/MIGRATION_COMPLETE.md)** - R Shiny to React migration summary and achievements
-
 ## Contributing
 
 1. Follow the existing code patterns
