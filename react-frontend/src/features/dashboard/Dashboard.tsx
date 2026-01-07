@@ -11,7 +11,8 @@ export function Dashboard() {
   const { currentUser } = useAuthStore()
 
   // Check if user has admin role (can see Director Dashboard)
-  const isAdmin = currentUser?.role === 'admin'
+  const isAdmin = currentUser?.is_admin === true
+  const canViewDirectorDashboard = isAdmin
 
   return (
     <div className="space-y-6">
@@ -32,7 +33,7 @@ export function Dashboard() {
         <TabsList>
           <TabsTrigger value="programmer">My Dashboard</TabsTrigger>
           <TabsTrigger value="tracker">Tracker Dashboard</TabsTrigger>
-          {isAdmin && (
+          {canViewDirectorDashboard && (
             <TabsTrigger value="director" className="flex items-center gap-1.5">
               <BarChart3 className="h-4 w-4" />
               Director
@@ -48,7 +49,7 @@ export function Dashboard() {
           <TrackerDashboard />
         </TabsContent>
 
-        {isAdmin && (
+        {canViewDirectorDashboard && (
           <TabsContent value="director" className="mt-6">
             <DirectorDashboard />
           </TabsContent>
