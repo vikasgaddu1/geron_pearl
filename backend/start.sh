@@ -2,32 +2,36 @@
 set -e
 
 echo "=== PEARL Backend Startup ==="
-echo "Running database migrations..."
 
-# Get current alembic version (if any)
-CURRENT_VERSION=$(alembic current 2>&1 | grep -o '[a-f0-9]\{12\}' | head -1 || echo "")
+# Function to check if alembic_version table has entries
+has_alembic_version() {
+    alembic current 2>&1 | grep -q '[a-f0-9]\{8,}'
+    return $?
+}
 
-if [ -n "$CURRENT_VERSION" ]; then
-    echo "Found alembic version: $CURRENT_VERSION"
-    echo "Running upgrade to apply any new migrations..."
+echo "Checking database migration status..."
+
+if has_alembic_version; then
+    CURRENT=$(alembic current 2>&1 | grep -o '[a-f0-9]\{8,}' | head -1)
+    echo "Current alembic version: $CURRENT"
+    echo "Applying any pending migrations..."
     alembic upgrade head
 else
-    echo "No alembic version found in database."
+    echo "No alembic version found."
+    echo "Attempting fresh migration..."
     
-    # Try a normal upgrade first - this works for fresh databases
-    echo "Attempting migration upgrade..."
+    # Try upgrade - works for new databases or databases with tables
     if alembic upgrade head 2>&1; then
-        echo "Migrations applied successfully."
+        echo "Migration successful."
     else
-        # If upgrade fails (tables exist), stamp and retry
-        echo "Migration failed - tables may already exist."
-        echo "Stamping database with current head..."
+        echo "Upgrade failed. Stamping database and retrying..."
+        # If tables exist but tracking doesn't, stamp then upgrade
         alembic stamp head
-        echo "Database stamped. Running upgrade again..."
         alembic upgrade head
     fi
 fi
 
-echo "Migrations complete."
+echo "Database migrations complete."
+echo ""
 echo "=== Starting PEARL Backend ==="
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000
