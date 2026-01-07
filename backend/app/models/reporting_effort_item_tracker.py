@@ -116,6 +116,14 @@ class ReportingEffortItemTracker(Base, TimestampMixin):
         doc="Count of unresolved parent comments (for badge display)"
     )
     
+    # Estimation fields
+    complexity: Mapped[int] = mapped_column(
+        Integer,
+        default=3,
+        nullable=False,
+        doc="Complexity score: 1=trivial, 2=simple, 3=standard, 4=complex, 5=very complex"
+    )
+    
     # Relationships
     item: Mapped["ReportingEffortItem"] = relationship(
         "ReportingEffortItem",

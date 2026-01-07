@@ -22,6 +22,12 @@ class ReportingEffortItemTrackerBase(BaseModel):
     programmer_comments: Optional[str] = Field(None, description="Comments from programmer")
     biostat_comments: Optional[str] = Field(None, description="Comments from biostatistician")
     in_production: bool = Field(False, description="Whether item is currently in production")
+    complexity: int = Field(
+        default=3, 
+        ge=1, 
+        le=5, 
+        description="Complexity score: 1=trivial, 2=simple, 3=standard, 4=complex, 5=very complex"
+    )
 
 
 class ReportingEffortItemTrackerCreate(ReportingEffortItemTrackerBase):
