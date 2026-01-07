@@ -648,3 +648,59 @@ react-frontend/src/features/reporting/ReportingEffortItems.tsx
 react-frontend/src/components/tracker/KanbanBoard.tsx
 react-frontend/src/lib/utils.ts
 ```
+
+---
+
+## Part 8: Implementation Plan
+
+**Branch**: `security/fix-authentication-and-permissions`
+**Status**: In Progress
+
+### Phase 1: Fix CRITICAL Missing Authentication (5 Endpoints)
+
+| Endpoint | File | Changes |
+|----------|------|---------|
+| `POST /api/v1/reporting-effort-items/{id}/bulk-tlf` | `reporting_effort_items.py:660` | Add `current_user` + admin check |
+| `POST /api/v1/reporting-effort-items/{id}/bulk-dataset` | `reporting_effort_items.py:846` | Add `current_user` + admin check |
+| `POST /api/v1/reporting-effort-tracker/import/{id}` | `reporting_effort_tracker.py:1363` | Add `current_user` + admin check |
+| `DELETE /api/v1/reporting-effort-tracker/{id}/unassign-programmer` | `reporting_effort_tracker.py:678` | Add `current_user` + admin check |
+| `DELETE /api/v1/reporting-effort-tracker/{id}` | `reporting_effort_tracker.py:470` | Add `current_user` + admin check |
+
+### Phase 2: Fix HIGH Priority Permission Issues
+
+- Add permission checks to `PUT /api/v1/reporting-effort-items/{item_id}`
+- Add admin check to copy operations (`copy-from-package`, `copy-from-reporting-effort`)
+
+### Phase 3: Add Validation to Bulk Operations
+
+- Add unresolved comment check before QC=completed in bulk endpoints
+- Apply `TrackerWorkflowService.apply_status_transition()` for each tracker
+
+### Phase 4: Replace Legacy Header-Based Auth
+
+- Database backup endpoints: Replace `check_admin_access()` with JWT
+- Audit trail endpoints: Replace header-based check with JWT dependency
+
+### Phase 5: Create Centralized PermissionService
+
+```python
+# backend/app/services/permission_service.py
+class PermissionService:
+    @staticmethod
+    def require_admin(user: User) -> None
+    @staticmethod
+    def require_editor_or_admin(user: User) -> None
+    @staticmethod
+    def check_tracker_permission(user: User, tracker, operation: str) -> None
+```
+
+### Verification Checklist
+
+- [ ] Bulk TLF/dataset upload requires admin
+- [ ] Import trackers requires admin
+- [ ] Unassign/delete tracker requires admin
+- [ ] Item update requires editor or admin
+- [ ] Copy operations require admin
+- [ ] Bulk status update validates comments
+- [ ] Database backup/audit trail use JWT
+- [ ] All tests pass

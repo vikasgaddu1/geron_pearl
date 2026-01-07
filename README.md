@@ -71,9 +71,9 @@ PEARL/
 - **Context-aware updates**: User activity detection prevents disrupting active work
 
 ### Modern UI/UX
-- **Bootstrap 5**: Modern responsive design with dark/light mode support
-- **Interactive tables**: Sortable, filterable data tables with inline actions
-- **Form validation**: Deferred validation with shinyvalidate
+- **Tailwind CSS + shadcn/ui**: Modern responsive design with consistent component library
+- **TanStack Table**: Sortable, filterable data tables with inline actions
+- **Form validation**: React Hook Form + Zod for type-safe validation
 - **Status indicators**: Always-visible WebSocket and API health monitoring
 
 ### Enterprise Grade
