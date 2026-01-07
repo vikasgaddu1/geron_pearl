@@ -1,5 +1,6 @@
 """DatabaseRelease SQLAlchemy model."""
 
+from typing import Optional
 from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -15,6 +16,7 @@ class DatabaseRelease(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     study_id: Mapped[int] = mapped_column(Integer, ForeignKey("studies.id"), nullable=False, index=True)
     database_release_label: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    database_release_date: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     
     # Relationships
     study = relationship("Study", back_populates="database_releases")

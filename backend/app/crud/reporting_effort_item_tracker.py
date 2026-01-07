@@ -1,12 +1,13 @@
 """CRUD operations for ReportingEffortItemTracker."""
 
 from typing import List, Optional, Dict, Any, Union
-from datetime import datetime
+from datetime import datetime, date
 from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker
+from app.models.milestone_tracker_assignment import MilestoneTrackerAssignment
 from app.schemas.reporting_effort_item_tracker import (
     ReportingEffortItemTrackerCreate,
     ReportingEffortItemTrackerUpdate
@@ -65,6 +66,8 @@ class ReportingEffortItemTrackerCRUD:
         """Get multiple trackers with item details and full hierarchy."""
         from app.models.reporting_effort_item import ReportingEffortItem
         from app.models.reporting_effort import ReportingEffort
+        from app.models.reporting_effort_tlf_details import ReportingEffortTlfDetails
+        from app.models.reporting_effort_dataset_details import ReportingEffortDatasetDetails
         
         result = await db.execute(
             select(ReportingEffortItemTracker)
@@ -77,6 +80,17 @@ class ReportingEffortItemTrackerCRUD:
                 selectinload(ReportingEffortItemTracker.item)
                 .selectinload(ReportingEffortItem.reporting_effort)
                 .selectinload(ReportingEffort.database_release)
+            )
+            # Load TLF details with title for TLF items
+            .options(
+                selectinload(ReportingEffortItemTracker.item)
+                .selectinload(ReportingEffortItem.tlf_details)
+                .selectinload(ReportingEffortTlfDetails.title)
+            )
+            # Load dataset details for SDTM/ADaM items
+            .options(
+                selectinload(ReportingEffortItemTracker.item)
+                .selectinload(ReportingEffortItem.dataset_details)
             )
             .offset(skip)
             .limit(limit)
@@ -301,9 +315,11 @@ class ReportingEffortItemTrackerCRUD:
         Get all trackers for a reporting effort with item and programmer details.
         Optimized to minimize N+1 queries by joining related data.
         Includes TLF title from text_elements for TLF items.
+        Includes dataset label for SDTM/ADaM items.
         """
         from app.models.reporting_effort_item import ReportingEffortItem
         from app.models.reporting_effort_tlf_details import ReportingEffortTlfDetails
+        from app.models.reporting_effort_dataset_details import ReportingEffortDatasetDetails
         from app.models.text_element import TextElement
         from app.models.user import User
         from sqlalchemy.orm import aliased
@@ -314,7 +330,7 @@ class ReportingEffortItemTrackerCRUD:
         # Alias for title text element
         title_element = aliased(TextElement)
         
-        # Single query to get all trackers with related data including TLF title
+        # Single query to get all trackers with related data including TLF title and dataset label
         query = select(
             ReportingEffortItemTracker,
             ReportingEffortItem.id.label('item_id'),
@@ -323,7 +339,8 @@ class ReportingEffortItemTrackerCRUD:
             ReportingEffortItem.item_subtype.label('item_subtype'),
             prod_user.username.label('prod_programmer_username'),
             qc_user.username.label('qc_programmer_username'),
-            title_element.label.label('item_title')
+            title_element.label.label('item_title'),
+            ReportingEffortDatasetDetails.label.label('dataset_label')
         ).select_from(
             ReportingEffortItemTracker
         ).join(
@@ -341,6 +358,9 @@ class ReportingEffortItemTrackerCRUD:
         ).outerjoin(
             title_element,
             ReportingEffortTlfDetails.title_id == title_element.id
+        ).outerjoin(
+            ReportingEffortDatasetDetails,
+            ReportingEffortItem.id == ReportingEffortDatasetDetails.reporting_effort_item_id
         ).where(
             ReportingEffortItem.reporting_effort_id == reporting_effort_id
         )
@@ -373,6 +393,13 @@ class ReportingEffortItemTrackerCRUD:
                 }
                 tags_by_tracker[tracker_id].append(tag_dict)
         
+        # Get milestone info for all trackers in bulk
+        milestones_by_tracker = await self._get_milestones_for_trackers_bulk(
+            db,
+            tracker_ids=tracker_ids,
+            reporting_effort_id=reporting_effort_id
+        )
+
         # Convert to list of dictionaries with combined data
         trackers = []
         for row in rows:
@@ -397,16 +424,120 @@ class ReportingEffortItemTrackerCRUD:
                 'item_code': row.item_code,
                 'item_type': row.item_type,
                 'item_subtype': row.item_subtype,
-                'item_title': row.item_title,  # TLF title from text_elements
+                # Use TLF title for TLF items, dataset label for SDTM/ADaM items
+                'item_title': row.item_title or row.dataset_label,
+                'dataset_label': row.dataset_label,  # Also include separately for explicit access
                 # Programmer usernames
                 'prod_programmer_username': row.prod_programmer_username,
                 'qc_programmer_username': row.qc_programmer_username,
                 # Tags
-                'tags': tags_by_tracker.get(tracker_id, [])
+                'tags': tags_by_tracker.get(tracker_id, []),
+                # Milestones
+                'milestones': milestones_by_tracker.get(tracker_id, [])
             }
             trackers.append(tracker_dict)
-        
+
         return trackers
+
+    async def _get_milestones_for_trackers_bulk(
+        self,
+        db: AsyncSession,
+        *,
+        tracker_ids: List[int],
+        reporting_effort_id: int
+    ) -> Dict[int, List[Dict[str, Any]]]:
+        """
+        Get milestone info for multiple trackers efficiently.
+
+        Returns: Dict mapping tracker_id -> list of milestone info
+        """
+        from app.models.reporting_effort_item import ReportingEffortItem
+        from app.models.reporting_effort_milestone import ReportingEffortMilestone
+        from app.models.reporting_effort_phase import ReportingEffortPhase
+        from app.models.tracker_tag import TrackerItemTag
+
+        if not tracker_ids:
+            return {}
+
+        # Initialize result
+        result: Dict[int, List[Dict[str, Any]]] = {tid: [] for tid in tracker_ids}
+
+        # Get tracker info (subtype, due_date)
+        tracker_result = await db.execute(
+            select(
+                ReportingEffortItemTracker.id,
+                ReportingEffortItemTracker.due_date,
+                ReportingEffortItem.item_subtype
+            )
+            .join(ReportingEffortItem, ReportingEffortItemTracker.reporting_effort_item_id == ReportingEffortItem.id)
+            .where(ReportingEffortItemTracker.id.in_(tracker_ids))
+        )
+        tracker_info = {r.id: {'due_date': r.due_date, 'item_subtype': r.item_subtype} for r in tracker_result.all()}
+
+        # Get tags for all trackers
+        tag_result = await db.execute(
+            select(TrackerItemTag.tracker_id, TrackerItemTag.tag_id)
+            .where(TrackerItemTag.tracker_id.in_(tracker_ids))
+        )
+        tracker_tags: Dict[int, set] = {tid: set() for tid in tracker_ids}
+        for r in tag_result.all():
+            tracker_tags[r.tracker_id].add(r.tag_id)
+
+        # Get all milestones for this reporting effort
+        milestone_result = await db.execute(
+            select(ReportingEffortMilestone)
+            .join(ReportingEffortPhase, ReportingEffortMilestone.phase_id == ReportingEffortPhase.id)
+            .where(ReportingEffortPhase.reporting_effort_id == reporting_effort_id)
+        )
+        milestones = list(milestone_result.scalars().all())
+
+        # Get manual assignments
+        manual_result = await db.execute(
+            select(MilestoneTrackerAssignment)
+            .where(MilestoneTrackerAssignment.tracker_id.in_(tracker_ids))
+        )
+        manual_assignments: Dict[int, set] = {tid: set() for tid in tracker_ids}
+        for ma in manual_result.scalars().all():
+            manual_assignments[ma.tracker_id].add(ma.milestone_id)
+
+        # Build milestone info for each tracker
+        for tracker_id in tracker_ids:
+            info = tracker_info.get(tracker_id)
+            if not info:
+                continue
+
+            tracker_due_date = info['due_date']
+            item_subtype = info['item_subtype']
+            tags = tracker_tags[tracker_id]
+            manuals = manual_assignments[tracker_id]
+
+            for milestone in milestones:
+                link_type = None
+
+                # Check subtype link
+                if milestone.linked_subtype and milestone.linked_subtype == item_subtype:
+                    link_type = 'subtype'
+                # Check tag link
+                elif milestone.linked_tag_id and milestone.linked_tag_id in tags:
+                    link_type = 'tag'
+                # Check manual link
+                elif milestone.id in manuals:
+                    link_type = 'manual'
+
+                if link_type:
+                    is_past_due = False
+                    if tracker_due_date and milestone.due_date:
+                        is_past_due = tracker_due_date > milestone.due_date
+
+                    result[tracker_id].append({
+                        'milestone_id': milestone.id,
+                        'milestone_name': milestone.name,
+                        'milestone_due_date': milestone.due_date,
+                        'is_past_due': is_past_due,
+                        'link_type': link_type
+                    })
+
+        return result
 
 
 # Create singleton instance

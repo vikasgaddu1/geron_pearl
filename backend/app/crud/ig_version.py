@@ -100,3 +100,7 @@ class IGVersionCRUD(BaseCRUD[IGVersion, IGVersionCreate, IGVersionUpdate]):
 # Create a global instance
 ig_version = IGVersionCRUD(IGVersion)
 
+
+
+
+

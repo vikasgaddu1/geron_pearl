@@ -26,7 +26,8 @@ import {
   ChevronRight,
   PieChart as PieChartIcon,
   BarChart3,
-  Target
+  Target,
+  MessageSquareWarning
 } from 'lucide-react'
 import {
   PieChart,
@@ -114,11 +115,14 @@ export function ProgrammerDashboard() {
   }
 
   // Navigate to tracker management with pre-selected filters
-  const navigateToTracker = (tracker: ReportingEffortItemTracker) => {
+  const navigateToTracker = (tracker: ReportingEffortItemTracker, includeItemCode = false) => {
     // Navigate to tracker management - the page will need to handle the query params
     const params = new URLSearchParams()
     if (tracker.study_id) params.set('studyId', String(tracker.study_id))
     if (tracker.reporting_effort_id) params.set('effortId', String(tracker.reporting_effort_id))
+    if (includeItemCode && tracker.item_code) params.set('itemCode', tracker.item_code)
+    // Include item subtype to auto-select the correct tab (TLF, SDTM, or ADaM)
+    if (includeItemCode && tracker.item_subtype) params.set('itemSubtype', tracker.item_subtype)
     navigate(`/tracker-management?${params.toString()}`)
   }
 
@@ -149,6 +153,11 @@ export function ProgrammerDashboard() {
     }
     return false
   }).length
+
+  // Count of items with unresolved comments (for metric card)
+  const unresolvedCommentsCount = useMemo(() => {
+    return myTrackers.filter((t) => (t.unresolved_comment_count || 0) > 0).length
+  }, [myTrackers])
 
   // Chart data - Status breakdown
   const statusData = useMemo(() => {
@@ -213,7 +222,7 @@ export function ProgrammerDashboard() {
   return (
     <div className="space-y-6">
       {/* Metrics Row */}
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-6">
         <MetricCard
           title="Total Assignments"
           value={totalAssignments}
@@ -242,6 +251,12 @@ export function ProgrammerDashboard() {
           value={dueSoon}
           icon={Clock}
           variant={dueSoon > 0 ? 'warning' : 'default'}
+        />
+        <MetricCard
+          title="Unresolved Comments"
+          value={unresolvedCommentsCount}
+          icon={MessageSquareWarning}
+          variant={unresolvedCommentsCount > 0 ? 'danger' : 'default'}
         />
       </div>
 
@@ -458,13 +473,15 @@ export function ProgrammerDashboard() {
                           <Table>
                             <TableHeader>
                               <TableRow className="hover:bg-transparent">
-                                <TableHead className="w-32">Item Code</TableHead>
+                                <TableHead className="w-28">Item Code</TableHead>
                                 <TableHead>Title</TableHead>
-                                <TableHead className="w-20">Type</TableHead>
+                                <TableHead className="w-16">Type</TableHead>
                                 <TableHead className="w-20">Priority</TableHead>
                                 <TableHead className="w-24">Role</TableHead>
                                 <TableHead className="w-28">Status</TableHead>
-                                <TableHead className="w-28">Due Date</TableHead>
+                                <TableHead className="w-24">Due Date</TableHead>
+                                <TableHead className="w-24 text-center">Comments</TableHead>
+                                <TableHead className="w-16"></TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -474,6 +491,7 @@ export function ProgrammerDashboard() {
                                 const role = isProd && isQC ? 'Both' : isProd ? 'Production' : 'QC'
                                 const status = isProd ? tracker.production_status : tracker.qc_status
                                 const dueDate = tracker.due_date
+                                const commentCount = tracker.unresolved_comment_count || 0
                                 const priorityColors: Record<string, string> = {
                                   critical: 'bg-red-500 text-white',
                                   high: 'bg-orange-500 text-white',
@@ -482,10 +500,14 @@ export function ProgrammerDashboard() {
                                 }
 
                                 return (
-                                  <TableRow key={tracker.id} className="hover:bg-muted/30">
+                                  <TableRow 
+                                    key={tracker.id} 
+                                    className="hover:bg-muted/50 cursor-pointer"
+                                    onClick={() => navigateToTracker(tracker, true)}
+                                  >
                                     <TableCell className="font-medium">{tracker.item_code}</TableCell>
                                     <TableCell className="max-w-xs truncate text-sm">
-                                      {tracker.item_description || tracker.item_title || '-'}
+                                      {tracker.item_title || '-'}
                                     </TableCell>
                                     <TableCell>
                                       <Badge variant={tracker.item_type === 'TLF' ? 'default' : 'secondary'} className="text-xs">
@@ -507,6 +529,28 @@ export function ProgrammerDashboard() {
                                     </TableCell>
                                     <TableCell className="text-sm">
                                       {dueDate ? new Date(dueDate).toLocaleDateString() : '-'}
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      {commentCount > 0 ? (
+                                        <Badge variant="destructive" className="text-xs">
+                                          {commentCount}
+                                        </Badge>
+                                      ) : (
+                                        <span className="text-muted-foreground text-xs">-</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm"
+                                        className="h-7 text-xs"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          navigateToTracker(tracker, true)
+                                        }}
+                                      >
+                                        <ExternalLink className="h-3 w-3" />
+                                      </Button>
                                     </TableCell>
                                   </TableRow>
                                 )

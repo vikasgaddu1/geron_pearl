@@ -6,9 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import study, user_study_role, user
-from app.crud import database_release
+from app.crud import database_release, reporting_effort
 from app.db.session import get_db
-from app.schemas.study import Study, StudyCreate, StudyUpdate
+from app.schemas.study import Study, StudyCreate, StudyUpdate, BulkHierarchyRow, BulkHierarchyResponse
+from app.schemas.database_release import DatabaseReleaseCreate
+from app.schemas.reporting_effort import ReportingEffortCreate
 from app.schemas.user_study_role import (
     AssignStudyRoleRequest, UserStudyRole, UserStudyRoleUpdate,
     StudyMembersResponse, StudyMember, StudyPermissions
@@ -201,6 +203,95 @@ async def delete_study(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete study"
         )
+
+
+# ============================================================================
+# Bulk hierarchy upload: Study -> Database Release -> Reporting Effort
+# ============================================================================
+
+
+@router.post("/bulk-hierarchy", response_model=BulkHierarchyResponse)
+async def bulk_upload_hierarchy(
+    *,
+    db: AsyncSession = Depends(get_db),
+    rows: List[BulkHierarchyRow],
+) -> BulkHierarchyResponse:
+    """
+    Bulk upload studies, database releases, and reporting efforts in one go.
+    Duplicates are ignored (counted as skipped_duplicates).
+    """
+    created_studies = 0
+    created_releases = 0
+    created_efforts = 0
+    skipped_duplicates = 0
+    errors: list[str] = []
+
+    for idx, row in enumerate(rows):
+        try:
+            study_label = row.study_label.strip()
+            release_label = row.database_release_label.strip()
+            effort_label = row.reporting_effort_label.strip()
+
+            if not study_label or not release_label or not effort_label:
+                errors.append(f"Row {idx+1}: All three columns are required")
+                continue
+
+            # Study (case/space insensitive handled in CRUD)
+            existing_study = await study.get_by_label(db, study_label=study_label)
+            if existing_study:
+                study_obj = existing_study
+                skipped_duplicates += 1
+            else:
+                study_obj = await study.create(db, obj_in=StudyCreate(study_label=study_label))
+                created_studies += 1
+
+            # Database release (scoped to study)
+            existing_release = await database_release.get_by_study_and_label(
+                db, study_id=study_obj.id, database_release_label=release_label
+            )
+            if existing_release:
+                release_obj = existing_release
+                skipped_duplicates += 1
+            else:
+                release_obj = await database_release.create(
+                    db,
+                    obj_in=DatabaseReleaseCreate(
+                        study_id=study_obj.id,
+                        database_release_label=release_label,
+                        database_release_date=None,
+                    ),
+                )
+                created_releases += 1
+
+            # Reporting effort (scoped to release)
+            existing_effort = await reporting_effort.get_by_release_and_label(
+                db,
+                database_release_id=release_obj.id,
+                database_release_label=effort_label,
+            )
+            if existing_effort:
+                skipped_duplicates += 1
+            else:
+                await reporting_effort.create(
+                    db,
+                    obj_in=ReportingEffortCreate(
+                        study_id=study_obj.id,
+                        database_release_id=release_obj.id,
+                        database_release_label=effort_label,
+                    ),
+                )
+                created_efforts += 1
+        except Exception as e:
+            errors.append(f"Row {idx+1}: {str(e)}")
+
+    return BulkHierarchyResponse(
+        success=len(errors) == 0,
+        created_studies=created_studies,
+        created_releases=created_releases,
+        created_efforts=created_efforts,
+        skipped_duplicates=skipped_duplicates,
+        errors=errors,
+    )
 
 
 # ============================================================================

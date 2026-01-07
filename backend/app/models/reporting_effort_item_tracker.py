@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from app.models.user import User
     from app.models.tracker_comment import TrackerComment
     from app.models.tracker_tag import TrackerItemTag
+    from app.models.milestone_tracker_assignment import MilestoneTrackerAssignment
 
 
 class ReportingEffortItemTracker(Base, TimestampMixin):
@@ -141,7 +142,12 @@ class ReportingEffortItemTracker(Base, TimestampMixin):
         back_populates="tracker",
         cascade="all, delete-orphan"
     )
-    
+    milestone_assignments: Mapped[List["MilestoneTrackerAssignment"]] = relationship(
+        "MilestoneTrackerAssignment",
+        back_populates="tracker",
+        cascade="all, delete-orphan"
+    )
+
     # Unique constraint
     __table_args__ = (
         UniqueConstraint('reporting_effort_item_id', name='uq_tracker_item'),

@@ -24,7 +24,7 @@ export const reportingEffortsApi = {
     return response.data
   },
 
-  update: async (id: number, data: ReportingEffortFormData): Promise<ReportingEffort> => {
+  update: async (id: number, data: Partial<ReportingEffortFormData>): Promise<ReportingEffort> => {
     const response = await apiClient.put(`${BASE_PATH}/${id}`, data)
     return response.data
   },
@@ -33,6 +33,10 @@ export const reportingEffortsApi = {
     await apiClient.delete(`${BASE_PATH}/${id}`)
   },
 }
+
+
+
+
 
 
 

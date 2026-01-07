@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import reporting_effort, study, database_release
+from app.crud.reporting_effort_usecase import reporting_effort_usecase_assignment
 from app.db.session import get_db
 from app.schemas.reporting_effort import ReportingEffort, ReportingEffortCreate, ReportingEffortUpdate
 from app.api.v1.websocket import broadcast_reporting_effort_created, broadcast_reporting_effort_updated, broadcast_reporting_effort_deleted
@@ -13,7 +14,7 @@ from app.api.v1.websocket import broadcast_reporting_effort_created, broadcast_r
 router = APIRouter()
 
 
-def serialize_reporting_effort(effort) -> Dict[str, Any]:
+def serialize_reporting_effort(effort, use_cases: List[Dict] = None) -> Dict[str, Any]:
     """Serialize reporting effort with expanded study and database release details."""
     data = {
         "id": effort.id,
@@ -24,6 +25,7 @@ def serialize_reporting_effort(effort) -> Dict[str, Any]:
         "updated_at": effort.updated_at.isoformat() if effort.updated_at else None,
         "study_label": effort.study.study_label if effort.study else None,
         "database_release_label_full": effort.database_release.database_release_label if effort.database_release else None,
+        "use_cases": use_cases or [],
     }
     return data
 
@@ -121,8 +123,14 @@ async def read_reporting_efforts(
             )
         else:
             efforts = await reporting_effort.get_multi(db, skip=skip, limit=limit)
-        
-        return [serialize_reporting_effort(e) for e in efforts]
+
+        # Bulk load use cases for all efforts
+        effort_ids = [e.id for e in efforts]
+        use_cases_by_effort = await reporting_effort_usecase_assignment.get_use_cases_for_efforts_bulk(
+            db, reporting_effort_ids=effort_ids
+        )
+
+        return [serialize_reporting_effort(e, use_cases_by_effort.get(e.id, [])) for e in efforts]
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -146,7 +154,14 @@ async def read_reporting_effort(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reporting effort not found"
             )
-        return serialize_reporting_effort(db_reporting_effort)
+
+        # Load use cases for this effort
+        use_cases = await reporting_effort_usecase_assignment.get_use_cases_for_effort(
+            db, reporting_effort_id=reporting_effort_id
+        )
+        use_case_dicts = [{'id': uc.id, 'name': uc.name, 'color': uc.color} for uc in use_cases]
+
+        return serialize_reporting_effort(db_reporting_effort, use_case_dicts)
     except HTTPException:
         raise
     except Exception:

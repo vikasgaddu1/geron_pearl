@@ -24,7 +24,7 @@ export const databaseReleasesApi = {
     return response.data
   },
 
-  update: async (id: number, data: DatabaseReleaseFormData): Promise<DatabaseRelease> => {
+  update: async (id: number, data: Partial<DatabaseReleaseFormData> & { database_release_label: string }): Promise<DatabaseRelease> => {
     const response = await apiClient.put(`${BASE_PATH}/${id}`, data)
     return response.data
   },
@@ -33,6 +33,7 @@ export const databaseReleasesApi = {
     await apiClient.delete(`${BASE_PATH}/${id}`)
   },
 }
+
 
 
 

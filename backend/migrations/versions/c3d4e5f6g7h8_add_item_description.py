@@ -28,3 +28,7 @@ def downgrade() -> None:
     # Remove item_description column
     op.drop_column('reporting_effort_items', 'item_description')
 
+
+
+
+

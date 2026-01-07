@@ -16,11 +16,46 @@ export interface DatabaseRelease {
   updated_at: string
 }
 
+// ==================== Use Case Types ====================
+
+export interface UseCase {
+  id: number
+  name: string
+  color: string
+  description?: string
+  created_at: string
+  updated_at: string
+  usage_count?: number
+}
+
+export interface UseCaseSummary {
+  id: number
+  name: string
+  color: string
+}
+
+export interface UseCaseFormData {
+  name: string
+  color: string
+  description?: string
+}
+
+export interface UseCaseAssignment {
+  reporting_effort_id: number
+  use_case_id: number
+}
+
+export interface BulkUseCaseAssignment {
+  reporting_effort_ids: number[]
+  use_case_id: number
+}
+
 export interface ReportingEffort {
   id: number
   study_id: number
   database_release_id: number
   database_release_label: string
+  use_cases?: UseCaseSummary[]
   created_at: string
   updated_at: string
   // Expanded fields for better filtering
@@ -229,6 +264,17 @@ export interface TrackerTagSummary {
   color: string
 }
 
+// Milestone info for tracker items
+export type MilestoneLinkType = 'subtype' | 'tag' | 'manual'
+
+export interface TrackerMilestoneInfo {
+  milestone_id: number
+  milestone_name: string
+  milestone_due_date?: string
+  is_past_due: boolean
+  link_type: MilestoneLinkType
+}
+
 export interface ReportingEffortItemTracker {
   id: number
   reporting_effort_item_id: number
@@ -244,8 +290,7 @@ export interface ReportingEffortItemTracker {
   updated_at: string
   // Expanded fields
   item_code?: string
-  item_description?: string
-  item_title?: string
+  item_title?: string  // Consolidated: TLF title, dataset label, or item description
   item_type?: ItemType
   item_subtype?: ItemSubtype
   production_programmer?: User
@@ -253,6 +298,7 @@ export interface ReportingEffortItemTracker {
   comment_count?: number
   unresolved_comment_count?: number
   tags?: TrackerTagSummary[]
+  milestones?: TrackerMilestoneInfo[]
   // Study/Reporting Effort context (returned by getAll API)
   reporting_effort_id?: number
   reporting_effort_label?: string
@@ -360,6 +406,21 @@ export interface StudyFormData {
   study_label: string
 }
 
+export interface BulkHierarchyRow {
+  study_label: string
+  database_release_label: string
+  reporting_effort_label: string
+}
+
+export interface BulkHierarchyResponse {
+  success: boolean
+  created_studies: number
+  created_releases: number
+  created_efforts: number
+  skipped_duplicates: number
+  errors: string[]
+}
+
 export interface DatabaseReleaseFormData {
   study_id: number
   database_release_label: string
@@ -406,18 +467,42 @@ export interface TrackerFormData {
 
 // ==================== Milestone Tracking Types ====================
 
+// Valid subtypes for milestone linking
+export const MILESTONE_LINKABLE_SUBTYPES = ['Table', 'Listing', 'Figure', 'SDTM', 'ADaM'] as const
+export type MilestoneLinkableSubtype = (typeof MILESTONE_LINKABLE_SUBTYPES)[number]
+
 export interface ReportingEffortMilestone {
   id: number
   phase_id: number
   name: string
+  start_date?: string
   due_date?: string
   responsibility?: string
   comments?: string
   is_completed: boolean
   completion_date?: string
   display_order: number
+  // Tracker linking fields
+  linked_subtype?: MilestoneLinkableSubtype
+  linked_tag_id?: number
   created_at: string
   updated_at: string
+}
+
+export interface ReportingEffortMilestoneWithTrackers extends ReportingEffortMilestone {
+  linked_tag_name?: string
+  linked_tracker_ids: number[]
+  linked_tracker_count: number
+  trackers_past_due: number
+}
+
+export interface LinkedTrackerInfo {
+  id: number
+  item_code: string
+  item_subtype: string
+  due_date?: string
+  link_type: MilestoneLinkType
+  is_past_due: boolean
 }
 
 export interface ReportingEffortPhase {
@@ -440,15 +525,26 @@ export interface ReportingEffortMilestoneWithContext extends ReportingEffortMile
 
 export interface MilestoneFormData {
   name: string
+  start_date?: string
   due_date?: string
   responsibility?: string
   comments?: string
   is_completed?: boolean
   display_order?: number
+  // Tracker linking fields
+  linked_subtype?: MilestoneLinkableSubtype | null
+  linked_tag_id?: number | null
+  linked_tracker_ids?: number[]
 }
 
 export interface PhaseFormData {
   name: string
   display_order?: number
+}
+
+export interface MilestoneTrackerLinkingTag {
+  id: number
+  name: string
+  color: string
 }
 

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
-from app.crud import reporting_effort_item_tracker, reporting_effort_item, user, audit_log, app_settings
+from app.crud import reporting_effort_item_tracker, reporting_effort_item, user, audit_log, app_settings, milestone_tracker_assignment
 from app.db.session import get_db
 from app.core.security import get_current_user
 from app.core.study_permissions import (
@@ -205,6 +205,18 @@ async def read_trackers(
                 data["item_code"] = tracker.item.item_code
                 data["item_subtype"] = tracker.item.item_subtype
                 data["item_type"] = tracker.item.item_type.value if tracker.item.item_type else None
+                
+                # Consolidated item_title: TLF title > dataset label > item_description
+                item_title = None
+                if hasattr(tracker.item, 'tlf_details') and tracker.item.tlf_details:
+                    if tracker.item.tlf_details.title and hasattr(tracker.item.tlf_details.title, 'label'):
+                        item_title = tracker.item.tlf_details.title.label
+                if not item_title and hasattr(tracker.item, 'dataset_details') and tracker.item.dataset_details:
+                    item_title = tracker.item.dataset_details.label
+                if not item_title:
+                    item_title = tracker.item.item_description
+                data["item_title"] = item_title
+                
                 # Add study and reporting effort info for dashboards
                 if tracker.item.reporting_effort:
                     re = tracker.item.reporting_effort
@@ -2002,4 +2014,101 @@ async def update_production_flag(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update production flag: {str(e)}"
+        )
+
+
+@router.put("/{tracker_id}/milestones", response_model=Dict[str, Any])
+async def update_tracker_milestones(
+    *,
+    db: AsyncSession = Depends(get_db),
+    tracker_id: int,
+    milestone_ids: List[int] = Query(default=[], description="List of milestone IDs to assign"),
+    current_user: UserModel = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Update milestone assignments for a tracker.
+
+    This replaces all manual milestone links for the tracker with the provided list.
+    Subtype and tag-based links are not affected - only manual links are managed.
+
+    Only admins or the production programmer can update milestone assignments.
+    """
+    try:
+        # Get tracker
+        db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
+        if not db_tracker:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tracker not found"
+            )
+
+        # Permission check: Admin or production programmer
+        is_admin = current_user.is_admin
+        is_production_programmer = db_tracker.production_programmer_id == current_user.id
+        if not is_admin and not is_production_programmer:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only administrators or the assigned production programmer can update milestone assignments"
+            )
+
+        # Update milestone assignments
+        result = await milestone_tracker_assignment.update_tracker_milestones(
+            db,
+            tracker_id=tracker_id,
+            milestone_ids=milestone_ids
+        )
+
+        # Broadcast update
+        try:
+            await broadcast_tracker_updated(db_tracker)
+        except Exception:
+            pass
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating tracker milestones: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update tracker milestones: {str(e)}"
+        )
+
+
+@router.get("/{tracker_id}/milestones", response_model=List[int])
+async def get_tracker_milestones(
+    *,
+    db: AsyncSession = Depends(get_db),
+    tracker_id: int,
+    current_user: UserModel = Depends(get_current_user),
+) -> List[int]:
+    """
+    Get manual milestone assignments for a tracker.
+
+    Returns list of milestone IDs that are manually linked to this tracker.
+    """
+    try:
+        # Get tracker to verify it exists
+        db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
+        if not db_tracker:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tracker not found"
+            )
+
+        # Get milestone IDs
+        milestone_ids = await milestone_tracker_assignment.get_milestone_ids_by_tracker(
+            db, tracker_id=tracker_id
+        )
+
+        return milestone_ids
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting tracker milestones: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get tracker milestones: {str(e)}"
         )

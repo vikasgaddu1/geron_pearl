@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
 import {
   Plus,
   Pencil,
@@ -43,10 +44,11 @@ import {
   ChevronRight,
   Calendar,
   CheckCircle2,
-  Circle,
-  GripVertical,
   Target,
-  Copy
+  Copy,
+  Link2,
+  AlertTriangle,
+  Tag
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format, parseISO } from 'date-fns'
@@ -55,8 +57,12 @@ import type {
   ReportingEffortPhase,
   ReportingEffortMilestone,
   PhaseFormData,
-  MilestoneFormData
+  MilestoneFormData,
+  MilestoneLinkableSubtype
 } from '@/types'
+
+// Linkable subtypes for milestone-tracker linking
+const LINKABLE_SUBTYPES: MilestoneLinkableSubtype[] = ['Table', 'Listing', 'Figure', 'SDTM', 'ADaM']
 
 interface MilestoneEditorProps {
   reportingEffortId: number
@@ -97,6 +103,12 @@ export function MilestoneEditor({ reportingEffortId, reportingEffortLabel }: Mil
   const { data: availableSources = [] } = useQuery({
     queryKey: ['milestone-sources', reportingEffortId],
     queryFn: () => milestonesApi.getAvailableSources(reportingEffortId),
+  })
+
+  // Fetch available tags for milestone linking
+  const { data: availableTags = [] } = useQuery({
+    queryKey: ['milestone-linking-tags'],
+    queryFn: () => milestonesApi.getTagsForLinking(),
   })
 
   // Mutations
@@ -239,10 +251,13 @@ export function MilestoneEditor({ reportingEffortId, reportingEffortLabel }: Mil
       setEditingMilestone(milestone)
       setMilestoneForm({
         name: milestone.name,
+        start_date: milestone.start_date,
         due_date: milestone.due_date,
         responsibility: milestone.responsibility,
         comments: milestone.comments,
         is_completed: milestone.is_completed,
+        linked_subtype: milestone.linked_subtype || null,
+        linked_tag_id: milestone.linked_tag_id || null,
       })
     } else {
       resetMilestoneForm()
@@ -411,15 +426,36 @@ export function MilestoneEditor({ reportingEffortId, reportingEffortLabel }: Mil
                                 <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
                               )}
                             </div>
-                            <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-                              {milestone.due_date && (
+                            <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1 flex-wrap">
+                              {(milestone.start_date || milestone.due_date) && (
                                 <div className="flex items-center gap-1">
                                   <Calendar className="h-3 w-3" />
-                                  {format(parseISO(milestone.due_date), 'MMM d, yyyy')}
+                                  {milestone.start_date && milestone.due_date ? (
+                                    <span>
+                                      {format(parseISO(milestone.start_date), 'MMM d')} → {format(parseISO(milestone.due_date), 'MMM d, yyyy')}
+                                    </span>
+                                  ) : milestone.due_date ? (
+                                    <span>Due: {format(parseISO(milestone.due_date), 'MMM d, yyyy')}</span>
+                                  ) : (
+                                    <span>Start: {format(parseISO(milestone.start_date!), 'MMM d, yyyy')}</span>
+                                  )}
                                 </div>
                               )}
                               {milestone.responsibility && (
                                 <span>Resp: {milestone.responsibility}</span>
+                              )}
+                              {/* Show linked subtype/tag */}
+                              {milestone.linked_subtype && (
+                                <Badge variant="secondary" className="text-[10px] h-4">
+                                  <Link2 className="h-2.5 w-2.5 mr-1" />
+                                  {milestone.linked_subtype}
+                                </Badge>
+                              )}
+                              {milestone.linked_tag_id && (
+                                <Badge variant="outline" className="text-[10px] h-4">
+                                  <Tag className="h-2.5 w-2.5 mr-1" />
+                                  Tag
+                                </Badge>
                               )}
                               {milestone.comments && (
                                 <span className="truncate max-w-[200px]" title={milestone.comments}>
@@ -506,7 +542,7 @@ export function MilestoneEditor({ reportingEffortId, reportingEffortLabel }: Mil
 
       {/* Milestone Dialog */}
       <Dialog open={milestoneDialogOpen} onOpenChange={setMilestoneDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingMilestone ? 'Edit Milestone' : 'Add Milestone'}</DialogTitle>
             <DialogDescription>
@@ -515,7 +551,7 @@ export function MilestoneEditor({ reportingEffortId, reportingEffortLabel }: Mil
                 : 'Create a new milestone to track a key date or deliverable.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto">
             <div className="space-y-2">
               <Label htmlFor="milestone-name">Milestone Name *</Label>
               <Input
@@ -525,16 +561,29 @@ export function MilestoneEditor({ reportingEffortId, reportingEffortLabel }: Mil
                 onChange={(e) => setMilestoneForm((prev) => ({ ...prev, name: e.target.value }))}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="milestone-due-date">Due Date</Label>
-              <Input
-                id="milestone-due-date"
-                type="date"
-                value={milestoneForm.due_date || ''}
-                onChange={(e) =>
-                  setMilestoneForm((prev) => ({ ...prev, due_date: e.target.value || undefined }))
-                }
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="milestone-start-date">Start Date</Label>
+                <Input
+                  id="milestone-start-date"
+                  type="date"
+                  value={milestoneForm.start_date || ''}
+                  onChange={(e) =>
+                    setMilestoneForm((prev) => ({ ...prev, start_date: e.target.value || undefined }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="milestone-due-date">Due Date</Label>
+                <Input
+                  id="milestone-due-date"
+                  type="date"
+                  value={milestoneForm.due_date || ''}
+                  onChange={(e) =>
+                    setMilestoneForm((prev) => ({ ...prev, due_date: e.target.value || undefined }))
+                  }
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="milestone-responsibility">Responsibility</Label>
@@ -559,20 +608,123 @@ export function MilestoneEditor({ reportingEffortId, reportingEffortLabel }: Mil
                 onChange={(e) =>
                   setMilestoneForm((prev) => ({ ...prev, comments: e.target.value || undefined }))
                 }
-                rows={3}
+                rows={2}
               />
             </div>
-            {editingMilestone && (
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="milestone-completed"
-                  checked={milestoneForm.is_completed}
-                  onCheckedChange={(checked) =>
-                    setMilestoneForm((prev) => ({ ...prev, is_completed: checked === true }))
-                  }
-                />
-                <Label htmlFor="milestone-completed">Mark as completed</Label>
+
+            {/* Tracker Linking Section */}
+            <Separator className="my-4" />
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Link2 className="h-4 w-4 text-primary" />
+                <Label className="text-sm font-medium">Link to Tracker Items</Label>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Link this milestone to tracker items by item subtype or tag. Linked items will show
+                warnings if their due dates are after the milestone due date.
+              </p>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="linked-subtype" className="text-xs">Link by Subtype</Label>
+                  <Select
+                    value={milestoneForm.linked_subtype || 'none'}
+                    onValueChange={(v) =>
+                      setMilestoneForm((prev) => ({
+                        ...prev,
+                        linked_subtype: v === 'none' ? null : (v as MilestoneLinkableSubtype),
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="linked-subtype">
+                      <SelectValue placeholder="Select subtype" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">
+                        <span className="text-muted-foreground">No subtype link</span>
+                      </SelectItem>
+                      {LINKABLE_SUBTYPES.map((subtype) => (
+                        <SelectItem key={subtype} value={subtype}>
+                          {subtype}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Auto-links all items of this type
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="linked-tag" className="text-xs">Link by Tag</Label>
+                  <Select
+                    value={milestoneForm.linked_tag_id?.toString() || 'none'}
+                    onValueChange={(v) =>
+                      setMilestoneForm((prev) => ({
+                        ...prev,
+                        linked_tag_id: v === 'none' ? null : Number(v),
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="linked-tag">
+                      <SelectValue placeholder="Select tag" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">
+                        <span className="text-muted-foreground">No tag link</span>
+                      </SelectItem>
+                      {availableTags.map((tag) => (
+                        <SelectItem key={tag.id} value={tag.id.toString()}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: tag.color }}
+                            />
+                            {tag.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Auto-links items with this tag
+                  </p>
+                </div>
+              </div>
+
+              {(milestoneForm.linked_subtype || milestoneForm.linked_tag_id) && (
+                <div className="flex items-start gap-2 p-2 bg-blue-50 dark:bg-blue-950/30 rounded-md text-xs">
+                  <Tag className="h-3.5 w-3.5 text-blue-600 mt-0.5 shrink-0" />
+                  <div className="text-blue-700 dark:text-blue-300">
+                    Items matching this criteria will be automatically linked.
+                    {milestoneForm.linked_subtype && milestoneForm.linked_tag_id && (
+                      <span className="block mt-1">
+                        Both subtype ({milestoneForm.linked_subtype}) and tag links will be combined.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground mt-2">
+                To manually assign items to this milestone, use the Edit or Bulk Assign options in the Tracker table.
+              </p>
+            </div>
+
+            {editingMilestone && (
+              <>
+                <Separator className="my-4" />
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="milestone-completed"
+                    checked={milestoneForm.is_completed}
+                    onCheckedChange={(checked) =>
+                      setMilestoneForm((prev) => ({ ...prev, is_completed: checked === true }))
+                    }
+                  />
+                  <Label htmlFor="milestone-completed">Mark as completed</Label>
+                </div>
+              </>
             )}
           </div>
           <DialogFooter>

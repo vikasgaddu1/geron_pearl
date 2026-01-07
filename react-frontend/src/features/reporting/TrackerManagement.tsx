@@ -1,9 +1,9 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ClipboardCheck, RefreshCw, Users, CheckCircle, MessageSquare, Edit, Trash2, Send, X, Tag, Plus, Reply, LayoutList, Kanban, UserCheck, Calendar, Factory } from 'lucide-react'
+import { ClipboardCheck, RefreshCw, Users, CheckCircle, MessageSquare, Edit, Trash2, Send, X, Tag, Plus, Reply, LayoutList, Kanban, UserCheck, Calendar, Factory, AlertTriangle, Target } from 'lucide-react'
 import { toast } from 'sonner'
-import { reportingEffortsApi, trackerApi, trackerCommentsApi, trackerTagsApi, usersApi, studiesApi, databaseReleasesApi, useDefaultDueDateOffset } from '@/api'
+import { reportingEffortsApi, trackerApi, trackerCommentsApi, trackerTagsApi, usersApi, studiesApi, databaseReleasesApi, useDefaultDueDateOffset, phasesApi, milestonesApi } from '@/api'
 import { useReportingSelectionStore } from '@/stores/reportingSelectionStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -103,6 +103,8 @@ export function TrackerManagement() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [tagManageOpen, setTagManageOpen] = useState(false)
   const [bulkTagOpen, setBulkTagOpen] = useState(false)
+  const [bulkMilestoneOpen, setBulkMilestoneOpen] = useState(false)
+  const [bulkMilestoneId, setBulkMilestoneId] = useState<number | null>(null)
   const [selectedTracker, setSelectedTracker] = useState<ReportingEffortItemTracker | null>(null)
   
   // QC Failure comment dialog state
@@ -135,6 +137,7 @@ export function TrackerManagement() {
     qc_status: 'not_started' as QCStatus,
     priority: 'medium' as Priority,
     due_date: '',
+    milestone_ids: [] as number[],
   })
   const [newComment, setNewComment] = useState({ 
     text: '', 
@@ -149,6 +152,8 @@ export function TrackerManagement() {
   // Filter states
   const [commentFilter, setCommentFilter] = useState<'all' | 'has_comments' | 'has_unresolved'>('all')
   const [tagFilter, setTagFilter] = useState<number | null>(null)
+  const [milestoneFilter, setMilestoneFilter] = useState<number | null>(null)
+  const [itemCodeFilter, setItemCodeFilter] = useState<string | null>(null)
   
   // View and filter mode states
   const [viewMode, setViewMode] = useState<'list' | 'kanban-prod' | 'kanban-qc'>('list')
@@ -214,6 +219,30 @@ export function TrackerManagement() {
     enabled: !!selectedStudyId,
   })
 
+  // Query phases/milestones for the current reporting effort (for milestone dropdown in edit dialog)
+  const { data: phases = [] } = useQuery({
+    queryKey: ['phases', selectedEffortId],
+    queryFn: () => (selectedEffortId ? phasesApi.getByReportingEffort(Number(selectedEffortId)) : Promise.resolve([])),
+    enabled: !!selectedEffortId,
+  })
+
+  // Flatten milestones from phases for easy access
+  const availableMilestones = useMemo(() => {
+    return phases.flatMap(phase =>
+      (phase.milestones || []).map(m => ({
+        ...m,
+        phase_name: phase.name,
+      }))
+    )
+  }, [phases])
+
+  // Query tracker's manual milestone assignments when edit dialog is open
+  const { data: trackerMilestoneIds = [] } = useQuery({
+    queryKey: ['tracker-milestones', selectedTracker?.id],
+    queryFn: () => (selectedTracker ? trackerApi.getMilestones(selectedTracker.id) : Promise.resolve([])),
+    enabled: !!selectedTracker && editDialogOpen,
+  })
+
   // Check if current user can perform bulk operations
   const canBulkAssign = currentUser?.is_admin || studyPermissions?.can_bulk_assign === true
   const canBulkStatusUpdate = currentUser?.is_admin || studyPermissions?.can_bulk_status_update === true
@@ -233,6 +262,8 @@ export function TrackerManagement() {
     
     const studyIdParam = searchParams.get('studyId')
     const effortIdParam = searchParams.get('effortId')
+    const itemCodeParam = searchParams.get('itemCode')
+    const itemSubtypeParam = searchParams.get('itemSubtype')
     
     if (!studyIdParam || studies.length === 0 || efforts.length === 0 || allReleases.length === 0) {
       return
@@ -251,6 +282,21 @@ export function TrackerManagement() {
     // Set the effort (with a small delay to let the cascade work)
     setTimeout(() => {
       setSelectedEffortId(effortIdParam || '')
+      // Apply item code filter if provided (for deep linking to specific item)
+      if (itemCodeParam) {
+        setItemCodeFilter(itemCodeParam)
+      }
+      // Auto-select the correct tab based on item subtype
+      if (itemSubtypeParam) {
+        const subtype = itemSubtypeParam.toLowerCase()
+        if (['table', 'listing', 'figure'].includes(subtype)) {
+          setActiveTab('tlf')
+        } else if (subtype === 'sdtm') {
+          setActiveTab('sdtm')
+        } else if (subtype === 'adam') {
+          setActiveTab('adam')
+        }
+      }
       // Clear the URL params after applying
       setSearchParams({}, { replace: true })
       setUrlParamsApplied(true)
@@ -314,6 +360,38 @@ export function TrackerManagement() {
       queryClient.invalidateQueries({ queryKey: ['trackers', selectedEffortId] })
     },
     onError: (error) => toast.error(`Failed to update production flag: ${getErrorMessage(error)}`),
+  })
+
+  const updateTrackerMilestones = useMutation({
+    mutationFn: ({ trackerId, milestoneIds }: { trackerId: number; milestoneIds: number[] }) =>
+      trackerApi.updateMilestones(trackerId, milestoneIds),
+    onSuccess: (result) => {
+      if (result.added > 0 || result.removed > 0) {
+        toast.success(`Milestones updated: ${result.added} added, ${result.removed} removed`)
+      }
+      queryClient.invalidateQueries({ queryKey: ['trackers', selectedEffortId] })
+      queryClient.invalidateQueries({ queryKey: ['tracker-milestones', selectedTracker?.id] })
+    },
+    onError: (error) => toast.error(`Failed to update milestones: ${getErrorMessage(error)}`),
+  })
+
+  // Bulk assign trackers to a milestone
+  const bulkAssignMilestone = useMutation({
+    mutationFn: ({ milestoneId, trackerIds }: { milestoneId: number; trackerIds: number[] }) =>
+      milestonesApi.linkTrackers(milestoneId, trackerIds),
+    onSuccess: (result) => {
+      if (result.affected_count > 0) {
+        toast.success(`Assigned ${result.affected_count} trackers to milestone`)
+      } else {
+        toast.info('No new assignments - trackers were already linked to this milestone')
+      }
+      queryClient.invalidateQueries({ queryKey: ['trackers', selectedEffortId] })
+      queryClient.invalidateQueries({ queryKey: ['phases', selectedEffortId] })
+      setBulkMilestoneOpen(false)
+      setBulkMilestoneId(null)
+      setSelectedRows(new Set())
+    },
+    onError: (error) => toast.error(`Failed to assign milestone: ${getErrorMessage(error)}`),
   })
 
   const createComment = useMutation({
@@ -434,9 +512,19 @@ export function TrackerManagement() {
     if (tagFilter !== null) {
       result = result.filter(t => t.tags?.some(tag => tag.id === tagFilter))
     }
-    
+
+    // Milestone filter
+    if (milestoneFilter !== null) {
+      result = result.filter(t => t.milestones?.some(m => m.milestone_id === milestoneFilter))
+    }
+
+    // Item code filter (for deep linking to specific item)
+    if (itemCodeFilter) {
+      result = result.filter(t => t.item_code === itemCodeFilter)
+    }
+
     return result
-  }, [trackers, activeTab, commentFilter, tagFilter, taskFilter, currentUser])
+  }, [trackers, activeTab, commentFilter, tagFilter, milestoneFilter, taskFilter, currentUser, itemCodeFilter])
 
   const handleSelectRow = (id: number, checked: boolean) => {
     const newSelected = new Set(selectedRows)
@@ -498,9 +586,20 @@ export function TrackerManagement() {
       qc_status: tracker.qc_status || 'not_started',
       priority: (tracker.priority as Priority) || 'medium',
       due_date: tracker.due_date || '',
+      milestone_ids: [], // Will be populated by the query effect below
     })
     setEditDialogOpen(true)
   }
+
+  // Populate milestone_ids when the query loads
+  useEffect(() => {
+    if (editDialogOpen && trackerMilestoneIds.length >= 0) {
+      setEditFormData(prev => ({
+        ...prev,
+        milestone_ids: trackerMilestoneIds,
+      }))
+    }
+  }, [editDialogOpen, trackerMilestoneIds])
 
   const handleEditSubmit = () => {
     if (!selectedTracker) return
@@ -582,11 +681,30 @@ export function TrackerManagement() {
         updateData.qc_status = editFormData.qc_status
       }
     }
-    
+
+    // Update tracker
     updateTracker.mutate({
       id: selectedTracker.id,
       data: updateData,
     })
+
+    // Update milestones if changed (admin or production programmer can update)
+    if (isAdmin || canEditProduction) {
+      const currentMilestoneIds = new Set(trackerMilestoneIds)
+      const newMilestoneIds = new Set(editFormData.milestone_ids)
+
+      // Check if milestones have changed
+      const milestonesChanged =
+        currentMilestoneIds.size !== newMilestoneIds.size ||
+        [...currentMilestoneIds].some(id => !newMilestoneIds.has(id))
+
+      if (milestonesChanged) {
+        updateTrackerMilestones.mutate({
+          trackerId: selectedTracker.id,
+          milestoneIds: editFormData.milestone_ids,
+        })
+      }
+    }
   }
 
   const handleOpenComments = (tracker: ReportingEffortItemTracker) => {
@@ -724,7 +842,51 @@ export function TrackerManagement() {
         accessorKey: 'item_code',
         filterType: 'text',
         helpText: 'Unique identifier for the reporting item.',
-        cell: (value) => <span className="font-medium">{value}</span>,
+        cell: (value, tracker) => {
+          const milestones = tracker.milestones || []
+          const hasMilestones = milestones.length > 0
+          const isCompleted = tracker.qc_status === 'completed'
+          // Only show red if there are past-due milestones AND item is not completed
+          const hasPastDue = !isCompleted && milestones.some(m => m.is_past_due)
+
+          return (
+            <div className="flex items-center gap-1.5">
+              <span className="font-medium">{value}</span>
+              {hasMilestones && (
+                <TooltipWrapper
+                  content={
+                    <div className="text-xs space-y-1">
+                      <div className="font-medium mb-1">Linked Milestones:</div>
+                      {milestones.map((m) => (
+                        <div key={m.milestone_id} className="flex items-center gap-2">
+                          <Target className="h-3 w-3" />
+                          <span>{m.milestone_name}</span>
+                          {m.milestone_due_date && (
+                            <span className={m.is_past_due && !isCompleted ? 'text-red-400' : 'text-muted-foreground'}>
+                              (Due: {formatDate(m.milestone_due_date)})
+                            </span>
+                          )}
+                          <span className="text-muted-foreground">
+                            [{m.link_type}]
+                          </span>
+                        </div>
+                      ))}
+                      {isCompleted && (
+                        <div className="text-green-400 mt-1">✓ Item completed</div>
+                      )}
+                    </div>
+                  }
+                >
+                  <Target
+                    className={`h-3.5 w-3.5 cursor-help ${
+                      hasPastDue ? 'text-destructive' : 'text-muted-foreground'
+                    }`}
+                  />
+                </TooltipWrapper>
+              )}
+            </div>
+          )
+        },
       },
     ]
 
@@ -1010,6 +1172,14 @@ export function TrackerManagement() {
                     Tag ({selectedRows.size})
                   </Button>
                 </TooltipWrapper>
+                {availableMilestones.length > 0 && (
+                  <TooltipWrapper content={`Assign milestone to ${selectedRows.size} selected trackers`}>
+                    <Button variant="outline" size="sm" onClick={() => setBulkMilestoneOpen(true)}>
+                      <Target className="h-4 w-4 mr-2" />
+                      Milestone ({selectedRows.size})
+                    </Button>
+                  </TooltipWrapper>
+                )}
                 <TooltipWrapper content={`Assign programmers and update status for ${selectedRows.size} selected trackers`}>
                   <Button variant="outline" size="sm" onClick={() => setBulkAssignStatusOpen(true)}>
                     <UserCheck className="h-4 w-4 mr-2" />
@@ -1130,9 +1300,60 @@ export function TrackerManagement() {
                     </SelectContent>
                   </Select>
                 </div>
+                {availableMilestones.length > 0 && (
+                  <div className="w-52">
+                    <Label>Milestone Filter</Label>
+                    <Select value={milestoneFilter?.toString() || 'all'} onValueChange={(v) => setMilestoneFilter(v === 'all' ? null : Number(v))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Milestones</SelectItem>
+                        {phases.map((phase) => (
+                          <div key={phase.id}>
+                            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                              {phase.name}
+                            </div>
+                            {(phase.milestones || []).map((milestone) => (
+                              <SelectItem key={milestone.id} value={String(milestone.id)}>
+                                <div className="flex items-center gap-2">
+                                  <Target className="h-3 w-3" />
+                                  <span className="truncate">{milestone.name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </div>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </>
             )}
           </div>
+
+          {/* Use Cases Display - shows when effort is selected */}
+          {selectedEffortId && (() => {
+            const currentEffort = efforts.find(e => String(e.id) === selectedEffortId)
+            const useCases = currentEffort?.use_cases || []
+            if (useCases.length === 0) return null
+            return (
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-sm text-muted-foreground">Use Cases:</span>
+                <div className="flex flex-wrap gap-1">
+                  {useCases.map((uc: { id: number; name: string; color: string }) => (
+                    <span
+                      key={uc.id}
+                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                      style={{ backgroundColor: `${uc.color}20`, color: uc.color }}
+                    >
+                      {uc.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Milestones Section - shows when effort is selected */}
           {selectedEffortId && (
@@ -1208,6 +1429,24 @@ export function TrackerManagement() {
                     My Tasks
                   </Button>
                 </div>
+
+                {/* Item code filter indicator - inline between task filter and view toggle */}
+                {itemCodeFilter && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border-2 border-blue-500 bg-blue-50 dark:bg-blue-950/30">
+                    <Target className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <span className="text-sm text-blue-700 dark:text-blue-300">
+                      Filtered: <strong className="font-mono">{itemCodeFilter}</strong>
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-900"
+                      onClick={() => setItemCodeFilter(null)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
                 
                 <div className="flex items-center gap-2">
                   <Button
@@ -1369,7 +1608,7 @@ export function TrackerManagement() {
                         <EmptyState
                           icon={ClipboardCheck}
                           title="No trackers found"
-                          description={commentFilter !== 'all' || tagFilter !== null ? "No items match the current filters." : "No items in this tracker."}
+                          description={commentFilter !== 'all' || tagFilter !== null || milestoneFilter !== null || itemCodeFilter ? "No items match the current filters." : "No items in this tracker."}
                         />
                       ) : (
                         <DataTable data={filteredTrackers} columns={columns} />
@@ -1565,6 +1804,105 @@ export function TrackerManagement() {
                         <p className="text-xs text-destructive">Required when production programmer is assigned</p>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {/* Milestone Assignment - Admin and Production Programmer can edit */}
+                {(isAdmin || canEditProduction) && availableMilestones.length > 0 && (
+                  <div className="grid gap-2">
+                    <div className="flex items-center gap-1">
+                      <Label>Milestones</Label>
+                      <HelpIcon
+                        content="Link this item to milestones for tracking. Items can be linked to multiple milestones. A warning will show if the item's due date is after the milestone due date."
+                        side="right"
+                      />
+                    </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className="justify-between h-auto min-h-9"
+                        >
+                          {editFormData.milestone_ids.length === 0
+                            ? 'Select milestones...'
+                            : `${editFormData.milestone_ids.length} milestone(s) selected`}
+                          <Target className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-0" align="start">
+                        <ScrollArea className="h-60">
+                          <div className="p-2 space-y-1">
+                            {phases.map((phase) => (
+                              <div key={phase.id} className="space-y-1">
+                                <div className="text-xs font-medium text-muted-foreground px-2 py-1">
+                                  {phase.name}
+                                </div>
+                                {(phase.milestones || []).map((milestone) => {
+                                  const isSelected = editFormData.milestone_ids.includes(milestone.id)
+                                  return (
+                                    <div
+                                      key={milestone.id}
+                                      className={`flex items-center gap-2 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-accent ${
+                                        isSelected ? 'bg-accent' : ''
+                                      }`}
+                                      onClick={() => {
+                                        setEditFormData((prev) => ({
+                                          ...prev,
+                                          milestone_ids: isSelected
+                                            ? prev.milestone_ids.filter((id) => id !== milestone.id)
+                                            : [...prev.milestone_ids, milestone.id],
+                                        }))
+                                      }}
+                                    >
+                                      <Checkbox checked={isSelected} />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm truncate">{milestone.name}</div>
+                                        {milestone.due_date && (
+                                          <div className="text-xs text-muted-foreground">
+                                            Due: {formatDate(milestone.due_date)}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      </PopoverContent>
+                    </Popover>
+                    {/* Show selected milestones as badges */}
+                    {editFormData.milestone_ids.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {editFormData.milestone_ids.map((milestoneId) => {
+                          const milestone = availableMilestones.find((m) => m.id === milestoneId)
+                          if (!milestone) return null
+                          const isPastDue = milestone.due_date && editFormData.due_date && editFormData.due_date > milestone.due_date
+                          return (
+                            <Badge
+                              key={milestoneId}
+                              variant={isPastDue ? 'destructive' : 'secondary'}
+                              className="flex items-center gap-1"
+                            >
+                              <Target className="h-3 w-3" />
+                              {milestone.name}
+                              {isPastDue && <AlertTriangle className="h-3 w-3" />}
+                              <X
+                                className="h-3 w-3 cursor-pointer hover:text-destructive"
+                                onClick={() =>
+                                  setEditFormData((prev) => ({
+                                    ...prev,
+                                    milestone_ids: prev.milestone_ids.filter((id) => id !== milestoneId),
+                                  }))
+                                }
+                              />
+                            </Badge>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1922,6 +2260,79 @@ export function TrackerManagement() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkTagOpen(false)}>Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Milestone Assignment Dialog */}
+      <Dialog open={bulkMilestoneOpen} onOpenChange={(open) => {
+        setBulkMilestoneOpen(open)
+        if (!open) setBulkMilestoneId(null)
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5" />
+              Assign Milestone
+            </DialogTitle>
+            <DialogDescription>
+              Link {selectedRows.size} selected tracker(s) to a milestone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Select Milestone</Label>
+              <Select
+                value={bulkMilestoneId?.toString() || ''}
+                onValueChange={(v) => setBulkMilestoneId(Number(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a milestone" />
+                </SelectTrigger>
+                <SelectContent>
+                  {phases.map((phase) => (
+                    <div key={phase.id}>
+                      <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                        {phase.name}
+                      </div>
+                      {(phase.milestones || []).map((milestone) => (
+                        <SelectItem key={milestone.id} value={String(milestone.id)}>
+                          <div className="flex items-center justify-between gap-2">
+                            <span>{milestone.name}</span>
+                            {milestone.due_date && (
+                              <span className="text-xs text-muted-foreground">
+                                Due: {formatDate(milestone.due_date)}
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </div>
+                  ))}
+                </SelectContent>
+              </Select>
+              {bulkMilestoneId && (
+                <p className="text-xs text-muted-foreground">
+                  This will add the selected trackers to the milestone. Existing milestone links are preserved.
+                </p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkMilestoneOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (bulkMilestoneId) {
+                  bulkAssignMilestone.mutate({
+                    milestoneId: bulkMilestoneId,
+                    trackerIds: Array.from(selectedRows),
+                  })
+                }
+              }}
+              disabled={!bulkMilestoneId || bulkAssignMilestone.isPending}
+            >
+              {bulkAssignMilestone.isPending ? 'Assigning...' : 'Assign'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.models.database_release import DatabaseRelease
     from app.models.reporting_effort_item import ReportingEffortItem
     from app.models.reporting_effort_phase import ReportingEffortPhase
+    from app.models.reporting_effort_usecase import ReportingEffortUseCaseAssignment
 
 
 class ReportingEffort(Base, TimestampMixin):
@@ -28,7 +29,7 @@ class ReportingEffort(Base, TimestampMixin):
     
     # Data fields
     database_release_label: Mapped[str] = mapped_column(String(255), nullable=False)
-    
+
     # Relationships
     study: Mapped["Study"] = relationship("Study", back_populates="reporting_efforts")
     database_release: Mapped["DatabaseRelease"] = relationship("DatabaseRelease", back_populates="reporting_efforts")
@@ -42,6 +43,11 @@ class ReportingEffort(Base, TimestampMixin):
         back_populates="reporting_effort",
         cascade="all, delete-orphan",
         order_by="ReportingEffortPhase.display_order"
+    )
+    use_case_assignments: Mapped[List["ReportingEffortUseCaseAssignment"]] = relationship(
+        "ReportingEffortUseCaseAssignment",
+        back_populates="reporting_effort",
+        cascade="all, delete-orphan"
     )
     
     # Unique constraint to prevent duplicate reporting efforts for same database release with same label

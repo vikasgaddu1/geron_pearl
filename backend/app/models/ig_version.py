@@ -62,3 +62,7 @@ class IGVersion(Base, TimestampMixin):
     def __repr__(self) -> str:
         return f"<IGVersion(id={self.id}, type={self.standard_type}, version='{self.version}')>"
 
+
+
+
+

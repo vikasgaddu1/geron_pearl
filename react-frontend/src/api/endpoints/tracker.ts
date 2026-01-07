@@ -189,6 +189,32 @@ export const trackerApi = {
     const response = await apiClient.put(`${BASE_PATH}/${trackerId}/production-flag?value=${value}`)
     return response.data
   },
+
+  // ===== Milestone Assignment Endpoints =====
+
+  /**
+   * Get manual milestone assignments for a tracker.
+   * Returns list of milestone IDs that are manually linked.
+   */
+  getMilestones: async (trackerId: number): Promise<number[]> => {
+    const response = await apiClient.get(`${BASE_PATH}/${trackerId}/milestones`)
+    return response.data
+  },
+
+  /**
+   * Update milestone assignments for a tracker.
+   * Replaces all manual milestone links with the provided list.
+   */
+  updateMilestones: async (
+    trackerId: number,
+    milestoneIds: number[]
+  ): Promise<{ success: boolean; added: number; removed: number; total: number }> => {
+    const params = milestoneIds.length > 0
+      ? `?milestone_ids=${milestoneIds.join('&milestone_ids=')}`
+      : ''
+    const response = await apiClient.put(`${BASE_PATH}/${trackerId}/milestones${params}`)
+    return response.data
+  },
 }
 
 

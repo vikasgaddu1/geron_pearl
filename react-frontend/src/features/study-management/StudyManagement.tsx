@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { GitBranch, Plus, Edit, Trash2, RefreshCw, ChevronRight, ChevronDown, Folder, FolderOpen, FileText, Users } from 'lucide-react'
+import { GitBranch, Plus, Edit, Trash2, RefreshCw, ChevronRight, ChevronDown, Folder, FolderOpen, FileText, Users, Upload, Tag, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { studiesApi, databaseReleasesApi, reportingEffortsApi } from '@/api'
+import { studiesApi, databaseReleasesApi, reportingEffortsApi, useCasesApi } from '@/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -16,12 +16,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
+import { ExcelUpload } from '@/components/common/ExcelUpload'
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
 import { useAuthStore } from '@/stores/authStore'
 import { StudyMembersDialog } from './StudyMembersDialog'
-import type { Study, DatabaseRelease, ReportingEffort, StudyPermissions } from '@/types'
+import { Checkbox } from '@/components/ui/checkbox'
+import type { Study, DatabaseRelease, ReportingEffort, BulkHierarchyRow, UseCase, UseCaseSummary } from '@/types'
 import { cn, getErrorMessage } from '@/lib/utils'
 
 type NodeType = 'study' | 'release' | 'effort'
@@ -43,7 +45,11 @@ export function StudyManagement() {
   const [dialogMode, setDialogMode] = useState<'add-study' | 'add-release' | 'add-effort' | 'edit'>('add-study')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [membersDialogOpen, setMembersDialogOpen] = useState(false)
+  const [bulkUploadOpen, setBulkUploadOpen] = useState(false)
+  const [useCasesDialogOpen, setUseCasesDialogOpen] = useState(false)
   const [formData, setFormData] = useState({ label: '', date: '' })
+
+  const formatDateForInput = (value?: string) => (value ? value.slice(0, 10) : '')
 
   // Queries
   const { data: studies = [], isLoading: studiesLoading } = useQuery({
@@ -59,6 +65,12 @@ export function StudyManagement() {
   const { data: efforts = [] } = useQuery({
     queryKey: ['reporting-efforts'],
     queryFn: reportingEffortsApi.getAll,
+  })
+
+  // Query for all available use cases
+  const { data: allUseCases = [] } = useQuery({
+    queryKey: ['use-cases'],
+    queryFn: useCasesApi.getAllUseCases,
   })
 
   // Query for study permissions (when a study is selected)
@@ -95,9 +107,17 @@ export function StudyManagement() {
   const updateStudy = useMutation({
     mutationFn: ({ id, data }: { id: number; data: { study_label: string } }) =>
       studiesApi.update(id, data),
-    onSuccess: () => {
+    onSuccess: (updatedStudy) => {
       toast.success('Study updated successfully')
       queryClient.invalidateQueries({ queryKey: ['studies'] })
+      // Update selectedNode with fresh data
+      if (selectedNode?.type === 'study' && selectedNode.id === updatedStudy.id) {
+        setSelectedNode({
+          ...selectedNode,
+          label: updatedStudy.study_label,
+          data: updatedStudy,
+        })
+      }
       setDialogOpen(false)
     },
     onError: (error) => toast.error(`Failed to update study: ${getErrorMessage(error)}`),
@@ -123,6 +143,25 @@ export function StudyManagement() {
     onError: (error) => toast.error(`Failed to create database release: ${getErrorMessage(error)}`),
   })
 
+  const updateRelease = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: { database_release_label: string; database_release_date?: string } }) =>
+      databaseReleasesApi.update(id, data),
+    onSuccess: (updatedRelease) => {
+      toast.success('Database release updated successfully')
+      queryClient.invalidateQueries({ queryKey: ['database-releases'] })
+      // Update selectedNode with fresh data
+      if (selectedNode?.type === 'release' && selectedNode.id === updatedRelease.id) {
+        setSelectedNode({
+          ...selectedNode,
+          label: updatedRelease.database_release_label,
+          data: updatedRelease,
+        })
+      }
+      setDialogOpen(false)
+    },
+    onError: (error) => toast.error(`Failed to update database release: ${getErrorMessage(error)}`),
+  })
+
   const createEffort = useMutation({
     mutationFn: reportingEffortsApi.create,
     onSuccess: () => {
@@ -131,6 +170,59 @@ export function StudyManagement() {
       setDialogOpen(false)
     },
     onError: (error) => toast.error(`Failed to create reporting effort: ${getErrorMessage(error)}`),
+  })
+
+  const updateEffort = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: { database_release_label?: string } }) =>
+      reportingEffortsApi.update(id, data),
+    onSuccess: (updatedEffort) => {
+      toast.success('Reporting effort updated successfully')
+      queryClient.invalidateQueries({ queryKey: ['reporting-efforts'] })
+      if (selectedNode?.type === 'effort' && selectedNode.id === updatedEffort.id) {
+        setSelectedNode({
+          ...selectedNode,
+          label: updatedEffort.database_release_label,
+          data: updatedEffort,
+        })
+      }
+      setDialogOpen(false)
+    },
+    onError: (error) => toast.error(`Failed to update reporting effort: ${getErrorMessage(error)}`),
+  })
+
+  // Use case assignment mutations
+  const assignUseCase = useMutation({
+    mutationFn: ({ reportingEffortId, useCaseId }: { reportingEffortId: number; useCaseId: number }) =>
+      useCasesApi.assignUseCase(reportingEffortId, useCaseId),
+    onSuccess: () => {
+      toast.success('Use case assigned')
+      queryClient.invalidateQueries({ queryKey: ['reporting-efforts'] })
+    },
+    onError: (error) => toast.error(`Failed to assign use case: ${getErrorMessage(error)}`),
+  })
+
+  const removeUseCaseAssignment = useMutation({
+    mutationFn: ({ reportingEffortId, useCaseId }: { reportingEffortId: number; useCaseId: number }) =>
+      useCasesApi.removeUseCaseAssignment(reportingEffortId, useCaseId),
+    onSuccess: () => {
+      toast.success('Use case removed')
+      queryClient.invalidateQueries({ queryKey: ['reporting-efforts'] })
+    },
+    onError: (error) => toast.error(`Failed to remove use case: ${getErrorMessage(error)}`),
+  })
+
+  const bulkUploadHierarchy = useMutation({
+    mutationFn: (rows: BulkHierarchyRow[]) => studiesApi.bulkHierarchyUpload(rows),
+    onSuccess: (result) => {
+      toast.success(
+        `Bulk upload done. Studies: +${result.created_studies}, Releases: +${result.created_releases}, Efforts: +${result.created_efforts}, skipped duplicates: ${result.skipped_duplicates}`
+      )
+      queryClient.invalidateQueries({ queryKey: ['studies'] })
+      queryClient.invalidateQueries({ queryKey: ['database-releases'] })
+      queryClient.invalidateQueries({ queryKey: ['reporting-efforts'] })
+      setBulkUploadOpen(false)
+    },
+    onError: (error) => toast.error(`Bulk upload failed: ${getErrorMessage(error)}`),
   })
 
   // Build tree structure
@@ -190,10 +282,14 @@ export function StudyManagement() {
       const release = selectedNode.data as DatabaseRelease
       setFormData({
         label: release.database_release_label,
-        date: release.database_release_date,
+        date: formatDateForInput(release.database_release_date),
       })
     } else {
-      setFormData({ label: (selectedNode.data as ReportingEffort).database_release_label, date: '' })
+      const effort = selectedNode.data as ReportingEffort
+      setFormData({
+        label: effort.database_release_label,
+        date: '',
+      })
     }
     setDialogOpen(true)
   }
@@ -217,9 +313,32 @@ export function StudyManagement() {
     } else if (dialogMode === 'edit' && selectedNode) {
       if (selectedNode.type === 'study') {
         updateStudy.mutate({ id: selectedNode.id, data: { study_label: formData.label } })
+      } else if (selectedNode.type === 'release') {
+        updateRelease.mutate({
+          id: selectedNode.id,
+          data: {
+            database_release_label: formData.label,
+            database_release_date: formData.date || undefined,
+          },
+        })
+      } else if (selectedNode.type === 'effort') {
+        updateEffort.mutate({
+          id: selectedNode.id,
+          data: {
+            database_release_label: formData.label,
+          },
+        })
       }
-      // Add update logic for release and effort as needed
     }
+  }
+
+  const handleBulkUploadRows = async (rows: Record<string, string>[]) => {
+    const payload: BulkHierarchyRow[] = rows.map((r) => ({
+      study_label: r.study_label?.trim() || '',
+      database_release_label: r.database_release_label?.trim() || '',
+      reporting_effort_label: r.reporting_effort_label?.trim() || '',
+    }))
+    await bulkUploadHierarchy.mutateAsync(payload)
   }
 
   const handleDelete = () => {
@@ -296,6 +415,10 @@ export function StudyManagement() {
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setBulkUploadOpen(true)}>
+              <Upload className="h-4 w-4 mr-2" />
+              Bulk Upload
+            </Button>
             <Button size="sm" onClick={() => handleAdd('add-study')}>
               <Plus className="h-4 w-4 mr-2" />
               Add Study
@@ -349,9 +472,30 @@ export function StudyManagement() {
           )}
           {selectedNode && (
             <div className="mt-4 p-4 bg-muted rounded-lg">
-              <p className="text-sm text-muted-foreground">
-                Selected: <span className="font-medium text-foreground capitalize">{selectedNode.type}</span> - {selectedNode.label}
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Selected: <span className="font-medium text-foreground capitalize">{selectedNode.type}</span> - {selectedNode.label}
+                </p>
+                {selectedNode.type === 'effort' && (
+                  <Button size="sm" variant="outline" onClick={() => setUseCasesDialogOpen(true)}>
+                    <Tag className="h-4 w-4 mr-2" />
+                    Manage Use Cases
+                  </Button>
+                )}
+              </div>
+              {selectedNode.type === 'effort' && (selectedNode.data as ReportingEffort).use_cases && (selectedNode.data as ReportingEffort).use_cases!.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {(selectedNode.data as ReportingEffort).use_cases?.map((uc: UseCaseSummary) => (
+                    <span
+                      key={uc.id}
+                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                      style={{ backgroundColor: `${uc.color}20`, color: uc.color }}
+                    >
+                      {uc.name}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </CardContent>
@@ -424,6 +568,128 @@ export function StudyManagement() {
         open={membersDialogOpen}
         onOpenChange={setMembersDialogOpen}
       />
+
+      <ExcelUpload
+        open={bulkUploadOpen}
+        onOpenChange={setBulkUploadOpen}
+        title="Bulk Upload Study/Release/Effort"
+        description="Upload a CSV (or Excel saved as CSV) with Study, Database_Release, Reporting_Effort columns."
+        columns={[
+          { key: 'study_label', label: 'Study', required: true },
+          { key: 'database_release_label', label: 'Database_Release', required: true },
+          { key: 'reporting_effort_label', label: 'Reporting_Effort', required: true },
+        ]}
+        sampleData={[
+          ['STUDY_001', 'DB001_JAN2026', 'EFFORT_Q1_2026'],
+          ['STUDY_001', 'DB001_JAN2026', 'EFFORT_Q2_2026'],
+          ['STUDY_002', 'DB002_FEB2026', 'EFFORT_MAIN'],
+        ]}
+        templateFilename="study_release_effort.csv"
+        onUpload={handleBulkUploadRows}
+      />
+
+      {/* Use Cases Management Dialog */}
+      <Dialog open={useCasesDialogOpen} onOpenChange={setUseCasesDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage Use Cases</DialogTitle>
+            <DialogDescription>
+              Assign use cases to {selectedNode?.label}
+            </DialogDescription>
+          </DialogHeader>
+          {(() => {
+            // Get fresh effort data from the query instead of stale selectedNode.data
+            const currentEffort = selectedNode?.type === 'effort'
+              ? efforts.find(e => e.id === selectedNode.id)
+              : null
+            const assignedUseCases = currentEffort?.use_cases || []
+
+            return (
+              <div className="space-y-4 py-4">
+                {/* Current assignments */}
+                {selectedNode?.type === 'effort' && (
+                  <div className="space-y-2">
+                    <Label>Assigned Use Cases</Label>
+                    {assignedUseCases.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {assignedUseCases.map((uc: UseCaseSummary) => (
+                          <span
+                            key={uc.id}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium"
+                            style={{ backgroundColor: `${uc.color}20`, color: uc.color }}
+                          >
+                            {uc.name}
+                            <button
+                              onClick={() => removeUseCaseAssignment.mutate({
+                                reportingEffortId: selectedNode.id,
+                                useCaseId: uc.id
+                              })}
+                              className="hover:opacity-70"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No use cases assigned</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Available use cases to add */}
+                <div className="space-y-2">
+                  <Label>Add Use Cases</Label>
+                  <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
+                    {allUseCases
+                      .filter((uc: UseCase) =>
+                        !assignedUseCases.some((assigned: UseCaseSummary) => assigned.id === uc.id)
+                      )
+                      .map((uc: UseCase) => (
+                        <div
+                          key={uc.id}
+                          className="flex items-center justify-between p-2 hover:bg-accent rounded cursor-pointer"
+                          onClick={() => {
+                            if (selectedNode?.type === 'effort') {
+                              assignUseCase.mutate({
+                                reportingEffortId: selectedNode.id,
+                                useCaseId: uc.id
+                              })
+                            }
+                          }}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: uc.color }}
+                            />
+                            <span className="text-sm">{uc.name}</span>
+                          </div>
+                          <Plus className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      ))}
+                    {allUseCases.filter((uc: UseCase) =>
+                      !assignedUseCases.some((assigned: UseCaseSummary) => assigned.id === uc.id)
+                    ).length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-2">
+                        All use cases are assigned
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Click a use case to assign it. Manage the use case list in Settings.
+                  </p>
+                </div>
+              </div>
+            )
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUseCasesDialogOpen(false)}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -11,6 +11,7 @@ class DatabaseReleaseBase(BaseModel):
     
     study_id: int = Field(..., gt=0, description="Study ID")
     database_release_label: str = Field(..., min_length=1, max_length=255, description="Database release label")
+    database_release_date: Optional[str] = Field(None, max_length=50, description="Database release date")
 
 
 class DatabaseReleaseCreate(DatabaseReleaseBase):
@@ -22,7 +23,8 @@ class DatabaseReleaseCreate(DatabaseReleaseBase):
 class DatabaseReleaseUpdate(BaseModel):
     """Schema for updating an existing database release."""
     
-    database_release_label: str = Field(..., min_length=1, max_length=255, description="Database release label")
+    database_release_label: Optional[str] = Field(None, min_length=1, max_length=255, description="Database release label")
+    database_release_date: Optional[str] = Field(None, max_length=50, description="Database release date")
 
 
 class DatabaseReleaseInDB(DatabaseReleaseBase):

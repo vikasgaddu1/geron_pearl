@@ -2,7 +2,9 @@
 
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
+from typing import Optional, List
+
+from app.schemas.reporting_effort_usecase import UseCaseSummary
 
 
 class ReportingEffortBase(BaseModel):
@@ -19,11 +21,12 @@ class ReportingEffortCreate(ReportingEffortBase):
 
 class ReportingEffortUpdate(BaseModel):
     """Schema for updating an existing ReportingEffort.
-    
-    Note: study_id and database_release_id are intentionally excluded 
+
+    Note: study_id and database_release_id are intentionally excluded
     as reporting efforts cannot be reassigned between studies or database releases after creation.
+    Use cases are managed separately via the use-cases API.
     """
-    database_release_label: str = Field(..., min_length=1, max_length=255, description="Database release label")
+    database_release_label: Optional[str] = Field(None, min_length=1, max_length=255, description="Database release label")
 
 
 class ReportingEffortInDB(ReportingEffortBase):
@@ -40,5 +43,7 @@ class ReportingEffort(ReportingEffortInDB):
     # Optional expanded fields for better UI filtering
     study_label: Optional[str] = Field(None, description="Label of the associated study")
     database_release_label_full: Optional[str] = Field(None, description="Label of the associated database release")
-    
+    # Use cases assigned to this reporting effort
+    use_cases: List[UseCaseSummary] = Field(default_factory=list, description="Use cases assigned to this effort")
+
     model_config = ConfigDict(from_attributes=True)

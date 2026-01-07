@@ -12,12 +12,13 @@ export { trackerTagsApi } from './endpoints/tracker-tags'
 export { databaseBackupApi } from './endpoints/database-backup'
 export { settingsApi, useAppSettings, useDefaultDueDateOffset, useUpdateSettings, settingsKeys } from './endpoints/settings'
 export { phasesApi, milestonesApi } from './endpoints/milestones'
-export { 
-  igVersionsApi, 
+export {
+  igVersionsApi,
   igVersionKeys,
-  useIGVersions, 
+  useIGVersions,
   useIGVersionsByType,
-  useCreateIGVersion, 
-  useUpdateIGVersion, 
-  useDeleteIGVersion 
+  useCreateIGVersion,
+  useUpdateIGVersion,
+  useDeleteIGVersion
 } from './endpoints/ig-versions'
+export * as useCasesApi from './endpoints/use-cases'

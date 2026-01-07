@@ -16,7 +16,8 @@ class TextElementCRUD:
         """Create a new text element."""
         db_obj = TextElement(
             type=obj_in.type,
-            label=obj_in.label
+            label=obj_in.label,
+            content=obj_in.content
         )
         db.add(db_obj)
         await db.commit()
@@ -92,36 +93,39 @@ class TextElementCRUD:
         )
         return list(result.scalars().all())
     
-    def _normalize_label(self, label: str) -> str:
-        """Normalize label for duplicate checking: remove spaces and convert to uppercase."""
-        return label.replace(" ", "").upper()
-    
-    async def check_duplicate_label(
-        self, db: AsyncSession, *, label: str, type: TextElementType, exclude_id: Optional[int] = None
+    def _normalize_text(self, text: str) -> str:
+        """Normalize text for duplicate checking: remove spaces and convert to uppercase."""
+        return text.replace(" ", "").upper() if text else ""
+
+    async def check_duplicate(
+        self, db: AsyncSession, *, label: str, content: str, type: TextElementType, exclude_id: Optional[int] = None
     ) -> Optional[TextElement]:
         """
-        Check if a text element with the same normalized label already exists for the given type.
-        
+        Check if a text element with the same normalized label AND content already exists for the given type.
+
         Args:
             label: The label to check for duplicates
+            content: The content to check for duplicates
             type: The type of text element
             exclude_id: ID to exclude from the check (useful for updates)
-            
+
         Returns:
             The existing TextElement if duplicate found, None otherwise
         """
-        normalized_input = self._normalize_label(label)
-        
-        # Build query to find elements of the same type where normalized labels match
+        normalized_label = self._normalize_text(label)
+        normalized_content = self._normalize_text(content or "")
+
+        # Build query to find elements of the same type where normalized label AND content match
         query = select(TextElement).where(
             TextElement.type == type,
-            func.upper(func.replace(TextElement.label, ' ', '')) == normalized_input
+            func.upper(func.replace(TextElement.label, ' ', '')) == normalized_label,
+            func.upper(func.replace(func.coalesce(TextElement.content, ''), ' ', '')) == normalized_content
         )
-        
+
         # Exclude the current record if updating
         if exclude_id is not None:
             query = query.where(TextElement.id != exclude_id)
-        
+
         result = await db.execute(query)
         return result.scalar_one_or_none()
 

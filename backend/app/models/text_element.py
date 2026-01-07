@@ -34,6 +34,11 @@ class TextElement(Base, TimestampMixin):
         nullable=False,
         doc="Text content for the element"
     )
+    content: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        doc="Display content for the element (user-facing text)"
+    )
     
     # Relationships - These are for reference and won't be used directly
     # package_item_footnotes = relationship("PackageItemFootnote", back_populates="footnote")

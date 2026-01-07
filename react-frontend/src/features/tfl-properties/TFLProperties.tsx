@@ -54,16 +54,28 @@ const UPLOAD_COLUMNS: ColumnDefinition[] = [
 ]
 
 const UPLOAD_SAMPLE_DATA = [
-  ['title', 'TITLE_01', 'Summary of Demographics'],
-  ['title', 'TITLE_02', 'Adverse Events by System Organ Class'],
-  ['footnote', 'FN_01', 'Note: Percentages are based on the Safety Population.'],
-  ['footnote', 'FN_02', 'Source: [dataset].'],
+  // Titles - labels can be used as categories (Safety, Efficacy, General)
+  ['title', 'Safety', 'Summary of Demographics (Safety Population)'],
+  ['title', 'Safety', 'Adverse Events by System Organ Class'],
+  ['title', 'Efficacy', 'Primary Efficacy Analysis - ITT Population'],
+  ['title', 'Efficacy', 'Secondary Efficacy Endpoints Summary'],
+  ['title', 'General', 'Study Disposition Summary'],
+  // Footnotes - labels can categorize footnotes by domain
+  ['footnote', 'Safety', 'Percentages are based on the number of subjects in the Safety Population (N).'],
+  ['footnote', 'Safety', 'Subjects with multiple events are counted once per preferred term.'],
+  ['footnote', 'Efficacy', 'Missing values were imputed using LOCF method.'],
+  ['footnote', 'General', 'Data cutoff date: [DATE].'],
+  // Population sets
   ['population_set', 'SAF', 'Safety Population'],
   ['population_set', 'ITT', 'Intent-to-Treat Population'],
+  ['population_set', 'PP', 'Per-Protocol Population'],
+  // Acronyms
   ['acronyms_set', 'AE', 'Adverse Event'],
   ['acronyms_set', 'SAE', 'Serious Adverse Event'],
-  ['ich_category', 'ICH_11.4.2.1', 'ICH E3 Section 11.4.2.1 - Demographic and Baseline Characteristics'],
-  ['ich_category', 'ICH_12.2', 'ICH E3 Section 12.2 - Adverse Events'],
+  ['acronyms_set', 'TEAE', 'Treatment-Emergent Adverse Event'],
+  // ICH Categories
+  ['ich_category', 'ICH_11.4', 'ICH E3 11.4 – Demographic and Baseline Characteristics'],
+  ['ich_category', 'ICH_12.2', 'ICH E3 12.2 – Adverse Events'],
 ]
 
 export function TFLProperties() {

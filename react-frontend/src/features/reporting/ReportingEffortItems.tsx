@@ -74,6 +74,7 @@ export function ReportingEffortItems() {
     item_type: 'TLF' as ItemType,
     item_subtype: 'Table' as ItemSubtype,
     ig_version_id: undefined as number | undefined,
+    dataset_label: '',  // For SDTM/ADaM items - e.g., "Demographics" for DM
   })
 
   // Fetch IG versions for the form
@@ -197,6 +198,7 @@ export function ReportingEffortItems() {
       item_type: 'TLF',
       item_subtype: 'Table',
       ig_version_id: undefined,
+      dataset_label: '',
     })
     setSelectedItem(null)
   }
@@ -248,6 +250,7 @@ export function ReportingEffortItems() {
       item_type: item.item_type,
       item_subtype: item.item_subtype || 'Table',
       ig_version_id: item.dataset_details?.ig_version_id,
+      dataset_label: item.dataset_details?.label || '',
     })
     setDialogOpen(true)
   }
@@ -265,10 +268,17 @@ export function ReportingEffortItems() {
       item_subtype: formData.item_subtype,
     }
     
-    // Add dataset_details with ig_version_id for Dataset items
-    if (formData.item_type === 'Dataset' && formData.ig_version_id) {
-      data.dataset_details = {
-        ig_version_id: formData.ig_version_id,
+    // Add dataset_details for Dataset items (label and/or ig_version_id)
+    if (formData.item_type === 'Dataset') {
+      const datasetDetails: Record<string, unknown> = {}
+      if (formData.dataset_label) {
+        datasetDetails.label = formData.dataset_label
+      }
+      if (formData.ig_version_id) {
+        datasetDetails.ig_version_id = formData.ig_version_id
+      }
+      if (Object.keys(datasetDetails).length > 0) {
+        data.dataset_details = datasetDetails
       }
     }
     
@@ -657,34 +667,50 @@ export function ReportingEffortItems() {
                 </Select>
               </div>
             </div>
-            {formData.item_type === 'Dataset' && filteredIGVersions.length > 0 && (
-              <div className="grid gap-2">
-                <Label>IG Version</Label>
-                <Select
-                  value={formData.ig_version_id?.toString() || '__none__'}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ 
-                      ...prev, 
-                      ig_version_id: value === '__none__' ? undefined : parseInt(value) 
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select IG version" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">None</SelectItem>
-                    {filteredIGVersions.map((version) => (
-                      <SelectItem key={version.id} value={String(version.id)}>
-                        v{version.version} {version.description && `- ${version.description}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {formData.item_subtype} Implementation Guide version
-                </p>
-              </div>
+            {formData.item_type === 'Dataset' && (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="dataset_label">Dataset Label</Label>
+                  <Input
+                    id="dataset_label"
+                    value={formData.dataset_label}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, dataset_label: e.target.value }))}
+                    placeholder="e.g., Demographics, Adverse Events"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Descriptive name for the dataset (shown in dashboards)
+                  </p>
+                </div>
+                {filteredIGVersions.length > 0 && (
+                  <div className="grid gap-2">
+                    <Label>IG Version</Label>
+                    <Select
+                      value={formData.ig_version_id?.toString() || '__none__'}
+                      onValueChange={(value) =>
+                        setFormData((prev) => ({ 
+                          ...prev, 
+                          ig_version_id: value === '__none__' ? undefined : parseInt(value) 
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select IG version" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">None</SelectItem>
+                        {filteredIGVersions.map((version) => (
+                          <SelectItem key={version.id} value={String(version.id)}>
+                            v{version.version} {version.description && `- ${version.description}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {formData.item_subtype} Implementation Guide version
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </div>
           <DialogFooter>

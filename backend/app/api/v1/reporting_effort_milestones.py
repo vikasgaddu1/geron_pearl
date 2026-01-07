@@ -15,6 +15,8 @@ from app.db.session import get_db
 from app.crud.reporting_effort import reporting_effort
 from app.crud.reporting_effort_phase import reporting_effort_phase
 from app.crud.reporting_effort_milestone import reporting_effort_milestone
+from app.crud.milestone_tracker_assignment import milestone_tracker_assignment
+from app.crud.tracker_tag import tracker_tag
 from app.schemas.reporting_effort_phase import (
     ReportingEffortPhase,
     ReportingEffortPhaseCreate,
@@ -25,7 +27,12 @@ from app.schemas.reporting_effort_milestone import (
     ReportingEffortMilestone,
     ReportingEffortMilestoneCreate,
     ReportingEffortMilestoneUpdate,
-    ReportingEffortMilestoneWithPhase
+    ReportingEffortMilestoneWithPhase,
+    ReportingEffortMilestoneWithTrackers
+)
+from app.schemas.milestone_tracker_assignment import (
+    BulkMilestoneTrackerAssignment,
+    BulkOperationResult
 )
 
 router = APIRouter()
@@ -199,6 +206,61 @@ async def reorder_phases(
 
 
 # =============================================================================
+# Dashboard Endpoints (MUST be before /{milestone_id} routes to avoid route conflict)
+# =============================================================================
+
+@router.get(
+    "/milestones/dashboard",
+    response_model=List[ReportingEffortMilestoneWithPhase]
+)
+async def get_milestones_for_dashboard(
+    *,
+    db: AsyncSession = Depends(get_db),
+    study_id: Optional[int] = Query(None, description="Filter by study ID"),
+    reporting_effort_id: Optional[int] = Query(None, description="Filter by reporting effort ID"),
+    include_completed: bool = Query(True, description="Include completed milestones"),
+    start_date: Optional[date] = Query(None, description="Filter milestones from this date"),
+    end_date: Optional[date] = Query(None, description="Filter milestones until this date")
+) -> List[ReportingEffortMilestoneWithPhase]:
+    """
+    Get all milestones with full context for dashboard display.
+
+    Returns milestones with phase name, reporting effort label, and study label
+    for display in the Gantt chart or timeline view.
+    """
+    return await reporting_effort_milestone.get_all_for_dashboard(
+        db,
+        study_id=study_id,
+        reporting_effort_id=reporting_effort_id,
+        include_completed=include_completed,
+        start_date=start_date,
+        end_date=end_date
+    )
+
+
+@router.get(
+    "/milestones/upcoming",
+    response_model=List[ReportingEffortMilestoneWithPhase]
+)
+async def get_upcoming_milestones(
+    *,
+    db: AsyncSession = Depends(get_db),
+    days_ahead: int = Query(14, ge=1, le=365, description="Number of days to look ahead"),
+    limit: int = Query(10, ge=1, le=100, description="Maximum number of milestones to return")
+) -> List[ReportingEffortMilestoneWithPhase]:
+    """
+    Get upcoming milestones for the next N days.
+
+    Useful for showing a summary of what's coming up soon.
+    """
+    return await reporting_effort_milestone.get_upcoming(
+        db,
+        days_ahead=days_ahead,
+        limit=limit
+    )
+
+
+# =============================================================================
 # Milestone Endpoints
 # =============================================================================
 
@@ -366,7 +428,7 @@ async def reorder_milestones(
 ) -> List[ReportingEffortMilestone]:
     """
     Reorder milestones within a phase.
-    
+
     - **milestone_ids**: List of milestone IDs in the desired display order
     """
     # Verify phase exists
@@ -376,12 +438,196 @@ async def reorder_milestones(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Phase not found"
         )
-    
+
     return await reporting_effort_milestone.reorder_milestones(
         db,
         phase_id=phase_id,
         milestone_ids=milestone_ids
     )
+
+
+# =============================================================================
+# Milestone-Tracker Linking Endpoints
+# =============================================================================
+
+@router.get(
+    "/milestones/{milestone_id}/with-trackers",
+    response_model=ReportingEffortMilestoneWithTrackers
+)
+async def get_milestone_with_trackers(
+    *,
+    db: AsyncSession = Depends(get_db),
+    milestone_id: int
+) -> dict:
+    """
+    Get a milestone with linked tracker information.
+
+    Returns the milestone with:
+    - linked_tracker_count: Total number of linked trackers
+    - trackers_past_due: Count of trackers with due_date > milestone due_date
+    - linked_tag_name: Name of the linked tag (if any)
+    - linked_tracker_ids: IDs of manually linked trackers
+    """
+    result = await reporting_effort_milestone.get_milestone_with_tracker_info(
+        db, milestone_id=milestone_id
+    )
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Milestone not found"
+        )
+    return result
+
+
+@router.get(
+    "/milestones/{milestone_id}/trackers"
+)
+async def get_linked_trackers(
+    *,
+    db: AsyncSession = Depends(get_db),
+    milestone_id: int
+) -> List[dict]:
+    """
+    Get all trackers linked to a milestone.
+
+    Returns trackers linked via:
+    - Subtype (milestone.linked_subtype matches item.item_subtype)
+    - Tag (milestone.linked_tag_id matches tracker's tag)
+    - Manual assignment (milestone_tracker_assignments)
+
+    Each tracker includes:
+    - id, item_code, item_subtype, due_date
+    - link_type: 'subtype', 'tag', or 'manual'
+    - is_past_due: True if tracker due_date > milestone due_date
+    """
+    milestone = await reporting_effort_milestone.get(db, id=milestone_id)
+    if not milestone:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Milestone not found"
+        )
+
+    return await reporting_effort_milestone.get_linked_trackers(
+        db, milestone_id=milestone_id
+    )
+
+
+@router.get(
+    "/milestones/{milestone_id}/available-trackers"
+)
+async def get_available_trackers(
+    *,
+    db: AsyncSession = Depends(get_db),
+    milestone_id: int
+) -> List[dict]:
+    """
+    Get trackers that can be manually linked to this milestone.
+
+    Returns trackers in the same reporting effort that are NOT already linked
+    (by subtype, tag, or manual assignment).
+
+    Useful for the manual selection UI in the milestone editor.
+    """
+    milestone = await reporting_effort_milestone.get(db, id=milestone_id)
+    if not milestone:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Milestone not found"
+        )
+
+    return await reporting_effort_milestone.get_available_trackers(
+        db, milestone_id=milestone_id
+    )
+
+
+@router.post(
+    "/milestones/{milestone_id}/trackers",
+    response_model=BulkOperationResult
+)
+async def link_trackers_to_milestone(
+    *,
+    db: AsyncSession = Depends(get_db),
+    milestone_id: int,
+    tracker_ids: List[int] = Query(..., description="List of tracker IDs to link")
+) -> BulkOperationResult:
+    """
+    Manually link trackers to a milestone.
+
+    This creates manual links (separate from subtype/tag auto-linking).
+    Trackers already linked (by any method) will be skipped.
+
+    - **tracker_ids**: List of tracker IDs to link
+    """
+    milestone = await reporting_effort_milestone.get(db, id=milestone_id)
+    if not milestone:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Milestone not found"
+        )
+
+    result = await milestone_tracker_assignment.bulk_assign(
+        db,
+        milestone_id=milestone_id,
+        tracker_ids=tracker_ids
+    )
+    return BulkOperationResult(**result)
+
+
+@router.delete(
+    "/milestones/{milestone_id}/trackers",
+    response_model=BulkOperationResult
+)
+async def unlink_trackers_from_milestone(
+    *,
+    db: AsyncSession = Depends(get_db),
+    milestone_id: int,
+    tracker_ids: List[int] = Query(..., description="List of tracker IDs to unlink")
+) -> BulkOperationResult:
+    """
+    Remove manual links between trackers and a milestone.
+
+    This only removes manual links. Subtype and tag links cannot be
+    removed this way (change the milestone's linked_subtype/linked_tag_id instead).
+
+    - **tracker_ids**: List of tracker IDs to unlink
+    """
+    milestone = await reporting_effort_milestone.get(db, id=milestone_id)
+    if not milestone:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Milestone not found"
+        )
+
+    result = await milestone_tracker_assignment.bulk_remove(
+        db,
+        milestone_id=milestone_id,
+        tracker_ids=tracker_ids
+    )
+    return BulkOperationResult(**result)
+
+
+@router.get(
+    "/tags/for-linking"
+)
+async def get_tags_for_linking(
+    *,
+    db: AsyncSession = Depends(get_db)
+) -> List[dict]:
+    """
+    Get all available tags for milestone linking.
+
+    Returns list of tags with id, name, and color.
+    Used for the tag selection dropdown in milestone editor.
+    """
+    tags = await tracker_tag.get_multi(db, skip=0, limit=1000)
+    return [
+        {
+            'id': tag.id,
+            'name': tag.name,
+            'color': tag.color
+        }
+        for tag in tags
+    ]
 
 
 # =============================================================================
@@ -454,14 +700,19 @@ async def copy_milestones_from_effort(
         # Copy milestones
         if source_phase.milestones:
             for source_milestone in source_phase.milestones:
-                # Calculate new due date if offset provided
+                # Calculate new dates if offset provided
+                new_start_date = source_milestone.start_date
                 new_due_date = source_milestone.due_date
-                if new_due_date and date_offset_days:
-                    new_due_date = new_due_date + timedelta(days=date_offset_days)
-                
+                if date_offset_days:
+                    if new_start_date:
+                        new_start_date = new_start_date + timedelta(days=date_offset_days)
+                    if new_due_date:
+                        new_due_date = new_due_date + timedelta(days=date_offset_days)
+
                 new_milestone_data = ReportingEffortMilestoneCreate(
                     phase_id=new_phase.id,
                     name=source_milestone.name,
+                    start_date=new_start_date,
                     due_date=new_due_date,
                     responsibility=source_milestone.responsibility,
                     comments=source_milestone.comments,
@@ -527,59 +778,4 @@ async def get_available_source_efforts(
         }
         for row in rows
     ]
-
-
-# =============================================================================
-# Dashboard Endpoints
-# =============================================================================
-
-@router.get(
-    "/milestones/dashboard",
-    response_model=List[ReportingEffortMilestoneWithPhase]
-)
-async def get_milestones_for_dashboard(
-    *,
-    db: AsyncSession = Depends(get_db),
-    study_id: Optional[int] = Query(None, description="Filter by study ID"),
-    reporting_effort_id: Optional[int] = Query(None, description="Filter by reporting effort ID"),
-    include_completed: bool = Query(True, description="Include completed milestones"),
-    start_date: Optional[date] = Query(None, description="Filter milestones from this date"),
-    end_date: Optional[date] = Query(None, description="Filter milestones until this date")
-) -> List[ReportingEffortMilestoneWithPhase]:
-    """
-    Get all milestones with full context for dashboard display.
-    
-    Returns milestones with phase name, reporting effort label, and study label
-    for display in the Gantt chart or timeline view.
-    """
-    return await reporting_effort_milestone.get_all_for_dashboard(
-        db,
-        study_id=study_id,
-        reporting_effort_id=reporting_effort_id,
-        include_completed=include_completed,
-        start_date=start_date,
-        end_date=end_date
-    )
-
-
-@router.get(
-    "/milestones/upcoming",
-    response_model=List[ReportingEffortMilestoneWithPhase]
-)
-async def get_upcoming_milestones(
-    *,
-    db: AsyncSession = Depends(get_db),
-    days_ahead: int = Query(14, ge=1, le=365, description="Number of days to look ahead"),
-    limit: int = Query(10, ge=1, le=100, description="Maximum number of milestones to return")
-) -> List[ReportingEffortMilestoneWithPhase]:
-    """
-    Get upcoming milestones for the next N days.
-    
-    Useful for showing a summary of what's coming up soon.
-    """
-    return await reporting_effort_milestone.get_upcoming(
-        db,
-        days_ahead=days_ahead,
-        limit=limit
-    )
 

@@ -12,7 +12,8 @@ class TextElementBase(BaseModel):
     """Base TextElement schema with common fields."""
     
     type: TextElementType = Field(..., description="Type of text element (title, footnote, population_set)")
-    label: str = Field(..., min_length=1, description="Text content for the element")
+    label: str = Field(..., min_length=1, description="Identifier/label for the element (e.g., TITLE_01)")
+    content: str | None = Field(None, description="User-facing text/content for the element")
 
 
 class TextElementCreate(TextElementBase):
@@ -25,7 +26,8 @@ class TextElementUpdate(BaseModel):
     """Schema for updating an existing text element."""
     
     type: Optional[TextElementType] = Field(None, description="Type of text element")
-    label: Optional[str] = Field(None, min_length=1, description="Text content for the element")
+    label: Optional[str] = Field(None, min_length=1, description="Identifier/label for the element (e.g., TITLE_01)")
+    content: Optional[str] = Field(None, description="User-facing text/content for the element")
 
 
 class TextElementInDB(TextElementBase):

@@ -20,6 +20,7 @@ from app.core.security import (
 )
 from app.core.oauth2 import oauth, get_user_info_from_token, is_provider_configured
 from app.core.config import settings
+from app.core.email import send_password_reset_email, email_service
 from app.db.session import get_db
 from app.models.user import User, AuthProvider
 from app.schemas.auth import (
@@ -263,21 +264,25 @@ async def forgot_password(
     
     await db.commit()
     
-    # In production, send email with reset link
-    # For development, just log the token
-    reset_url = f"http://localhost:5173/reset-password/{reset_token}"
+    # Build reset URL using configured frontend URL
+    reset_url = f"{settings.frontend_url}/reset-password/{reset_token}"
     
-    if settings.env == "development":
+    # Send email or log to console based on configuration
+    if email_service.is_configured:
+        # Send actual email
+        email_sent = send_password_reset_email(user.email, reset_url, user.username)
+        if not email_sent:
+            # Log for debugging but don't expose to user
+            print(f"WARNING: Failed to send password reset email to {user.email}")
+    else:
+        # SMTP not configured - log to console (useful for development)
         print(f"\n{'='*80}")
-        print(f"PASSWORD RESET REQUEST")
+        print(f"PASSWORD RESET REQUEST (SMTP not configured)")
         print(f"{'='*80}")
         print(f"User: {user.username} ({user.email})")
         print(f"Reset URL: {reset_url}")
         print(f"Token expires: {user.reset_token_expires}")
         print(f"{'='*80}\n")
-    
-    # TODO: Send email in production
-    # await send_password_reset_email(user.email, reset_url)
     
     return {
         "message": "If an account with that email exists, a password reset link has been sent."

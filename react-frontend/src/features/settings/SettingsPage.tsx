@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
-import { Settings, Save, RefreshCw, User, Clock, Plus, Edit, Trash2, BookOpen } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Settings, Save, RefreshCw, User, Clock, Plus, Edit, Trash2, BookOpen, Tag } from 'lucide-react'
 import { toast } from 'sonner'
-import { 
-  useAppSettings, 
-  useUpdateSettings, 
+import {
+  useAppSettings,
+  useUpdateSettings,
   useIGVersions,
   useCreateIGVersion,
   useUpdateIGVersion,
-  useDeleteIGVersion 
+  useDeleteIGVersion,
+  useCasesApi
 } from '@/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -41,8 +43,9 @@ import {
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import { HelpIcon } from '@/components/common/HelpIcon'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
+import { Textarea } from '@/components/ui/textarea'
 import { getErrorMessage, formatDateTime } from '@/lib/utils'
-import type { IGVersion } from '@/types'
+import type { IGVersion, UseCase } from '@/types'
 
 type StandardType = 'SDTM' | 'ADaM'
 
@@ -60,7 +63,31 @@ const defaultFormData: IGVersionFormData = {
   is_active: true,
 }
 
+interface UseCaseFormData {
+  name: string
+  color: string
+  description: string
+}
+
+const defaultUseCaseFormData: UseCaseFormData = {
+  name: '',
+  color: '#3B82F6',
+  description: '',
+}
+
+const colorOptions = [
+  { color: '#3B82F6', name: 'Blue' },
+  { color: '#10B981', name: 'Green' },
+  { color: '#F59E0B', name: 'Amber' },
+  { color: '#EF4444', name: 'Red' },
+  { color: '#8B5CF6', name: 'Purple' },
+  { color: '#EC4899', name: 'Pink' },
+  { color: '#6366F1', name: 'Indigo' },
+  { color: '#14B8A6', name: 'Teal' },
+]
+
 export function SettingsPage() {
+  const queryClient = useQueryClient()
   const { data: settings, isLoading, refetch } = useAppSettings()
   const updateSettings = useUpdateSettings()
   const { data: igVersions = [], isLoading: igVersionsLoading, refetch: refetchIGVersions } = useIGVersions()
@@ -68,14 +95,48 @@ export function SettingsPage() {
   const updateIGVersion = useUpdateIGVersion()
   const deleteIGVersion = useDeleteIGVersion()
 
+  // Use Cases queries and mutations
+  const { data: useCases = [], isLoading: useCasesLoading, refetch: refetchUseCases } = useQuery({
+    queryKey: ['use-cases'],
+    queryFn: useCasesApi.getAllUseCases,
+  })
+
+  const createUseCase = useMutation({
+    mutationFn: useCasesApi.createUseCase,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['use-cases'] })
+    },
+  })
+
+  const updateUseCase = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<UseCaseFormData> }) =>
+      useCasesApi.updateUseCase(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['use-cases'] })
+    },
+  })
+
+  const deleteUseCase = useMutation({
+    mutationFn: useCasesApi.deleteUseCase,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['use-cases'] })
+    },
+  })
+
   const [dueDateOffset, setDueDateOffset] = useState<number>(7)
   const [hasChanges, setHasChanges] = useState(false)
-  
+
   // IG Version dialog state
   const [igDialogOpen, setIgDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [editingVersion, setEditingVersion] = useState<IGVersion | null>(null)
   const [formData, setFormData] = useState<IGVersionFormData>(defaultFormData)
+
+  // Use Case dialog state
+  const [useCaseDialogOpen, setUseCaseDialogOpen] = useState(false)
+  const [useCaseDeleteDialogOpen, setUseCaseDeleteDialogOpen] = useState(false)
+  const [editingUseCase, setEditingUseCase] = useState<UseCase | null>(null)
+  const [useCaseFormData, setUseCaseFormData] = useState<UseCaseFormData>(defaultUseCaseFormData)
 
   // Sync local state with fetched settings
   useEffect(() => {
@@ -186,6 +247,74 @@ export function SettingsPage() {
   const sdtmVersions = igVersions.filter(v => v.standard_type === 'SDTM')
   const adamVersions = igVersions.filter(v => v.standard_type === 'ADaM')
 
+  // Use Case handlers
+  const handleAddUseCase = () => {
+    setEditingUseCase(null)
+    setUseCaseFormData(defaultUseCaseFormData)
+    setUseCaseDialogOpen(true)
+  }
+
+  const handleEditUseCase = (useCase: UseCase) => {
+    setEditingUseCase(useCase)
+    setUseCaseFormData({
+      name: useCase.name,
+      color: useCase.color,
+      description: useCase.description || '',
+    })
+    setUseCaseDialogOpen(true)
+  }
+
+  const handleDeleteUseCase = (useCase: UseCase) => {
+    setEditingUseCase(useCase)
+    setUseCaseDeleteDialogOpen(true)
+  }
+
+  const handleSubmitUseCase = async () => {
+    if (!useCaseFormData.name.trim()) {
+      toast.error('Name is required')
+      return
+    }
+
+    try {
+      if (editingUseCase) {
+        await updateUseCase.mutateAsync({
+          id: editingUseCase.id,
+          data: {
+            name: useCaseFormData.name.trim(),
+            color: useCaseFormData.color,
+            description: useCaseFormData.description.trim() || undefined,
+          },
+        })
+        toast.success('Use case updated successfully')
+      } else {
+        await createUseCase.mutateAsync({
+          name: useCaseFormData.name.trim(),
+          color: useCaseFormData.color,
+          description: useCaseFormData.description.trim() || undefined,
+        })
+        toast.success('Use case created successfully')
+      }
+      setUseCaseDialogOpen(false)
+      setUseCaseFormData(defaultUseCaseFormData)
+      setEditingUseCase(null)
+    } catch (error) {
+      toast.error(`Failed to save use case: ${getErrorMessage(error)}`)
+    }
+  }
+
+  const confirmDeleteUseCase = async () => {
+    if (!editingUseCase) return
+
+    try {
+      await deleteUseCase.mutateAsync(editingUseCase.id)
+      toast.success('Use case deleted successfully')
+      setUseCaseDeleteDialogOpen(false)
+      setEditingUseCase(null)
+    } catch (error) {
+      toast.error(`Failed to delete use case: ${getErrorMessage(error)}`)
+    }
+  }
+
   if (isLoading) {
     return <PageLoader text="Loading settings..." />
   }
@@ -205,7 +334,7 @@ export function SettingsPage() {
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            onClick={() => { refetch(); refetchIGVersions(); }}
+            onClick={() => { refetch(); refetchIGVersions(); refetchUseCases(); }}
             disabled={updateSettings.isPending}
           >
             <RefreshCw className="h-4 w-4 mr-2" />
@@ -422,6 +551,86 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Use Cases Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Tag className="h-5 w-5 text-primary" />
+                Use Cases
+              </CardTitle>
+              <CardDescription>
+                Manage use cases that can be assigned to reporting efforts for categorization and reporting
+              </CardDescription>
+            </div>
+            <Button size="sm" onClick={handleAddUseCase}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Use Case
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {useCasesLoading ? (
+            <div className="text-center py-4 text-muted-foreground">Loading use cases...</div>
+          ) : useCases.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Tag className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No use cases configured yet.</p>
+              <p className="text-sm">Click "Add Use Case" to create one.</p>
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Color</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Usage</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {useCases.map((useCase: UseCase) => (
+                    <TableRow key={useCase.id}>
+                      <TableCell>
+                        <div
+                          className="w-6 h-6 rounded-full border"
+                          style={{ backgroundColor: useCase.color }}
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium">{useCase.name}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {useCase.description || '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">{useCase.usage_count || 0} efforts</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => handleEditUseCase(useCase)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteUseCase(useCase)}
+                            disabled={(useCase.usage_count || 0) > 0}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Add/Edit IG Version Dialog */}
       <Dialog open={igDialogOpen} onOpenChange={setIgDialogOpen}>
         <DialogContent>
@@ -520,6 +729,91 @@ export function SettingsPage() {
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={confirmDelete}
+      />
+
+      {/* Add/Edit Use Case Dialog */}
+      <Dialog open={useCaseDialogOpen} onOpenChange={setUseCaseDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingUseCase ? 'Edit Use Case' : 'Add Use Case'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingUseCase
+                ? 'Update the use case details.'
+                : 'Create a new use case to categorize reporting efforts.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="use-case-name">Name</Label>
+              <Input
+                id="use-case-name"
+                value={useCaseFormData.name}
+                onChange={(e) => setUseCaseFormData(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="e.g., Clinical, Publication, Labeling"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Color</Label>
+              <div className="flex flex-wrap gap-2">
+                {colorOptions.map(({ color, name }) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setUseCaseFormData(prev => ({ ...prev, color }))}
+                    className={`w-8 h-8 rounded-full border-2 transition-all ${
+                      useCaseFormData.color === color
+                        ? 'border-foreground scale-110'
+                        : 'border-transparent hover:scale-105'
+                    }`}
+                    style={{ backgroundColor: color }}
+                    title={name}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="use-case-description">Description (Optional)</Label>
+              <Textarea
+                id="use-case-description"
+                value={useCaseFormData.description}
+                onChange={(e) => setUseCaseFormData(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Brief description of this use case..."
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUseCaseDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitUseCase}
+              disabled={!useCaseFormData.name.trim() || createUseCase.isPending || updateUseCase.isPending}
+            >
+              {(createUseCase.isPending || updateUseCase.isPending) ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                editingUseCase ? 'Update' : 'Create'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Use Case Confirmation */}
+      <ConfirmDialog
+        open={useCaseDeleteDialogOpen}
+        onOpenChange={setUseCaseDeleteDialogOpen}
+        title="Delete Use Case?"
+        description={`Are you sure you want to delete "${editingUseCase?.name}"? This will remove it from all assigned reporting efforts.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={confirmDeleteUseCase}
       />
     </div>
   )

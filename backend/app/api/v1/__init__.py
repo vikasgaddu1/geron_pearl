@@ -5,7 +5,8 @@ from fastapi import APIRouter
 from app.api.v1 import (
     auth, studies, database_releases, reporting_efforts, websocket, text_elements, packages, users,
     reporting_effort_items, reporting_effort_tracker, tracker_comments, tracker_tags,
-    audit_trail, database_backup, settings, reporting_effort_milestones, ig_versions
+    audit_trail, database_backup, settings, reporting_effort_milestones, ig_versions,
+    reporting_effort_usecases
 )
 
 api_router = APIRouter()
@@ -36,3 +37,6 @@ api_router.include_router(ig_versions.router, prefix="/ig-versions", tags=["ig-v
 
 # Milestone tracking
 api_router.include_router(reporting_effort_milestones.router, prefix="/milestones", tags=["milestones"])
+
+# Use case management
+api_router.include_router(reporting_effort_usecases.router, prefix="/use-cases", tags=["use-cases"])

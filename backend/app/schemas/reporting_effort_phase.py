@@ -1,7 +1,7 @@
 """Pydantic schemas for ReportingEffortPhase."""
 
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 from pydantic import BaseModel, Field, ConfigDict
 
 
@@ -44,19 +44,20 @@ class ReportingEffortPhase(ReportingEffortPhaseInDB):
 # Forward reference for milestone - will be resolved after import
 class ReportingEffortMilestoneInPhase(BaseModel):
     """Milestone schema for nesting within Phase response."""
-    
+
     id: int
     phase_id: int
     name: str
-    due_date: Optional[datetime] = None
+    start_date: Optional[date] = None
+    due_date: Optional[date] = None
     responsibility: Optional[str] = None
     comments: Optional[str] = None
     is_completed: bool = False
-    completion_date: Optional[datetime] = None
+    completion_date: Optional[date] = None
     display_order: int = 0
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -66,4 +67,8 @@ class ReportingEffortPhaseWithMilestones(ReportingEffortPhaseInDB):
     milestones: List[ReportingEffortMilestoneInPhase] = Field(default_factory=list)
     
     model_config = ConfigDict(from_attributes=True)
+
+
+
+
 

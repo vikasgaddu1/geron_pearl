@@ -97,3 +97,7 @@ class CRUDReportingEffortPhase(BaseCRUD[ReportingEffortPhase, ReportingEffortPha
 
 reporting_effort_phase = CRUDReportingEffortPhase(ReportingEffortPhase)
 
+
+
+
+

@@ -6,7 +6,9 @@ import type {
   StudyPermissions, 
   UserStudyRole,
   AssignStudyRoleRequest,
-  StudyRole
+  StudyRole,
+  BulkHierarchyRow,
+  BulkHierarchyResponse,
 } from '@/types'
 
 const BASE_PATH = '/api/v1/studies'
@@ -34,6 +36,11 @@ export const studiesApi = {
 
   delete: async (id: number): Promise<void> => {
     await apiClient.delete(`${BASE_PATH}/${id}`)
+  },
+
+  bulkHierarchyUpload: async (rows: BulkHierarchyRow[]): Promise<BulkHierarchyResponse> => {
+    const response = await apiClient.post(`${BASE_PATH}/bulk-hierarchy`, rows)
+    return response.data
   },
 
   // ==================== Study Member Management ====================

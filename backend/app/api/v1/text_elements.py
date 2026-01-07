@@ -30,14 +30,14 @@ async def create_text_element(
         f.write(json.dumps({"location":"text_elements.py:create:entry","message":"Create endpoint called","data":{"type":str(text_element_in.type),"label":text_element_in.label},"timestamp":__import__('time').time()*1000,"sessionId":"debug-session","hypothesisId":"D"}) + "\n")
     # #endregion
     try:
-        # Check for duplicate labels (case-insensitive, ignoring spaces)
-        existing_element = await text_element.check_duplicate_label(
-            db, label=text_element_in.label, type=text_element_in.type
+        # Check for duplicate label+content combination (case-insensitive, ignoring spaces)
+        existing_element = await text_element.check_duplicate(
+            db, label=text_element_in.label, content=text_element_in.content or "", type=text_element_in.type
         )
         if existing_element:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"A {text_element_in.type.value} with similar content already exists: '{existing_element.label}'. Duplicate text elements are not allowed (comparison ignores spaces and case)."
+                detail=f"A {text_element_in.type.value} with this label and content already exists. Duplicate entries are not allowed."
             )
         
         created_text_element = await text_element.create(db, obj_in=text_element_in)
@@ -167,19 +167,20 @@ async def update_text_element(
                 detail="Text element not found"
             )
         
-        # Check for duplicate labels if label or type is being updated
-        if text_element_in.label is not None or text_element_in.type is not None:
+        # Check for duplicate label+content combination if any field is being updated
+        if text_element_in.label is not None or text_element_in.type is not None or text_element_in.content is not None:
             # Use the new values if provided, otherwise use existing values
             check_label = text_element_in.label if text_element_in.label is not None else db_text_element.label
+            check_content = text_element_in.content if text_element_in.content is not None else (db_text_element.content or "")
             check_type = text_element_in.type if text_element_in.type is not None else db_text_element.type
-            
-            existing_element = await text_element.check_duplicate_label(
-                db, label=check_label, type=check_type, exclude_id=text_element_id
+
+            existing_element = await text_element.check_duplicate(
+                db, label=check_label, content=check_content, type=check_type, exclude_id=text_element_id
             )
             if existing_element:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"A {check_type.value} with similar content already exists: '{existing_element.label}'. Duplicate text elements are not allowed (comparison ignores spaces and case)."
+                    detail=f"A {check_type.value} with this label and content already exists. Duplicate entries are not allowed."
                 )
         
         updated_text_element = await text_element.update(db, db_obj=db_text_element, obj_in=text_element_in)

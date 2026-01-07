@@ -38,3 +38,20 @@ class Study(StudyInDB):
     """Schema for study responses."""
     
     pass
+
+
+class BulkHierarchyRow(BaseModel):
+    """One row for bulk study/release/effort upload."""
+    study_label: str = Field(..., min_length=1, max_length=255, description="Study label")
+    database_release_label: str = Field(..., min_length=1, max_length=255, description="Database release label")
+    reporting_effort_label: str = Field(..., min_length=1, max_length=255, description="Reporting effort label")
+
+
+class BulkHierarchyResponse(BaseModel):
+    """Result of bulk study/release/effort upload."""
+    success: bool
+    created_studies: int
+    created_releases: int
+    created_efforts: int
+    skipped_duplicates: int
+    errors: list[str] = Field(default_factory=list)

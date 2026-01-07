@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     smtp_user: Optional[str] = Field(default=None, description="SMTP username")
     smtp_password: Optional[str] = Field(default=None, description="SMTP password")
     smtp_from_email: str = Field(default="noreply@pearl.local", description="From email address")
+    smtp_use_tls: bool = Field(default=True, description="Use TLS for SMTP connection")
+    
+    # Frontend URL (for password reset links)
+    frontend_url: str = Field(default="http://localhost:5173", description="Frontend base URL")
     
     # CORS
     allowed_origins: List[str] = Field(

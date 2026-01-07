@@ -3,9 +3,18 @@ import type {
   ReportingEffortPhase,
   ReportingEffortMilestone,
   ReportingEffortMilestoneWithContext,
+  ReportingEffortMilestoneWithTrackers,
+  LinkedTrackerInfo,
+  MilestoneTrackerLinkingTag,
   PhaseFormData,
   MilestoneFormData
 } from '@/types'
+
+interface BulkOperationResult {
+  success: boolean
+  affected_count: number
+  errors: string[]
+}
 
 const BASE_PATH = '/api/v1/milestones'
 
@@ -188,6 +197,62 @@ export const milestonesApi = {
     const response = await apiClient.get(`${BASE_PATH}/reporting-efforts/available-sources`, {
       params: excludeEffortId ? { exclude_effort_id: excludeEffortId } : undefined
     })
+    return response.data
+  },
+
+  // ==================== Milestone-Tracker Linking ====================
+
+  /**
+   * Get a milestone with linked tracker information
+   */
+  getWithTrackers: async (milestoneId: number): Promise<ReportingEffortMilestoneWithTrackers> => {
+    const response = await apiClient.get(`${BASE_PATH}/milestones/${milestoneId}/with-trackers`)
+    return response.data
+  },
+
+  /**
+   * Get all trackers linked to a milestone
+   */
+  getLinkedTrackers: async (milestoneId: number): Promise<LinkedTrackerInfo[]> => {
+    const response = await apiClient.get(`${BASE_PATH}/milestones/${milestoneId}/trackers`)
+    return response.data
+  },
+
+  /**
+   * Get trackers available for manual linking (not already linked)
+   */
+  getAvailableTrackers: async (milestoneId: number): Promise<LinkedTrackerInfo[]> => {
+    const response = await apiClient.get(`${BASE_PATH}/milestones/${milestoneId}/available-trackers`)
+    return response.data
+  },
+
+  /**
+   * Link trackers to a milestone (manual linking)
+   */
+  linkTrackers: async (milestoneId: number, trackerIds: number[]): Promise<BulkOperationResult> => {
+    // Build query string manually to avoid axios array serialization issues
+    const params = trackerIds.map(id => `tracker_ids=${id}`).join('&')
+    const response = await apiClient.post(
+      `${BASE_PATH}/milestones/${milestoneId}/trackers?${params}`
+    )
+    return response.data
+  },
+
+  /**
+   * Unlink trackers from a milestone (removes manual links only)
+   */
+  unlinkTrackers: async (milestoneId: number, trackerIds: number[]): Promise<BulkOperationResult> => {
+    // Build query string manually to avoid axios array serialization issues
+    const params = trackerIds.map(id => `tracker_ids=${id}`).join('&')
+    const response = await apiClient.delete(`${BASE_PATH}/milestones/${milestoneId}/trackers?${params}`)
+    return response.data
+  },
+
+  /**
+   * Get all tags available for milestone linking
+   */
+  getTagsForLinking: async (): Promise<MilestoneTrackerLinkingTag[]> => {
+    const response = await apiClient.get(`${BASE_PATH}/tags/for-linking`)
     return response.data
   }
 }

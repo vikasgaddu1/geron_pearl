@@ -10,11 +10,10 @@ import {
   Cell,
   CartesianGrid,
 } from 'recharts'
-import { format, parseISO, differenceInDays, startOfDay, addDays } from 'date-fns'
+import { format, parseISO, differenceInDays, startOfDay, addDays, min, max } from 'date-fns'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle2, Clock, AlertTriangle } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { CheckCircle2, Clock, AlertTriangle, Calendar } from 'lucide-react'
 import type { ReportingEffortMilestoneWithContext } from '@/types'
 
 interface MilestoneGanttProps {
@@ -29,8 +28,10 @@ interface GanttDataPoint {
   id: number
   name: string
   phaseName: string
-  dueDate: Date
-  dayOffset: number
+  startDate: Date | null
+  dueDate: Date | null
+  startOffset: number  // Days from chart start to milestone start
+  duration: number     // Duration in days (width of bar)
   responsibility: string
   isCompleted: boolean
   isOverdue: boolean
@@ -73,22 +74,30 @@ export function MilestoneGantt({
       return { chartData: [], dateRange: { min: today, max: addDays(today, 30) }, phaseColorMap: new Map() }
     }
 
-    // Parse dates and calculate range
+    // Parse dates - include both start_date and due_date
     const milestonesWithDates = milestones
-      .filter(m => m.due_date)
+      .filter(m => m.start_date || m.due_date)  // At least one date required
       .map(m => ({
         ...m,
-        parsedDate: startOfDay(parseISO(m.due_date!)),
+        parsedStartDate: m.start_date ? startOfDay(parseISO(m.start_date)) : null,
+        parsedDueDate: m.due_date ? startOfDay(parseISO(m.due_date)) : null,
       }))
-      .sort((a, b) => a.parsedDate.getTime() - b.parsedDate.getTime())
+      .sort((a, b) => {
+        // Sort by earliest date (start or due)
+        const aDate = a.parsedStartDate || a.parsedDueDate
+        const bDate = b.parsedStartDate || b.parsedDueDate
+        return (aDate?.getTime() || 0) - (bDate?.getTime() || 0)
+      })
 
     if (!milestonesWithDates.length) {
       return { chartData: [], dateRange: { min: today, max: addDays(today, 30) }, phaseColorMap: new Map() }
     }
 
-    const minDate = milestonesWithDates[0].parsedDate
-    const maxDate = milestonesWithDates[milestonesWithDates.length - 1].parsedDate
-    
+    // Calculate date range including all start and due dates
+    const allDates = milestonesWithDates.flatMap(m => [m.parsedStartDate, m.parsedDueDate].filter(Boolean) as Date[])
+    const minDate = min(allDates)
+    const maxDate = max(allDates)
+
     // Add padding to date range
     const paddedMin = addDays(minDate, -3)
     const paddedMax = addDays(maxDate, 3)
@@ -100,17 +109,28 @@ export function MilestoneGantt({
       colorMap.set(phase, PHASE_COLORS[idx % PHASE_COLORS.length])
     })
 
-    // Create chart data points
+    // Create chart data points with duration bars
     const data: GanttDataPoint[] = milestonesWithDates.map((m) => {
-      const dayOffset = differenceInDays(m.parsedDate, paddedMin)
-      const isOverdue = !m.is_completed && m.parsedDate < today
+      // Determine effective start and end dates
+      const effectiveStart = m.parsedStartDate || m.parsedDueDate!
+      const effectiveEnd = m.parsedDueDate || m.parsedStartDate!
+
+      // Calculate offset from chart start to milestone start
+      const startOffset = differenceInDays(effectiveStart, paddedMin)
+
+      // Calculate duration (minimum 1 day for visibility)
+      const duration = Math.max(1, differenceInDays(effectiveEnd, effectiveStart) + 1)
+
+      const isOverdue = !m.is_completed && effectiveEnd < today
 
       return {
         id: m.id,
         name: m.name,
         phaseName: m.phase_name || 'Unknown',
-        dueDate: m.parsedDate,
-        dayOffset,
+        startDate: m.parsedStartDate,
+        dueDate: m.parsedDueDate,
+        startOffset,
+        duration,
         responsibility: m.responsibility || 'Unassigned',
         isCompleted: m.is_completed,
         isOverdue,
@@ -147,10 +167,27 @@ export function MilestoneGantt({
       <div className="bg-popover border rounded-lg shadow-lg p-3 max-w-xs">
         <div className="font-semibold text-sm mb-1">{data.name}</div>
         <div className="text-xs text-muted-foreground space-y-1">
-          <div className="flex items-center gap-2">
-            <Clock className="h-3 w-3" />
-            <span>Due: {format(data.dueDate, 'MMM d, yyyy')}</span>
-          </div>
+          {data.startDate && data.dueDate ? (
+            <div className="flex items-center gap-2">
+              <Calendar className="h-3 w-3" />
+              <span>
+                {format(data.startDate, 'MMM d')} → {format(data.dueDate, 'MMM d, yyyy')}
+              </span>
+              <Badge variant="outline" className="text-xs ml-1">
+                {data.duration} day{data.duration !== 1 ? 's' : ''}
+              </Badge>
+            </div>
+          ) : data.dueDate ? (
+            <div className="flex items-center gap-2">
+              <Clock className="h-3 w-3" />
+              <span>Due: {format(data.dueDate, 'MMM d, yyyy')}</span>
+            </div>
+          ) : data.startDate ? (
+            <div className="flex items-center gap-2">
+              <Calendar className="h-3 w-3" />
+              <span>Start: {format(data.startDate, 'MMM d, yyyy')}</span>
+            </div>
+          ) : null}
           <div>Phase: {data.phaseName}</div>
           <div>Responsibility: {data.responsibility}</div>
           {data.studyLabel && <div>Study: {data.studyLabel}</div>}
@@ -180,6 +217,13 @@ export function MilestoneGantt({
     return format(date, 'MMM d')
   }
 
+  // Get bar color based on status and phase
+  const getBarColor = (entry: GanttDataPoint) => {
+    if (entry.isCompleted) return STATUS_COLORS.completed
+    if (entry.isOverdue) return STATUS_COLORS.overdue
+    return phaseColorMap.get(entry.phaseName) || '#6b7280'
+  }
+
   if (!chartData.length) {
     return (
       <Card className={className}>
@@ -188,7 +232,7 @@ export function MilestoneGantt({
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-32 text-muted-foreground">
-            No milestones with due dates to display
+            No milestones with dates to display
           </div>
         </CardContent>
       </Card>
@@ -260,7 +304,7 @@ export function MilestoneGantt({
               }
             />
             <Tooltip content={<CustomTooltip />} />
-            
+
             {/* Today line */}
             {todayOffset !== null && (
               <ReferenceLine
@@ -277,26 +321,28 @@ export function MilestoneGantt({
               />
             )}
 
-            {/* Milestone bars - using scatter-like approach with bar */}
-            <Bar dataKey="dayOffset" barSize={16} radius={[4, 4, 4, 4]}>
-              {chartData.map((entry, index) => {
-                let fillColor = phaseColorMap.get(entry.phaseName) || '#6b7280'
-                
-                // Override with status color
-                if (entry.isCompleted) {
-                  fillColor = STATUS_COLORS.completed
-                } else if (entry.isOverdue) {
-                  fillColor = STATUS_COLORS.overdue
-                }
+            {/* Invisible offset bar - pushes the visible bar to correct position */}
+            <Bar
+              dataKey="startOffset"
+              stackId="timeline"
+              fill="transparent"
+              barSize={20}
+            />
 
-                return (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={fillColor}
-                    opacity={entry.isCompleted ? 0.7 : 1}
-                  />
-                )
-              })}
+            {/* Visible duration bar */}
+            <Bar
+              dataKey="duration"
+              stackId="timeline"
+              barSize={20}
+              radius={[4, 4, 4, 4]}
+            >
+              {chartData.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={getBarColor(entry)}
+                  opacity={entry.isCompleted ? 0.7 : 1}
+                />
+              ))}
             </Bar>
           </ComposedChart>
         </ResponsiveContainer>
@@ -345,4 +391,3 @@ export function MilestoneGanttCompact({
     />
   )
 }
-
