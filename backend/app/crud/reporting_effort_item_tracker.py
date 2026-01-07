@@ -180,6 +180,14 @@ class ReportingEffortItemTrackerCRUD:
         else:
             update_data = obj_in.model_dump(exclude_unset=True) if hasattr(obj_in, 'model_dump') else obj_in.dict(exclude_unset=True)
         
+        # Check if production_status is changing to 'completed' for auto-recording
+        old_status = db_obj.production_status
+        new_status = update_data.get('production_status')
+        should_record_completion = (
+            new_status == 'completed' and 
+            old_status != 'completed'
+        )
+        
         for field, value in update_data.items():
             setattr(db_obj, field, value)
         
@@ -189,7 +197,100 @@ class ReportingEffortItemTrackerCRUD:
         db.add(db_obj)
         await db.commit()
         await db.refresh(db_obj)
+        
+        # Auto-record completion if status changed to 'completed'
+        if should_record_completion:
+            await self._record_completion(db, tracker=db_obj)
+        
         return db_obj
+    
+    async def _record_completion(
+        self,
+        db: AsyncSession,
+        *,
+        tracker: ReportingEffortItemTracker
+    ) -> None:
+        """
+        Record a completion event when tracker status becomes 'completed'.
+        
+        This captures a snapshot of the item and programmer context for velocity calculations.
+        """
+        from app.crud.item_completion_record import item_completion_record
+        from app.models.reporting_effort_item import ReportingEffortItem
+        from app.models.reporting_effort import ReportingEffort
+        from app.models.study_team_assignment import StudyTeamAssignment
+        
+        # Check if completion already recorded (prevent duplicates)
+        already_recorded = await item_completion_record.check_completion_exists(
+            db, tracker_id=tracker.id
+        )
+        if already_recorded:
+            return
+        
+        # Get item details
+        item_result = await db.execute(
+            select(ReportingEffortItem)
+            .where(ReportingEffortItem.id == tracker.reporting_effort_item_id)
+        )
+        item = item_result.scalar_one_or_none()
+        if not item:
+            return
+        
+        # Get study_id from reporting effort
+        effort_result = await db.execute(
+            select(ReportingEffort)
+            .where(ReportingEffort.id == item.reporting_effort_id)
+        )
+        effort = effort_result.scalar_one_or_none()
+        if not effort:
+            return
+        
+        study_id = effort.study_id
+        
+        # Get programmer allocation details if available
+        programmer_experience = None
+        programmer_allocation = None
+        
+        if tracker.production_programmer_id:
+            assignment_result = await db.execute(
+                select(StudyTeamAssignment)
+                .where(
+                    and_(
+                        StudyTeamAssignment.user_id == tracker.production_programmer_id,
+                        StudyTeamAssignment.study_id == study_id,
+                        StudyTeamAssignment.is_active == True
+                    )
+                )
+            )
+            assignment = assignment_result.scalar_one_or_none()
+            if assignment:
+                programmer_experience = assignment.experience_level
+                programmer_allocation = assignment.allocation_percentage
+        
+        # Check for sister study
+        from app.models.study_sister_relation import StudySisterRelation
+        sister_result = await db.execute(
+            select(StudySisterRelation)
+            .where(StudySisterRelation.primary_study_id == study_id)
+            .limit(1)
+        )
+        sister_relation = sister_result.scalar_one_or_none()
+        
+        # Record the completion
+        await item_completion_record.record_completion(
+            db,
+            tracker_id=tracker.id,
+            study_id=study_id,
+            item_type=item.item_type.value if hasattr(item.item_type, 'value') else str(item.item_type),
+            item_subtype=item.item_subtype,
+            item_code=item.item_code,
+            complexity=tracker.complexity,
+            production_programmer_id=tracker.production_programmer_id,
+            programmer_experience_level=programmer_experience,
+            programmer_allocation_percent=programmer_allocation,
+            had_sister_study=sister_relation is not None,
+            sister_study_id=sister_relation.sister_study_id if sister_relation else None
+        )
     
     async def bulk_update(
         self,
