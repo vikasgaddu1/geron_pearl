@@ -18,6 +18,7 @@ from app.crud.reporting_effort_milestone import reporting_effort_milestone
 from app.crud.milestone_tracker_assignment import milestone_tracker_assignment
 from app.crud.ig_version import ig_version
 from app.crud.user_study_role import user_study_role
+from app.crud.study_team_assignment import study_team_assignment
 
 __all__ = [
     "study", 
@@ -38,5 +39,6 @@ __all__ = [
     "reporting_effort_milestone",
     "milestone_tracker_assignment",
     "ig_version",
-    "user_study_role"
+    "user_study_role",
+    "study_team_assignment"
 ]

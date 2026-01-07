@@ -28,6 +28,7 @@ from app.models.milestone_tracker_assignment import MilestoneTrackerAssignment
 from app.models.ig_version import IGVersion, StandardType
 from app.models.user_study_role import UserStudyRole, StudyRole
 from app.models.reporting_effort_usecase import ReportingEffortUseCase, ReportingEffortUseCaseAssignment
+from app.models.study_team_assignment import StudyTeamAssignment, JobType, ExperienceLevel, DepartureReason, EXPERIENCE_MULTIPLIERS
 
 __all__ = [
     "Study", 
@@ -68,5 +69,10 @@ __all__ = [
     "UserStudyRole",
     "StudyRole",
     "ReportingEffortUseCase",
-    "ReportingEffortUseCaseAssignment"
+    "ReportingEffortUseCaseAssignment",
+    "StudyTeamAssignment",
+    "JobType",
+    "ExperienceLevel",
+    "DepartureReason",
+    "EXPERIENCE_MULTIPLIERS"
 ]

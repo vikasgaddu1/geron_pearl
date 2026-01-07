@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PEARL (Pharmaceutical Execution And Reporting Landscape) is a **full-stack research data management system** with real-time WebSocket updates:
+PEARL (Package, Effort and Analysis Reporting Library) is a **full-stack research data management system** with real-time WebSocket updates:
 - **Backend**: FastAPI + async PostgreSQL + WebSocket broadcasting
 - **Frontend**: React 18 + TypeScript + Tailwind CSS + shadcn/ui
 - **Real-time**: Live data synchronization across multiple users and browsers
@@ -142,12 +142,16 @@ User (admin, analyst, viewer roles) | AuditLog (change tracking)
 - **Real-time Updates**: WebSocket manager with auto-reconnect
 
 ### Database Migrations
+**⚠️ MANDATORY**: Always use Alembic migrations when adding or deleting columns in existing tables. This ensures Railway deployment automatically picks up schema changes.
+
 ```bash
-# After modifying models
+# After modifying models (adding/removing columns)
 uv run alembic revision --autogenerate -m "Description"
 uv run alembic upgrade head
 uv run python tests/validator/run_model_validation.py
 ```
+
+**Never** modify model columns without creating a migration - the deployed database won't update otherwise.
 
 ## Adding a New Entity
 
