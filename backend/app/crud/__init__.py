@@ -20,6 +20,7 @@ from app.crud.ig_version import ig_version
 from app.crud.user_study_role import user_study_role
 from app.crud.study_team_assignment import study_team_assignment
 from app.crud.item_completion_record import item_completion_record
+from app.crud.study_sister_relation import study_sister_relation
 
 __all__ = [
     "study", 
@@ -42,5 +43,6 @@ __all__ = [
     "ig_version",
     "user_study_role",
     "study_team_assignment",
-    "item_completion_record"
+    "item_completion_record",
+    "study_sister_relation"
 ]

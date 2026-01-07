@@ -30,6 +30,7 @@ from app.models.user_study_role import UserStudyRole, StudyRole
 from app.models.reporting_effort_usecase import ReportingEffortUseCase, ReportingEffortUseCaseAssignment
 from app.models.study_team_assignment import StudyTeamAssignment, JobType, ExperienceLevel, DepartureReason, EXPERIENCE_MULTIPLIERS
 from app.models.item_completion_record import ItemCompletionRecord
+from app.models.study_sister_relation import StudySisterRelation, CODE_ADAPTATION_FACTOR
 
 __all__ = [
     "Study", 
@@ -76,5 +77,7 @@ __all__ = [
     "ExperienceLevel",
     "DepartureReason",
     "EXPERIENCE_MULTIPLIERS",
-    "ItemCompletionRecord"
+    "ItemCompletionRecord",
+    "StudySisterRelation",
+    "CODE_ADAPTATION_FACTOR"
 ]
