@@ -2,7 +2,7 @@
  * Team Assignment API endpoints
  */
 
-import api from '../api'
+import { apiClient } from '../client'
 import type {
   StudyTeamAssignment,
   StudyTeamResponse,
@@ -12,13 +12,13 @@ import type {
   AllocationHistoryResponse,
 } from '@/types/teamAssignment'
 
-const BASE_URL = '/team-assignments'
+const BASE_URL = '/api/v1/team-assignments'
 
 /**
  * Get team members for a study
  */
 export const getStudyTeam = async (studyId: number): Promise<StudyTeamResponse> => {
-  const response = await api.get<StudyTeamResponse>(`${BASE_URL}/study/${studyId}`)
+  const response = await apiClient.get<StudyTeamResponse>(`${BASE_URL}/study/${studyId}`)
   return response.data
 }
 
@@ -29,7 +29,7 @@ export const addTeamMember = async (
   studyId: number,
   data: CreateTeamAssignmentRequest
 ): Promise<StudyTeamAssignment> => {
-  const response = await api.post<StudyTeamAssignment>(`${BASE_URL}/study/${studyId}`, data)
+  const response = await apiClient.post<StudyTeamAssignment>(`${BASE_URL}/study/${studyId}`, data)
   return response.data
 }
 
@@ -40,7 +40,7 @@ export const changeAllocation = async (
   assignmentId: number,
   data: ChangeAllocationRequest
 ): Promise<StudyTeamAssignment> => {
-  const response = await api.post<StudyTeamAssignment>(
+  const response = await apiClient.post<StudyTeamAssignment>(
     `${BASE_URL}/${assignmentId}/change-allocation`,
     data
   )
@@ -54,7 +54,7 @@ export const endAssignment = async (
   assignmentId: number,
   data: EndAssignmentRequest
 ): Promise<StudyTeamAssignment> => {
-  const response = await api.post<StudyTeamAssignment>(
+  const response = await apiClient.post<StudyTeamAssignment>(
     `${BASE_URL}/${assignmentId}/end`,
     data
   )
@@ -68,7 +68,7 @@ export const getAllocationHistory = async (
   userId: number,
   studyId: number
 ): Promise<AllocationHistoryResponse> => {
-  const response = await api.get<AllocationHistoryResponse>(
+  const response = await apiClient.get<AllocationHistoryResponse>(
     `${BASE_URL}/history/${userId}/${studyId}`
   )
   return response.data
@@ -78,7 +78,7 @@ export const getAllocationHistory = async (
  * Get a single assignment
  */
 export const getAssignment = async (assignmentId: number): Promise<StudyTeamAssignment> => {
-  const response = await api.get<StudyTeamAssignment>(`${BASE_URL}/${assignmentId}`)
+  const response = await apiClient.get<StudyTeamAssignment>(`${BASE_URL}/${assignmentId}`)
   return response.data
 }
 
@@ -86,14 +86,14 @@ export const getAssignment = async (assignmentId: number): Promise<StudyTeamAssi
  * Delete an assignment
  */
 export const deleteAssignment = async (assignmentId: number): Promise<void> => {
-  await api.delete(`${BASE_URL}/${assignmentId}`)
+  await apiClient.delete(`${BASE_URL}/${assignmentId}`)
 }
 
 /**
  * Get orphaned items warnings
  */
 export const getOrphanedItemsWarnings = async (studyId?: number) => {
-  const response = await api.get(`${BASE_URL}/warnings/orphaned-items`, {
+  const response = await apiClient.get(`${BASE_URL}/warnings/orphaned-items`, {
     params: { study_id: studyId },
   })
   return response.data
@@ -103,7 +103,7 @@ export const getOrphanedItemsWarnings = async (studyId?: number) => {
  * Get over-allocated users warnings
  */
 export const getOverAllocatedUsers = async () => {
-  const response = await api.get(`${BASE_URL}/warnings/over-allocated`)
+  const response = await apiClient.get(`${BASE_URL}/warnings/over-allocated`)
   return response.data
 }
 

@@ -2,7 +2,7 @@
  * Analytics API endpoints for Director Dashboard
  */
 
-import api from '../api'
+import { apiClient } from '../client'
 import type {
   PortfolioHealthResponse,
   StudyVelocityResponse,
@@ -14,13 +14,13 @@ import type {
   MilestoneEstimateResponse,
 } from '../../types/analytics'
 
-const BASE_URL = '/analytics'
+const BASE_URL = '/api/v1/analytics'
 
 /**
  * Get portfolio health status for all studies
  */
 export const getPortfolioHealth = async (): Promise<PortfolioHealthResponse> => {
-  const response = await api.get<PortfolioHealthResponse>(`${BASE_URL}/portfolio-health`)
+  const response = await apiClient.get<PortfolioHealthResponse>(`${BASE_URL}/portfolio-health`)
   return response.data
 }
 
@@ -31,7 +31,7 @@ export const getStudyVelocity = async (
   studyId: number,
   weeks = 12
 ): Promise<StudyVelocityResponse> => {
-  const response = await api.get<StudyVelocityResponse>(
+  const response = await apiClient.get<StudyVelocityResponse>(
     `${BASE_URL}/velocity/study/${studyId}`,
     { params: { weeks } }
   )
@@ -46,7 +46,7 @@ export const getUserVelocity = async (
   studyId?: number,
   weeks = 8
 ) => {
-  const response = await api.get(`${BASE_URL}/velocity/user/${userId}`, {
+  const response = await apiClient.get(`${BASE_URL}/velocity/user/${userId}`, {
     params: { study_id: studyId, weeks },
   })
   return response.data
@@ -56,7 +56,7 @@ export const getUserVelocity = async (
  * Get team utilization across all studies
  */
 export const getTeamUtilization = async (): Promise<TeamUtilizationResponse> => {
-  const response = await api.get<TeamUtilizationResponse>(`${BASE_URL}/team-utilization`)
+  const response = await apiClient.get<TeamUtilizationResponse>(`${BASE_URL}/team-utilization`)
   return response.data
 }
 
@@ -66,7 +66,7 @@ export const getTeamUtilization = async (): Promise<TeamUtilizationResponse> => 
 export const getDashboardWarnings = async (
   studyId?: number
 ): Promise<DashboardWarnings> => {
-  const response = await api.get<DashboardWarnings>(`${BASE_URL}/warnings`, {
+  const response = await apiClient.get<DashboardWarnings>(`${BASE_URL}/warnings`, {
     params: { study_id: studyId },
   })
   return response.data
@@ -76,7 +76,7 @@ export const getDashboardWarnings = async (
  * Get team capacity for a study
  */
 export const getTeamCapacity = async (studyId: number): Promise<TeamCapacityResponse> => {
-  const response = await api.get<TeamCapacityResponse>(`${BASE_URL}/capacity/study/${studyId}`)
+  const response = await apiClient.get<TeamCapacityResponse>(`${BASE_URL}/capacity/study/${studyId}`)
   return response.data
 }
 
@@ -86,7 +86,7 @@ export const getTeamCapacity = async (studyId: number): Promise<TeamCapacityResp
 export const getCapacityForecast = async (
   weeks = 8
 ): Promise<CapacityForecastResponse> => {
-  const response = await api.get<CapacityForecastResponse>(`${BASE_URL}/capacity-forecast`, {
+  const response = await apiClient.get<CapacityForecastResponse>(`${BASE_URL}/capacity-forecast`, {
     params: { weeks },
   })
   return response.data
@@ -99,7 +99,7 @@ export const getQCMetrics = async (
   studyId?: number,
   days = 30
 ): Promise<QCMetricsResponse> => {
-  const response = await api.get<QCMetricsResponse>(`${BASE_URL}/qc-metrics`, {
+  const response = await apiClient.get<QCMetricsResponse>(`${BASE_URL}/qc-metrics`, {
     params: { study_id: studyId, days },
   })
   return response.data
@@ -111,7 +111,7 @@ export const getQCMetrics = async (
 export const getMilestoneEstimate = async (
   milestoneId: number
 ): Promise<MilestoneEstimateResponse> => {
-  const response = await api.get<MilestoneEstimateResponse>(
+  const response = await apiClient.get<MilestoneEstimateResponse>(
     `${BASE_URL}/milestone/${milestoneId}/estimate`
   )
   return response.data
