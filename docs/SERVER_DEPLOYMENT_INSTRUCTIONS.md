@@ -15,124 +15,110 @@ Your server needs:
 
 ---
 
-## Quick Start (5-Minute Deploy)
+## 🚀 Step-by-Step Deployment (Copy & Paste)
 
-### Step 1: Clone the Repository
+### Step 1: Install Docker (if not installed)
 
 ```bash
-# SSH into your server, then:
+# Check if Docker is installed
+docker --version
+docker compose version
+
+# If NOT installed, run these:
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+
+# IMPORTANT: Log out and log back in after this, then continue
+```
+
+### Step 2: Clone the Repository
+
+```bash
 cd ~
-git clone https://github.com/YOUR_USERNAME/PEARL.git
+git clone https://github.com/vikasgaddu1/geron_pearl.git PEARL
 cd PEARL
+git checkout feature/throughput-estimation-system
 ```
 
-### Step 2: Create Environment File
+### Step 3: Generate Secure Secrets
 
+Run this command twice and save both outputs:
 ```bash
-# Create .env file with secure secrets
-cat > .env << 'EOF'
-# Database password - CHANGE THIS!
-DB_PASSWORD=your_secure_db_password_$(openssl rand -hex 8)
-
-# JWT secrets - CHANGE THESE!
-JWT_SECRET=$(openssl rand -hex 32)
-JWT_REFRESH_SECRET=$(openssl rand -hex 32)
-
-# CORS - Update with your server IP or domain
-ALLOWED_ORIGINS=["http://localhost","http://YOUR_SERVER_IP"]
-EOF
-
-# Or manually create and edit:
-nano .env
-```
-
-**⚠️ Generate secure secrets:**
-```bash
-# Generate random passwords/secrets:
 openssl rand -hex 32
 ```
 
-### Step 3: Start PEARL
+### Step 4: Create Environment File
 
 ```bash
-# Build and start all services
-docker compose up -d --build
-
-# Wait for services to be ready (about 30-60 seconds)
-docker compose ps
+nano .env
 ```
 
-### Step 4: Access the Application
+Paste this content (replace the placeholder values with your generated secrets):
 
+```env
+DB_PASSWORD=PearlSecure2026!
+JWT_SECRET=PASTE_FIRST_OPENSSL_OUTPUT_HERE
+JWT_REFRESH_SECRET=PASTE_SECOND_OPENSSL_OUTPUT_HERE
+ALLOWED_ORIGINS=["http://localhost","http://YOUR_SERVER_IP"]
+```
+
+Save and exit: `Ctrl+O`, `Enter`, `Ctrl+X`
+
+### Step 5: Build and Start
+
+```bash
+docker compose up -d --build
+```
+
+⏱️ **First run takes 2-5 minutes** as it downloads and builds images.
+
+### Step 6: Monitor Startup
+
+```bash
+# Watch the logs (Ctrl+C to exit)
+docker compose logs -f
+```
+
+Wait until you see:
+```
+pearl-backend  | Uvicorn running on http://0.0.0.0:8000
+```
+
+### Step 7: Verify It's Working
+
+```bash
+# Check all containers are running
+docker compose ps
+
+# Test health endpoint
+curl http://localhost/health
+```
+
+### Step 8: Access the Application
+
+Open in your browser:
 - **Web App**: `http://YOUR_SERVER_IP/`
 - **API Docs**: `http://YOUR_SERVER_IP/api/docs`
 - **Health Check**: `http://YOUR_SERVER_IP/health`
 
 ---
 
-## Detailed Setup Instructions
+## ✅ Quick Verification Commands
 
-### Installing Docker (if not installed)
-
-#### Ubuntu/Debian:
 ```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
+# All containers should show "Up" status
+docker compose ps
 
-# Install Docker
-curl -fsSL https://get.docker.com | sh
+# Should return {"status":"healthy"}
+curl http://localhost/health
 
-# Add current user to docker group
-sudo usermod -aG docker $USER
-
-# Log out and back in, then verify:
-docker --version
-docker compose version
-```
-
-#### CentOS/RHEL:
-```bash
-sudo yum install -y docker
-sudo systemctl start docker
-sudo systemctl enable docker
-sudo usermod -aG docker $USER
-```
-
-### Environment Variables Reference
-
-Create a `.env` file in the project root with these variables:
-
-```env
-# ===========================================
-# DATABASE CONFIGURATION
-# ===========================================
-DB_PASSWORD=your_secure_database_password_here
-
-# ===========================================
-# SECURITY / JWT CONFIGURATION
-# ===========================================
-# Secret key for signing JWT access tokens
-JWT_SECRET=your_super_secure_jwt_secret_key_here
-
-# Secret key for signing JWT refresh tokens
-JWT_REFRESH_SECRET=your_super_secure_refresh_secret_here
-
-# ===========================================
-# CORS CONFIGURATION
-# ===========================================
-# Allowed origins for CORS (JSON array format)
-ALLOWED_ORIGINS=["http://localhost","http://localhost:80","http://your-server-ip"]
-
-# ===========================================
-# FRONTEND CONFIGURATION (optional)
-# ===========================================
-# Leave empty for relative URLs (default)
-VITE_API_BASE_URL=
+# Should return API documentation HTML
+curl http://localhost/api/docs
 ```
 
 ---
 
-## Managing the Application
+## 📋 Managing the Application
 
 ### View Status
 ```bash
@@ -169,19 +155,19 @@ docker compose restart backend
 cd ~/PEARL
 
 # Pull latest code
-git pull origin main
+git pull
 
 # Rebuild and restart
 docker compose down
 docker compose up -d --build
 
-# Run database migrations (if needed)
+# Run database migrations (if schema changed)
 docker compose exec backend alembic upgrade head
 ```
 
 ---
 
-## Database Management
+## 🗄️ Database Management
 
 ### Run Migrations
 ```bash
@@ -205,7 +191,7 @@ cat backup_file.sql | docker compose exec -T db psql -U pearl -d pearl
 
 ---
 
-## Troubleshooting
+## 🔧 Troubleshooting
 
 ### Container Won't Start
 ```bash
@@ -230,9 +216,13 @@ docker compose exec db psql -U pearl -d pearl -c "SELECT 1;"
 ```
 
 ### Frontend Can't Reach Backend
-- Ensure both containers are on same network: `docker network ls`
-- Check nginx logs: `docker compose logs frontend`
-- Verify nginx config is correct
+```bash
+# Ensure both containers are on same network
+docker network ls
+
+# Check nginx logs
+docker compose logs frontend
+```
 
 ### Permission Issues
 ```bash
@@ -251,9 +241,16 @@ df -h
 docker system df
 ```
 
+### Nuclear Reset (Start Fresh)
+```bash
+docker compose down -v
+docker system prune -a
+docker compose up -d --build
+```
+
 ---
 
-## Security Recommendations
+## 🔐 Security Recommendations
 
 ### 1. Use Strong Secrets
 Generate secure random strings for all secrets:
@@ -270,9 +267,7 @@ sudo ufw allow 443/tcp   # HTTPS (if using SSL)
 sudo ufw enable
 ```
 
-### 3. Set Up HTTPS (Recommended)
-For production, add an SSL certificate using Let's Encrypt:
-
+### 3. Set Up HTTPS (Recommended for Production)
 ```bash
 # Install certbot
 sudo apt install certbot
@@ -283,27 +278,9 @@ sudo certbot certonly --standalone -d yourdomain.com
 # Then update nginx config to use SSL
 ```
 
-### 4. Regular Updates
-```bash
-# Keep Docker images updated
-docker compose pull
-docker compose up -d
-```
-
 ---
 
-## Production Checklist
-
-- [ ] Strong passwords set in `.env`
-- [ ] Firewall configured
-- [ ] HTTPS enabled (for production)
-- [ ] Regular backups scheduled
-- [ ] Monitoring set up
-- [ ] Log rotation configured
-
----
-
-## Architecture Overview
+## 🏗️ Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -319,53 +296,73 @@ docker compose up -d
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-- **Frontend (nginx)**: Serves React app, proxies API/WebSocket requests
-- **Backend (FastAPI)**: REST API + WebSocket server
-- **PostgreSQL**: Persistent data storage
+| Service | Technology | Port | Purpose |
+|---------|------------|------|---------|
+| Frontend | nginx + React | 80 | Serves web app, proxies API calls |
+| Backend | FastAPI | 8000 (internal) | REST API + WebSocket server |
+| Database | PostgreSQL | 5432 (internal) | Data persistence |
 
 ---
 
-## Useful Commands Quick Reference
+## 📝 Environment Variables Reference
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DB_PASSWORD` | PostgreSQL password | `MySecure123!` |
+| `JWT_SECRET` | Access token signing key | `(openssl rand -hex 32)` |
+| `JWT_REFRESH_SECRET` | Refresh token signing key | `(openssl rand -hex 32)` |
+| `ALLOWED_ORIGINS` | CORS allowed origins (JSON array) | `["http://localhost"]` |
+
+---
+
+## 🔄 Quick Reference Card
 
 ```bash
-# Start
-docker compose up -d --build
+# ===== STARTUP =====
+docker compose up -d --build      # Build and start
+docker compose ps                  # Check status
+docker compose logs -f             # Watch logs
 
-# Stop
-docker compose down
+# ===== SHUTDOWN =====
+docker compose down                # Stop all
+docker compose down -v             # Stop and delete data
 
-# Logs
-docker compose logs -f
+# ===== MAINTENANCE =====
+docker compose restart             # Restart all
+docker compose exec backend bash   # Shell into backend
+docker compose exec db psql -U pearl -d pearl  # Database shell
 
-# Status
-docker compose ps
+# ===== UPDATES =====
+git pull                           # Get latest code
+docker compose up -d --build       # Rebuild
+docker compose exec backend alembic upgrade head  # Migrate
 
-# Update
-git pull && docker compose up -d --build
-
-# Migrate
-docker compose exec backend alembic upgrade head
-
-# Shell into backend
-docker compose exec backend bash
-
-# Database shell
-docker compose exec db psql -U pearl -d pearl
-
-# Backup
+# ===== BACKUP =====
 docker compose exec db pg_dump -U pearl pearl > backup.sql
 
-# Clean up
-docker system prune -a
+# ===== CLEANUP =====
+docker system prune -a             # Remove unused images/containers
 ```
 
 ---
 
-## Support
+## ✅ Production Checklist
+
+- [ ] Strong passwords set in `.env`
+- [ ] Firewall configured (ports 22, 80, 443)
+- [ ] HTTPS enabled (for production)
+- [ ] Regular backups scheduled
+- [ ] Server IP added to `ALLOWED_ORIGINS`
+- [ ] Tested login functionality
+- [ ] Tested WebSocket (real-time updates)
+
+---
+
+## 🆘 Getting Help
 
 If you encounter issues:
 1. Check the logs: `docker compose logs -f`
-2. Verify all environment variables are set
+2. Verify all environment variables are set correctly
 3. Ensure Docker and Docker Compose are up to date
-4. Check GitHub Issues for known problems
-
+4. Restart services: `docker compose restart`
+5. Nuclear option: `docker compose down -v && docker compose up -d --build`
