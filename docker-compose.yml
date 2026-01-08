@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: pearl-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pearl
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-pearl_secret_password}
+      POSTGRES_DB: pearl
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pearl -d pearl"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pearl-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pearl-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pearl:${DB_PASSWORD:-pearl_secret_password}@db:5432/pearl
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-please}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh-secret}
+      ENV: production
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-["http://localhost","http://localhost:80"]}
+    ports:
+      - "8000:8000"
+    networks:
+      - pearl-network
+
+  frontend:
+    build:
+      context: ./react-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+    container_name: pearl-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      BACKEND_URL: http://backend:8000
+    ports:
+      - "80:80"
+    networks:
+      - pearl-network
+
+volumes:
+  postgres_data:
+
+networks:
+  pearl-network:
+    driver: bridge
