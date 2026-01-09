@@ -1,12 +1,25 @@
+import { useEffect, useRef } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Navbar } from './Navbar'
 import { Sidebar } from './Sidebar'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { useAuth } from '@/hooks/useAuth'
 
 export function AppShell() {
   // Initialize WebSocket connection
   useWebSocket()
+  
+  const { isAuthenticated, fetchStudyRoles } = useAuth()
+  const hasFetchedRef = useRef(false)
+  
+  // Fetch study roles once on mount to ensure fresh data after page refresh
+  useEffect(() => {
+    if (isAuthenticated && !hasFetchedRef.current) {
+      hasFetchedRef.current = true
+      fetchStudyRoles()
+    }
+  }, [isAuthenticated]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <TooltipProvider>

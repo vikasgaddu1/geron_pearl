@@ -1,5 +1,5 @@
 import { apiClient } from '../client'
-import type { User } from '@/types'
+import type { User, MyStudyRolesResponse } from '@/types'
 
 const BASE_PATH = '/api/v1/auth'
 
@@ -135,6 +135,15 @@ export const authApi = {
    */
   loginWithOAuth: (provider: 'google' | 'microsoft' | 'github'): void => {
     window.location.href = `${import.meta.env.VITE_API_BASE_URL || ''}${BASE_PATH}/login/${provider}`
+  },
+
+  /**
+   * Get current user's study roles
+   * Returns is_admin flag and list of study IDs where user has LEAD role
+   */
+  getMyStudyRoles: async (): Promise<MyStudyRolesResponse> => {
+    const response = await apiClient.get(`${BASE_PATH}/me/study-roles`)
+    return response.data
   },
 }
 

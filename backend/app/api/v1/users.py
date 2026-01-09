@@ -6,6 +6,8 @@ from sqlalchemy.exc import IntegrityError
 from app import crud, schemas
 from app.db.session import get_db
 from app.api.v1.websocket import broadcast_user_created, broadcast_user_updated, broadcast_user_deleted
+from app.core.security import require_admin
+from app.models.user import User as UserModel
 
 router = APIRouter()
 
@@ -15,6 +17,7 @@ async def create_user(
     *,
     db: AsyncSession = Depends(get_db),
     user_in: schemas.UserCreate,
+    current_user: UserModel = Depends(require_admin()),
 ) -> Any:
     """
     Create new user with email and password.
@@ -47,6 +50,7 @@ async def read_users(
     db: AsyncSession = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
+    current_user: UserModel = Depends(require_admin()),
 ) -> Any:
     """
     Retrieve users.
@@ -60,6 +64,7 @@ async def read_user(
     *,
     db: AsyncSession = Depends(get_db),
     id: int,
+    current_user: UserModel = Depends(require_admin()),
 ) -> Any:
     """
     Get user by ID.
@@ -79,6 +84,7 @@ async def update_user(
     db: AsyncSession = Depends(get_db),
     id: int,
     user_in: schemas.UserUpdate,
+    current_user: UserModel = Depends(require_admin()),
 ) -> Any:
     """
     Update a user.
@@ -120,6 +126,7 @@ async def delete_user(
     *,
     db: AsyncSession = Depends(get_db),
     id: int,
+    current_user: UserModel = Depends(require_admin()),
 ) -> Any:
     """
     Delete a user.

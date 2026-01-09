@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ClipboardCheck, RefreshCw, Users, CheckCircle, MessageSquare, Edit, Trash2, Send, X, Tag, Plus, Reply, LayoutList, Kanban, UserCheck, Calendar, Factory, AlertTriangle, Target } from 'lucide-react'
+import { ClipboardCheck, RefreshCw, Users, CheckCircle, MessageSquare, Edit, Trash2, Send, X, Tag, Plus, Reply, LayoutList, Kanban, UserCheck, Calendar, Factory, AlertTriangle, Target, CheckSquare } from 'lucide-react'
 import { toast } from 'sonner'
 import { reportingEffortsApi, trackerApi, trackerCommentsApi, trackerTagsApi, usersApi, studiesApi, databaseReleasesApi, useDefaultDueDateOffset, phasesApi, milestonesApi } from '@/api'
 import { useReportingSelectionStore } from '@/stores/reportingSelectionStore'
@@ -247,6 +247,9 @@ export function TrackerManagement() {
   const canBulkAssign = currentUser?.is_admin || studyPermissions?.can_bulk_assign === true
   const canBulkStatusUpdate = currentUser?.is_admin || studyPermissions?.can_bulk_status_update === true
   const canDeleteTrackers = currentUser?.is_admin || studyPermissions?.can_delete_items === true
+  
+  // Check if current user is a Study LEAD (for individual tracker operations)
+  const isStudyLead = studyPermissions?.role === 'LEAD'
 
   // WebSocket refresh
   const refetch = useCallback(() => {
@@ -254,7 +257,7 @@ export function TrackerManagement() {
     queryClient.invalidateQueries({ queryKey: ['tracker-tags'] })
   }, [queryClient, selectedEffortId])
 
-  useWebSocketRefresh(['reporting_effort_tracker', 'comment', 'tracker_tag'], refetch)
+  useWebSocketRefresh(['reporting_effort_tracker', 'reporting_effort_item', 'comment', 'tracker_tag'], refetch)
 
   // Handle URL query parameters for deep linking from dashboard
   useEffect(() => {
@@ -656,14 +659,15 @@ export function TrackerManagement() {
     const isAdmin = currentUser?.is_admin
     const isProductionProgrammer = currentUser && selectedTracker.production_programmer_id === currentUser.id
     const isQCProgrammer = currentUser && selectedTracker.qc_programmer_id === currentUser.id
-    const canEditProduction = isAdmin || isProductionProgrammer
-    const canEditQC = isAdmin || isQCProgrammer
+    // Study LEAD has full edit access like admin
+    const canEditProduction = isAdmin || isStudyLead || isProductionProgrammer
+    const canEditQC = isAdmin || isStudyLead || isQCProgrammer
     
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updateData: any = {}
     
-    // Admin can change everything
-    if (isAdmin) {
+    // Admin or Study LEAD can change everything
+    if (isAdmin || isStudyLead) {
       updateData.production_programmer_id = editFormData.production_programmer_id ? Number(editFormData.production_programmer_id) : null
       updateData.qc_programmer_id = editFormData.qc_programmer_id ? Number(editFormData.qc_programmer_id) : null
       updateData.production_status = editFormData.production_status
@@ -671,7 +675,7 @@ export function TrackerManagement() {
       updateData.priority = editFormData.priority
       updateData.due_date = editFormData.due_date || null
     } else {
-      // Non-admin: only send fields they have permission to change
+      // Non-admin/non-lead: only send fields they have permission to change
       if (canEditProduction) {
         updateData.production_status = editFormData.production_status
         updateData.priority = editFormData.priority
@@ -688,8 +692,8 @@ export function TrackerManagement() {
       data: updateData,
     })
 
-    // Update milestones if changed (admin or production programmer can update)
-    if (isAdmin || canEditProduction) {
+    // Update milestones if changed (admin, study lead, or production programmer can update)
+    if (isAdmin || isStudyLead || canEditProduction) {
       const currentMilestoneIds = new Set(trackerMilestoneIds)
       const newMilestoneIds = new Set(editFormData.milestone_ids)
 
@@ -1128,7 +1132,7 @@ export function TrackerManagement() {
                 Tracker Management
               </CardTitle>
               <CardDescription>
-                Manage programmer assignments, status tracking, and tags
+                Manage programmer assignments, status tracking, and tags. Use checkboxes to select items for bulk updates.
               </CardDescription>
             </div>
             <HelpIcon
@@ -1484,11 +1488,11 @@ export function TrackerManagement() {
                     trackers={filteredTrackers} 
                     statusField="production"
                     onCardClick={(tracker) => {
-                      // Permission check: Only production programmer or admin can interact in Prod Kanban
+                      // Permission check: Only production programmer, admin, or study lead can interact in Prod Kanban
                       const isAdmin = currentUser?.is_admin
                       const isProductionProgrammer = currentUser && tracker.production_programmer_id === currentUser.id
-                      if (!isAdmin && !isProductionProgrammer) {
-                        toast.error('Only the assigned production programmer can view/edit this task in Production Kanban')
+                      if (!isAdmin && !isStudyLead && !isProductionProgrammer) {
+                        toast.error('Only the assigned production programmer or study lead can view/edit this task in Production Kanban')
                         return
                       }
                       setSelectedTracker(tracker)
@@ -1500,11 +1504,11 @@ export function TrackerManagement() {
                       const tracker = trackers.find(t => t.id === trackerId)
                       if (!tracker) return
                       
-                      // Permission check: Only production programmer or admin can change production status
+                      // Permission check: Only production programmer, admin, or study lead can change production status
                       const isAdmin = currentUser?.is_admin
                       const isProductionProgrammer = currentUser && tracker.production_programmer_id === currentUser.id
-                      if (!isAdmin && !isProductionProgrammer) {
-                        toast.error('Only the assigned production programmer can change production status')
+                      if (!isAdmin && !isStudyLead && !isProductionProgrammer) {
+                        toast.error('Only the assigned production programmer or study lead can change production status')
                         return
                       }
                       
@@ -1538,11 +1542,11 @@ export function TrackerManagement() {
                     trackers={filteredTrackers} 
                     statusField="qc"
                     onCardClick={(tracker) => {
-                      // Permission check: Only QC programmer or admin can interact in QC Kanban
+                      // Permission check: Only QC programmer, admin, or study lead can interact in QC Kanban
                       const isAdmin = currentUser?.is_admin
                       const isQCProgrammer = currentUser && tracker.qc_programmer_id === currentUser.id
-                      if (!isAdmin && !isQCProgrammer) {
-                        toast.error('Only the assigned QC programmer can view/edit this task in QC Kanban')
+                      if (!isAdmin && !isStudyLead && !isQCProgrammer) {
+                        toast.error('Only the assigned QC programmer or study lead can view/edit this task in QC Kanban')
                         return
                       }
                       setSelectedTracker(tracker)
@@ -1554,11 +1558,11 @@ export function TrackerManagement() {
                       const tracker = trackers.find(t => t.id === trackerId)
                       if (!tracker) return
                       
-                      // Permission check: Only QC programmer or admin can change QC status
+                      // Permission check: Only QC programmer, admin, or study lead can change QC status
                       const isAdmin = currentUser?.is_admin
                       const isQCProgrammer = currentUser && tracker.qc_programmer_id === currentUser.id
-                      if (!isAdmin && !isQCProgrammer) {
-                        toast.error('Only the assigned QC programmer can change QC status')
+                      if (!isAdmin && !isStudyLead && !isQCProgrammer) {
+                        toast.error('Only the assigned QC programmer or study lead can change QC status')
                         return
                       }
                       
@@ -1602,6 +1606,37 @@ export function TrackerManagement() {
               {/* List View Content */}
               {viewMode === 'list' && (
                 <>
+                  {/* Bulk operations hint - show when items exist but none selected */}
+                  {filteredTrackers.length > 0 && selectedRows.size === 0 && canBulkAssign && (
+                    <div className="flex items-center gap-2 p-3 mb-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg text-sm text-blue-700 dark:text-blue-300">
+                      <CheckSquare className="h-4 w-4 flex-shrink-0" />
+                      <span>
+                        <strong>Tip:</strong> Use the checkboxes in the first column to select multiple items, then click <strong>"Tag"</strong>, <strong>"Milestone"</strong>, or <strong>"Assign & Update"</strong> buttons to perform bulk operations.
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Selection count indicator - show when items are selected */}
+                  {selectedRows.size > 0 && (
+                    <div className="flex items-center justify-between p-3 mb-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-700 dark:text-green-300">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                        <span>
+                          <strong>{selectedRows.size} item{selectedRows.size > 1 ? 's' : ''} selected</strong> — Ready for bulk operations
+                        </span>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-7 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900"
+                        onClick={() => setSelectedRows(new Set())}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Clear Selection
+                      </Button>
+                    </div>
+                  )}
+                  
                   {['tlf', 'sdtm', 'adam'].map((tab) => (
                     <TabsContent key={tab} value={tab}>
                       {filteredTrackers.length === 0 ? (
@@ -1636,8 +1671,10 @@ export function TrackerManagement() {
             const isAdmin = currentUser?.is_admin
             const isProductionProgrammer = currentUser && selectedTracker?.production_programmer_id === currentUser.id
             const isQCProgrammer = currentUser && selectedTracker?.qc_programmer_id === currentUser.id
-            const canEditProduction = isAdmin || isProductionProgrammer
-            const canEditQC = isAdmin || isQCProgrammer
+            // Study LEAD has full access like admin for edit operations
+            const canEditProduction = isAdmin || isStudyLead || isProductionProgrammer
+            const canEditQC = isAdmin || isStudyLead || isQCProgrammer
+            const canAssignProgrammers = isAdmin || isStudyLead
             
             // Determine which QC statuses to show - use editFormData for current state
             // Show full QC statuses (including failed) when production is ready_for_qc OR if current QC status is already failed
@@ -1653,8 +1690,8 @@ export function TrackerManagement() {
             
             return (
               <div className="grid gap-4 py-4">
-                {/* Programmer Assignment - Only Admin can change */}
-                {isAdmin && (
+                {/* Programmer Assignment - Admin or Study LEAD can change */}
+                {canAssignProgrammers && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label>Production Programmer</Label>
@@ -1773,8 +1810,8 @@ export function TrackerManagement() {
                   </div>
                 )}
                 
-                {/* Priority and Due Date - Admin and Production Programmer can edit */}
-                {(isAdmin || canEditProduction) && (
+                {/* Priority and Due Date - Admin, Study LEAD, and Production Programmer can edit */}
+                {(isAdmin || isStudyLead || canEditProduction) && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label>Priority</Label>
@@ -1807,8 +1844,8 @@ export function TrackerManagement() {
                   </div>
                 )}
 
-                {/* Milestone Assignment - Admin and Production Programmer can edit */}
-                {(isAdmin || canEditProduction) && availableMilestones.length > 0 && (
+                {/* Milestone Assignment - Admin, Study LEAD, and Production Programmer can edit */}
+                {(isAdmin || isStudyLead || canEditProduction) && availableMilestones.length > 0 && (
                   <div className="grid gap-2">
                     <div className="flex items-center gap-1">
                       <Label>Milestones</Label>
@@ -1968,19 +2005,20 @@ export function TrackerManagement() {
               const isAdmin = currentUser?.is_admin
               
               // Determine what to show based on context AND permissions
+              // Study LEAD has full access like admin
               let showProduction = false
               let showQC = false
               
               if (commentDialogContext === 'production') {
                 // From Prod Kanban: Only show production status if user has permission
-                showProduction = isProductionProgrammer || isAdmin
+                showProduction = isProductionProgrammer || isAdmin || isStudyLead
               } else if (commentDialogContext === 'qc') {
                 // From QC Kanban: Only show QC status if user has permission
-                showQC = isQCProgrammer || isAdmin
+                showQC = isQCProgrammer || isAdmin || isStudyLead
               } else {
                 // From List view: Show both based on permissions
-                showProduction = isProductionProgrammer || isAdmin
-                showQC = isQCProgrammer || isAdmin
+                showProduction = isProductionProgrammer || isAdmin || isStudyLead
+                showQC = isQCProgrammer || isAdmin || isStudyLead
               }
               
               if (!showProduction && !showQC) return null

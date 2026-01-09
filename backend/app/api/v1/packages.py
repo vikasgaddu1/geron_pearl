@@ -20,6 +20,8 @@ from app.api.v1.websocket import (
     broadcast_package_created, broadcast_package_updated, broadcast_package_deleted,
     broadcast_package_item_created, broadcast_package_item_updated, broadcast_package_item_deleted
 )
+from app.core.security import get_current_user, require_admin_or_lead
+from app.models.user import User
 
 router = APIRouter()
 
@@ -30,9 +32,12 @@ async def create_package(
     *,
     db: AsyncSession = Depends(get_db),
     package_in: PackageCreate,
+    current_user: User = Depends(require_admin_or_lead()),
 ) -> Package:
     """
     Create a new package.
+    
+    Requires: Admin or Study LEAD role (in any study).
     """
     try:
         # Check if package with same name already exists
@@ -129,9 +134,12 @@ async def update_package(
     db: AsyncSession = Depends(get_db),
     package_id: int,
     package_in: PackageUpdate,
+    current_user: User = Depends(require_admin_or_lead()),
 ) -> Package:
     """
     Update an existing package.
+    
+    Requires: Admin or Study LEAD role (in any study).
     """
     try:
         db_package = await package.get(db, id=package_id)
@@ -174,9 +182,12 @@ async def delete_package(
     *,
     db: AsyncSession = Depends(get_db),
     package_id: int,
+    current_user: User = Depends(require_admin_or_lead()),
 ) -> Package:
     """
     Delete a package.
+    
+    Requires: Admin or Study LEAD role (in any study).
     """
     try:
         db_package = await package.get(db, id=package_id)
@@ -229,9 +240,12 @@ async def create_package_item(
     db: AsyncSession = Depends(get_db),
     package_id: int,
     item_in: PackageItemCreateWithDetails,
+    current_user: User = Depends(require_admin_or_lead()),
 ) -> PackageItem:
     """
     Create a new package item with all details.
+    
+    Requires: Admin or Study LEAD role (in any study).
     """
     try:
         # Verify package exists
@@ -344,9 +358,12 @@ async def update_package_item(
     db: AsyncSession = Depends(get_db),
     item_id: int,
     item_in: PackageItemUpdate,
+    current_user: User = Depends(require_admin_or_lead()),
 ) -> PackageItem:
     """
     Update an existing package item.
+    
+    Requires: Admin or Study LEAD role (in any study).
     """
     try:
         print(f"Updating package item {item_id} with data: {item_in.model_dump(exclude_unset=True)}")
@@ -385,9 +402,12 @@ async def delete_package_item(
     *,
     db: AsyncSession = Depends(get_db),
     item_id: int,
+    current_user: User = Depends(require_admin_or_lead()),
 ) -> PackageItem:
     """
     Delete a package item.
+    
+    Requires: Admin or Study LEAD role (in any study).
     """
     try:
         db_item = await package_item.get(db, id=item_id)
@@ -451,10 +471,13 @@ async def bulk_create_tlf_items(
     db: AsyncSession = Depends(get_db),
     package_id: int,
     items_in: List[BulkTLFItem],
+    current_user: User = Depends(require_admin_or_lead()),
 ) -> BulkUploadResponse:
     """
     Bulk create TLF items for a package.
     Creates text elements if they don't exist.
+    
+    Requires: Admin or Study LEAD role (in any study).
     """
     errors = []
     created_items = []
@@ -606,9 +629,12 @@ async def bulk_create_dataset_items(
     db: AsyncSession = Depends(get_db),
     package_id: int,
     items_in: List[BulkDatasetItem],
+    current_user: User = Depends(require_admin_or_lead()),
 ) -> BulkUploadResponse:
     """
     Bulk create dataset items for a package.
+    
+    Requires: Admin or Study LEAD role (in any study).
     """
     errors = []
     created_items = []

@@ -49,7 +49,11 @@ from app.schemas.user_study_role import (
     UserStudyRole, UserStudyRoleCreate, UserStudyRoleInDB, UserStudyRoleUpdate,
     UserStudyRoleWithUser, UserStudyRoleWithStudy, AssignStudyRoleRequest,
     BulkAssignStudyRolesRequest, StudyMember, StudyMembersResponse,
-    UserStudyRolesResponse, StudyPermissions
+    UserStudyRolesResponse, StudyPermissions, MyStudyRolesResponse
+)
+from app.schemas.notification import (
+    Notification as NotificationSchema, NotificationCreate, NotificationInDB, NotificationUpdate,
+    NotificationWithDetails, NotificationCountResponse
 )
 
 __all__ = [
@@ -99,5 +103,8 @@ __all__ = [
     "UserStudyRole", "UserStudyRoleCreate", "UserStudyRoleInDB", "UserStudyRoleUpdate",
     "UserStudyRoleWithUser", "UserStudyRoleWithStudy", "AssignStudyRoleRequest",
     "BulkAssignStudyRolesRequest", "StudyMember", "StudyMembersResponse",
-    "UserStudyRolesResponse", "StudyPermissions"
+    "UserStudyRolesResponse", "StudyPermissions", "MyStudyRolesResponse",
+    # Notification schemas
+    "NotificationSchema", "NotificationCreate", "NotificationInDB", "NotificationUpdate",
+    "NotificationWithDetails", "NotificationCountResponse"
 ]

@@ -17,8 +17,8 @@ from app.schemas.user_study_role import (
 )
 from app.models.user_study_role import StudyRole
 from app.models.user import User as UserModel
-from app.core.security import get_current_user
-from app.core.study_permissions import get_user_study_role, is_study_admin, get_study_permissions
+from app.core.security import get_current_user, require_admin
+from app.core.study_permissions import get_user_study_role, is_study_admin, get_study_permissions, require_study_lead_access
 from app.api.v1.websocket import broadcast_study_created, broadcast_study_updated, broadcast_study_deleted
 
 router = APIRouter()
@@ -29,6 +29,7 @@ async def create_study(
     *,
     db: AsyncSession = Depends(get_db),
     study_in: StudyCreate,
+    current_user: UserModel = Depends(require_admin()),
 ) -> Study:
     """
     Create a new study.
@@ -115,6 +116,7 @@ async def update_study(
     db: AsyncSession = Depends(get_db),
     study_id: int,
     study_in: StudyUpdate,
+    current_user: UserModel = Depends(get_current_user),
 ) -> Study:
     """
     Update an existing study.
@@ -126,6 +128,9 @@ async def update_study(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Study not found"
             )
+
+        # Authorization: require admin or LEAD for this study
+        await require_study_lead_access(db, current_user, study_id)
         
         # Check if new label conflicts with existing study
         if study_in.study_label:
@@ -163,9 +168,10 @@ async def delete_study(
     *,
     db: AsyncSession = Depends(get_db),
     study_id: int,
+    current_user: UserModel = Depends(require_admin()),
 ) -> Study:
     """
-    Delete a study.
+    Delete a study. Only admins can delete studies.
     """
     try:
         db_study = await study.get(db, id=study_id)
@@ -215,6 +221,7 @@ async def bulk_upload_hierarchy(
     *,
     db: AsyncSession = Depends(get_db),
     rows: List[BulkHierarchyRow],
+    current_user: UserModel = Depends(require_admin()),
 ) -> BulkHierarchyResponse:
     """
     Bulk upload studies, database releases, and reporting efforts in one go.

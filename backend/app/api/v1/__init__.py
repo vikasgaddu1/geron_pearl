@@ -6,7 +6,7 @@ from app.api.v1 import (
     auth, studies, database_releases, reporting_efforts, websocket, text_elements, packages, users,
     reporting_effort_items, reporting_effort_tracker, tracker_comments, tracker_tags,
     audit_trail, database_backup, settings, reporting_effort_milestones, ig_versions,
-    reporting_effort_usecases, team_assignments, analytics
+    reporting_effort_usecases, team_assignments, analytics, notifications
 )
 
 api_router = APIRouter()
@@ -46,3 +46,6 @@ api_router.include_router(team_assignments.router, prefix="/team-assignments", t
 
 # Analytics and Director Dashboard
 api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
+
+# User notifications
+api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])

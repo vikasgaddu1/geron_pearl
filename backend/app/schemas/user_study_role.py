@@ -113,4 +113,13 @@ class StudyPermissions(BaseModel):
     can_delete_items: bool
     can_manage_members: bool
     can_bulk_copy: bool
+    can_manage_packages: bool = False
+    can_manage_tfl_properties: bool = False
+
+
+class MyStudyRolesResponse(BaseModel):
+    """Response schema for current user's study roles."""
+    is_admin: bool = Field(..., description="Whether user is a global administrator")
+    lead_study_ids: List[int] = Field(..., description="List of study IDs where user has LEAD role")
+    study_roles: dict = Field(..., description="Dict mapping study_id to role name")
 

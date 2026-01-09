@@ -38,11 +38,11 @@ function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           
-          {/* Admin-only routes */}
+          {/* Admin or Study Lead routes - accessible by global admins or users with LEAD role */}
           <Route
             path="study-management"
             element={
-              <ProtectedRoute requireAdmin>
+              <ProtectedRoute requireAdminOrLead>
                 <StudyManagement />
               </ProtectedRoute>
             }
@@ -50,11 +50,37 @@ function App() {
           <Route
             path="tfl-properties"
             element={
-              <ProtectedRoute requireAdmin>
+              <ProtectedRoute requireAdminOrLead>
                 <TFLProperties />
               </ProtectedRoute>
             }
           />
+          <Route
+            path="packages"
+            element={
+              <ProtectedRoute requireAdminOrLead>
+                <PackagesList />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="package-items"
+            element={
+              <ProtectedRoute requireAdminOrLead>
+                <PackageItems />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="reporting-effort-items"
+            element={
+              <ProtectedRoute requireAdminOrLead>
+                <ReportingEffortItems />
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Admin-only routes - accessible only by global admins */}
           <Route
             path="users"
             element={
@@ -76,30 +102,6 @@ function App() {
             element={
               <ProtectedRoute requireAdmin>
                 <SettingsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="packages"
-            element={
-              <ProtectedRoute requireAdmin>
-                <PackagesList />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="package-items"
-            element={
-              <ProtectedRoute requireAdmin>
-                <PackageItems />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="reporting-effort-items"
-            element={
-              <ProtectedRoute requireAdmin>
-                <ReportingEffortItems />
               </ProtectedRoute>
             }
           />

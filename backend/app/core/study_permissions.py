@@ -162,6 +162,8 @@ def get_study_permissions(role: StudyRole) -> Dict[str, bool]:
             "can_delete_items": True,
             "can_manage_members": True,
             "can_bulk_copy": True,
+            "can_manage_packages": True,
+            "can_manage_tfl_properties": True,
         }
     elif role == StudyRole.EDITOR:
         return {
@@ -172,6 +174,8 @@ def get_study_permissions(role: StudyRole) -> Dict[str, bool]:
             "can_delete_items": False,
             "can_manage_members": False,
             "can_bulk_copy": False,
+            "can_manage_packages": False,
+            "can_manage_tfl_properties": False,
         }
     else:  # VIEWER
         return {
@@ -182,6 +186,8 @@ def get_study_permissions(role: StudyRole) -> Dict[str, bool]:
             "can_delete_items": False,
             "can_manage_members": False,
             "can_bulk_copy": False,
+            "can_manage_packages": False,
+            "can_manage_tfl_properties": False,
         }
 
 
@@ -207,4 +213,61 @@ async def get_user_studies_with_roles(
     study_roles = result.scalars().all()
     
     return {sr.study_id: sr.role for sr in study_roles}
+
+
+async def require_study_access(
+    db: AsyncSession,
+    user: User,
+    study_id: int,
+    require_lead: bool = True
+) -> bool:
+    """
+    Check if user has required access to a study.
+    Raises HTTPException if access denied.
+    
+    Args:
+        db: Database session
+        user: The user to check
+        study_id: The study ID
+        require_lead: If True, require LEAD access; if False, allow any access (VIEWER+)
+        
+    Returns:
+        True if access is granted
+        
+    Raises:
+        HTTPException: If access is denied
+    """
+    from fastapi import HTTPException, status
+    
+    # Global admins always have access
+    if user.is_admin:
+        return True
+    
+    # Get user's role for this study
+    role = await get_user_study_role(db, user, study_id)
+    
+    if require_lead:
+        # Only LEAD can perform this action
+        if role != StudyRole.LEAD:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied. Study Lead privileges required for this study."
+            )
+    else:
+        # Any role can view (VIEWER is default for all users)
+        pass
+    
+    return True
+
+
+async def require_study_lead_access(
+    db: AsyncSession,
+    user: User,
+    study_id: int
+) -> bool:
+    """
+    Convenience function to check if user has LEAD access to a study.
+    Raises HTTPException if not.
+    """
+    return await require_study_access(db, user, study_id, require_lead=True)
 

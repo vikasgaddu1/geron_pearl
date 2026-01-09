@@ -21,7 +21,7 @@ src/
 │   └── index.ts            # Consolidated exports
 ├── components/             # Reusable components
 │   ├── ui/                 # shadcn/ui primitives (Button, Dialog, etc.)
-│   ├── layout/             # Layout components (Navbar, Sidebar)
+│   ├── layout/             # Layout components (Navbar, Sidebar, NotificationDropdown)
 │   └── common/             # Shared components (DataTable, filters)
 ├── features/               # Feature modules
 │   ├── dashboard/          # Programmer and Tracker dashboards
@@ -75,7 +75,7 @@ const form = useForm({
 
 ### State Management
 - **Server state**: TanStack Query (caching, refetching, mutations)
-- **Global client state**: Zustand stores in `src/stores/`
+- **Global client state**: Zustand stores in `src/stores/` (authStore, notificationStore)
 - **Local component state**: `useState`/`useReducer`
 
 ### WebSocket Integration
@@ -86,6 +86,66 @@ WebSocket manager handles real-time updates. Events trigger TanStack Query cache
 queryClient.invalidateQueries({ queryKey: ['studies'] });
 ```
 
+### Notification System
+
+The `NotificationDropdown` component (in `components/layout/`) shows user notifications with real-time updates:
+
+```typescript
+import { useNotificationStore } from '@/stores/notificationStore';
+
+const { 
+  notifications,      // List of notifications
+  unreadCount,        // Badge count
+  fetchNotifications, // Fetch full list
+  acknowledge,        // Dismiss single notification
+  acknowledgeAll      // Clear all
+} = useNotificationStore();
+```
+
+**Notification Types:**
+| Type | Icon | Description |
+|------|------|-------------|
+| `assignment_prod` | UserPlus (blue) | Assigned as production programmer |
+| `assignment_qc` | User (purple) | Assigned as QC programmer |
+| `comment_added` | MessageSquare (green) | New comment on assigned item |
+
+WebSocket events `notification_created` and `notification_count_updated` automatically update the notification badge.
+
+### Role-Based UI
+
+Use auth store helpers to conditionally render UI based on user roles:
+
+```typescript
+import { useAuthStore } from '@/stores/authStore';
+
+const { currentUser, isLeadForStudy, hasLeadAccess } = useAuthStore();
+
+// Check if user is global admin
+const isAdmin = currentUser?.is_admin;
+
+// Check if user is LEAD for a specific study (or admin)
+const canEditStudy = isAdmin || isLeadForStudy(studyId);
+
+// Check if user has LEAD access in any study (for global resources like packages)
+const canManagePackages = isAdmin || hasLeadAccess();
+```
+
+For protected routes in `App.tsx`:
+
+```typescript
+<ProtectedRoute requireAdminOrLead>  {/* Admin or any LEAD */}
+<ProtectedRoute requireAdmin>        {/* Admin only */}
+```
+
+**Permission matrix:**
+| Resource | Admin | LEAD (own study) | LEAD (other study) | EDITOR/VIEWER |
+|----------|-------|------------------|--------------------|--------------| 
+| Study Management (own studies) | ✅ | ✅ | ❌ | ❌ |
+| Packages & TFL Properties | ✅ | ✅ | ✅ | ❌ |
+| User Management | ✅ | ❌ | ❌ | ❌ |
+| Settings & Backup | ✅ | ❌ | ❌ | ❌ |
+| Director Dashboard | ✅ | ❌ | ❌ | ❌ |
+
 ### shadcn/ui Components
 Import from `@/components/ui/`:
 
@@ -94,6 +154,25 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 ```
+
+## TFL Properties (Text Elements)
+
+The TFL Properties feature manages reusable text components for TLF outputs. The backend stores two fields (`label` and `content`) but their semantic meaning varies by type:
+
+| Type | `label` Field Meaning | `content` Field Meaning |
+|------|----------------------|------------------------|
+| **Titles** | Category (Safety, Efficacy, General) | The actual title text |
+| **Footnotes** | Category (Safety, Efficacy, General) | The actual footnote text |
+| **Population Sets** | Short Form / ADaM Variable (SAFFL, ITTFL) | Full Name (Safety Population) |
+| **Acronyms** | Abbreviation (AE, SAE, SD) | Full Form (Adverse Event) |
+| **ICH Categories** | ICH Code (ICH_11.4, ICH_12.2) | Full Description |
+
+The UI dynamically displays context-appropriate labels using `TYPE_FIELD_LABELS` configuration in `TFLProperties.tsx`. When adding or viewing:
+- **Titles tab**: Shows "Category" and "Title Text" columns
+- **Acronyms tab**: Shows "Abbreviation" and "Full Form" columns
+- **Population Sets tab**: Shows "Short Form" and "Full Name" columns
+
+This pattern keeps the backend schema simple while providing intuitive, domain-specific terminology in the UI.
 
 ## Environment Variables
 

@@ -115,6 +115,14 @@ export interface StudyPermissions {
   can_delete_items: boolean
   can_manage_members: boolean
   can_bulk_copy: boolean
+  can_manage_packages: boolean
+  can_manage_tfl_properties: boolean
+}
+
+export interface MyStudyRolesResponse {
+  is_admin: boolean
+  lead_study_ids: number[]
+  study_roles: Record<number, StudyRole>
 }
 
 export interface AssignStudyRoleRequest {
@@ -378,6 +386,7 @@ export type WebSocketEventType =
   | 'comment_created' | 'comment_updated' | 'comment_resolved'
   | 'user_created' | 'user_updated' | 'user_deleted'
   | 'text_element_created' | 'text_element_updated' | 'text_element_deleted'
+  | 'notification_created' | 'notification_count_updated'
 
 export interface WebSocketMessage {
   type: WebSocketEventType

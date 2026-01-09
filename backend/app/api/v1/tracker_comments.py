@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.crud.tracker_comment import tracker_comment
+from app.crud.reporting_effort_item_tracker import reporting_effort_item_tracker
 from app.schemas.tracker_comment import (
     TrackerCommentCreate,
     TrackerComment, 
@@ -23,6 +24,7 @@ from app.api.v1.websocket import (
 )
 from app.core.security import get_current_user
 from app.models.user import User
+from app.services.notification_service import create_comment_notification
 
 router = APIRouter()
 
@@ -94,6 +96,32 @@ async def create_comment(
                 comment_data=created_comment_with_user,
                 unresolved_count=unresolved_count
             )
+        
+        # Create notifications for assigned programmers
+        try:
+            # Get tracker to find assigned programmers
+            db_tracker = await reporting_effort_item_tracker.get(db, id=obj_in.tracker_id)
+            if db_tracker:
+                # Get item and study info for context
+                item_code = None
+                study_label = None
+                if db_tracker.item:
+                    item_code = db_tracker.item.item_code
+                    if db_tracker.item.reporting_effort and db_tracker.item.reporting_effort.study:
+                        study_label = db_tracker.item.reporting_effort.study.study_label
+                
+                await create_comment_notification(
+                    db,
+                    tracker_id=obj_in.tracker_id,
+                    item_code=item_code or f"Tracker #{obj_in.tracker_id}",
+                    study_label=study_label,
+                    commenter_user_id=current_user.id,
+                    commenter_username=current_user.username,
+                    production_programmer_id=db_tracker.production_programmer_id,
+                    qc_programmer_id=db_tracker.qc_programmer_id
+                )
+        except Exception as notif_error:
+            print(f"Comment notification error: {notif_error}")
         
         return created_comment_with_user
         

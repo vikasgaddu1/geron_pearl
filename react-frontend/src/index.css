@@ -182,4 +182,12 @@
   background-image: linear-gradient(to bottom right, hsl(var(--primary) / 0.05), transparent, hsl(var(--gradient-to) / 0.05));
 }
 
+/* Fix calendar icon visibility in dark mode */
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
 

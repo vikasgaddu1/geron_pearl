@@ -10,6 +10,9 @@ from app.crud.reporting_effort_usecase import reporting_effort_usecase_assignmen
 from app.db.session import get_db
 from app.schemas.reporting_effort import ReportingEffort, ReportingEffortCreate, ReportingEffortUpdate
 from app.api.v1.websocket import broadcast_reporting_effort_created, broadcast_reporting_effort_updated, broadcast_reporting_effort_deleted
+from app.core.security import get_current_user
+from app.core.study_permissions import require_study_lead_access
+from app.models.user import User
 
 router = APIRouter()
 
@@ -35,9 +38,12 @@ async def create_reporting_effort(
     *,
     db: AsyncSession = Depends(get_db),
     reporting_effort_in: ReportingEffortCreate,
+    current_user: User = Depends(get_current_user),
 ) -> ReportingEffort:
     """
     Create a new reporting effort.
+    
+    Requires: Admin or Study LEAD role for the study.
     """
     try:
         # Verify that the study exists
@@ -47,6 +53,9 @@ async def create_reporting_effort(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Study with ID {reporting_effort_in.study_id} not found"
             )
+        
+        # Check user has LEAD access to this study
+        await require_study_lead_access(db, current_user, reporting_effort_in.study_id)
 
         # Verify that the database release exists
         db_database_release = await database_release.get(db, id=reporting_effort_in.database_release_id)
@@ -177,9 +186,12 @@ async def update_reporting_effort(
     db: AsyncSession = Depends(get_db),
     reporting_effort_id: int,
     reporting_effort_in: ReportingEffortUpdate,
+    current_user: User = Depends(get_current_user),
 ) -> ReportingEffort:
     """
     Update an existing reporting effort.
+    
+    Requires: Admin or Study LEAD role for the study.
     """
     try:
         db_reporting_effort = await reporting_effort.get(db, id=reporting_effort_id)
@@ -188,6 +200,9 @@ async def update_reporting_effort(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reporting effort not found"
             )
+        
+        # Check user has LEAD access to this study
+        await require_study_lead_access(db, current_user, db_reporting_effort.study_id)
         
         # Check if new label conflicts with existing reporting effort for same database release
         if reporting_effort_in.database_release_label:
@@ -231,9 +246,12 @@ async def delete_reporting_effort(
     *,
     db: AsyncSession = Depends(get_db),
     reporting_effort_id: int,
+    current_user: User = Depends(get_current_user),
 ) -> ReportingEffort:
     """
     Delete a reporting effort.
+    
+    Requires: Admin or Study LEAD role for the study.
     """
     try:
         db_reporting_effort = await reporting_effort.get(db, id=reporting_effort_id)
@@ -242,6 +260,9 @@ async def delete_reporting_effort(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reporting effort not found"
             )
+        
+        # Check user has LEAD access to this study
+        await require_study_lead_access(db, current_user, db_reporting_effort.study_id)
         
         deleted_reporting_effort = await reporting_effort.delete(db, id=reporting_effort_id)
         print(f"Reporting effort deleted successfully: {deleted_reporting_effort.database_release_label} (ID: {deleted_reporting_effort.id})")

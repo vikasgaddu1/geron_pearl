@@ -50,7 +50,8 @@ type TabType = 'tlf' | 'sdtm' | 'adam'
 
 export function ReportingEffortItems() {
   const queryClient = useQueryClient()
-  const { currentUser } = useAuthStore()
+  const { currentUser, isLeadForStudy } = useAuthStore()
+  const isGlobalAdmin = currentUser?.is_admin === true
   // Use persisted store for selection state
   const { 
     selectedStudyId, 
@@ -81,10 +82,16 @@ export function ReportingEffortItems() {
   const { data: igVersions = [] } = useIGVersions({ active_only: true })
 
   // Queries
-  const { data: studies = [] } = useQuery({
+  const { data: allStudies = [] } = useQuery({
     queryKey: ['studies'],
     queryFn: studiesApi.getAll,
   })
+  
+  // Filter studies for LEAD users - they only see studies where they have LEAD access
+  const studies = useMemo(() => {
+    if (isGlobalAdmin) return allStudies
+    return allStudies.filter(study => isLeadForStudy(study.id))
+  }, [allStudies, isGlobalAdmin, isLeadForStudy])
 
   const { data: allReleases = [] } = useQuery({
     queryKey: ['database-releases'],

@@ -16,12 +16,17 @@ import {
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { useAuthStore } from '@/stores/authStore'
 
 interface NavItem {
   title: string
   href: string
   icon: React.ElementType
+  /** If true, requires global admin access */
+  adminOnly?: boolean
+  /** If true, accessible by admin or study LEAD */
+  adminOrLeadOnly?: boolean
 }
 
 interface NavGroup {
@@ -29,29 +34,29 @@ interface NavGroup {
   items: NavItem[]
 }
 
-const navigation: (NavItem | NavGroup)[] = [
+const allNavigation: (NavItem | NavGroup)[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   {
     title: 'Data Management',
     items: [
-      { title: 'Study Management', href: '/study-management', icon: GitBranch },
-      { title: 'TFL Properties', href: '/tfl-properties', icon: FileText },
-      { title: 'User Management', href: '/users', icon: Users },
-      { title: 'Database Backup', href: '/database-backup', icon: Database },
-      { title: 'Settings', href: '/settings', icon: Settings },
+      { title: 'Study Management', href: '/study-management', icon: GitBranch, adminOrLeadOnly: true },
+      { title: 'TFL Properties', href: '/tfl-properties', icon: FileText, adminOrLeadOnly: true },
+      { title: 'User Management', href: '/users', icon: Users, adminOnly: true },
+      { title: 'Database Backup', href: '/database-backup', icon: Database, adminOnly: true },
+      { title: 'Settings', href: '/settings', icon: Settings, adminOnly: true },
     ],
   },
   {
     title: 'Packages',
     items: [
-      { title: 'Packages', href: '/packages', icon: Package },
-      { title: 'Package Items', href: '/package-items', icon: PackageOpen },
+      { title: 'Packages', href: '/packages', icon: Package, adminOrLeadOnly: true },
+      { title: 'Package Items', href: '/package-items', icon: PackageOpen, adminOrLeadOnly: true },
     ],
   },
   {
     title: 'Reporting',
     items: [
-      { title: 'Reporting Effort Items', href: '/reporting-effort-items', icon: ClipboardList },
+      { title: 'Reporting Effort Items', href: '/reporting-effort-items', icon: ClipboardList, adminOrLeadOnly: true },
       { title: 'Tracker Management', href: '/tracker-management', icon: ClipboardCheck },
     ],
   },
@@ -80,11 +85,24 @@ function NavItemLink({ item }: { item: NavItem }) {
   )
 }
 
-function NavGroupItem({ group }: { group: NavGroup }) {
+function NavGroupItem({ group, isAdmin, hasLeadAccess }: { group: NavGroup; isAdmin: boolean; hasLeadAccess: boolean }) {
   const location = useLocation()
-  const [isOpen, setIsOpen] = useState(
-    group.items.some((item) => location.pathname === item.href)
-  )
+  
+  // Filter items based on permissions
+  const visibleItems = useMemo(() => group.items.filter((item) => {
+    if (item.adminOnly) return isAdmin
+    if (item.adminOrLeadOnly) return isAdmin || hasLeadAccess
+    return true
+  }), [group.items, isAdmin, hasLeadAccess])
+  
+  // Check if any items are in the current path (for default open state)
+  const hasActiveItem = visibleItems.some((item) => location.pathname === item.href)
+  
+  // useState must be called before any conditional returns
+  const [isOpen, setIsOpen] = useState(hasActiveItem)
+
+  // Don't render the group if no items are visible
+  if (visibleItems.length === 0) return null
 
   return (
     <div className="space-y-1">
@@ -102,7 +120,7 @@ function NavGroupItem({ group }: { group: NavGroup }) {
       </Button>
       {isOpen && (
         <div className="ml-3 space-y-1 border-l pl-3">
-          {group.items.map((item) => (
+          {visibleItems.map((item) => (
             <NavItemLink key={item.href} item={item} />
           ))}
         </div>
@@ -112,13 +130,37 @@ function NavGroupItem({ group }: { group: NavGroup }) {
 }
 
 export function Sidebar() {
+  const { currentUser, hasLeadAccess, studyRolesLoading } = useAuthStore()
+  const isAdmin = currentUser?.is_admin === true
+  // If study roles are still loading, treat as no LEAD access to prevent flash of unauthorized items
+  const userHasLeadAccess = studyRolesLoading ? false : hasLeadAccess()
+  
+  // Filter navigation based on user permissions
+  const navigation = useMemo(() => {
+    return allNavigation.filter((item) => {
+      if (isNavGroup(item)) {
+        // Check if group has any visible items
+        const visibleItems = item.items.filter((navItem) => {
+          if (navItem.adminOnly) return isAdmin
+          if (navItem.adminOrLeadOnly) return isAdmin || userHasLeadAccess
+          return true
+        })
+        return visibleItems.length > 0
+      } else {
+        if (item.adminOnly) return isAdmin
+        if (item.adminOrLeadOnly) return isAdmin || userHasLeadAccess
+        return true
+      }
+    })
+  }, [isAdmin, userHasLeadAccess])
+  
   return (
     <aside className="hidden md:flex w-64 flex-col border-r bg-background">
       <ScrollArea className="flex-1 py-4">
         <nav className="space-y-2 px-3">
           {navigation.map((item, index) =>
             isNavGroup(item) ? (
-              <NavGroupItem key={index} group={item} />
+              <NavGroupItem key={index} group={item} isAdmin={isAdmin} hasLeadAccess={userHasLeadAccess} />
             ) : (
               <NavItemLink key={item.href} item={item} />
             )
