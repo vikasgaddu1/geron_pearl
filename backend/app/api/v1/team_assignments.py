@@ -25,6 +25,7 @@ from app.schemas.study_team_assignment import (
 )
 from app.models.user import User as UserModel
 from app.core.security import get_current_user
+from app.core.study_permissions import require_study_lead_access
 
 router = APIRouter()
 
@@ -168,7 +169,12 @@ async def add_team_member(
 ) -> StudyTeamAssignment:
     """
     Add a new team member to a study.
+    
+    Requires: Admin or Study LEAD role.
     """
+    # Check authorization: must be admin or study LEAD
+    await require_study_lead_access(db, current_user, study_id)
+    
     # Verify study exists
     study_obj = await study.get(db, id=study_id)
     if not study_obj:
@@ -208,11 +214,16 @@ async def change_team_member_allocation(
     Change a team member's allocation.
     
     This closes the current assignment and creates a new one to preserve history.
+    
+    Requires: Admin or Study LEAD role.
     """
     # Get the current assignment
     current = await study_team_assignment.get(db, id=assignment_id)
     if not current:
         raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    # Check authorization: must be admin or study LEAD
+    await require_study_lead_access(db, current_user, current.study_id)
     
     if not current.is_active:
         raise HTTPException(status_code=400, detail="Cannot modify an inactive assignment")
@@ -240,11 +251,16 @@ async def end_team_assignment(
     End a team member's assignment on a study.
     
     Items assigned to this user will remain assigned but flagged for reassignment.
+    
+    Requires: Admin or Study LEAD role.
     """
     # Get the current assignment
     current = await study_team_assignment.get(db, id=assignment_id)
     if not current:
         raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    # Check authorization: must be admin or study LEAD
+    await require_study_lead_access(db, current_user, current.study_id)
     
     if not current.is_active:
         raise HTTPException(status_code=400, detail="Assignment is already ended")
@@ -329,10 +345,15 @@ async def update_assignment(
     Update a team assignment (for correcting data entry errors).
     
     For allocation changes, use the change-allocation endpoint instead.
+    
+    Requires: Admin or Study LEAD role.
     """
     assignment = await study_team_assignment.get(db, id=assignment_id)
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    # Check authorization: must be admin or study LEAD
+    await require_study_lead_access(db, current_user, assignment.study_id)
     
     updated = await study_team_assignment.update(db, db_obj=assignment, obj_in=update_data)
     return StudyTeamAssignment.model_validate(updated)
@@ -348,10 +369,15 @@ async def delete_assignment(
     Delete a team assignment record.
     
     Warning: This permanently removes the record. Consider using end_assignment instead.
+    
+    Requires: Admin or Study LEAD role.
     """
     assignment = await study_team_assignment.get(db, id=assignment_id)
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    # Check authorization: must be admin or study LEAD
+    await require_study_lead_access(db, current_user, assignment.study_id)
     
     await study_team_assignment.delete(db, id=assignment_id)
 

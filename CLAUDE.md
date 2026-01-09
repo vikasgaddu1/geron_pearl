@@ -121,9 +121,17 @@ Study (1) ↔ (N) DatabaseRelease (1) ↔ (N) ReportingEffort (1) ↔ (N) Report
                                                                          ↓
 Package (1) ↔ (N) PackageItem (TLF/Dataset)                    ReportingEffortItemTracker
                       ↓                                            (with TrackerComment)
-              TextElement (title, footnote, population_set, acronyms_set)
-User (admin, analyst, viewer roles) | AuditLog (change tracking)
+              TextElement (title, footnote, population_set, acronyms_set, ich_category)
+User (admin, analyst, viewer roles) | AuditLog (change tracking) | Notification (user alerts)
 ```
+
+**TextElement Field Meanings** (TFL Properties):
+| Type | `label` = | `content` = |
+|------|-----------|-------------|
+| title/footnote | Category (Safety, Efficacy) | Actual text |
+| population_set | Short form (SAFFL, ITTFL) | Full name |
+| acronyms_set | Abbreviation (AE, SD) | Full form |
+| ich_category | ICH Code (ICH_11.4) | Description |
 
 ## Key Development Patterns
 
@@ -177,10 +185,58 @@ uv run python tests/validator/run_model_validation.py
 - **Frontend**: [react-frontend/CLAUDE.md](react-frontend/CLAUDE.md) - React patterns, TanStack Query, forms
 - **Testing**: [backend/tests/README.md](backend/tests/README.md) - Curl-based test philosophy
 
-## Authentication
+## Authentication & Authorization
 
-JWT-based authentication with refresh tokens:
-- Access token: Short-lived, sent in `Authorization: Bearer` header
-- Refresh token: Long-lived, used to obtain new access tokens
-- Roles: `admin` (full access), `analyst` (edit), `viewer` (read-only)
-- Study-scoped roles: `LEAD`, `EDITOR`, `VIEWER` per study
+### JWT Authentication
+- Access token: 15-minute expiry, sent in `Authorization: Bearer` header
+- Refresh token: 7-day expiry, used to obtain new access tokens
+- Token contains user identity; permissions checked from database on each request
+
+### Role System
+**Global roles** (user.is_admin flag):
+- `admin`: Full system access (user management, settings, backup, all studies)
+
+**Study-scoped roles** (user_study_roles table):
+- `LEAD`: Near-admin for assigned studies - can manage releases, efforts, members, packages, TFL properties
+- `EDITOR`: Can edit tracker data within assigned studies
+- `VIEWER`: Read-only access to assigned studies
+
+### Authorization Pattern
+```python
+# Admin-only: user management, settings, backup, study create/delete
+current_user: User = Depends(require_admin())
+
+# Study-scoped: user must be admin OR LEAD for the specific study
+await require_study_lead_access(db, current_user, study_id)
+
+# Global resources: user must be admin OR LEAD in any study
+current_user: User = Depends(require_admin_or_lead())
+```
+
+**⚠️ CRITICAL**: All mutating endpoints MUST have backend authorization. Frontend restrictions alone are NOT sufficient.
+
+### LEAD Permissions
+| Can Access | Cannot Access |
+|------------|---------------|
+| Study Management (own studies) | Director Dashboard |
+| Database Releases (own studies) | User Management |
+| Reporting Efforts (own studies) | Global Settings |
+| Packages & TFL Properties | Database Backup |
+| Study Member Management | Other users' studies |
+
+## Notification System
+
+Real-time notifications for user assignments and comments:
+
+**Notification Types:**
+- `assignment_prod` - Assigned as production programmer
+- `assignment_qc` - Assigned as QC programmer  
+- `comment_added` - New comment on items user is assigned to
+
+**States:**
+- `is_read` - User has seen the notification
+- `is_acknowledged` - User has dismissed the notification (no longer shown)
+
+**WebSocket Events:**
+- `notification_created` - New notification for a user
+- `notification_count_updated` - Updated unread count for a user

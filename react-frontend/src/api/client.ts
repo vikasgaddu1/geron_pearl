@@ -33,10 +33,20 @@ apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const { tokens } = useAuthStore.getState()
     
-    // Skip auth header for auth endpoints
-    const isAuthEndpoint = config.url?.includes('/auth/')
+    // Auth endpoints that should NOT have auth headers (public endpoints)
+    const publicAuthEndpoints = [
+      '/auth/login',
+      '/auth/register',
+      '/auth/forgot-password',
+      '/auth/reset-password',
+      '/auth/refresh',
+      '/auth/callback/',
+    ]
+    const isPublicAuthEndpoint = publicAuthEndpoints.some(
+      (endpoint) => config.url?.includes(endpoint)
+    )
     
-    if (tokens?.accessToken && !isAuthEndpoint) {
+    if (tokens?.accessToken && !isPublicAuthEndpoint) {
       config.headers.Authorization = `Bearer ${tokens.accessToken}`
     }
     
@@ -55,8 +65,19 @@ apiClient.interceptors.response.use(
     
     // Handle 401 Unauthorized errors (expired/invalid token)
     if (error.response?.status === 401 && !originalRequest._retry) {
-      // Skip refresh for auth endpoints
-      if (originalRequest.url?.includes('/auth/')) {
+      // Skip refresh for public auth endpoints (login, register, etc.)
+      const publicAuthEndpoints = [
+        '/auth/login',
+        '/auth/register',
+        '/auth/forgot-password',
+        '/auth/reset-password',
+        '/auth/refresh',
+        '/auth/callback/',
+      ]
+      const isPublicAuthEndpoint = publicAuthEndpoints.some(
+        (endpoint) => originalRequest.url?.includes(endpoint)
+      )
+      if (isPublicAuthEndpoint) {
         return Promise.reject(error)
       }
       

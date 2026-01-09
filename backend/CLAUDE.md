@@ -76,8 +76,9 @@ Package (1) ←→ (N) PackageItem (polymorphic: TLF/Dataset)
               PackageTlfDetails / PackageDatasetDetails
               PackageItemFootnotes / PackageItemAcronyms
 
-TextElement (standalone: title, footnote, population_set, acronyms_set)
+TextElement (standalone: title, footnote, population_set, acronyms_set, ich_category)
 User (admin, analyst, viewer roles)
+Notification (user_id, tracker_id, type: assignment_prod/assignment_qc/comment_added)
 AuditLog (tracks all entity changes)
 ```
 
@@ -94,6 +95,7 @@ AuditLog (tracks all entity changes)
 | `/api/v1/packages` | Packages | TLF/Dataset organization |
 | `/api/v1/text-elements` | Text Elements | Titles, footnotes, populations, acronyms |
 | `/api/v1/users` | Users | Role-based access |
+| `/api/v1/notifications` | Notifications | User alerts for assignments/comments |
 | `/api/v1/ws` | WebSocket | Real-time updates |
 | `/api/v1/audit-trail` | Audit Logs | Change tracking |
 
@@ -127,6 +129,68 @@ await broadcast_entity_created(created_entity)  # Required for real-time sync
 ```python
 Schema.model_validate(sqlalchemy_model).model_dump(mode='json')
 ```
+
+### Authorization
+
+**⚠️ CRITICAL**: All mutating endpoints (create/update/delete) MUST have backend authorization checks. Frontend restrictions alone are NOT sufficient - users can bypass the UI and call APIs directly.
+
+```python
+# 1. Admin-only endpoints (users, settings, backup, study create/delete)
+from app.core.security import require_admin
+
+@router.post("/")
+async def create_user(
+    ...,
+    current_user: User = Depends(require_admin()),
+):
+    # Only global admins can access
+
+# 2. Study-scoped resources (database releases, reporting efforts, items, trackers)
+from app.core.study_permissions import require_study_lead_access
+from app.core.security import get_current_user
+
+@router.post("/")
+async def create_entity(
+    ...,
+    current_user: User = Depends(get_current_user),
+):
+    # Check AFTER fetching entity to get study_id
+    await require_study_lead_access(db, current_user, entity.study_id)
+    # Requires: user is admin OR has LEAD role for this specific study
+
+# 3. Global resources (packages, text elements)
+from app.core.security import require_admin_or_lead
+
+@router.post("/")
+async def create_package(
+    ...,
+    current_user: User = Depends(require_admin_or_lead()),
+):
+    # Requires: user is admin OR has LEAD role in ANY study
+```
+
+**Authorization helpers** (in `app/core/`):
+| Function | Location | Use Case |
+|----------|----------|----------|
+| `get_current_user` | `security.py` | Get authenticated user (required for all protected endpoints) |
+| `require_admin()` | `security.py` | Admin-only endpoints (users, settings, backup, study create/delete) |
+| `require_admin_or_lead()` | `security.py` | Global resources manageable by any LEAD (packages, text elements) |
+| `require_study_lead_access()` | `study_permissions.py` | Study-scoped resources (releases, efforts, items, trackers) |
+
+**Endpoint Authorization Matrix:**
+| Endpoint | Authorization |
+|----------|--------------|
+| `/users/*` | `require_admin()` |
+| `/studies` POST/DELETE | `require_admin()` |
+| `/studies/{id}` PUT | `require_study_lead_access()` |
+| `/database-releases/*` | `require_study_lead_access()` |
+| `/reporting-efforts/*` | `require_study_lead_access()` |
+| `/reporting-effort-items/*` | `require_study_lead_access()` |
+| `/reporting-effort-tracker/*` | `require_study_lead_access()` or role check |
+| `/packages/*` | `require_admin_or_lead()` |
+| `/text-elements/*` | `require_admin_or_lead()` |
+| `/settings/*` | `require_admin()` |
+| `/database-backup/*` | `require_admin()` |
 
 ### CRUD Class Interface
 

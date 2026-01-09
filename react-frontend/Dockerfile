@@ -4,11 +4,12 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package.json only
-COPY package.json ./
+# Copy package files (package-lock.json excluded via .dockerignore to avoid 
+# platform-specific optional dependency issues between Windows dev and Linux deploy)
+COPY package.json .npmrc ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies fresh (ignoring any Windows-generated lock file)
+RUN npm install --no-optional
 
 # Copy source code
 COPY . .

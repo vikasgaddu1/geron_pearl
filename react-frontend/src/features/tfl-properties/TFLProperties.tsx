@@ -44,38 +44,99 @@ const TEXT_ELEMENT_TYPES: { value: TextElementType; label: string }[] = [
   { value: 'ich_category', label: 'ICH Categories' },
 ]
 
+// Context-specific field labels for each text element type
+const TYPE_FIELD_LABELS: Record<TextElementType, {
+  labelField: string
+  contentField: string
+  labelPlaceholder: string
+  contentPlaceholder: string
+  labelHelpText: string
+  contentHelpText: string
+}> = {
+  title: {
+    labelField: 'Category',
+    contentField: 'Title Text',
+    labelPlaceholder: 'e.g., Safety, Efficacy, General',
+    contentPlaceholder: 'e.g., Summary of Demographics and Baseline Characteristics',
+    labelHelpText: 'Category to group similar titles (e.g., Safety, Efficacy, General)',
+    contentHelpText: 'The actual title text that will appear in the TLF output'
+  },
+  footnote: {
+    labelField: 'Category',
+    contentField: 'Footnote Text',
+    labelPlaceholder: 'e.g., Safety, Efficacy, General',
+    contentPlaceholder: 'e.g., Percentages are based on the number of subjects in the Safety Population',
+    labelHelpText: 'Category to group similar footnotes (e.g., Safety, Efficacy, General)',
+    contentHelpText: 'The actual footnote text that will appear in the TLF output'
+  },
+  population_set: {
+    labelField: 'Short Form',
+    contentField: 'Full Name',
+    labelPlaceholder: 'e.g., SAFFL, ITTFL, PP',
+    contentPlaceholder: 'e.g., Safety Population, Intent-to-Treat Population',
+    labelHelpText: 'Short form or ADaM variable name (e.g., SAFFL, ITTFL)',
+    contentHelpText: 'Full descriptive name of the population set'
+  },
+  acronyms_set: {
+    labelField: 'Abbreviation',
+    contentField: 'Full Form',
+    labelPlaceholder: 'e.g., AE, SAE, SD',
+    contentPlaceholder: 'e.g., Adverse Event, Serious Adverse Event, Standard Deviation',
+    labelHelpText: 'The abbreviated form (e.g., AE, SAE, SD)',
+    contentHelpText: 'The full expanded form of the abbreviation'
+  },
+  ich_category: {
+    labelField: 'ICH Code',
+    contentField: 'Description',
+    labelPlaceholder: 'e.g., ICH_11.4, ICH_12.2',
+    contentPlaceholder: 'e.g., ICH E3 11.4 - Demographic and Baseline Characteristics',
+    labelHelpText: 'ICH E3 section code (e.g., ICH_11.4, ICH_12.2)',
+    contentHelpText: 'Full description of the ICH E3 section'
+  }
+}
+
 const UPLOAD_COLUMNS: ColumnDefinition[] = [
   { key: 'type', label: 'Type', required: true, validate: (v) => 
     ['title', 'footnote', 'population_set', 'acronyms_set', 'ich_category'].includes(v.toLowerCase()) || 
     'Invalid type (use: title, footnote, population_set, acronyms_set, ich_category)' 
   },
-  { key: 'label', label: 'Label', required: true },
-  { key: 'content', label: 'Content', required: true },
+  { key: 'label', label: 'Category / Short Form / Abbreviation', required: true },
+  { key: 'content', label: 'Text / Full Name / Definition', required: true },
 ]
 
+// Sample data for bulk upload template
+// Column meanings vary by type:
+// - Titles/Footnotes: Category | Text content
+// - Population Sets: Short Form (e.g., SAFFL) | Full Name
+// - Acronyms: Abbreviation | Full Form
+// - ICH Categories: ICH Code | Description
 const UPLOAD_SAMPLE_DATA = [
-  // Titles - labels can be used as categories (Safety, Efficacy, General)
+  // Titles: Category | Title Text
   ['title', 'Safety', 'Summary of Demographics (Safety Population)'],
   ['title', 'Safety', 'Adverse Events by System Organ Class'],
   ['title', 'Efficacy', 'Primary Efficacy Analysis - ITT Population'],
   ['title', 'Efficacy', 'Secondary Efficacy Endpoints Summary'],
   ['title', 'General', 'Study Disposition Summary'],
-  // Footnotes - labels can categorize footnotes by domain
+  // Footnotes: Category | Footnote Text
   ['footnote', 'Safety', 'Percentages are based on the number of subjects in the Safety Population (N).'],
   ['footnote', 'Safety', 'Subjects with multiple events are counted once per preferred term.'],
   ['footnote', 'Efficacy', 'Missing values were imputed using LOCF method.'],
   ['footnote', 'General', 'Data cutoff date: [DATE].'],
-  // Population sets
-  ['population_set', 'SAF', 'Safety Population'],
-  ['population_set', 'ITT', 'Intent-to-Treat Population'],
-  ['population_set', 'PP', 'Per-Protocol Population'],
-  // Acronyms
+  // Population Sets: Short Form | Full Name
+  ['population_set', 'SAFFL', 'Safety Population'],
+  ['population_set', 'ITTFL', 'Intent-to-Treat Population'],
+  ['population_set', 'PPROTFL', 'Per-Protocol Population'],
+  ['population_set', 'FASFL', 'Full Analysis Set'],
+  // Acronyms: Abbreviation | Full Form
   ['acronyms_set', 'AE', 'Adverse Event'],
   ['acronyms_set', 'SAE', 'Serious Adverse Event'],
   ['acronyms_set', 'TEAE', 'Treatment-Emergent Adverse Event'],
-  // ICH Categories
-  ['ich_category', 'ICH_11.4', 'ICH E3 11.4 – Demographic and Baseline Characteristics'],
-  ['ich_category', 'ICH_12.2', 'ICH E3 12.2 – Adverse Events'],
+  ['acronyms_set', 'SD', 'Standard Deviation'],
+  ['acronyms_set', 'CI', 'Confidence Interval'],
+  // ICH Categories: ICH Code | Description
+  ['ich_category', 'ICH_11.4', 'ICH E3 11.4 - Demographic and Baseline Characteristics'],
+  ['ich_category', 'ICH_12.2', 'ICH E3 12.2 - Adverse Events'],
+  ['ich_category', 'ICH_14.1', 'ICH E3 14.1 - Efficacy Conclusions'],
 ]
 
 export function TFLProperties() {
@@ -211,54 +272,57 @@ export function TFLProperties() {
     [elements, activeTab]
   )
 
-  // Define table columns
-  const columns: ColumnDef<TextElement>[] = [
-    {
-      id: 'label',
-      header: 'Label',
-      accessorKey: 'label',
-      filterType: 'text',
-      helpText: 'Unique identifier for this text element. Use wildcards (*) for flexible searching.',
-      cell: (value) => <span className="font-medium">{value}</span>,
-    },
-    {
-      id: 'content',
-      header: 'Content',
-      accessorKey: 'content',
-      filterType: 'text',
-      helpText: 'The actual text content. Supports wildcard and regex filtering for advanced searches.',
-      cell: (value) => <span className="max-w-md truncate block">{value}</span>,
-    },
-    {
-      id: 'actions',
-      header: 'Actions',
-      accessorKey: 'id',
-      filterType: 'none',
-      enableSorting: false,
-      cell: (_, element) => (
-        <div className="flex justify-end gap-2">
-          <TooltipWrapper content="Edit text element">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => handleEdit(element)}
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
-          </TooltipWrapper>
-          <TooltipWrapper content="Delete text element">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => handleDelete(element)}
-            >
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-          </TooltipWrapper>
-        </div>
-      ),
-    },
-  ]
+  // Define table columns with dynamic headers based on active tab
+  const columns: ColumnDef<TextElement>[] = useMemo(() => {
+    const fieldLabels = TYPE_FIELD_LABELS[activeTab]
+    return [
+      {
+        id: 'label',
+        header: fieldLabels.labelField,
+        accessorKey: 'label',
+        filterType: 'text',
+        helpText: fieldLabels.labelHelpText,
+        cell: (value) => <span className="font-medium">{value}</span>,
+      },
+      {
+        id: 'content',
+        header: fieldLabels.contentField,
+        accessorKey: 'content',
+        filterType: 'text',
+        helpText: fieldLabels.contentHelpText,
+        cell: (value) => <span className="max-w-md truncate block">{value}</span>,
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        accessorKey: 'id',
+        filterType: 'none',
+        enableSorting: false,
+        cell: (_, element) => (
+          <div className="flex justify-end gap-2">
+            <TooltipWrapper content="Edit text element">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleEdit(element)}
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+            </TooltipWrapper>
+            <TooltipWrapper content="Delete text element">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleDelete(element)}
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </TooltipWrapper>
+          </div>
+        ),
+      },
+    ]
+  }, [activeTab])
 
   const getTypeLabel = (type: TextElementType) => {
     return TEXT_ELEMENT_TYPES.find((t) => t.value === type)?.label || type
@@ -403,26 +467,26 @@ export function TFLProperties() {
             </div>
             <div className="grid gap-2">
               <div className="flex items-center gap-2">
-                <Label htmlFor="label">Label</Label>
-                <HelpIcon content="Enter a unique identifier for this text element (e.g., TITLE_01, FN_SAFETY)." />
+                <Label htmlFor="label">{TYPE_FIELD_LABELS[formData.type].labelField}</Label>
+                <HelpIcon content={TYPE_FIELD_LABELS[formData.type].labelHelpText} />
               </div>
               <Input
                 id="label"
                 value={formData.label}
                 onChange={(e) => setFormData((prev) => ({ ...prev, label: e.target.value }))}
-                placeholder="e.g., TITLE_01, FN_SAF, POP_ITT"
+                placeholder={TYPE_FIELD_LABELS[formData.type].labelPlaceholder}
               />
             </div>
             <div className="grid gap-2">
               <div className="flex items-center gap-2">
-                <Label htmlFor="content">Content</Label>
-                <HelpIcon content="Enter the full text that will appear in the TLF output." />
+                <Label htmlFor="content">{TYPE_FIELD_LABELS[formData.type].contentField}</Label>
+                <HelpIcon content={TYPE_FIELD_LABELS[formData.type].contentHelpText} />
               </div>
               <Textarea
                 id="content"
                 value={formData.content}
                 onChange={(e) => setFormData((prev) => ({ ...prev, content: e.target.value }))}
-                placeholder="e.g., Summary of Demographics and Baseline Characteristics"
+                placeholder={TYPE_FIELD_LABELS[formData.type].contentPlaceholder}
                 rows={5}
               />
             </div>
@@ -443,7 +507,7 @@ export function TFLProperties() {
         open={uploadDialogOpen}
         onOpenChange={setUploadDialogOpen}
         title="Upload TFL Properties"
-        description="Upload titles, footnotes, population sets, and acronyms from a CSV file."
+        description="Upload text elements from a CSV file. Column meanings vary by type: For Titles/Footnotes use Category + Text; for Population Sets use Short Form + Full Name; for Acronyms use Abbreviation + Full Form; for ICH Categories use Code + Description."
         columns={UPLOAD_COLUMNS}
         sampleData={UPLOAD_SAMPLE_DATA}
         templateFilename="tfl_properties_template.csv"

@@ -38,7 +38,8 @@ interface TreeNode {
 
 export function StudyManagement() {
   const queryClient = useQueryClient()
-  const currentUser = useAuthStore((state) => state.currentUser)
+  const { currentUser, studyRolesState, isLeadForStudy } = useAuthStore()
+  const isGlobalAdmin = currentUser?.is_admin === true
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [selectedNode, setSelectedNode] = useState<TreeNode | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -225,9 +226,15 @@ export function StudyManagement() {
     onError: (error) => toast.error(`Bulk upload failed: ${getErrorMessage(error)}`),
   })
 
-  // Build tree structure
+  // Build tree structure - filter studies based on user role
   const buildTree = (): TreeNode[] => {
-    return studies.map((study) => {
+    // For global admins, show all studies
+    // For LEAD users, only show studies where they have LEAD role
+    const filteredStudies = isGlobalAdmin 
+      ? studies 
+      : studies.filter((study) => isLeadForStudy(study.id))
+    
+    return filteredStudies.map((study) => {
       const studyReleases = releases.filter((r) => r.study_id === study.id)
       return {
         id: study.id,
@@ -254,6 +261,14 @@ export function StudyManagement() {
   }
 
   const tree = buildTree()
+  
+  // Check if user has permission for currently selected study
+  const canEditSelectedStudy = selectedNode && (
+    isGlobalAdmin || 
+    (selectedNode.type === 'study' && isLeadForStudy(selectedNode.id)) ||
+    (selectedNode.type === 'release' && isLeadForStudy((selectedNode.data as DatabaseRelease).study_id)) ||
+    (selectedNode.type === 'effort' && isLeadForStudy((selectedNode.data as ReportingEffort).study_id))
+  )
 
   const toggleNode = (nodeKey: string) => {
     setExpandedNodes((prev) => {
@@ -355,6 +370,11 @@ export function StudyManagement() {
     const isExpanded = expandedNodes.has(nodeKey)
     const hasChildren = node.children && node.children.length > 0
     const isSelected = selectedNode?.type === node.type && selectedNode?.id === node.id
+    
+    // Check if user can manage members for this specific study
+    const canManageMembersForStudy = node.type === 'study' && (
+      isGlobalAdmin || isLeadForStudy(node.id)
+    )
 
     const Icon = node.type === 'study'
       ? (isExpanded ? FolderOpen : Folder)
@@ -366,7 +386,7 @@ export function StudyManagement() {
       <div key={nodeKey}>
         <div
           className={cn(
-            'flex items-center gap-2 py-1.5 px-2 rounded-md cursor-pointer transition-colors',
+            'flex items-center gap-2 py-1.5 px-2 rounded-md cursor-pointer transition-colors group',
             isSelected ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
           )}
           style={{ paddingLeft: `${level * 20 + 8}px` }}
@@ -386,7 +406,27 @@ export function StudyManagement() {
             <span className="w-5" />
           )}
           <Icon className="h-4 w-4" />
-          <span className="text-sm">{node.label}</span>
+          <span className="text-sm flex-1">{node.label}</span>
+          
+          {/* Inline Manage Members button for studies */}
+          {canManageMembersForStudy && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setSelectedNode(node)
+                setMembersDialogOpen(true)
+              }}
+              className={cn(
+                'p-1.5 rounded-md transition-all',
+                isSelected 
+                  ? 'opacity-100 hover:bg-primary-foreground/20' 
+                  : 'opacity-0 group-hover:opacity-100 hover:bg-accent-foreground/10'
+              )}
+              title="Manage Members"
+            >
+              <Users className="h-4 w-4" />
+            </button>
+          )}
         </div>
         {isExpanded && node.children?.map((child) => renderTreeNode(child, level + 1))}
       </div>
@@ -407,7 +447,7 @@ export function StudyManagement() {
               Study Management
             </CardTitle>
             <CardDescription>
-              Manage studies, database releases, and reporting efforts
+              Manage studies, database releases, and reporting efforts. Select a study to manage team members and permissions.
             </CardDescription>
           </div>
           <div className="flex gap-2">
@@ -415,15 +455,21 @@ export function StudyManagement() {
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setBulkUploadOpen(true)}>
-              <Upload className="h-4 w-4 mr-2" />
-              Bulk Upload
-            </Button>
-            <Button size="sm" onClick={() => handleAdd('add-study')}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Study
-            </Button>
-            {selectedNode?.type === 'study' && (
+            {/* Only global admins can bulk upload or create new studies */}
+            {isGlobalAdmin && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setBulkUploadOpen(true)}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Bulk Upload
+                </Button>
+                <Button size="sm" onClick={() => handleAdd('add-study')}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Study
+                </Button>
+              </>
+            )}
+            {/* LEAD users can add releases/efforts to their studies */}
+            {selectedNode?.type === 'study' && canEditSelectedStudy && (
               <>
                 <Button size="sm" variant="outline" onClick={() => handleAdd('add-release')}>
                   <Plus className="h-4 w-4 mr-2" />
@@ -437,22 +483,25 @@ export function StudyManagement() {
                 )}
               </>
             )}
-            {selectedNode?.type === 'release' && (
+            {selectedNode?.type === 'release' && canEditSelectedStudy && (
               <Button size="sm" variant="outline" onClick={() => handleAdd('add-effort')}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Effort
               </Button>
             )}
-            {selectedNode && (
+            {selectedNode && canEditSelectedStudy && (
               <>
                 <Button size="sm" variant="secondary" onClick={handleEdit}>
                   <Edit className="h-4 w-4 mr-2" />
                   Edit
                 </Button>
-                <Button size="sm" variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </Button>
+                {/* Only global admins can delete studies; LEADs can delete releases/efforts in their studies */}
+                {(isGlobalAdmin || selectedNode.type !== 'study') && (
+                  <Button size="sm" variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -466,23 +515,56 @@ export function StudyManagement() {
               action={{ label: 'Add Study', onClick: () => handleAdd('add-study') }}
             />
           ) : (
-            <div className="border rounded-lg p-4 min-h-[400px]">
-              {tree.map((node) => renderTreeNode(node))}
+            <div className="space-y-3">
+              {/* Instruction hint when no study is selected */}
+              {!selectedNode && (
+                <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg text-sm text-blue-700 dark:text-blue-300">
+                  <Users className="h-4 w-4 flex-shrink-0" />
+                  <span>
+                    <strong>Tip:</strong> Click on a study below to manage its members, add releases, or edit details. 
+                    You can also click the <Users className="h-3.5 w-3.5 inline mx-0.5" /> icon next to a study name.
+                  </span>
+                </div>
+              )}
+              <div className="border rounded-lg p-4 min-h-[400px]">
+                {tree.map((node) => renderTreeNode(node))}
+              </div>
             </div>
           )}
           {selectedNode && (
             <div className="mt-4 p-4 bg-muted rounded-lg">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  Selected: <span className="font-medium text-foreground capitalize">{selectedNode.type}</span> - {selectedNode.label}
-                </p>
-                {selectedNode.type === 'effort' && (
-                  <Button size="sm" variant="outline" onClick={() => setUseCasesDialogOpen(true)}>
-                    <Tag className="h-4 w-4 mr-2" />
-                    Manage Use Cases
-                  </Button>
-                )}
+                <div className="flex items-center gap-2">
+                  <span className={cn(
+                    "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium uppercase",
+                    selectedNode.type === 'study' && "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+                    selectedNode.type === 'release' && "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+                    selectedNode.type === 'effort' && "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300"
+                  )}>
+                    {selectedNode.type}
+                  </span>
+                  <span className="font-medium text-foreground">{selectedNode.label}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedNode.type === 'study' && canManageMembers && (
+                    <Button size="sm" variant="outline" onClick={() => setMembersDialogOpen(true)}>
+                      <Users className="h-4 w-4 mr-2" />
+                      Manage Members
+                    </Button>
+                  )}
+                  {selectedNode.type === 'effort' && (
+                    <Button size="sm" variant="outline" onClick={() => setUseCasesDialogOpen(true)}>
+                      <Tag className="h-4 w-4 mr-2" />
+                      Manage Use Cases
+                    </Button>
+                  )}
+                </div>
               </div>
+              {selectedNode.type === 'study' && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Use "Manage Members" to add team members and assign roles (Lead, Editor, Viewer) for this study.
+                </p>
+              )}
               {selectedNode.type === 'effort' && (selectedNode.data as ReportingEffort).use_cases && (selectedNode.data as ReportingEffort).use_cases!.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">
                   {(selectedNode.data as ReportingEffort).use_cases?.map((uc: UseCaseSummary) => (

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Bell, Moon, Sun, Menu, LogOut, User, Gem } from 'lucide-react'
+import { Moon, Sun, Menu, LogOut, User, Gem, Wifi, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -20,6 +20,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useAuth } from '@/hooks/useAuth'
 import { Badge } from '@/components/ui/badge'
 import { ThemeSelector } from '@/components/layout/ThemeSelector'
+import { NotificationDropdown } from '@/components/layout/NotificationDropdown'
 import { cn } from '@/lib/utils'
 import { useEffect } from 'react'
 
@@ -86,43 +87,24 @@ export function Navbar() {
             )}
           </Button>
 
-          {/* Status Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
-                <span
-                  className={cn(
-                    "absolute top-1 right-1 h-2 w-2 rounded-full",
-                    wsStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'
-                  )}
-                />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>System Status</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="flex items-center gap-2">
-                <span
-                  className={cn(
-                    "h-2 w-2 rounded-full",
-                    wsStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'
-                  )}
-                />
-                <span>WebSocket: {wsStatus}</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-green-500" />
-                <span>API: Connected</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <span className="text-xs text-muted-foreground">
-                  Last checked: {new Date().toLocaleTimeString()}
-                </span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* WebSocket Status Indicator */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center">
+                {wsStatus === 'connected' ? (
+                  <Wifi className="h-4 w-4 text-green-500" />
+                ) : (
+                  <WifiOff className="h-4 w-4 text-red-500" />
+                )}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Real-time sync: {wsStatus}</p>
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Notifications */}
+          <NotificationDropdown />
 
           {/* User Dropdown */}
           {currentUser && (

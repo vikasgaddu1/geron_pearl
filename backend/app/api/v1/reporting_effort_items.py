@@ -30,7 +30,8 @@ from app.models.user_study_role import StudyRole
 from app.core.security import get_current_user
 from app.core.study_permissions import (
     get_user_study_role_for_reporting_effort,
-    is_study_admin
+    is_study_admin,
+    require_study_lead_access
 )
 from app.utils import sqlalchemy_to_dict
 from app.api.v1.websocket import manager
@@ -100,10 +101,13 @@ async def create_reporting_effort_item(
     db: AsyncSession = Depends(get_db),
     request: Request,
     item_in: ReportingEffortItemCreate,
+    current_user: UserModel = Depends(get_current_user),
 ) -> ReportingEffortItem:
     """
     Create a new reporting effort item.
     Automatically creates a tracker entry.
+    
+    Requires: Admin or Study LEAD role for the study.
     """
     try:
         # Verify reporting effort exists
@@ -113,6 +117,9 @@ async def create_reporting_effort_item(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reporting effort not found"
             )
+        
+        # Check user has LEAD access to this study
+        await require_study_lead_access(db, current_user, db_effort.study_id)
         
         # Check for duplicate item
         # This will be handled by the unique constraint in the model
@@ -183,9 +190,11 @@ async def create_reporting_effort_item_with_details(
     request: Request,
     reporting_effort_id: int,
     item_in: ReportingEffortItemCreateWithDetails,
+    current_user: UserModel = Depends(get_current_user),
 ) -> ReportingEffortItem:
     """
     Create a new reporting effort item with all details.
+    Requires LEAD access to the study.
     """
     try:
         # Verify reporting effort exists
@@ -194,6 +203,14 @@ async def create_reporting_effort_item_with_details(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reporting effort not found"
+            )
+
+        # Authorization: require LEAD access to the study
+        user_role = await get_user_study_role_for_reporting_effort(db, current_user, reporting_effort_id)
+        if not is_study_admin(user_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only study leads can create reporting effort items"
             )
         
         # Check for duplicate item (moved to CRUD layer but also check here for better error message)
@@ -618,10 +635,13 @@ async def delete_reporting_effort_item(
     db: AsyncSession = Depends(get_db),
     request: Request,
     item_id: int,
+    current_user: UserModel = Depends(get_current_user),
 ) -> ReportingEffortItem:
     """
     Delete a reporting effort item.
     Includes deletion protection based on programmer assignments.
+    
+    Requires: Admin or Study LEAD role for the study.
     """
     try:
         db_item = await reporting_effort_item.get(db, id=item_id)
@@ -630,6 +650,21 @@ async def delete_reporting_effort_item(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reporting effort item not found"
             )
+        
+        # Authorization check: Admin or Study LEAD required
+        # This check MUST run regardless of whether the reporting effort exists
+        # to prevent unauthorized deletion of orphaned items
+        if not current_user.is_admin:
+            # Get the reporting effort to find the study
+            db_effort = await reporting_effort.get(db, id=db_item.reporting_effort_id)
+            if not db_effort:
+                # Reporting effort is missing (orphaned item) - only admins can delete
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cannot delete orphaned item: parent reporting effort not found. Only administrators can delete orphaned items."
+                )
+            # Check user has LEAD access to this study
+            await require_study_lead_access(db, current_user, db_effort.study_id)
         
         # Check deletion protection
         protection_error = await reporting_effort_item.check_deletion_protection(db, id=item_id)
@@ -1132,22 +1167,32 @@ async def copy_tlf_items_from_package(
     request: Request,
     reporting_effort_id: int,
     copy_request: CopyFromPackageRequest,
+    current_user: UserModel = Depends(get_current_user),
 ) -> CopyOperationResponse:
     """
     Copy only TLF items from a package to a reporting effort.
+    Requires LEAD access to the study.
     """
     import logging
     logger = logging.getLogger(__name__)
-    
+
     try:
         logger.info(f"Starting TLF copy operation: package_id={copy_request.package_id}, reporting_effort_id={reporting_effort_id}")
-        
+
         # Verify reporting effort exists
         db_effort = await reporting_effort.get(db, id=reporting_effort_id)
         if not db_effort:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reporting effort not found"
+            )
+
+        # Authorization: require LEAD access to the study
+        user_role = await get_user_study_role_for_reporting_effort(db, current_user, reporting_effort_id)
+        if not is_study_admin(user_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only study leads can copy items"
             )
         
         # Verify package exists  
@@ -1235,22 +1280,32 @@ async def copy_dataset_items_from_package(
     request: Request,
     reporting_effort_id: int,
     copy_request: CopyFromPackageRequest,
+    current_user: UserModel = Depends(get_current_user),
 ) -> CopyOperationResponse:
     """
     Copy only Dataset items from a package to a reporting effort.
+    Requires LEAD access to the study.
     """
     import logging
     logger = logging.getLogger(__name__)
-    
+
     try:
         logger.info(f"Starting Dataset copy operation: package_id={copy_request.package_id}, reporting_effort_id={reporting_effort_id}")
-        
+
         # Verify reporting effort exists
         db_effort = await reporting_effort.get(db, id=reporting_effort_id)
         if not db_effort:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reporting effort not found"
+            )
+
+        # Authorization: require LEAD access to the study
+        user_role = await get_user_study_role_for_reporting_effort(db, current_user, reporting_effort_id)
+        if not is_study_admin(user_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only study leads can copy items"
             )
         
         # Verify package exists  
@@ -1458,13 +1513,15 @@ async def copy_tlf_items_from_reporting_effort(
     request: Request,
     reporting_effort_id: int,
     copy_request: CopyFromReportingEffortRequest,
+    current_user: UserModel = Depends(get_current_user),
 ) -> CopyOperationResponse:
     """
     Copy only TLF items from another reporting effort with graceful duplicate handling.
+    Requires LEAD access to the target study.
     """
     import logging
     logger = logging.getLogger(__name__)
-    
+
     try:
         logger.info(f"Starting TLF copy operation: source_reporting_effort_id={copy_request.source_reporting_effort_id}, target_reporting_effort_id={reporting_effort_id}")
         # Verify target reporting effort exists
@@ -1473,6 +1530,14 @@ async def copy_tlf_items_from_reporting_effort(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Target reporting effort not found"
+            )
+
+        # Authorization: require LEAD access to the target study
+        user_role = await get_user_study_role_for_reporting_effort(db, current_user, reporting_effort_id)
+        if not is_study_admin(user_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only study leads can copy items"
             )
         
         # Verify source reporting effort exists
@@ -1575,13 +1640,15 @@ async def copy_dataset_items_from_reporting_effort(
     request: Request,
     reporting_effort_id: int,
     copy_request: CopyFromReportingEffortRequest,
+    current_user: UserModel = Depends(get_current_user),
 ) -> CopyOperationResponse:
     """
     Copy only Dataset items from another reporting effort with graceful duplicate handling.
+    Requires LEAD access to the target study.
     """
     import logging
     logger = logging.getLogger(__name__)
-    
+
     try:
         logger.info(f"Starting Dataset copy operation: source_reporting_effort_id={copy_request.source_reporting_effort_id}, target_reporting_effort_id={reporting_effort_id}")
         # Verify target reporting effort exists
@@ -1590,6 +1657,14 @@ async def copy_dataset_items_from_reporting_effort(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Target reporting effort not found"
+            )
+
+        # Authorization: require LEAD access to the target study
+        user_role = await get_user_study_role_for_reporting_effort(db, current_user, reporting_effort_id)
+        if not is_study_admin(user_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only study leads can copy items"
             )
         
         # Verify source reporting effort exists

@@ -97,6 +97,14 @@ class ConnectionManager:
             
         logger.debug(f"Broadcast completed: {successful_sends} successful, {len(disconnected)} removed")
 
+    async def broadcast_json(self, message: dict):
+        """Broadcast a JSON message to all connected WebSocket clients."""
+        try:
+            json_str = json.dumps(message)
+            await self.broadcast(json_str)
+        except Exception as e:
+            logger.error(f"Error broadcasting JSON message: {e}")
+
 # Global connection manager instance
 manager = ConnectionManager()
 

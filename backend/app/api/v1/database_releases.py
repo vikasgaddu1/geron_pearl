@@ -9,6 +9,9 @@ from app.crud import database_release, study, reporting_effort
 from app.db.session import get_db
 from app.schemas.database_release import DatabaseRelease, DatabaseReleaseCreate, DatabaseReleaseUpdate
 from app.api.v1.websocket import broadcast_database_release_created, broadcast_database_release_updated, broadcast_database_release_deleted
+from app.core.security import get_current_user
+from app.core.study_permissions import require_study_lead_access
+from app.models.user import User
 
 router = APIRouter()
 
@@ -18,9 +21,12 @@ async def create_database_release(
     *,
     db: AsyncSession = Depends(get_db),
     database_release_in: DatabaseReleaseCreate,
+    current_user: User = Depends(get_current_user),
 ) -> DatabaseRelease:
     """
     Create a new database release.
+    
+    Requires: Admin or Study LEAD role for the study.
     """
     try:
         # Check if study exists
@@ -30,6 +36,9 @@ async def create_database_release(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Study not found"
             )
+        
+        # Check user has LEAD access to this study
+        await require_study_lead_access(db, current_user, database_release_in.study_id)
         
         # Check if database release with same label already exists for this study
         existing_release = await database_release.get_by_study_and_label(
@@ -121,9 +130,12 @@ async def update_database_release(
     db: AsyncSession = Depends(get_db),
     database_release_id: int,
     database_release_in: DatabaseReleaseUpdate,
+    current_user: User = Depends(get_current_user),
 ) -> DatabaseRelease:
     """
     Update an existing database release.
+    
+    Requires: Admin or Study LEAD role for the study.
     """
     try:
         db_release = await database_release.get(db, id=database_release_id)
@@ -132,6 +144,9 @@ async def update_database_release(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Database release not found"
             )
+        
+        # Check user has LEAD access to this study
+        await require_study_lead_access(db, current_user, db_release.study_id)
         
         # Check if new label conflicts with existing database release for same study
         if database_release_in.database_release_label:
@@ -169,9 +184,12 @@ async def delete_database_release(
     *,
     db: AsyncSession = Depends(get_db),
     database_release_id: int,
+    current_user: User = Depends(get_current_user),
 ) -> DatabaseRelease:
     """
     Delete a database release.
+    
+    Requires: Admin or Study LEAD role for the study.
     """
     try:
         db_release = await database_release.get(db, id=database_release_id)
@@ -180,6 +198,9 @@ async def delete_database_release(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Database release not found"
             )
+        
+        # Check user has LEAD access to this study
+        await require_study_lead_access(db, current_user, db_release.study_id)
         
         # Check for associated reporting efforts before deletion
         associated_efforts = await reporting_effort.get_by_database_release_id(db, database_release_id=database_release_id)

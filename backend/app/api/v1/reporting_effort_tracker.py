@@ -12,8 +12,9 @@ from app.crud import reporting_effort_item_tracker, reporting_effort_item, user,
 from app.db.session import get_db
 from app.core.security import get_current_user
 from app.core.study_permissions import (
-    get_user_study_role, 
+    get_user_study_role,
     get_user_study_role_for_tracker,
+    get_user_study_role_for_reporting_effort,
     is_study_admin,
     can_modify_in_study
 )
@@ -36,6 +37,7 @@ from app.api.v1.websocket import (
     broadcast_reporting_effort_tracker_deleted,
     broadcast_reporting_effort_tracker_updated as broadcast_tracker_updated
 )
+from app.services.notification_service import create_assignment_notification
 
 async def broadcast_tracker_assignment_updated(tracker_data, assignment_type: str, programmer_id: Optional[int]):
     """Broadcast programmer assignment updates."""
@@ -125,10 +127,12 @@ async def create_tracker(
     db: AsyncSession = Depends(get_db),
     request: Request,
     tracker_in: ReportingEffortItemTrackerCreate,
+    current_user: UserModel = Depends(get_current_user),
 ) -> ReportingEffortItemTracker:
     """
     Create a new tracker entry.
     Usually trackers are auto-created with items, but this allows manual creation.
+    Requires LEAD access to the study.
     """
     try:
         # Verify item exists
@@ -137,6 +141,14 @@ async def create_tracker(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reporting effort item not found"
+            )
+
+        # Authorization: require LEAD access to the study
+        user_role = await get_user_study_role_for_tracker(db, current_user, None, db_item.id)
+        if not is_study_admin(user_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only study leads can create trackers"
             )
         
         # Check if tracker already exists
@@ -360,6 +372,12 @@ async def update_tracker(
 ) -> ReportingEffortItemTracker:
     """
     Update a tracker entry.
+    
+    Permissions:
+    - Admin: Can update any field on any tracker
+    - Study LEAD: Can update any field for trackers in their study
+    - Study EDITOR: Can update fields for trackers they are assigned to (as production or QC programmer)
+    - Study VIEWER: Cannot update trackers
     """
     try:
         db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
@@ -372,16 +390,31 @@ async def update_tracker(
         # Convert to dict for validation
         update_data = tracker_in.model_dump(exclude_unset=True) if hasattr(tracker_in, 'model_dump') else tracker_in.dict(exclude_unset=True)
         
-        # Check if user is admin
+        # Check user's role and permissions
         is_admin = current_user.is_admin
+        study_role = await get_user_study_role_for_tracker(db, current_user, tracker_id)
+        is_study_lead = is_study_admin(study_role)
+        is_production_programmer = db_tracker.production_programmer_id == current_user.id
+        is_qc_programmer = db_tracker.qc_programmer_id == current_user.id
+        is_assigned = is_production_programmer or is_qc_programmer
         
-        # Permission check: Only production programmer or admin can change production status
+        # General permission check: Must be admin, lead, or assigned (editor)
+        # Viewers cannot update anything
+        if not is_admin and not is_study_lead and not is_assigned:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to edit this tracker. Only administrators, study leads, or assigned programmers can edit."
+            )
+        
+        # For assigned editors (not admin/lead), restrict what they can change
+        is_editor_only = not is_admin and not is_study_lead and is_assigned
+        
+        # Permission check for production_status: Only production programmer, admin, or study lead
         if 'production_status' in update_data and update_data['production_status']:
-            is_production_programmer = db_tracker.production_programmer_id == current_user.id
-            if not is_admin and not is_production_programmer:
+            if is_editor_only and not is_production_programmer:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only the assigned production programmer can change production status"
+                    detail="Only the assigned production programmer, study lead, or admin can change production status"
                 )
             # Validate: Cannot change production status without production programmer (except not_started)
             if update_data['production_status'] != 'not_started':
@@ -398,13 +431,12 @@ async def update_tracker(
                     detail="Production status cannot be set to 'completed' directly. It is automatically set when QC marks the item as completed."
                 )
         
-        # Permission check: Only QC programmer or admin can change QC status
+        # Permission check for qc_status: Only QC programmer, admin, or study lead
         if 'qc_status' in update_data and update_data['qc_status']:
-            is_qc_programmer = db_tracker.qc_programmer_id == current_user.id
-            if not is_admin and not is_qc_programmer:
+            if is_editor_only and not is_qc_programmer:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only the assigned QC programmer can change QC status"
+                    detail="Only the assigned QC programmer, study lead, or admin can change QC status"
                 )
             # Validate: Cannot change QC status without QC programmer (except not_started)
             if update_data['qc_status'] != 'not_started':
@@ -421,6 +453,14 @@ async def update_tracker(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"QC can only be marked as '{update_data['qc_status']}' when production status is 'Ready for QC'"
                     )
+        
+        # Permission check for programmer assignments: Only admin or lead can assign programmers
+        if is_editor_only:
+            if 'production_programmer_id' in update_data or 'qc_programmer_id' in update_data:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only administrators or study leads can assign programmers to tasks"
+                )
         
         # Auto-set due_date when assigning production programmer (if not already set)
         if 'production_programmer_id' in update_data and update_data['production_programmer_id']:
@@ -456,8 +496,10 @@ async def update_tracker(
             # Auto-transitions override any explicit values to enforce workflow rules
             update_data.update(auto_updates)
         
-        # Store original data for audit
+        # Store original data for audit and notification checks
         original_data = sqlalchemy_to_dict(db_tracker)
+        original_prod_programmer_id = db_tracker.production_programmer_id
+        original_qc_programmer_id = db_tracker.qc_programmer_id
         
         updated_tracker = await reporting_effort_item_tracker.update(
             db, db_obj=db_tracker, obj_in=update_data
@@ -482,6 +524,46 @@ async def update_tracker(
             )
         except Exception as audit_error:
             print(f"Audit logging error: {audit_error}")
+        
+        # Create notifications for new programmer assignments
+        try:
+            # Get item and study info for context
+            item_code = None
+            study_label = None
+            if db_tracker.item:
+                item_code = db_tracker.item.item_code
+                if db_tracker.item.reporting_effort and db_tracker.item.reporting_effort.study:
+                    study_label = db_tracker.item.reporting_effort.study.study_label
+            
+            # Notify production programmer if newly assigned (different from before)
+            new_prod_id = update_data.get('production_programmer_id')
+            if new_prod_id is not None and new_prod_id != original_prod_programmer_id and new_prod_id:
+                await create_assignment_notification(
+                    db,
+                    assigned_user_id=new_prod_id,
+                    assignment_type="production",
+                    item_code=item_code or f"Tracker #{tracker_id}",
+                    study_label=study_label,
+                    tracker_id=tracker_id,
+                    assigned_by_user_id=current_user.id,
+                    assigned_by_username=current_user.username
+                )
+            
+            # Notify QC programmer if newly assigned (different from before)
+            new_qc_id = update_data.get('qc_programmer_id')
+            if new_qc_id is not None and new_qc_id != original_qc_programmer_id and new_qc_id:
+                await create_assignment_notification(
+                    db,
+                    assigned_user_id=new_qc_id,
+                    assignment_type="qc",
+                    item_code=item_code or f"Tracker #{tracker_id}",
+                    study_label=study_label,
+                    tracker_id=tracker_id,
+                    assigned_by_user_id=current_user.id,
+                    assigned_by_username=current_user.username
+                )
+        except Exception as notif_error:
+            print(f"Notification creation error: {notif_error}")
         
         # Broadcast WebSocket event
         try:
@@ -696,6 +778,29 @@ async def assign_programmer(
             )
         except Exception as audit_error:
             print(f"Audit logging error: {audit_error}")
+        
+        # Create notification for the assigned user
+        try:
+            # Get item and study info for context
+            item_code = None
+            study_label = None
+            if db_tracker.item:
+                item_code = db_tracker.item.item_code
+                if db_tracker.item.reporting_effort and db_tracker.item.reporting_effort.study:
+                    study_label = db_tracker.item.reporting_effort.study.study_label
+            
+            await create_assignment_notification(
+                db,
+                assigned_user_id=assignment.user_id,
+                assignment_type=assignment.role,
+                item_code=item_code or f"Tracker #{tracker_id}",
+                study_label=study_label,
+                tracker_id=tracker_id,
+                assigned_by_user_id=current_user.id,
+                assigned_by_username=current_user.username
+            )
+        except Exception as notif_error:
+            print(f"Notification creation error: {notif_error}")
         
         # Broadcast specialized assignment update
         try:
@@ -1102,6 +1207,10 @@ async def bulk_assign_and_update_status(
                 errors.append(f"Tracker {tracker_id} not found")
                 continue
             
+            # Store original programmer IDs for notification comparison
+            original_prod_programmer_id = db_tracker.production_programmer_id
+            original_qc_programmer_id = db_tracker.qc_programmer_id
+            
             update_data = {}
             
             # Note: Any user can be assigned - their study role determines access
@@ -1173,6 +1282,44 @@ async def bulk_assign_and_update_status(
                     await broadcast_tracker_updated(updated_tracker)
                 except Exception:
                     pass
+                
+                # Create notifications for new assignments
+                try:
+                    # Get item and study info for context
+                    item_code = None
+                    study_label = None
+                    if db_tracker.item:
+                        item_code = db_tracker.item.item_code
+                        if db_tracker.item.reporting_effort and db_tracker.item.reporting_effort.study:
+                            study_label = db_tracker.item.reporting_effort.study.study_label
+                    
+                    # Notify production programmer if newly assigned (different from original)
+                    if data.production_programmer_id is not None and data.production_programmer_id != original_prod_programmer_id and data.production_programmer_id:
+                        await create_assignment_notification(
+                            db,
+                            assigned_user_id=data.production_programmer_id,
+                            assignment_type="production",
+                            item_code=item_code or f"Tracker #{tracker_id}",
+                            study_label=study_label,
+                            tracker_id=tracker_id,
+                            assigned_by_user_id=current_user.id,
+                            assigned_by_username=current_user.username
+                        )
+                    
+                    # Notify QC programmer if newly assigned (different from original)
+                    if data.qc_programmer_id is not None and data.qc_programmer_id != original_qc_programmer_id and data.qc_programmer_id:
+                        await create_assignment_notification(
+                            db,
+                            assigned_user_id=data.qc_programmer_id,
+                            assignment_type="qc",
+                            item_code=item_code or f"Tracker #{tracker_id}",
+                            study_label=study_label,
+                            tracker_id=tracker_id,
+                            assigned_by_user_id=current_user.id,
+                            assigned_by_username=current_user.username
+                        )
+                except Exception as notif_error:
+                    print(f"Notification creation error: {notif_error}")
                     
         except Exception as e:
             errors.append(f"Tracker {tracker_id}: {str(e)}")
@@ -1381,11 +1528,13 @@ async def export_trackers(
     *,
     db: AsyncSession = Depends(get_db),
     reporting_effort_id: int,
-    format: str = Query("json", enum=["json", "excel"])
+    format: str = Query("json", enum=["json", "excel"]),
+    current_user: UserModel = Depends(get_current_user),
 ) -> Any:
     """
     Export all trackers for a reporting effort.
-    
+    Requires authentication and LEAD access to the study.
+
     Formats:
     - json: JSON format for backup/import
     - excel: Excel format for manual editing
@@ -1395,13 +1544,21 @@ async def export_trackers(
         items = await reporting_effort_item.get_by_reporting_effort(
             db, reporting_effort_id=reporting_effort_id
         )
-        
+
         if not items:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No items found for this reporting effort"
             )
-        
+
+        # Authorization: check user has access to this study via the first item
+        user_role = await get_user_study_role_for_reporting_effort(db, current_user, reporting_effort_id)
+        if not is_study_admin(user_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only study leads can export trackers"
+            )
+
         # Get trackers for all items
         export_data = []
         for item in items:
@@ -1669,6 +1826,7 @@ async def create_comment_with_status(
     
     Permissions:
     - Admin: Can change any status
+    - Study Lead: Can change any status within their study
     - Editor: Can only change status for tasks they're assigned to
     - Viewer: Cannot change status
     """
@@ -1684,6 +1842,9 @@ async def create_comment_with_status(
                 detail="Tracker not found"
             )
         
+        # Get user's study role for this tracker
+        study_role = await get_user_study_role_for_tracker(db, current_user, tracker_id)
+        
         # Store original statuses for history tracking
         original_prod_status = db_tracker.production_status
         original_qc_status = db_tracker.qc_status
@@ -1692,9 +1853,9 @@ async def create_comment_with_status(
         status_updates = {}
         
         if data.production_status:
-            # Check permission
+            # Check permission (pass study_role for Study Lead access)
             has_permission, perm_error = TrackerWorkflowService.check_status_change_permission(
-                current_user, db_tracker, "production_status"
+                current_user, db_tracker, "production_status", study_role
             )
             if not has_permission:
                 raise HTTPException(
@@ -1720,9 +1881,9 @@ async def create_comment_with_status(
             )
         
         if data.qc_status:
-            # Check permission
+            # Check permission (pass study_role for Study Lead access)
             has_permission, perm_error = TrackerWorkflowService.check_status_change_permission(
-                current_user, db_tracker, "qc_status"
+                current_user, db_tracker, "qc_status", study_role
             )
             if not has_permission:
                 raise HTTPException(
@@ -1904,14 +2065,16 @@ async def get_status_history(
 async def get_tracker_permissions(
     *,
     db: AsyncSession = Depends(get_db),
-    request: Request,
     tracker_id: int,
+    current_user: UserModel = Depends(get_current_user),
 ) -> Dict[str, bool]:
     """
     Get the current user's permissions for a tracker.
     
     Returns a dict indicating which fields the user can modify.
     Used by frontend to enable/disable UI controls.
+    
+    Includes Study LEAD permissions for users with LEAD role in the tracker's study.
     """
     try:
         # Get tracker
@@ -1922,24 +2085,10 @@ async def get_tracker_permissions(
                 detail="Tracker not found"
             )
         
-        # Get current user
-        current_user_id = getattr(request.state, 'user_id', None)
-        if not current_user_id:
-            return {
-                "production_status": False,
-                "qc_status": False,
-                "in_production_flag": False,
-            }
+        # Get user's study role for this tracker
+        study_role = await get_user_study_role_for_tracker(db, current_user, tracker_id)
         
-        current_user = await user.get(db, id=current_user_id)
-        if not current_user:
-            return {
-                "production_status": False,
-                "qc_status": False,
-                "in_production_flag": False,
-            }
-        
-        return TrackerWorkflowService.can_user_modify_tracker(current_user, db_tracker)
+        return TrackerWorkflowService.can_user_modify_tracker(current_user, db_tracker, study_role)
         
     except HTTPException:
         raise
@@ -1964,7 +2113,7 @@ async def update_production_flag(
     Update the in_production_flag for a tracker.
     
     The flag can only be True when both production and QC are completed.
-    Only ADMIN or the assigned production programmer can update this flag.
+    Only ADMIN, Study LEAD, or the assigned production programmer can update this flag.
     """
     try:
         # Get tracker
@@ -1975,13 +2124,15 @@ async def update_production_flag(
                 detail="Tracker not found"
             )
         
-        # Permission check: Only admin or production programmer can update in_production_flag
+        # Permission check: Admin, study lead, or production programmer can update in_production_flag
         is_admin = current_user.is_admin
+        study_role = await get_user_study_role_for_tracker(db, current_user, tracker_id)
+        is_study_lead = is_study_admin(study_role)
         is_production_programmer = db_tracker.production_programmer_id == current_user.id
-        if not is_admin and not is_production_programmer:
+        if not is_admin and not is_study_lead and not is_production_programmer:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only administrators or the assigned production programmer can update the in-production flag"
+                detail="Only administrators, study leads, or the assigned production programmer can update the in-production flag"
             )
         
         # Validate the flag change
@@ -2031,7 +2182,7 @@ async def update_tracker_milestones(
     This replaces all manual milestone links for the tracker with the provided list.
     Subtype and tag-based links are not affected - only manual links are managed.
 
-    Only admins or the production programmer can update milestone assignments.
+    Only admins, study leads, or the production programmer can update milestone assignments.
     """
     try:
         # Get tracker
@@ -2042,13 +2193,15 @@ async def update_tracker_milestones(
                 detail="Tracker not found"
             )
 
-        # Permission check: Admin or production programmer
+        # Permission check: Admin, study lead, or production programmer
         is_admin = current_user.is_admin
+        study_role = await get_user_study_role_for_tracker(db, current_user, tracker_id)
+        is_study_lead = is_study_admin(study_role)
         is_production_programmer = db_tracker.production_programmer_id == current_user.id
-        if not is_admin and not is_production_programmer:
+        if not is_admin and not is_study_lead and not is_production_programmer:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only administrators or the assigned production programmer can update milestone assignments"
+                detail="Only administrators, study leads, or the assigned production programmer can update milestone assignments"
             )
 
         # Update milestone assignments

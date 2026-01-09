@@ -221,6 +221,46 @@ def require_role(required_roles: list[UserRole]):
     return role_checker
 
 
+def require_admin_or_lead():
+    """
+    Dependency factory to check if user is an admin or has LEAD role in at least one study.
+    Used for global resources like packages and text elements.
+    
+    Returns:
+        FastAPI dependency function
+    
+    Example:
+        @router.post("/", dependencies=[Depends(require_admin_or_lead())])
+    """
+    async def admin_or_lead_checker(
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+    ) -> User:
+        # Admins always have access
+        if current_user.is_admin:
+            return current_user
+        
+        # Check if user has LEAD role in at least one study
+        from app.models.user_study_role import UserStudyRole, StudyRole
+        result = await db.execute(
+            select(UserStudyRole).where(
+                UserStudyRole.user_id == current_user.id,
+                UserStudyRole.role == StudyRole.LEAD
+            )
+        )
+        lead_role = result.scalar_one_or_none()
+        
+        if lead_role:
+            return current_user
+        
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Admin or Study Lead privileges required.",
+        )
+    
+    return admin_or_lead_checker
+
+
 def generate_reset_token() -> str:
     """Generate a secure random token for password reset."""
     return secrets.token_urlsafe(32)
