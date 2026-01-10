@@ -10,8 +10,8 @@ WORKDIR /app
 COPY package.json .npmrc ./
 
 # Install dependencies fresh (ignoring any Windows-generated lock file)
-# Note: Don't use --no-optional as rollup needs platform-specific binaries
-RUN npm install --legacy-peer-deps
+# Explicitly install Linux rollup binary since we're building on Linux
+RUN npm install && npm install @rollup/rollup-linux-x64-gnu --save-optional
 
 # Copy source code
 COPY . .
