@@ -178,6 +178,7 @@ export interface TLFDetails {
   title_id?: number
   population_flag_id?: number
   ich_category_id?: number
+  title?: TextElement
 }
 
 export interface DatasetDetails {

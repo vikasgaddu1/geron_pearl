@@ -63,19 +63,14 @@ export function KanbanCard({ tracker, statusField, onClick, isDraggable = true, 
           </div>
         </div>
         
-        {/* Item Type Badge */}
-        <div className="flex gap-1 flex-wrap">
-          {tracker.item_type && (
-            <Badge variant="outline" className="text-xs">
-              {tracker.item_type}
-            </Badge>
-          )}
-          {tracker.item_subtype && (
+        {/* Item Subtype Badge (type is shown in swimlane header) */}
+        {tracker.item_subtype && (
+          <div className="flex gap-1 flex-wrap">
             <Badge variant="secondary" className="text-xs">
               {tracker.item_subtype}
             </Badge>
-          )}
-        </div>
+          </div>
+        )}
         
         {/* Priority */}
         {tracker.priority && (

@@ -440,7 +440,7 @@ class ReportingEffortItemTrackerCRUD:
             ReportingEffortItem.item_subtype.label('item_subtype'),
             prod_user.username.label('prod_programmer_username'),
             qc_user.username.label('qc_programmer_username'),
-            title_element.label.label('item_title'),
+            func.coalesce(title_element.content, title_element.label).label('item_title'),
             ReportingEffortDatasetDetails.label.label('dataset_label')
         ).select_from(
             ReportingEffortItemTracker

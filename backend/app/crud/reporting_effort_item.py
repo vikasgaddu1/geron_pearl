@@ -190,7 +190,7 @@ class ReportingEffortItemCRUD:
         result = await db.execute(
             select(ReportingEffortItem)
             .options(
-                selectinload(ReportingEffortItem.tlf_details),
+                selectinload(ReportingEffortItem.tlf_details).selectinload(ReportingEffortTlfDetails.title),
                 selectinload(ReportingEffortItem.dataset_details).selectinload(ReportingEffortDatasetDetails.ig_version),
                 selectinload(ReportingEffortItem.footnotes),
                 selectinload(ReportingEffortItem.acronyms),
@@ -222,7 +222,7 @@ class ReportingEffortItemCRUD:
         result = await db.execute(
             select(ReportingEffortItem)
             .options(
-                selectinload(ReportingEffortItem.tlf_details),
+                selectinload(ReportingEffortItem.tlf_details).selectinload(ReportingEffortTlfDetails.title),
                 selectinload(ReportingEffortItem.dataset_details).selectinload(ReportingEffortDatasetDetails.ig_version),
                 selectinload(ReportingEffortItem.footnotes),
                 selectinload(ReportingEffortItem.acronyms),
@@ -277,7 +277,7 @@ class ReportingEffortItemCRUD:
         result = await db.execute(
             select(ReportingEffortItem)
             .options(
-                selectinload(ReportingEffortItem.tlf_details),
+                selectinload(ReportingEffortItem.tlf_details).selectinload(ReportingEffortTlfDetails.title),
                 selectinload(ReportingEffortItem.dataset_details).selectinload(ReportingEffortDatasetDetails.ig_version),
                 selectinload(ReportingEffortItem.footnotes),
                 selectinload(ReportingEffortItem.acronyms),
@@ -333,12 +333,12 @@ class ReportingEffortItemCRUD:
         
         await db.commit()
         await db.refresh(db_obj)
-        
+
         # Reload with relationships
         result = await db.execute(
             select(ReportingEffortItem)
             .options(
-                selectinload(ReportingEffortItem.tlf_details),
+                selectinload(ReportingEffortItem.tlf_details).selectinload(ReportingEffortTlfDetails.title),
                 selectinload(ReportingEffortItem.dataset_details).selectinload(ReportingEffortDatasetDetails.ig_version),
                 selectinload(ReportingEffortItem.footnotes),
                 selectinload(ReportingEffortItem.acronyms),

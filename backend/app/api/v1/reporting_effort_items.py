@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
-from app.crud import reporting_effort_item, reporting_effort, audit_log, text_element
+from app.crud import reporting_effort_item, reporting_effort, audit_log, text_element, reporting_effort_item_tracker
 from app.crud.package_item import package_item
 from app.db.session import get_db
 from app.schemas.reporting_effort_item import (
@@ -34,7 +34,7 @@ from app.core.study_permissions import (
     require_study_lead_access
 )
 from app.utils import sqlalchemy_to_dict
-from app.api.v1.websocket import manager
+from app.api.v1.websocket import manager, broadcast_reporting_effort_tracker_created
 
 logger = logging.getLogger(__name__)
 
@@ -159,15 +159,23 @@ async def create_reporting_effort_item(
             )
         except Exception as audit_error:
             logger.error(f"Audit logging error: {audit_error}")
-        
-        # Broadcast WebSocket event
+
+        # Broadcast WebSocket event for item
         try:
             await broadcast_reporting_effort_item_created(created_item)
         except Exception as ws_error:
             logger.error(f"WebSocket broadcast error: {ws_error}")
-        
+
+        # Broadcast tracker creation event
+        try:
+            tracker = await reporting_effort_item_tracker.get_by_item(db, reporting_effort_item_id=created_item.id)
+            if tracker:
+                await broadcast_reporting_effort_tracker_created(tracker)
+        except Exception as ws_error:
+            logger.error(f"WebSocket tracker broadcast error: {ws_error}")
+
         return created_item
-        
+
     except ValueError as e:
         # Handle duplicate error from CRUD
         raise HTTPException(
@@ -251,15 +259,23 @@ async def create_reporting_effort_item_with_details(
             )
         except Exception as audit_error:
             logger.error(f"Audit logging error: {audit_error}")
-        
-        # Broadcast WebSocket event
+
+        # Broadcast WebSocket event for item
         try:
             await broadcast_reporting_effort_item_created(created_item)
         except Exception as ws_error:
             logger.error(f"WebSocket broadcast error: {ws_error}")
-        
+
+        # Broadcast tracker creation event
+        try:
+            tracker = await reporting_effort_item_tracker.get_by_item(db, reporting_effort_item_id=created_item.id)
+            if tracker:
+                await broadcast_reporting_effort_tracker_created(tracker)
+        except Exception as ws_error:
+            logger.error(f"WebSocket tracker broadcast error: {ws_error}")
+
         return created_item
-        
+
     except ValueError as e:
         # Handle duplicate error from CRUD
         raise HTTPException(
@@ -376,7 +392,7 @@ async def read_reporting_effort_item(
             detail="Failed to retrieve reporting effort item"
         )
 
-@router.get("/by-effort/{reporting_effort_id}")
+@router.get("/by-effort/{reporting_effort_id}", response_model_exclude_none=False)
 async def read_items_by_reporting_effort(
     *,
     db: AsyncSession = Depends(get_db),
@@ -423,13 +439,24 @@ async def read_items_by_reporting_effort(
             
             # Add TLF details if present
             if hasattr(item, 'tlf_details') and item.tlf_details:
-                item_dict["tlf_details"] = {
+                tlf_dict = {
                     "id": item.tlf_details.id,
                     "reporting_effort_item_id": item.tlf_details.reporting_effort_item_id,
                     "title_id": item.tlf_details.title_id,
                     "population_flag_id": item.tlf_details.population_flag_id,
-                    "ich_category_id": item.tlf_details.ich_category_id
+                    "ich_category_id": item.tlf_details.ich_category_id,
+                    "title": None
                 }
+                # Add title text if present
+                if hasattr(item.tlf_details, 'title') and item.tlf_details.title:
+                    # Use content if available, otherwise fall back to label (which often contains the title text)
+                    title_text = item.tlf_details.title.content or item.tlf_details.title.label
+                    tlf_dict["title"] = {
+                        "id": item.tlf_details.title.id,
+                        "label": item.tlf_details.title.label,
+                        "content": title_text
+                    }
+                item_dict["tlf_details"] = tlf_dict
             
             # Add dataset details if present
             if hasattr(item, 'dataset_details') and item.dataset_details:
@@ -590,14 +617,25 @@ async def update_reporting_effort_item(
         
         # Add TLF details if present
         if hasattr(updated_item, 'tlf_details') and updated_item.tlf_details:
-            item_dict["tlf_details"] = {
+            tlf_dict = {
                 "id": updated_item.tlf_details.id,
                 "reporting_effort_item_id": updated_item.tlf_details.reporting_effort_item_id,
                 "title_id": updated_item.tlf_details.title_id,
                 "population_flag_id": updated_item.tlf_details.population_flag_id,
-                "ich_category_id": updated_item.tlf_details.ich_category_id
+                "ich_category_id": updated_item.tlf_details.ich_category_id,
+                "title": None
             }
-        
+            # Add title text if present
+            if hasattr(updated_item.tlf_details, 'title') and updated_item.tlf_details.title:
+                # Use content if available, otherwise fall back to label (which often contains the title text)
+                title_text = updated_item.tlf_details.title.content or updated_item.tlf_details.title.label
+                tlf_dict["title"] = {
+                    "id": updated_item.tlf_details.title.id,
+                    "label": updated_item.tlf_details.title.label,
+                    "content": title_text
+                }
+            item_dict["tlf_details"] = tlf_dict
+
         # Add dataset details if present
         if hasattr(updated_item, 'dataset_details') and updated_item.dataset_details:
             dataset_dict = {

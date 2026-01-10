@@ -457,6 +457,14 @@ async def broadcast_reporting_effort_item_deleted(item_data):
     logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
 
 
+async def broadcast_reporting_effort_tracker_created(tracker_data):
+    """Broadcast that a new reporting effort tracker was created."""
+    logger.info(f"Broadcasting reporting_effort_tracker_created: ID {tracker_data.id}")
+    message = broadcast_message("reporting_effort_tracker_created", sqlalchemy_to_dict(tracker_data))
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
 async def broadcast_reporting_effort_tracker_updated(tracker_data):
     """Broadcast that a reporting effort tracker was updated."""
     logger.info(f"Broadcasting reporting_effort_tracker_updated: ID {tracker_data.id}")

@@ -221,8 +221,9 @@ async def read_trackers(
                 # Consolidated item_title: TLF title > dataset label > item_description
                 item_title = None
                 if hasattr(tracker.item, 'tlf_details') and tracker.item.tlf_details:
-                    if tracker.item.tlf_details.title and hasattr(tracker.item.tlf_details.title, 'label'):
-                        item_title = tracker.item.tlf_details.title.label
+                    if tracker.item.tlf_details.title:
+                        # Use content if available, otherwise fall back to label
+                        item_title = tracker.item.tlf_details.title.content or tracker.item.tlf_details.title.label
                 if not item_title and hasattr(tracker.item, 'dataset_details') and tracker.item.dataset_details:
                     item_title = tracker.item.dataset_details.label
                 if not item_title:

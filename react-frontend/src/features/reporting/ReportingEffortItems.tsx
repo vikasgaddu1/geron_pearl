@@ -536,7 +536,12 @@ export function ReportingEffortItems() {
                               />
                             </TableHead>
                             <TableHead>Item Code</TableHead>
-                            <TableHead>Description</TableHead>
+                            {(activeTab === 'sdtm' || activeTab === 'adam') && (
+                              <TableHead>Label</TableHead>
+                            )}
+                            {activeTab === 'tlf' && (
+                              <TableHead>Title</TableHead>
+                            )}
                             <TableHead>Type</TableHead>
                             <TableHead>Subtype</TableHead>
                             {(activeTab === 'sdtm' || activeTab === 'adam') && (
@@ -555,7 +560,16 @@ export function ReportingEffortItems() {
                                 />
                               </TableCell>
                               <TableCell className="font-medium">{item.item_code}</TableCell>
-                              <TableCell className="max-w-md truncate">{item.item_description || '-'}</TableCell>
+                              {(activeTab === 'sdtm' || activeTab === 'adam') && (
+                                <TableCell className="max-w-xs truncate">
+                                  {item.dataset_details?.label || '-'}
+                                </TableCell>
+                              )}
+                              {activeTab === 'tlf' && (
+                                <TableCell className="max-w-md truncate">
+                                  {item.tlf_details?.title?.content || item.tlf_details?.title?.label || item.item_description || '-'}
+                                </TableCell>
+                              )}
                               <TableCell>
                                 <Badge variant={item.item_type === 'TLF' ? 'default' : 'secondary'}>
                                   {item.item_type}

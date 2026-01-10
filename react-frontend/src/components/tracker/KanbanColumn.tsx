@@ -1,8 +1,17 @@
-import { useState, DragEvent } from 'react'
+import { useState, DragEvent, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { KanbanCard } from './KanbanCard'
 import { toast } from 'sonner'
-import type { ReportingEffortItemTracker, ProductionStatus, QCStatus } from '@/types'
+import type { ReportingEffortItemTracker, ProductionStatus, QCStatus, Priority } from '@/types'
+
+// Priority order for sorting (lower number = higher priority)
+const PRIORITY_ORDER: Record<Priority | 'none', number> = {
+  critical: 1,
+  high: 2,
+  medium: 3,
+  low: 4,
+  none: 5,
+}
 
 interface KanbanColumnProps {
   title: string
@@ -27,11 +36,20 @@ export function KanbanColumn({
 }: KanbanColumnProps) {
   const [isDragOver, setIsDragOver] = useState(false)
 
-  const filteredTrackers = trackers.filter(t => 
-    statusField === 'production' 
-      ? t.production_status === status 
-      : t.qc_status === status
-  )
+  // Filter and sort trackers by priority (highest priority on top)
+  const filteredTrackers = useMemo(() => {
+    return trackers
+      .filter(t => 
+        statusField === 'production' 
+          ? t.production_status === status 
+          : t.qc_status === status
+      )
+      .sort((a, b) => {
+        const priorityA = PRIORITY_ORDER[a.priority || 'none']
+        const priorityB = PRIORITY_ORDER[b.priority || 'none']
+        return priorityA - priorityB
+      })
+  }, [trackers, statusField, status])
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
