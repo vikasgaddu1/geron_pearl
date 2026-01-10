@@ -10,7 +10,8 @@ WORKDIR /app
 COPY package.json .npmrc ./
 
 # Install dependencies fresh (ignoring any Windows-generated lock file)
-RUN npm install --no-optional
+# Note: Don't use --no-optional as rollup needs platform-specific binaries
+RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
