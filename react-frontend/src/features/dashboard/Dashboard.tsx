@@ -14,6 +14,11 @@ export function Dashboard() {
   const isAdmin = currentUser?.is_admin === true
   const canViewDirectorDashboard = isAdmin
 
+  // DEBUG: Log user info to help diagnose Director tab visibility
+  console.log('[Dashboard] currentUser:', currentUser)
+  console.log('[Dashboard] is_admin value:', currentUser?.is_admin, 'type:', typeof currentUser?.is_admin)
+  console.log('[Dashboard] canViewDirectorDashboard:', canViewDirectorDashboard)
+
   return (
     <div className="space-y-6">
       {/* Header */}
