@@ -2,17 +2,15 @@
 
 [phases.setup]
 nixPkgs = ["nodejs_20", "npm"]
+aptPkgs = ["libatomic1"]
 
 [phases.install]
-# Clean install with explicit rollup Linux binaries
 cmds = [
-  "rm -rf node_modules package-lock.json",
-  "npm install --include=optional",
-  "npm install @rollup/rollup-linux-x64-gnu --save-optional || true"
+  "npm ci --include=optional || npm install --include=optional"
 ]
 
 [phases.build]
 cmds = ["npm run build"]
 
 [start]
-cmd = "npx serve -s dist -l 3000"
+cmd = "npx serve -s dist -l $PORT"
