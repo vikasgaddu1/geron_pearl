@@ -1,20 +1,14 @@
 # PEARL Frontend Dockerfile - Multi-stage build
-# Stage 1: Build the React app
-FROM node:20-alpine AS builder
+# Stage 1: Build the React app (using debian-slim for glibc compatibility)
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Cache bust argument - change this value to force npm reinstall
-ARG CACHEBUST=7
-
-# Copy package files (package-lock.json excluded via .dockerignore to avoid 
-# platform-specific optional dependency issues between Windows dev and Linux deploy)
+# Copy package files (package-lock.json excluded via .dockerignore)
 COPY package.json .npmrc ./
 
-# Install dependencies fresh with Linux rollup binary
-RUN echo "Cache bust: $CACHEBUST" && \
-    npm install && \
-    npm install @rollup/rollup-linux-x64-gnu @rollup/rollup-linux-x64-musl --save-optional
+# Install dependencies fresh - glibc Linux so standard rollup binary works
+RUN npm install
 
 # Copy source code
 COPY . .
