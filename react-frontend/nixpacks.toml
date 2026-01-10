@@ -1,12 +1,15 @@
 # Nixpacks configuration for Railway deployment
-# Prevents platform-specific dependency issues from Windows-generated package-lock.json
 
 [phases.setup]
-nixPkgs = ["nodejs_20"]
+nixPkgs = ["nodejs_20", "npm"]
 
 [phases.install]
-# Clean install - remove any cached files that might have Windows deps
-cmds = ["rm -rf node_modules package-lock.json", "npm install"]
+# Clean install with explicit rollup Linux binaries
+cmds = [
+  "rm -rf node_modules package-lock.json",
+  "npm install --include=optional",
+  "npm install @rollup/rollup-linux-x64-gnu --save-optional || true"
+]
 
 [phases.build]
 cmds = ["npm run build"]
