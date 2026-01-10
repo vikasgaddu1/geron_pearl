@@ -210,7 +210,7 @@ async def reorder_phases(
 # =============================================================================
 
 @router.get(
-    "/milestones/dashboard",
+    "/dashboard",
     response_model=List[ReportingEffortMilestoneWithPhase]
 )
 async def get_milestones_for_dashboard(
@@ -239,7 +239,7 @@ async def get_milestones_for_dashboard(
 
 
 @router.get(
-    "/milestones/upcoming",
+    "/upcoming",
     response_model=List[ReportingEffortMilestoneWithPhase]
 )
 async def get_upcoming_milestones(
@@ -309,7 +309,7 @@ async def create_milestone(
 
 
 @router.get(
-    "/milestones/{milestone_id}",
+    "/{milestone_id}",
     response_model=ReportingEffortMilestone
 )
 async def get_milestone(
@@ -328,7 +328,7 @@ async def get_milestone(
 
 
 @router.put(
-    "/milestones/{milestone_id}",
+    "/{milestone_id}",
     response_model=ReportingEffortMilestone
 )
 async def update_milestone(
@@ -353,7 +353,7 @@ async def update_milestone(
 
 
 @router.delete(
-    "/milestones/{milestone_id}",
+    "/{milestone_id}",
     status_code=status.HTTP_204_NO_CONTENT
 )
 async def delete_milestone(
@@ -371,7 +371,7 @@ async def delete_milestone(
 
 
 @router.post(
-    "/milestones/{milestone_id}/complete",
+    "/{milestone_id}/complete",
     response_model=ReportingEffortMilestone
 )
 async def mark_milestone_complete(
@@ -395,7 +395,7 @@ async def mark_milestone_complete(
 
 
 @router.post(
-    "/milestones/{milestone_id}/incomplete",
+    "/{milestone_id}/incomplete",
     response_model=ReportingEffortMilestone
 )
 async def mark_milestone_incomplete(
@@ -451,7 +451,7 @@ async def reorder_milestones(
 # =============================================================================
 
 @router.get(
-    "/milestones/{milestone_id}/with-trackers",
+    "/{milestone_id}/with-trackers",
     response_model=ReportingEffortMilestoneWithTrackers
 )
 async def get_milestone_with_trackers(
@@ -480,7 +480,7 @@ async def get_milestone_with_trackers(
 
 
 @router.get(
-    "/milestones/{milestone_id}/trackers"
+    "/{milestone_id}/trackers"
 )
 async def get_linked_trackers(
     *,
@@ -513,7 +513,7 @@ async def get_linked_trackers(
 
 
 @router.get(
-    "/milestones/{milestone_id}/available-trackers"
+    "/{milestone_id}/available-trackers"
 )
 async def get_available_trackers(
     *,
@@ -541,7 +541,7 @@ async def get_available_trackers(
 
 
 @router.post(
-    "/milestones/{milestone_id}/trackers",
+    "/{milestone_id}/trackers",
     response_model=BulkOperationResult
 )
 async def link_trackers_to_milestone(
@@ -574,7 +574,7 @@ async def link_trackers_to_milestone(
 
 
 @router.delete(
-    "/milestones/{milestone_id}/trackers",
+    "/{milestone_id}/trackers",
     response_model=BulkOperationResult
 )
 async def unlink_trackers_from_milestone(

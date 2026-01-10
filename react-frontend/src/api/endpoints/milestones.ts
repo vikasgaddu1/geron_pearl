@@ -82,7 +82,7 @@ export const milestonesApi = {
    * Get a single milestone by ID
    */
   getById: async (milestoneId: number): Promise<ReportingEffortMilestone> => {
-    const response = await apiClient.get(`${BASE_PATH}/milestones/${milestoneId}`)
+    const response = await apiClient.get(`${BASE_PATH}/${milestoneId}`)
     return response.data
   },
 
@@ -101,7 +101,7 @@ export const milestonesApi = {
    * Update an existing milestone
    */
   update: async (milestoneId: number, data: Partial<MilestoneFormData>): Promise<ReportingEffortMilestone> => {
-    const response = await apiClient.put(`${BASE_PATH}/milestones/${milestoneId}`, data)
+    const response = await apiClient.put(`${BASE_PATH}/${milestoneId}`, data)
     return response.data
   },
 
@@ -109,7 +109,7 @@ export const milestonesApi = {
    * Delete a milestone
    */
   delete: async (milestoneId: number): Promise<void> => {
-    await apiClient.delete(`${BASE_PATH}/milestones/${milestoneId}`)
+    await apiClient.delete(`${BASE_PATH}/${milestoneId}`)
   },
 
   /**
@@ -117,7 +117,7 @@ export const milestonesApi = {
    */
   markComplete: async (milestoneId: number, completionDate?: string): Promise<ReportingEffortMilestone> => {
     const response = await apiClient.post(
-      `${BASE_PATH}/milestones/${milestoneId}/complete`,
+      `${BASE_PATH}/${milestoneId}/complete`,
       null,
       { params: completionDate ? { completion_date: completionDate } : undefined }
     )
@@ -128,7 +128,7 @@ export const milestonesApi = {
    * Mark a milestone as incomplete
    */
   markIncomplete: async (milestoneId: number): Promise<ReportingEffortMilestone> => {
-    const response = await apiClient.post(`${BASE_PATH}/milestones/${milestoneId}/incomplete`)
+    const response = await apiClient.post(`${BASE_PATH}/${milestoneId}/incomplete`)
     return response.data
   },
 
@@ -153,7 +153,7 @@ export const milestonesApi = {
     start_date?: string
     end_date?: string
   }): Promise<ReportingEffortMilestoneWithContext[]> => {
-    const response = await apiClient.get(`${BASE_PATH}/milestones/dashboard`, { params })
+    const response = await apiClient.get(`${BASE_PATH}/dashboard`, { params })
     return response.data
   },
 
@@ -164,7 +164,7 @@ export const milestonesApi = {
     days_ahead?: number
     limit?: number
   }): Promise<ReportingEffortMilestoneWithContext[]> => {
-    const response = await apiClient.get(`${BASE_PATH}/milestones/upcoming`, { params })
+    const response = await apiClient.get(`${BASE_PATH}/upcoming`, { params })
     return response.data
   },
 
@@ -206,7 +206,7 @@ export const milestonesApi = {
    * Get a milestone with linked tracker information
    */
   getWithTrackers: async (milestoneId: number): Promise<ReportingEffortMilestoneWithTrackers> => {
-    const response = await apiClient.get(`${BASE_PATH}/milestones/${milestoneId}/with-trackers`)
+    const response = await apiClient.get(`${BASE_PATH}/${milestoneId}/with-trackers`)
     return response.data
   },
 
@@ -214,7 +214,7 @@ export const milestonesApi = {
    * Get all trackers linked to a milestone
    */
   getLinkedTrackers: async (milestoneId: number): Promise<LinkedTrackerInfo[]> => {
-    const response = await apiClient.get(`${BASE_PATH}/milestones/${milestoneId}/trackers`)
+    const response = await apiClient.get(`${BASE_PATH}/${milestoneId}/trackers`)
     return response.data
   },
 
@@ -222,7 +222,7 @@ export const milestonesApi = {
    * Get trackers available for manual linking (not already linked)
    */
   getAvailableTrackers: async (milestoneId: number): Promise<LinkedTrackerInfo[]> => {
-    const response = await apiClient.get(`${BASE_PATH}/milestones/${milestoneId}/available-trackers`)
+    const response = await apiClient.get(`${BASE_PATH}/${milestoneId}/available-trackers`)
     return response.data
   },
 
@@ -233,7 +233,7 @@ export const milestonesApi = {
     // Build query string manually to avoid axios array serialization issues
     const params = trackerIds.map(id => `tracker_ids=${id}`).join('&')
     const response = await apiClient.post(
-      `${BASE_PATH}/milestones/${milestoneId}/trackers?${params}`
+      `${BASE_PATH}/${milestoneId}/trackers?${params}`
     )
     return response.data
   },
@@ -244,7 +244,7 @@ export const milestonesApi = {
   unlinkTrackers: async (milestoneId: number, trackerIds: number[]): Promise<BulkOperationResult> => {
     // Build query string manually to avoid axios array serialization issues
     const params = trackerIds.map(id => `tracker_ids=${id}`).join('&')
-    const response = await apiClient.delete(`${BASE_PATH}/milestones/${milestoneId}/trackers?${params}`)
+    const response = await apiClient.delete(`${BASE_PATH}/${milestoneId}/trackers?${params}`)
     return response.data
   },
 
