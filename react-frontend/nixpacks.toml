@@ -5,9 +5,8 @@
 nixPkgs = ["nodejs_20"]
 
 [phases.install]
-# Remove Windows-generated package-lock.json to avoid platform conflicts
-# Then install fresh - rollup needs platform-specific optional deps
-cmds = ["rm -f package-lock.json", "npm install --legacy-peer-deps"]
+# Clean install - remove any cached files that might have Windows deps
+cmds = ["rm -rf node_modules package-lock.json", "npm install"]
 
 [phases.build]
 cmds = ["npm run build"]
