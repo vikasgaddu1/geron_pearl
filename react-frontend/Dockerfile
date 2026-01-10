@@ -1,4 +1,5 @@
 # PEARL Frontend Dockerfile - Multi-stage build
+# Cache bust: 2026-01-10-v1
 # Stage 1: Build the React app
 FROM node:20-alpine AS builder
 
