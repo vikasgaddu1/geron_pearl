@@ -12,5 +12,10 @@ cmds = [
 [phases.build]
 cmds = ["npm run build"]
 
+# Make VITE_ variables available at build time
+[variables]
+VITE_API_BASE_URL = ""
+VITE_WS_URL = ""
+
 [start]
 cmd = "npx serve -s dist -l $PORT"
