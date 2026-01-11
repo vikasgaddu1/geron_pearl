@@ -1,5 +1,6 @@
 """Reporting Effort Items API endpoints."""
 
+import json
 import logging
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
@@ -667,14 +668,14 @@ async def update_reporting_effort_item(
             detail="Failed to update reporting effort item"
         )
 
-@router.delete("/{item_id}", response_model=ReportingEffortItem)
+@router.delete("/{item_id}", response_model=Dict[str, Any])
 async def delete_reporting_effort_item(
     *,
     db: AsyncSession = Depends(get_db),
     request: Request,
     item_id: int,
     current_user: UserModel = Depends(get_current_user),
-) -> ReportingEffortItem:
+) -> Dict[str, Any]:
     """
     Delete a reporting effort item.
     Includes deletion protection based on programmer assignments.
@@ -712,18 +713,19 @@ async def delete_reporting_effort_item(
                 detail=protection_error
             )
         
-        # Store data for audit and broadcast
+        # Store data for audit and broadcast BEFORE deletion
         item_data = sqlalchemy_to_dict(db_item)
+        item_code = db_item.item_code
         
-        deleted_item = await reporting_effort_item.delete(db, id=item_id)
-        logger.info(f"Reporting effort item deleted successfully: {deleted_item.item_code} (ID: {deleted_item.id})")
+        await reporting_effort_item.delete(db, id=item_id)
+        logger.info(f"Reporting effort item deleted successfully: {item_code} (ID: {item_id})")
         
         # Log audit trail
         try:
             await audit_log.log_action(
                 db,
                 table_name="reporting_effort_items",
-                record_id=deleted_item.id,
+                record_id=item_id,
                 action="DELETE",
                 user_id=getattr(request.state, 'user_id', None),
                 changes={"deleted": item_data},
@@ -733,20 +735,25 @@ async def delete_reporting_effort_item(
         except Exception as audit_error:
             logger.error(f"Audit logging error: {audit_error}")
         
-        # Broadcast WebSocket event
+        # Broadcast WebSocket event using pre-captured data
         try:
-            await broadcast_reporting_effort_item_deleted(deleted_item)
+            await manager.broadcast(json.dumps({
+                "type": "reporting_effort_item_deleted",
+                "data": item_data
+            }))
         except Exception as ws_error:
-            print(f"WebSocket broadcast error: {ws_error}")
+            logger.error(f"WebSocket broadcast error: {ws_error}")
         
-        return deleted_item
+        # Return the pre-captured data since the object is now deleted
+        return item_data
         
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
+        logger.error(f"Failed to delete reporting effort item {item_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete reporting effort item"
+            detail=f"Failed to delete reporting effort item: {str(e)}"
         )
 
 # Bulk Upload Endpoints
