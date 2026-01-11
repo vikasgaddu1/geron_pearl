@@ -185,6 +185,66 @@ uv run python tests/validator/run_model_validation.py
 - **Frontend**: [react-frontend/CLAUDE.md](react-frontend/CLAUDE.md) - React patterns, TanStack Query, forms
 - **Testing**: [backend/tests/README.md](backend/tests/README.md) - Curl-based test philosophy
 
+## Railway Deployment
+
+### Current Production URLs
+- **Backend**: `https://geronpearl-production.up.railway.app`
+- **Frontend**: `https://geronpearl-production-6de9.up.railway.app`
+
+### Frontend Deployment (Docker-based)
+**⚠️ DO NOT use nixpacks** - it has reliability issues on Railway (apt package installation fails with "context canceled"). Use Dockerfile instead.
+
+**Key files:**
+- `react-frontend/Dockerfile` - Multi-stage build (node:20-alpine → nginx:alpine)
+- `react-frontend/nginx.railway.conf` - nginx config with API proxy
+- `react-frontend/.dockerignore` - Must NOT exclude `package-lock.json` (required for `npm ci`)
+
+**Critical nginx configuration:**
+```nginx
+# DNS resolver required for external hostname resolution
+resolver 8.8.8.8 8.8.4.4 valid=300s;
+
+# Listen on Railway's dynamic PORT (not hardcoded 80)
+listen ${PORT};
+
+# Proxy to backend with SNI support for HTTPS
+proxy_ssl_server_name on;
+proxy_set_header Host geronpearl-production.up.railway.app;
+```
+
+**Runtime variable substitution:**
+```dockerfile
+# Use envsubst to replace $PORT and $BACKEND_URL at container start
+CMD ["/bin/sh", "-c", "envsubst '$PORT $BACKEND_URL' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+```
+
+### Frontend Railway Environment Variables
+| Variable | Value | Purpose |
+|----------|-------|---------|
+| `PORT` | (auto-set by Railway) | nginx listen port |
+| `BACKEND_URL` | `https://geronpearl-production.up.railway.app` | API proxy target |
+| `VITE_API_BASE_URL` | (optional, empty is fine) | Build-time API URL |
+| `VITE_WS_URL` | (optional) | Build-time WebSocket URL |
+
+### Common Railway Deployment Issues
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| nixpacks "context canceled" | Railway infrastructure issue with apt | Use Dockerfile instead of nixpacks.toml |
+| `npm ci` fails "package-lock.json not found" | `.dockerignore` excludes it | Remove `package-lock.json` from `.dockerignore` |
+| Exit code 137 (OOM) | `npm install -g serve` in small container | Use nginx:alpine instead of node + serve |
+| 502 "connection refused" | nginx listening on wrong port | Use `${PORT}` variable, not hardcoded 80 |
+| 502 on API proxy | Can't resolve backend hostname | Add `resolver 8.8.8.8 8.8.4.4` to nginx |
+| 502 on HTTPS proxy | SNI not enabled | Add `proxy_ssl_server_name on` |
+| 405 on POST /api/* | API hitting frontend, not proxied | Add `/api` location block with proxy_pass |
+
+### Backend Deployment
+Backend uses nixpacks (Python detection works fine). Key environment variables:
+- `DATABASE_URL` - PostgreSQL connection string (Railway provides)
+- `JWT_SECRET` - Token signing key
+- `JWT_REFRESH_SECRET` - Refresh token signing key
+- `ALLOWED_ORIGINS` - CORS origins JSON array
+
 ## Authentication & Authorization
 
 ### JWT Authentication

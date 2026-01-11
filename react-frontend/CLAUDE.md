@@ -216,6 +216,67 @@ const table = useReactTable({
 | WebSocket not syncing | Check browser console for connection errors |
 | Styles not applying | Ensure Tailwind classes are valid; check `tailwind.config.js` |
 
+## Railway Deployment
+
+### Architecture
+The frontend is deployed as a Docker container on Railway:
+- **Build stage**: `node:20-alpine` runs `npm ci` and `npm run build`
+- **Run stage**: `nginx:alpine` serves static files and proxies API requests
+
+### Key Deployment Files
+
+| File | Purpose |
+|------|---------|
+| `Dockerfile` | Multi-stage build for Railway |
+| `nginx.railway.conf` | nginx config with API proxy |
+| `.dockerignore` | Excludes node_modules, dist (but NOT package-lock.json) |
+
+### ⚠️ DO NOT Use nixpacks.toml
+Railway's nixpacks has reliability issues:
+- apt package installation fails with "context canceled"
+- OOM issues with node-based static servers
+
+**Always use Dockerfile** for frontend deployment.
+
+### nginx Configuration Requirements
+
+```nginx
+# REQUIRED: DNS resolver for external hostname resolution
+resolver 8.8.8.8 8.8.4.4 valid=300s;
+
+# REQUIRED: Dynamic port (Railway sets PORT env var)
+listen ${PORT};
+
+# REQUIRED: SNI for HTTPS proxy
+proxy_ssl_server_name on;
+
+# REQUIRED: Correct Host header for Railway backend
+proxy_set_header Host geronpearl-production.up.railway.app;
+```
+
+### Environment Variables
+
+| Variable | Set By | Purpose |
+|----------|--------|---------|
+| `PORT` | Railway (auto) | nginx listen port |
+| `BACKEND_URL` | Railway env vars | API proxy target URL |
+
+### Dockerfile Runtime Command
+```dockerfile
+# envsubst replaces $PORT and $BACKEND_URL at container start
+CMD ["/bin/sh", "-c", "envsubst '$PORT $BACKEND_URL' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+```
+
+### Troubleshooting Railway Builds
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `npm ci` fails | `package-lock.json` in `.dockerignore` | Remove from `.dockerignore` |
+| Exit 137 (OOM) | npm install in small container | Use nginx:alpine, not node + serve |
+| 502 connection refused | nginx on wrong port | Use `${PORT}` variable |
+| 502 on API calls | Can't resolve backend host | Add `resolver 8.8.8.8` |
+| 502 on HTTPS proxy | Missing SNI | Add `proxy_ssl_server_name on` |
+
 ## Import Aliases
 
 Use `@/` alias for clean imports:
