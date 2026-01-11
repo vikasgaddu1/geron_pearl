@@ -36,6 +36,24 @@ def upgrade() -> None:
                       sa.Column('database_release_date', sa.String(50), nullable=True))
         print("Added database_releases.database_release_date")
     
+    # reporting_effort_item_tracker.unresolved_comment_count
+    if not column_exists('reporting_effort_item_tracker', 'unresolved_comment_count'):
+        op.add_column('reporting_effort_item_tracker',
+                      sa.Column('unresolved_comment_count', sa.Integer(), nullable=False, server_default='0'))
+        op.create_index(
+            op.f('ix_reporting_effort_item_tracker_unresolved_comment_count'),
+            'reporting_effort_item_tracker',
+            ['unresolved_comment_count'],
+            unique=False
+        )
+        print("Added reporting_effort_item_tracker.unresolved_comment_count")
+    
+    # reporting_effort_item_tracker.complexity
+    if not column_exists('reporting_effort_item_tracker', 'complexity'):
+        op.add_column('reporting_effort_item_tracker',
+                      sa.Column('complexity', sa.Integer(), nullable=False, server_default='3'))
+        print("Added reporting_effort_item_tracker.complexity")
+    
     # Add any other potentially missing columns here
     # Each check is idempotent - safe to run multiple times
 
