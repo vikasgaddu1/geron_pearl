@@ -1168,12 +1168,16 @@ async def copy_items_from_package(
         except Exception as audit_error:
             logger.error(f"Audit logging error: {audit_error}")
 
-        # Broadcast WebSocket events for each created item
+        # Broadcast WebSocket events for each created item and tracker
         for item in copy_result['created_items']:
             try:
                 await broadcast_reporting_effort_item_created(item)
-            except Exception:
-                pass
+                # Also broadcast tracker creation for real-time tracker updates
+                tracker = await reporting_effort_item_tracker.get_by_item(db, reporting_effort_item_id=item.id)
+                if tracker:
+                    await broadcast_reporting_effort_tracker_created(tracker)
+            except Exception as ws_error:
+                logger.error(f"WebSocket broadcast error for item {item.id}: {ws_error}")
         
         # Return the complete copy operation response
         return CopyOperationResponse(**copy_result)
@@ -1284,12 +1288,16 @@ async def copy_tlf_items_from_package(
         except Exception as audit_error:
             logger.error(f"Audit logging error: {audit_error}")
         
-        # Broadcast WebSocket events for each created item
+        # Broadcast WebSocket events for each created item and tracker
         for item in copy_result['created_items']:
             try:
                 await broadcast_reporting_effort_item_created(item)
-            except Exception:
-                pass
+                # Also broadcast tracker creation for real-time tracker updates
+                tracker = await reporting_effort_item_tracker.get_by_item(db, reporting_effort_item_id=item.id)
+                if tracker:
+                    await broadcast_reporting_effort_tracker_created(tracker)
+            except Exception as ws_error:
+                logger.error(f"WebSocket broadcast error for item {item.id}: {ws_error}")
         
         # Return the complete copy operation response
         return CopyOperationResponse(**copy_result)
@@ -1397,12 +1405,16 @@ async def copy_dataset_items_from_package(
         except Exception as audit_error:
             logger.error(f"Audit logging error: {audit_error}")
         
-        # Broadcast WebSocket events for each created item
+        # Broadcast WebSocket events for each created item and tracker
         for item in copy_result['created_items']:
             try:
                 await broadcast_reporting_effort_item_created(item)
-            except Exception:
-                pass
+                # Also broadcast tracker creation for real-time tracker updates
+                tracker = await reporting_effort_item_tracker.get_by_item(db, reporting_effort_item_id=item.id)
+                if tracker:
+                    await broadcast_reporting_effort_tracker_created(tracker)
+            except Exception as ws_error:
+                logger.error(f"WebSocket broadcast error for item {item.id}: {ws_error}")
         
         # Return the complete copy operation response
         return CopyOperationResponse(**copy_result)
@@ -1514,12 +1526,16 @@ async def copy_items_from_reporting_effort(
         except Exception as audit_error:
             logger.error(f"Audit logging error: {audit_error}")
 
-        # Broadcast WebSocket events for each created item
+        # Broadcast WebSocket events for each created item and tracker
         for item in created_items:
             try:
                 await broadcast_reporting_effort_item_created(item)
-            except Exception:
-                pass
+                # Also broadcast tracker creation for real-time tracker updates
+                tracker = await reporting_effort_item_tracker.get_by_item(db, reporting_effort_item_id=item.id)
+                if tracker:
+                    await broadcast_reporting_effort_tracker_created(tracker)
+            except Exception as ws_error:
+                logger.error(f"WebSocket broadcast error for item {item.id}: {ws_error}")
         
         return CopyOperationResponse(
             created_items=created_items,
