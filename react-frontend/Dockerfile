@@ -25,21 +25,16 @@ ENV VITE_WS_URL=$VITE_WS_URL
 # Build the app
 RUN npm run build
 
-# Stage 2: Serve with lightweight server
-FROM node:20-alpine AS runner
+# Stage 2: Serve with nginx (tiny image, no npm needed)
+FROM nginx:alpine AS runner
 
-WORKDIR /app
+# Copy built assets
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Install serve globally
-RUN npm install -g serve
+# Copy nginx config for Railway (static serving only, no proxy)
+COPY nginx.railway.conf /etc/nginx/conf.d/default.conf
 
-# Copy built assets from builder
-COPY --from=builder /app/dist ./dist
+# Railway expects port 80
+EXPOSE 80
 
-# Railway sets PORT dynamically
-ENV PORT=3000
-
-EXPOSE $PORT
-
-# Serve the static files
-CMD ["sh", "-c", "serve -s dist -l $PORT"]
+CMD ["nginx", "-g", "daemon off;"]
