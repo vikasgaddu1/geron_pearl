@@ -36,6 +36,8 @@ COPY nginx.railway.conf /etc/nginx/nginx.conf.template
 
 # Railway sets PORT dynamically (default 80 for local testing)
 ENV PORT=80
+# Backend URL for API proxy (set in Railway env vars)
+ENV BACKEND_URL=https://geronpearl-production.up.railway.app
 
-# Substitute PORT and start nginx
-CMD ["/bin/sh", "-c", "envsubst '${PORT}' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+# Substitute PORT and BACKEND_URL, then start nginx
+CMD ["/bin/sh", "-c", "envsubst '${PORT} ${BACKEND_URL}' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
