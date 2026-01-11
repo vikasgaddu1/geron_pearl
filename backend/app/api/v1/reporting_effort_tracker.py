@@ -2266,3 +2266,48 @@ async def get_tracker_milestones(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get tracker milestones: {str(e)}"
         )
+
+
+# ========================================================================
+# MAINTENANCE ENDPOINTS (Admin only)
+# ========================================================================
+
+@router.post("/maintenance/backfill-trackers", response_model=Dict[str, Any])
+async def backfill_missing_trackers(
+    *,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+    reporting_effort_id: Optional[int] = Query(None, description="Optional: backfill only for this effort"),
+) -> Dict[str, Any]:
+    """
+    Create tracker records for reporting effort items that don't have them.
+    
+    This is a maintenance endpoint to fix data inconsistency where items
+    were created without corresponding tracker records.
+    
+    Admin only.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can run maintenance operations"
+        )
+    
+    try:
+        result = await reporting_effort_item_tracker.backfill_missing_trackers(
+            db,
+            reporting_effort_id=reporting_effort_id
+        )
+        
+        logger.info(f"Backfill trackers: created {result['created_count']}, "
+                    f"already existed {result['already_existed']}, "
+                    f"total items {result['total_items']}")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error backfilling trackers: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to backfill trackers: {str(e)}"
+        )

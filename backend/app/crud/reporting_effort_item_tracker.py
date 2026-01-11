@@ -640,6 +640,68 @@ class ReportingEffortItemTrackerCRUD:
 
         return result
 
+    async def backfill_missing_trackers(
+        self,
+        db: AsyncSession,
+        *,
+        reporting_effort_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Create tracker records for reporting effort items that don't have them.
+        
+        Args:
+            db: Database session
+            reporting_effort_id: Optional - if provided, only backfill for this effort.
+                                 If None, backfill all items across all efforts.
+        
+        Returns:
+            Dictionary with 'created_count', 'already_existed', and 'item_ids' keys
+        """
+        from app.models.reporting_effort_item import ReportingEffortItem
+        
+        # Find items without trackers
+        subquery = select(ReportingEffortItemTracker.reporting_effort_item_id)
+        
+        query = select(ReportingEffortItem.id).where(
+            ReportingEffortItem.id.notin_(subquery)
+        )
+        
+        if reporting_effort_id is not None:
+            query = query.where(ReportingEffortItem.reporting_effort_id == reporting_effort_id)
+        
+        result = await db.execute(query)
+        missing_item_ids = [row[0] for row in result.all()]
+        
+        # Create trackers for missing items
+        created_ids = []
+        for item_id in missing_item_ids:
+            tracker = ReportingEffortItemTracker(
+                reporting_effort_item_id=item_id
+            )
+            db.add(tracker)
+            created_ids.append(item_id)
+        
+        if created_ids:
+            await db.commit()
+        
+        # Count items that already have trackers
+        if reporting_effort_id is not None:
+            count_query = select(func.count(ReportingEffortItem.id)).where(
+                ReportingEffortItem.reporting_effort_id == reporting_effort_id
+            )
+        else:
+            count_query = select(func.count(ReportingEffortItem.id))
+        
+        total_result = await db.execute(count_query)
+        total_items = total_result.scalar() or 0
+        
+        return {
+            'created_count': len(created_ids),
+            'already_existed': total_items - len(created_ids),
+            'total_items': total_items,
+            'created_item_ids': created_ids
+        }
+
 
 # Create singleton instance
 reporting_effort_item_tracker = ReportingEffortItemTrackerCRUD()
