@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +15,14 @@ class Settings(BaseSettings):
     # Database
     database_url: str = Field(..., description="PostgreSQL async connection string")
     db_pool_size: int = Field(default=10, description="Database connection pool size")
+    
+    @field_validator('database_url', mode='after')
+    @classmethod
+    def convert_to_async_url(cls, v: str) -> str:
+        """Convert postgresql:// to postgresql+asyncpg:// for async support."""
+        if v.startswith('postgresql://'):
+            return v.replace('postgresql://', 'postgresql+asyncpg://', 1)
+        return v
     
     # Security
     jwt_secret: str = Field(default="dev-secret-key", description="JWT secret key")
