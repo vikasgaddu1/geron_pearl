@@ -501,6 +501,14 @@ class ReportingEffortItemTrackerCRUD:
             reporting_effort_id=reporting_effort_id
         )
 
+        # Helper to serialize dates/datetimes to ISO strings
+        def serialize_date(val):
+            if val is None:
+                return None
+            if hasattr(val, 'isoformat'):
+                return val.isoformat()
+            return val
+
         # Convert to list of dictionaries with combined data
         trackers = []
         for row in rows:
@@ -512,14 +520,14 @@ class ReportingEffortItemTrackerCRUD:
                 'qc_status': row.ReportingEffortItemTracker.qc_status,
                 'priority': row.ReportingEffortItemTracker.priority,
                 'qc_level': row.ReportingEffortItemTracker.qc_level,
-                'due_date': row.ReportingEffortItemTracker.due_date,
-                'qc_completion_date': row.ReportingEffortItemTracker.qc_completion_date,
+                'due_date': serialize_date(row.ReportingEffortItemTracker.due_date),
+                'qc_completion_date': serialize_date(row.ReportingEffortItemTracker.qc_completion_date),
                 'production_programmer_id': row.ReportingEffortItemTracker.production_programmer_id,
                 'qc_programmer_id': row.ReportingEffortItemTracker.qc_programmer_id,
                 'unresolved_comment_count': row.ReportingEffortItemTracker.unresolved_comment_count,
                 'in_production_flag': row.ReportingEffortItemTracker.in_production_flag,  # Include production flag
-                'created_at': row.ReportingEffortItemTracker.created_at,
-                'updated_at': row.ReportingEffortItemTracker.updated_at,
+                'created_at': serialize_date(row.ReportingEffortItemTracker.created_at),
+                'updated_at': serialize_date(row.ReportingEffortItemTracker.updated_at),
                 # Item details
                 'item_id': row.item_id,
                 'item_code': row.item_code,
@@ -630,10 +638,13 @@ class ReportingEffortItemTrackerCRUD:
                     if tracker_due_date and milestone.due_date:
                         is_past_due = tracker_due_date > milestone.due_date
 
+                    # Serialize date to ISO string for JSON compatibility
+                    milestone_due_str = milestone.due_date.isoformat() if milestone.due_date else None
+
                     result[tracker_id].append({
                         'milestone_id': milestone.id,
                         'milestone_name': milestone.name,
-                        'milestone_due_date': milestone.due_date,
+                        'milestone_due_date': milestone_due_str,
                         'is_past_due': is_past_due,
                         'link_type': link_type
                     })
