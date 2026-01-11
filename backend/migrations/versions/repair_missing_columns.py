@@ -54,6 +54,12 @@ def upgrade() -> None:
                       sa.Column('complexity', sa.Integer(), nullable=False, server_default='3'))
         print("Added reporting_effort_item_tracker.complexity")
     
+    # text_elements.content
+    if not column_exists('text_elements', 'content'):
+        op.add_column('text_elements',
+                      sa.Column('content', sa.Text(), nullable=True))
+        print("Added text_elements.content")
+    
     # Add any other potentially missing columns here
     # Each check is idempotent - safe to run multiple times
 
