@@ -4,14 +4,19 @@ import asyncio
 import logging
 from urllib.parse import urlparse
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-from sqlalchemy import text
+from sqlalchemy import text, select
 
 from app.core.config import settings
 from app.db.base import Base
-from app.db.session import engine
+from app.db.session import engine, AsyncSessionLocal
 from app.models import study, database_release  # Import to register models with Base
+from app.models.user import User, AuthProvider
 
 logger = logging.getLogger(__name__)
+
+# Default admin credentials
+DEFAULT_ADMIN_USERNAME = "admin"
+DEFAULT_ADMIN_PASSWORD = "admin123"
 
 
 async def create_database_if_not_exists() -> None:
@@ -51,6 +56,48 @@ async def create_database_if_not_exists() -> None:
         await temp_engine.dispose()
 
 
+async def create_default_admin_user() -> None:
+    """
+    Create default admin user if it doesn't exist.
+    This ensures there's always at least one admin account to log in with.
+    """
+    from app.core.security import get_password_hash
+    
+    async with AsyncSessionLocal() as session:
+        try:
+            # Check if admin user already exists
+            result = await session.execute(
+                select(User).where(User.username == DEFAULT_ADMIN_USERNAME)
+            )
+            existing_user = result.scalar_one_or_none()
+            
+            if existing_user:
+                logger.info(f"Default admin user '{DEFAULT_ADMIN_USERNAME}' already exists")
+                return
+            
+            # Create admin user
+            admin_user = User(
+                username=DEFAULT_ADMIN_USERNAME,
+                email="admin@pearl.local",
+                password_hash=get_password_hash(DEFAULT_ADMIN_PASSWORD),
+                is_admin=True,
+                is_active=True,
+                auth_provider=AuthProvider.local,
+                department="management"
+            )
+            session.add(admin_user)
+            await session.commit()
+            
+            logger.info(f"Created default admin user: {DEFAULT_ADMIN_USERNAME}")
+            logger.info(f"Default admin password: {DEFAULT_ADMIN_PASSWORD}")
+            logger.info("⚠️  IMPORTANT: Change the default admin password after first login!")
+            
+        except Exception as e:
+            logger.error(f"Error creating default admin user: {e}")
+            await session.rollback()
+            raise
+
+
 async def init_db(engine: AsyncEngine) -> None:
     """
     Initialize database by creating the database (if needed) and all tables.
@@ -64,6 +111,9 @@ async def init_db(engine: AsyncEngine) -> None:
         # Create all tables
         await conn.run_sync(Base.metadata.create_all)
         logger.info("Database tables created successfully")
+    
+    # Create default admin user
+    await create_default_admin_user()
 
 
 async def drop_db(engine: AsyncEngine) -> None:
