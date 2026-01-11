@@ -39,5 +39,5 @@ ENV PORT=80
 # Backend URL for API proxy (set in Railway env vars)
 ENV BACKEND_URL=https://geronpearl-production.up.railway.app
 
-# Substitute PORT and BACKEND_URL, then start nginx
-CMD ["/bin/sh", "-c", "envsubst '${PORT} ${BACKEND_URL}' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+# Substitute only PORT and BACKEND_URL (not nginx variables like $uri), then start nginx
+CMD ["/bin/sh", "-c", "envsubst '$PORT $BACKEND_URL' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf && cat /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
