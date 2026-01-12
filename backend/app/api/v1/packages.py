@@ -2,11 +2,11 @@
 
 from typing import List, Dict, Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
-from app.crud import package, package_item, text_element
+from app.crud import package, package_item, text_element, audit_log
 from app.db.session import get_db
 from app.schemas.package import Package, PackageCreate, PackageUpdate, PackageWithItems
 from app.schemas.package_item import (
@@ -31,12 +31,13 @@ router = APIRouter()
 async def create_package(
     *,
     db: AsyncSession = Depends(get_db),
+    request: Request,
     package_in: PackageCreate,
     current_user: User = Depends(require_admin_or_lead()),
 ) -> Package:
     """
     Create a new package.
-    
+
     Requires: Admin or Study LEAD role (in any study).
     """
     try:
@@ -47,10 +48,25 @@ async def create_package(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Package with this name already exists"
             )
-        
+
         created_package = await package.create(db, obj_in=package_in)
         print(f"Package created successfully: {created_package.package_name} (ID: {created_package.id})")
-        
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="packages",
+                record_id=created_package.id,
+                action="CREATE",
+                user_id=current_user.id,
+                changes={"package_name": created_package.package_name},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            print(f"Audit logging error: {audit_error}")
+
         # Broadcast WebSocket event for real-time updates
         try:
             print(f"About to broadcast package_created...")
@@ -59,7 +75,7 @@ async def create_package(
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
             print(f"WebSocket broadcast error: {ws_error}")
-        
+
         return created_package
     except Exception as e:
         if isinstance(e, HTTPException):
@@ -132,13 +148,14 @@ async def read_package(
 async def update_package(
     *,
     db: AsyncSession = Depends(get_db),
+    request: Request,
     package_id: int,
     package_in: PackageUpdate,
     current_user: User = Depends(require_admin_or_lead()),
 ) -> Package:
     """
     Update an existing package.
-    
+
     Requires: Admin or Study LEAD role (in any study).
     """
     try:
@@ -148,7 +165,10 @@ async def update_package(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Package not found"
             )
-        
+
+        # Capture old values for audit
+        old_name = db_package.package_name
+
         # Check if new name already exists (if name is being changed)
         if package_in.package_name != db_package.package_name:
             existing_package = await package.get_by_name(db, package_name=package_in.package_name)
@@ -157,16 +177,31 @@ async def update_package(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Package with this name already exists"
                 )
-        
+
         updated_package = await package.update(db, db_obj=db_package, obj_in=package_in)
         print(f"Package updated successfully: {updated_package.package_name} (ID: {updated_package.id})")
-        
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="packages",
+                record_id=updated_package.id,
+                action="UPDATE",
+                user_id=current_user.id,
+                changes={"old": {"package_name": old_name}, "new": {"package_name": updated_package.package_name}},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            print(f"Audit logging error: {audit_error}")
+
         # Broadcast WebSocket event
         try:
             await broadcast_package_updated(updated_package)
         except Exception as ws_error:
             print(f"WebSocket broadcast error: {ws_error}")
-        
+
         return updated_package
     except Exception as e:
         if isinstance(e, HTTPException):

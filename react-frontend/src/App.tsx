@@ -15,6 +15,7 @@ import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { SettingsPage } from '@/features/settings/SettingsPage'
+import { AuditLogsPage } from '@/features/audit-logs/AuditLogsPage'
 
 function App() {
   return (
@@ -105,7 +106,15 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+          <Route
+            path="audit-logs"
+            element={
+              <ProtectedRoute requireAdmin>
+                <AuditLogsPage />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Accessible by all authenticated users - access based on study roles */}
           <Route
             path="tracker-management"

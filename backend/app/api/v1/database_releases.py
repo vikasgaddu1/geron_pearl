@@ -2,10 +2,10 @@
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud import database_release, study, reporting_effort
+from app.crud import database_release, study, reporting_effort, audit_log
 from app.db.session import get_db
 from app.schemas.database_release import DatabaseRelease, DatabaseReleaseCreate, DatabaseReleaseUpdate
 from app.api.v1.websocket import broadcast_database_release_created, broadcast_database_release_updated, broadcast_database_release_deleted
@@ -20,12 +20,13 @@ router = APIRouter()
 async def create_database_release(
     *,
     db: AsyncSession = Depends(get_db),
+    request: Request,
     database_release_in: DatabaseReleaseCreate,
     current_user: User = Depends(get_current_user),
 ) -> DatabaseRelease:
     """
     Create a new database release.
-    
+
     Requires: Admin or Study LEAD role for the study.
     """
     try:
@@ -36,13 +37,13 @@ async def create_database_release(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Study not found"
             )
-        
+
         # Check user has LEAD access to this study
         await require_study_lead_access(db, current_user, database_release_in.study_id)
-        
+
         # Check if database release with same label already exists for this study
         existing_release = await database_release.get_by_study_and_label(
-            db, 
+            db,
             study_id=database_release_in.study_id,
             database_release_label=database_release_in.database_release_label
         )
@@ -51,10 +52,25 @@ async def create_database_release(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Database release with this label already exists for this study"
             )
-        
+
         created_release = await database_release.create(db, obj_in=database_release_in)
         print(f"Database release created successfully: {created_release.database_release_label} for study {created_release.study_id} (ID: {created_release.id})")
-        
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="database_releases",
+                record_id=created_release.id,
+                action="CREATE",
+                user_id=current_user.id,
+                changes={"database_release_label": created_release.database_release_label, "study_id": created_release.study_id},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            print(f"Audit logging error: {audit_error}")
+
         # Broadcast WebSocket event for real-time updates
         try:
             print(f"About to broadcast database_release_created...")
@@ -63,7 +79,7 @@ async def create_database_release(
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
             print(f"WebSocket broadcast error: {ws_error}")
-        
+
         return created_release
     except Exception as e:
         if isinstance(e, HTTPException):
@@ -128,13 +144,14 @@ async def read_database_release(
 async def update_database_release(
     *,
     db: AsyncSession = Depends(get_db),
+    request: Request,
     database_release_id: int,
     database_release_in: DatabaseReleaseUpdate,
     current_user: User = Depends(get_current_user),
 ) -> DatabaseRelease:
     """
     Update an existing database release.
-    
+
     Requires: Admin or Study LEAD role for the study.
     """
     try:
@@ -144,14 +161,17 @@ async def update_database_release(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Database release not found"
             )
-        
+
+        # Capture old values for audit
+        old_label = db_release.database_release_label
+
         # Check user has LEAD access to this study
         await require_study_lead_access(db, current_user, db_release.study_id)
-        
+
         # Check if new label conflicts with existing database release for same study
         if database_release_in.database_release_label:
             existing_release = await database_release.get_by_study_and_label(
-                db, 
+                db,
                 study_id=db_release.study_id,
                 database_release_label=database_release_in.database_release_label
             )
@@ -160,11 +180,26 @@ async def update_database_release(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Database release with this label already exists for this study"
                 )
-        
+
         print(f"About to update database release ID {database_release_id} to '{database_release_in.database_release_label}'")
         updated_release = await database_release.update(db, db_obj=db_release, obj_in=database_release_in)
         print(f"Database release updated successfully: {updated_release.database_release_label} (ID: {updated_release.id})")
-        
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="database_releases",
+                record_id=updated_release.id,
+                action="UPDATE",
+                user_id=current_user.id,
+                changes={"old": {"database_release_label": old_label}, "new": {"database_release_label": updated_release.database_release_label}},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            print(f"Audit logging error: {audit_error}")
+
         # Broadcast WebSocket event for real-time updates
         try:
             print(f"About to broadcast database_release_updated...")
@@ -173,7 +208,7 @@ async def update_database_release(
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
             print(f"WebSocket broadcast error: {ws_error}")
-        
+
         return updated_release
     except HTTPException:
         raise
@@ -183,12 +218,13 @@ async def update_database_release(
 async def delete_database_release(
     *,
     db: AsyncSession = Depends(get_db),
+    request: Request,
     database_release_id: int,
     current_user: User = Depends(get_current_user),
 ) -> DatabaseRelease:
     """
     Delete a database release.
-    
+
     Requires: Admin or Study LEAD role for the study.
     """
     try:
@@ -198,10 +234,14 @@ async def delete_database_release(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Database release not found"
             )
-        
+
+        # Capture values for audit before deletion
+        deleted_label = db_release.database_release_label
+        deleted_study_id = db_release.study_id
+
         # Check user has LEAD access to this study
         await require_study_lead_access(db, current_user, db_release.study_id)
-        
+
         # Check for associated reporting efforts before deletion
         associated_efforts = await reporting_effort.get_by_database_release_id(db, database_release_id=database_release_id)
         if associated_efforts:
@@ -210,16 +250,31 @@ async def delete_database_release(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Cannot delete database release '{db_release.database_release_label}': {len(associated_efforts)} associated reporting effort(s) exist: {', '.join(effort_labels)}. Please delete all associated reporting efforts first."
             )
-        
+
         deleted_release = await database_release.delete(db, id=database_release_id)
-        
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="database_releases",
+                record_id=database_release_id,
+                action="DELETE",
+                user_id=current_user.id,
+                changes={"deleted": {"database_release_label": deleted_label, "study_id": deleted_study_id}},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            print(f"Audit logging error: {audit_error}")
+
         # Broadcast WebSocket event for real-time updates
         try:
             await broadcast_database_release_deleted(database_release_id)
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
             print(f"WebSocket broadcast error: {ws_error}")
-        
+
         return deleted_release
     except HTTPException:
         raise

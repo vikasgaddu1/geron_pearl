@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronRight,
   Settings,
+  History,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -43,6 +44,7 @@ const allNavigation: (NavItem | NavGroup)[] = [
       { title: 'TFL Properties', href: '/tfl-properties', icon: FileText, adminOrLeadOnly: true },
       { title: 'User Management', href: '/users', icon: Users, adminOnly: true },
       { title: 'Database Backup', href: '/database-backup', icon: Database, adminOnly: true },
+      { title: 'Audit Logs', href: '/audit-logs', icon: History, adminOnly: true },
       { title: 'Settings', href: '/settings', icon: Settings, adminOnly: true },
     ],
   },

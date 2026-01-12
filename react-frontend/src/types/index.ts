@@ -361,6 +361,42 @@ export interface DatabaseBackup {
   description?: string
 }
 
+// ==================== Audit Log Types ====================
+
+export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE'
+
+export interface AuditLog {
+  id: number
+  table_name: string
+  record_id: number
+  action: AuditAction
+  user_id?: number
+  user_name?: string
+  user_email?: string
+  changes_json?: string
+  ip_address?: string
+  user_agent?: string
+  created_at: string
+}
+
+export interface AuditLogFilters {
+  table_name?: string
+  user_id?: number
+  action?: AuditAction
+  start_date?: string
+  end_date?: string
+  skip?: number
+  limit?: number
+}
+
+export interface AuditLogSummary {
+  by_action: Record<string, number>
+  by_table: Record<string, number>
+  by_user: Array<{ user_id: number; user_name: string; count: number }>
+  by_day: Array<{ date: string; count: number }>
+  total_count: number
+}
+
 // ==================== API Response Types ====================
 
 export interface ApiError {

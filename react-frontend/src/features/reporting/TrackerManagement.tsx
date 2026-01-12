@@ -540,6 +540,19 @@ export function TrackerManagement() {
   }
 
   const handleBulkAssignStatus = () => {
+    // Validate: Production and QC programmer cannot be the same person
+    if (bulkData.production_programmer_id && bulkData.qc_programmer_id && 
+        bulkData.production_programmer_id === bulkData.qc_programmer_id) {
+      toast.error('Production and QC programmer cannot be the same person')
+      return
+    }
+    
+    // Validate: Due date cannot be prior to today (for incomplete tasks - backend validates per-tracker)
+    if (bulkData.due_date && new Date(bulkData.due_date) < new Date(new Date().toDateString())) {
+      toast.error('Due date cannot be prior to today for tasks that are not completed')
+      return
+    }
+    
     const data: Parameters<typeof trackerApi.bulkAssignStatus>[0] = {
       tracker_ids: Array.from(selectedRows),
     }
@@ -638,6 +651,22 @@ export function TrackerManagement() {
     if (newProdProgrammer && !editFormData.due_date && !selectedTracker.due_date) {
       toast.error('Due date is required when a production programmer is assigned')
       return
+    }
+    
+    // Validate: Production and QC programmer cannot be the same person
+    if (newProdProgrammer && newQcProgrammer && newProdProgrammer === newQcProgrammer) {
+      toast.error('Production and QC programmer cannot be the same person')
+      return
+    }
+    
+    // Validate: Due date cannot be prior to today for incomplete tasks
+    const effectiveDueDate = editFormData.due_date || selectedTracker.due_date
+    if (effectiveDueDate) {
+      const isTaskCompleted = editFormData.production_status === 'completed' && editFormData.qc_status === 'completed'
+      if (!isTaskCompleted && new Date(effectiveDueDate) < new Date(new Date().toDateString())) {
+        toast.error('Due date cannot be prior to today for tasks that are not completed')
+        return
+      }
     }
     
     // Validate: Cannot mark QC as completed if there are unresolved comments

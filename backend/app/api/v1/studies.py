@@ -2,10 +2,10 @@
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud import study, user_study_role, user
+from app.crud import study, user_study_role, user, audit_log
 from app.crud import database_release, reporting_effort
 from app.db.session import get_db
 from app.schemas.study import Study, StudyCreate, StudyUpdate, BulkHierarchyRow, BulkHierarchyResponse
@@ -28,6 +28,7 @@ router = APIRouter()
 async def create_study(
     *,
     db: AsyncSession = Depends(get_db),
+    request: Request,
     study_in: StudyCreate,
     current_user: UserModel = Depends(require_admin()),
 ) -> Study:
@@ -42,10 +43,25 @@ async def create_study(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Study with this label already exists"
             )
-        
+
         created_study = await study.create(db, obj_in=study_in)
         print(f"Study created successfully: {created_study.study_label} (ID: {created_study.id})")
-        
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="studies",
+                record_id=created_study.id,
+                action="CREATE",
+                user_id=current_user.id,
+                changes={"study_label": created_study.study_label},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            print(f"Audit logging error: {audit_error}")
+
         # Broadcast WebSocket event for real-time updates
         try:
             print(f"About to broadcast study_created...")
@@ -54,7 +70,7 @@ async def create_study(
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
             print(f"WebSocket broadcast error: {ws_error}")
-        
+
         return created_study
     except Exception as e:
         if isinstance(e, HTTPException):
@@ -114,6 +130,7 @@ async def read_study(
 async def update_study(
     *,
     db: AsyncSession = Depends(get_db),
+    request: Request,
     study_id: int,
     study_in: StudyUpdate,
     current_user: UserModel = Depends(get_current_user),
@@ -129,9 +146,12 @@ async def update_study(
                 detail="Study not found"
             )
 
+        # Capture old values for audit
+        old_label = db_study.study_label
+
         # Authorization: require admin or LEAD for this study
         await require_study_lead_access(db, current_user, study_id)
-        
+
         # Check if new label conflicts with existing study
         if study_in.study_label:
             existing_study = await study.get_by_label(db, study_label=study_in.study_label)
@@ -140,10 +160,25 @@ async def update_study(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Study with this label already exists"
                 )
-        
+
         updated_study = await study.update(db, db_obj=db_study, obj_in=study_in)
         print(f"Study updated successfully: {updated_study.study_label} (ID: {updated_study.id})")
-        
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="studies",
+                record_id=updated_study.id,
+                action="UPDATE",
+                user_id=current_user.id,
+                changes={"old": {"study_label": old_label}, "new": {"study_label": updated_study.study_label}},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            print(f"Audit logging error: {audit_error}")
+
         # Broadcast WebSocket event for real-time updates
         try:
             print(f"About to broadcast study_updated...")
@@ -152,7 +187,7 @@ async def update_study(
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
             print(f"WebSocket broadcast error: {ws_error}")
-        
+
         return updated_study
     except HTTPException:
         raise
@@ -167,6 +202,7 @@ async def update_study(
 async def delete_study(
     *,
     db: AsyncSession = Depends(get_db),
+    request: Request,
     study_id: int,
     current_user: UserModel = Depends(require_admin()),
 ) -> Study:
@@ -180,7 +216,10 @@ async def delete_study(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Study not found"
             )
-        
+
+        # Capture values for audit before deletion
+        deleted_label = db_study.study_label
+
         # Check for associated database releases before deletion
         associated_releases = await database_release.get_by_study_id(db, study_id=study_id)
         if associated_releases:
@@ -189,17 +228,32 @@ async def delete_study(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Cannot delete study '{db_study.study_label}': {len(associated_releases)} associated database release(s) exist: {', '.join(release_labels)}. Please delete all associated database releases first."
             )
-        
+
         deleted_study = await study.delete(db, id=study_id)
         print(f"Study deleted successfully: {deleted_study.study_label} (ID: {deleted_study.id})")
-        
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="studies",
+                record_id=study_id,
+                action="DELETE",
+                user_id=current_user.id,
+                changes={"deleted": {"study_label": deleted_label}},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            print(f"Audit logging error: {audit_error}")
+
         # Broadcast WebSocket event for real-time updates
         try:
             await broadcast_study_deleted(study_id)
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
             print(f"WebSocket broadcast error: {ws_error}")
-        
+
         return deleted_study
     except HTTPException:
         raise

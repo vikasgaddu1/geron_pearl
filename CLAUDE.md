@@ -298,6 +298,36 @@ current_user: User = Depends(require_admin_or_lead())
 
 **⚠️ CRITICAL**: All mutating endpoints MUST have backend authorization. Frontend restrictions alone are NOT sufficient.
 
+## Tracker Validation Rules
+
+**⚠️ CRITICAL**: Tracker validation rules must be applied to ALL endpoints that can modify tracker data. There are multiple ways to update trackers:
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/v1/reporting-effort-tracker/` | Create tracker |
+| `PUT /api/v1/reporting-effort-tracker/{id}` | Update single tracker |
+| `POST /api/v1/reporting-effort-tracker/{id}/assign-programmer` | Assign programmer |
+| `POST /api/v1/reporting-effort-tracker/bulk-assign` | Bulk assign programmers |
+| `POST /api/v1/reporting-effort-tracker/bulk-status-update` | Bulk status update |
+| `POST /api/v1/reporting-effort-tracker/bulk-assign-status` | Bulk assign and status |
+| `POST /api/v1/reporting-effort-tracker/import/{id}` | Import trackers |
+
+### Current Validation Rules
+
+1. **Same Programmer Check**: Production and QC programmer cannot be the same person
+2. **Due Date Check**: Due date cannot be prior to today's date for tasks that are not completed (both production and QC)
+3. **Programmer Required for Status**: Cannot change production/QC status without assigned programmer (except `not_started`)
+4. **QC Completion Requires No Unresolved Comments**: Cannot mark QC as completed if there are unresolved comments
+5. **Production Completed Auto-Set**: Production status is auto-set to `completed` when QC marks it as completed
+
+### Adding New Validation Rules
+
+When adding a new validation rule:
+1. Identify ALL endpoints that can modify the affected field(s)
+2. Add validation to each backend endpoint (with consistent error messages)
+3. Add frontend validation for immediate user feedback
+4. Document the rule in this section
+
 ### LEAD Permissions
 | Can Access | Cannot Access |
 |------------|---------------|

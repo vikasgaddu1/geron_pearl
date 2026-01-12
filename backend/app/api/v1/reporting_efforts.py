@@ -2,10 +2,10 @@
 
 from typing import List, Dict, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud import reporting_effort, study, database_release
+from app.crud import reporting_effort, study, database_release, audit_log
 from app.crud.reporting_effort_usecase import reporting_effort_usecase_assignment
 from app.db.session import get_db
 from app.schemas.reporting_effort import ReportingEffort, ReportingEffortCreate, ReportingEffortUpdate
@@ -37,12 +37,13 @@ def serialize_reporting_effort(effort, use_cases: List[Dict] = None) -> Dict[str
 async def create_reporting_effort(
     *,
     db: AsyncSession = Depends(get_db),
+    request: Request,
     reporting_effort_in: ReportingEffortCreate,
     current_user: User = Depends(get_current_user),
 ) -> ReportingEffort:
     """
     Create a new reporting effort.
-    
+
     Requires: Admin or Study LEAD role for the study.
     """
     try:
@@ -53,7 +54,7 @@ async def create_reporting_effort(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Study with ID {reporting_effort_in.study_id} not found"
             )
-        
+
         # Check user has LEAD access to this study
         await require_study_lead_access(db, current_user, reporting_effort_in.study_id)
 
@@ -74,7 +75,7 @@ async def create_reporting_effort(
 
         # Check if reporting effort with same label already exists for this database release
         existing_effort = await reporting_effort.get_by_release_and_label(
-            db, 
+            db,
             database_release_id=reporting_effort_in.database_release_id,
             database_release_label=reporting_effort_in.database_release_label
         )
@@ -86,7 +87,22 @@ async def create_reporting_effort(
 
         created_reporting_effort = await reporting_effort.create(db, obj_in=reporting_effort_in)
         print(f"Reporting effort created successfully: {created_reporting_effort.database_release_label} (ID: {created_reporting_effort.id})")
-        
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="reporting_efforts",
+                record_id=created_reporting_effort.id,
+                action="CREATE",
+                user_id=current_user.id,
+                changes={"database_release_label": created_reporting_effort.database_release_label, "study_id": created_reporting_effort.study_id},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            print(f"Audit logging error: {audit_error}")
+
         # Broadcast WebSocket event for real-time updates
         try:
             print(f"About to broadcast reporting_effort_created...")
@@ -95,7 +111,7 @@ async def create_reporting_effort(
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
             print(f"WebSocket broadcast error: {ws_error}")
-        
+
         return created_reporting_effort
     except Exception as e:
         if isinstance(e, HTTPException):
@@ -184,13 +200,14 @@ async def read_reporting_effort(
 async def update_reporting_effort(
     *,
     db: AsyncSession = Depends(get_db),
+    request: Request,
     reporting_effort_id: int,
     reporting_effort_in: ReportingEffortUpdate,
     current_user: User = Depends(get_current_user),
 ) -> ReportingEffort:
     """
     Update an existing reporting effort.
-    
+
     Requires: Admin or Study LEAD role for the study.
     """
     try:
@@ -200,14 +217,17 @@ async def update_reporting_effort(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reporting effort not found"
             )
-        
+
+        # Capture old values for audit
+        old_label = db_reporting_effort.database_release_label
+
         # Check user has LEAD access to this study
         await require_study_lead_access(db, current_user, db_reporting_effort.study_id)
-        
+
         # Check if new label conflicts with existing reporting effort for same database release
         if reporting_effort_in.database_release_label:
             existing_effort = await reporting_effort.get_by_release_and_label(
-                db, 
+                db,
                 database_release_id=db_reporting_effort.database_release_id,
                 database_release_label=reporting_effort_in.database_release_label
             )
@@ -216,12 +236,27 @@ async def update_reporting_effort(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Reporting effort with this label already exists for this database release"
                 )
-        
+
         updated_reporting_effort = await reporting_effort.update(
             db, db_obj=db_reporting_effort, obj_in=reporting_effort_in
         )
         print(f"Reporting effort updated successfully: {updated_reporting_effort.database_release_label} (ID: {updated_reporting_effort.id})")
-        
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="reporting_efforts",
+                record_id=updated_reporting_effort.id,
+                action="UPDATE",
+                user_id=current_user.id,
+                changes={"old": {"database_release_label": old_label}, "new": {"database_release_label": updated_reporting_effort.database_release_label}},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            print(f"Audit logging error: {audit_error}")
+
         # Broadcast WebSocket event for real-time updates
         try:
             print(f"About to broadcast reporting_effort_updated...")
@@ -230,7 +265,7 @@ async def update_reporting_effort(
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
             print(f"WebSocket broadcast error: {ws_error}")
-        
+
         return updated_reporting_effort
     except HTTPException:
         raise
@@ -245,12 +280,13 @@ async def update_reporting_effort(
 async def delete_reporting_effort(
     *,
     db: AsyncSession = Depends(get_db),
+    request: Request,
     reporting_effort_id: int,
     current_user: User = Depends(get_current_user),
 ) -> ReportingEffort:
     """
     Delete a reporting effort.
-    
+
     Requires: Admin or Study LEAD role for the study.
     """
     try:
@@ -260,20 +296,39 @@ async def delete_reporting_effort(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reporting effort not found"
             )
-        
+
+        # Capture values for audit before deletion
+        deleted_label = db_reporting_effort.database_release_label
+        deleted_study_id = db_reporting_effort.study_id
+
         # Check user has LEAD access to this study
         await require_study_lead_access(db, current_user, db_reporting_effort.study_id)
-        
+
         deleted_reporting_effort = await reporting_effort.delete(db, id=reporting_effort_id)
         print(f"Reporting effort deleted successfully: {deleted_reporting_effort.database_release_label} (ID: {deleted_reporting_effort.id})")
-        
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="reporting_efforts",
+                record_id=reporting_effort_id,
+                action="DELETE",
+                user_id=current_user.id,
+                changes={"deleted": {"database_release_label": deleted_label, "study_id": deleted_study_id}},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            print(f"Audit logging error: {audit_error}")
+
         # Broadcast WebSocket event for real-time updates
         try:
             await broadcast_reporting_effort_deleted(reporting_effort_id)
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
             print(f"WebSocket broadcast error: {ws_error}")
-        
+
         return deleted_reporting_effort
     except HTTPException:
         raise

@@ -161,6 +161,14 @@ async def create_tracker(
                 detail="Tracker already exists for this item"
             )
         
+        # Validation: Production and QC programmer cannot be the same person
+        if (tracker_in.production_programmer_id and tracker_in.qc_programmer_id and 
+            tracker_in.production_programmer_id == tracker_in.qc_programmer_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Production and QC programmer cannot be the same person"
+            )
+        
         created_tracker = await reporting_effort_item_tracker.create(db, obj_in=tracker_in)
         print(f"Tracker created successfully for item {tracker_in.reporting_effort_item_id} (Tracker ID: {created_tracker.id})")
         
@@ -463,11 +471,33 @@ async def update_tracker(
                     detail="Only administrators or study leads can assign programmers to tasks"
                 )
         
+        # Validation: Production and QC programmer cannot be the same person
+        new_prod_programmer = update_data.get('production_programmer_id', db_tracker.production_programmer_id)
+        new_qc_programmer = update_data.get('qc_programmer_id', db_tracker.qc_programmer_id)
+        if new_prod_programmer and new_qc_programmer and new_prod_programmer == new_qc_programmer:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Production and QC programmer cannot be the same person"
+            )
+        
         # Auto-set due_date when assigning production programmer (if not already set)
         if 'production_programmer_id' in update_data and update_data['production_programmer_id']:
             if not db_tracker.due_date and 'due_date' not in update_data:
                 due_date_offset = await app_settings.get_default_due_date_offset(db)
                 update_data['due_date'] = date.today() + timedelta(days=due_date_offset)
+        
+        # Validation: Due date cannot be prior to today for incomplete tasks
+        if 'due_date' in update_data and update_data['due_date']:
+            new_due_date = update_data['due_date']
+            # Check the effective statuses after this update
+            effective_prod_status = update_data.get('production_status', db_tracker.production_status)
+            effective_qc_status = update_data.get('qc_status', db_tracker.qc_status)
+            is_task_completed = (effective_prod_status == 'completed' and effective_qc_status == 'completed')
+            if not is_task_completed and new_due_date < date.today():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Due date cannot be prior to today for tasks that are not completed"
+                )
         
         # Validation: Cannot set QC status to completed if there are unresolved comments
         if 'qc_status' in update_data and update_data['qc_status'] == 'completed':
@@ -731,6 +761,18 @@ async def assign_programmer(
                 detail="Role must be 'production' or 'qc'"
             )
         
+        # Validation: Production and QC programmer cannot be the same person
+        if assignment.role == "production" and db_tracker.qc_programmer_id == assignment.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Production and QC programmer cannot be the same person"
+            )
+        if assignment.role == "qc" and db_tracker.production_programmer_id == assignment.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Production and QC programmer cannot be the same person"
+            )
+        
         # Store original data for audit
         original_data = sqlalchemy_to_dict(db_tracker)
         
@@ -985,6 +1027,14 @@ async def bulk_assign_programmers(
                 
                 # Note: Any user can be assigned - their study role determines access
                 
+                # Validation: Production and QC programmer cannot be the same person
+                if role == "production" and db_tracker.qc_programmer_id == user_id:
+                    errors.append(f"Tracker {tracker_id}: Production and QC programmer cannot be the same person")
+                    continue
+                if role == "qc" and db_tracker.production_programmer_id == user_id:
+                    errors.append(f"Tracker {tracker_id}: Production and QC programmer cannot be the same person")
+                    continue
+                
                 # Update the appropriate programmer field
                 update_data = {}
                 if role == "production":
@@ -1091,6 +1141,23 @@ async def bulk_update_status(
                     continue
 
                 update_data = {k: v for k, v in update.items() if k not in ["id", "tracker_id"]}
+
+                # Validation: Production and QC programmer cannot be the same person
+                new_prod_programmer = update_data.get("production_programmer_id", db_tracker.production_programmer_id)
+                new_qc_programmer = update_data.get("qc_programmer_id", db_tracker.qc_programmer_id)
+                if new_prod_programmer and new_qc_programmer and new_prod_programmer == new_qc_programmer:
+                    errors.append(f"Tracker {tracker_id}: Production and QC programmer cannot be the same person")
+                    continue
+
+                # Validation: Due date cannot be prior to today for incomplete tasks
+                new_due_date = update_data.get("due_date")
+                if new_due_date:
+                    effective_prod_status = update_data.get("production_status", db_tracker.production_status)
+                    effective_qc_status = update_data.get("qc_status", db_tracker.qc_status)
+                    is_task_completed = (effective_prod_status == 'completed' and effective_qc_status == 'completed')
+                    if not is_task_completed and new_due_date < date.today():
+                        errors.append(f"Tracker {tracker_id}: Due date cannot be prior to today for tasks that are not completed")
+                        continue
 
                 # Validate: Cannot set QC status to completed if there are unresolved comments
                 if update_data.get("qc_status") == "completed":
@@ -1228,6 +1295,23 @@ async def bulk_assign_and_update_status(
                     
             if data.qc_programmer_id is not None:
                 update_data["qc_programmer_id"] = data.qc_programmer_id
+            
+            # Validation: Production and QC programmer cannot be the same person
+            new_prod_programmer = update_data.get("production_programmer_id", db_tracker.production_programmer_id)
+            new_qc_programmer = update_data.get("qc_programmer_id", db_tracker.qc_programmer_id)
+            if new_prod_programmer and new_qc_programmer and new_prod_programmer == new_qc_programmer:
+                errors.append(f"Tracker {tracker_id}: Production and QC programmer cannot be the same person")
+                continue
+            
+            # Validation: Due date cannot be prior to today for incomplete tasks
+            new_due_date = update_data.get("due_date")
+            if new_due_date:
+                effective_prod_status = data.production_status if data.production_status else db_tracker.production_status
+                effective_qc_status = data.qc_status if data.qc_status else db_tracker.qc_status
+                is_task_completed = (effective_prod_status == 'completed' and effective_qc_status == 'completed')
+                if not is_task_completed and new_due_date < date.today():
+                    errors.append(f"Tracker {tracker_id}: Due date cannot be prior to today for tasks that are not completed")
+                    continue
             
             # Validate status updates - programmer must be assigned (except for not_started)
             if data.production_status is not None:
@@ -1714,6 +1798,13 @@ async def import_trackers(
                 else:
                     errors.append(f"User not found: {import_data.qc_programmer_username}")
             
+            # Validation: Production and QC programmer cannot be the same person
+            new_prod_programmer = update_data.get("production_programmer_id", tracker.production_programmer_id)
+            new_qc_programmer = update_data.get("qc_programmer_id", tracker.qc_programmer_id)
+            if new_prod_programmer and new_qc_programmer and new_prod_programmer == new_qc_programmer:
+                errors.append(f"Item {import_data.item_code}: Production and QC programmer cannot be the same person")
+                continue
+            
             # Add other fields
             if import_data.production_status:
                 update_data["production_status"] = import_data.production_status
@@ -1725,6 +1816,16 @@ async def import_trackers(
                 update_data["due_date"] = import_data.due_date
             if import_data.qc_completion_date:
                 update_data["qc_completion_date"] = import_data.qc_completion_date
+            
+            # Validation: Due date cannot be prior to today for incomplete tasks
+            new_due_date = update_data.get("due_date")
+            if new_due_date:
+                effective_prod_status = update_data.get("production_status", tracker.production_status)
+                effective_qc_status = update_data.get("qc_status", tracker.qc_status)
+                is_task_completed = (effective_prod_status == 'completed' and effective_qc_status == 'completed')
+                if not is_task_completed and new_due_date < date.today():
+                    errors.append(f"Item {import_data.item_code}: Due date cannot be prior to today for tasks that are not completed")
+                    continue
             
             # Update tracker
             if update_data:
