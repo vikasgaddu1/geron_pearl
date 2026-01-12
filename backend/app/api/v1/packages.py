@@ -50,7 +50,6 @@ async def create_package(
             )
 
         created_package = await package.create(db, obj_in=package_in)
-        print(f"Package created successfully: {created_package.package_name} (ID: {created_package.id})")
 
         # Log audit trail
         try:
@@ -64,17 +63,14 @@ async def create_package(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         # Broadcast WebSocket event for real-time updates
         try:
-            print(f"About to broadcast package_created...")
             await broadcast_package_created(created_package)
-            print(f"Broadcast completed successfully")
-        except Exception as ws_error:
-            # Log WebSocket error but don't fail the request
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
 
         return created_package
     except Exception as e:
@@ -179,7 +175,6 @@ async def update_package(
                 )
 
         updated_package = await package.update(db, db_obj=db_package, obj_in=package_in)
-        print(f"Package updated successfully: {updated_package.package_name} (ID: {updated_package.id})")
 
         # Log audit trail
         try:
@@ -193,14 +188,14 @@ async def update_package(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         # Broadcast WebSocket event
         try:
             await broadcast_package_updated(updated_package)
-        except Exception as ws_error:
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
 
         return updated_package
     except Exception as e:
@@ -254,7 +249,6 @@ async def delete_package(
             )
 
         deleted_package = await package.delete(db, id=package_id)
-        print(f"Package deleted successfully: {deleted_package.package_name} (ID: {deleted_package.id})")
 
         # Log audit trail
         try:
@@ -268,14 +262,14 @@ async def delete_package(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         # Broadcast WebSocket event
         try:
             await broadcast_package_deleted(deleted_package)
-        except Exception as ws_error:
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
 
         return deleted_package
     except Exception as e:
@@ -328,13 +322,12 @@ async def create_package_item(
         item_in.package_id = package_id
         
         created_item = await package_item.create_with_details(db, obj_in=item_in)
-        print(f"Package item created successfully: {created_item.item_code} (ID: {created_item.id})")
-        
+
         # Broadcast WebSocket event
         try:
             await broadcast_package_item_created(created_item)
-        except Exception as ws_error:
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
         
         return created_item
     except ValueError as e:
@@ -420,34 +413,28 @@ async def update_package_item(
     Requires: Admin or Study LEAD role (in any study).
     """
     try:
-        print(f"Updating package item {item_id} with data: {item_in.model_dump(exclude_unset=True)}")
-        
         db_item = await package_item.get(db, id=item_id)
         if not db_item:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Package item not found"
             )
-        
+
         updated_item = await package_item.update(db, db_obj=db_item, obj_in=item_in)
-        print(f"Package item updated successfully: {updated_item.item_code} (ID: {updated_item.id})")
-        
+
         # Broadcast WebSocket event
         try:
             await broadcast_package_item_updated(updated_item)
-        except Exception as ws_error:
-            print(f"WebSocket broadcast error: {ws_error}")
-        
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
+
         return updated_item
     except Exception as e:
-        print(f"Error updating package item {item_id}: {e}")
         if isinstance(e, HTTPException):
             raise
-        # Return more detailed error information
-        error_detail = f"Failed to update package item: {str(e)}"
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=error_detail
+            detail="Failed to update package item"
         )
 
 
@@ -472,13 +459,12 @@ async def delete_package_item(
             )
         
         deleted_item = await package_item.delete(db, id=item_id)
-        print(f"Package item deleted successfully: {deleted_item.item_code} (ID: {deleted_item.id})")
-        
+
         # Broadcast WebSocket event
         try:
             await broadcast_package_item_deleted(deleted_item)
-        except Exception as ws_error:
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
         
         return deleted_item
     except Exception as e:

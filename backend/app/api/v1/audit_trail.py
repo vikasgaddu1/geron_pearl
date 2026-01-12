@@ -11,19 +11,10 @@ from app.db.session import get_db
 from app.schemas.audit_log import AuditLog, AuditLogWithDetails
 from app.models.audit_log import AuditLog as AuditLogModel
 from app.models.user import User as UserModel
-from app.core.security import get_current_user
+from app.core.security import require_admin
 
 router = APIRouter()
 
-
-def require_admin(current_user: UserModel = Depends(get_current_user)) -> UserModel:
-    """Dependency to check if user has admin access via JWT."""
-    if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
-    return current_user
 
 @router.get("/", response_model=List[AuditLogWithDetails])
 async def get_audit_logs(

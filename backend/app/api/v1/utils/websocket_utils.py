@@ -74,10 +74,9 @@ async def broadcast_entity_change(
         
         # Broadcast to all connected WebSocket clients
         await manager.broadcast_json(message)
-        
-    except Exception as e:
-        # Log error but don't raise to avoid breaking API operations
-        print(f"WebSocket broadcast error for {entity_type}_{action}: {str(e)}")
+
+    except Exception:
+        pass  # WebSocket broadcast is best-effort
 
 
 # Specific broadcast functions for common entities
@@ -158,8 +157,7 @@ def convert_sqlalchemy_to_pydantic(sqlalchemy_obj: Any, pydantic_model: Any) -> 
     """
     try:
         return pydantic_model.model_validate(sqlalchemy_obj)
-    except Exception as e:
-        print(f"Error converting {type(sqlalchemy_obj)} to {pydantic_model}: {str(e)}")
+    except Exception:
         raise
 
 
@@ -178,8 +176,7 @@ def serialize_for_websocket(pydantic_obj: Any, exclude_fields: list = None, mode
     try:
         exclude_set = set(exclude_fields) if exclude_fields else set()
         return pydantic_obj.model_dump(mode=mode, exclude=exclude_set)
-    except Exception as e:
-        print(f"Error serializing {type(pydantic_obj)} for WebSocket: {str(e)}")
+    except Exception:
         # Fallback to basic dict conversion
         return sqlalchemy_to_dict(pydantic_obj) if hasattr(pydantic_obj, '__table__') else {}
 
@@ -202,8 +199,7 @@ def batch_convert_models(sqlalchemy_list: list, pydantic_model: Any, exclude_fie
             pydantic_obj = convert_sqlalchemy_to_pydantic(item, pydantic_model)
             serialized = serialize_for_websocket(pydantic_obj, exclude_fields)
             results.append(serialized)
-        except Exception as e:
-            print(f"Error in batch conversion for item {getattr(item, 'id', 'unknown')}: {str(e)}")
+        except Exception:
             # Continue with other items, don't break the entire batch
             continue
     
@@ -224,8 +220,7 @@ def safe_model_conversion(sqlalchemy_obj: Any, pydantic_model: Any, default: Any
     """
     try:
         return convert_sqlalchemy_to_pydantic(sqlalchemy_obj, pydantic_model)
-    except Exception as e:
-        print(f"Safe conversion failed for {type(sqlalchemy_obj)}: {str(e)}")
+    except Exception:
         return default
 
 
@@ -259,11 +254,9 @@ def create_websocket_response(data: Any, message_type: str, pydantic_model: Any 
             'data': serialized_data,
             'timestamp': datetime.now().isoformat()
         }
-    except Exception as e:
-        print(f"Error creating WebSocket response for {message_type}: {str(e)}")
+    except Exception:
         return {
             'type': message_type,
             'data': {},
-            'error': str(e),
             'timestamp': datetime.now().isoformat()
         }

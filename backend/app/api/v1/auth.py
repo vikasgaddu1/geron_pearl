@@ -3,7 +3,6 @@
 from datetime import datetime, timedelta
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -309,22 +308,9 @@ async def forgot_password(
     # Build reset URL using configured frontend URL
     reset_url = f"{settings.frontend_url}/reset-password/{reset_token}"
     
-    # Send email or log to console based on configuration
+    # Send email if configured
     if email_service.is_configured:
-        # Send actual email
-        email_sent = send_password_reset_email(user.email, reset_url, user.username)
-        if not email_sent:
-            # Log for debugging but don't expose to user
-            print(f"WARNING: Failed to send password reset email to {user.email}")
-    else:
-        # SMTP not configured - log to console (useful for development)
-        print(f"\n{'='*80}")
-        print(f"PASSWORD RESET REQUEST (SMTP not configured)")
-        print(f"{'='*80}")
-        print(f"User: {user.username} ({user.email})")
-        print(f"Reset URL: {reset_url}")
-        print(f"Token expires: {user.reset_token_expires}")
-        print(f"{'='*80}\n")
+        send_password_reset_email(user.email, reset_url, user.username)
     
     return {
         "message": "If an account with that email exists, a password reset link has been sent."

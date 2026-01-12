@@ -58,16 +58,7 @@ class ReportingEffortCRUD:
             .limit(limit)
         )
         return list(result.unique().scalars().all())
-    
-    async def get_by_study_id(self, db: AsyncSession, *, study_id: int) -> List[ReportingEffort]:
-        """Get all reporting efforts for a specific study (no pagination) with related data."""
-        result = await db.execute(
-            select(ReportingEffort)
-            .options(joinedload(ReportingEffort.study), joinedload(ReportingEffort.database_release))
-            .where(ReportingEffort.study_id == study_id)
-        )
-        return list(result.unique().scalars().all())
-    
+
     async def get_by_database_release(
         self, db: AsyncSession, *, database_release_id: int, skip: int = 0, limit: int = 100
     ) -> List[ReportingEffort]:

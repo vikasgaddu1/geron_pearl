@@ -45,7 +45,6 @@ async def create_study(
             )
 
         created_study = await study.create(db, obj_in=study_in)
-        print(f"Study created successfully: {created_study.study_label} (ID: {created_study.id})")
 
         # Log audit trail
         try:
@@ -59,17 +58,14 @@ async def create_study(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         # Broadcast WebSocket event for real-time updates
         try:
-            print(f"About to broadcast study_created...")
             await broadcast_study_created(created_study)
-            print(f"Broadcast completed successfully")
-        except Exception as ws_error:
-            # Log WebSocket error but don't fail the request
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
 
         return created_study
     except Exception as e:
@@ -162,7 +158,6 @@ async def update_study(
                 )
 
         updated_study = await study.update(db, db_obj=db_study, obj_in=study_in)
-        print(f"Study updated successfully: {updated_study.study_label} (ID: {updated_study.id})")
 
         # Log audit trail
         try:
@@ -176,17 +171,14 @@ async def update_study(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         # Broadcast WebSocket event for real-time updates
         try:
-            print(f"About to broadcast study_updated...")
             await broadcast_study_updated(updated_study)
-            print(f"Update broadcast completed successfully")
-        except Exception as ws_error:
-            # Log WebSocket error but don't fail the request
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
 
         return updated_study
     except HTTPException:
@@ -230,7 +222,6 @@ async def delete_study(
             )
 
         deleted_study = await study.delete(db, id=study_id)
-        print(f"Study deleted successfully: {deleted_study.study_label} (ID: {deleted_study.id})")
 
         # Log audit trail
         try:
@@ -244,21 +235,19 @@ async def delete_study(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         # Broadcast WebSocket event for real-time updates
         try:
             await broadcast_study_deleted(study_id)
-        except Exception as ws_error:
-            # Log WebSocket error but don't fail the request
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
 
         return deleted_study
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Error deleting study: {e}")
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete study"
@@ -388,8 +377,7 @@ async def get_my_study_permissions(
         )
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Error getting study permissions: {e}")
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get study permissions"
@@ -442,8 +430,7 @@ async def get_study_members(
         )
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Error getting study members: {e}")
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get study members"
@@ -506,8 +493,7 @@ async def assign_study_member(
         return role_assignment
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Error assigning study member: {e}")
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to assign study member"
@@ -571,8 +557,7 @@ async def update_study_member_role(
         return role_assignment
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Error updating study member role: {e}")
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update study member role"
@@ -625,8 +610,7 @@ async def remove_study_member(
         
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Error removing study member: {e}")
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to remove study member"

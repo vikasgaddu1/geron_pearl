@@ -2,7 +2,6 @@
 
 from typing import Optional, List
 from datetime import datetime
-# from enum import Enum  # No longer needed
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from app.models.enums import SourceType, ItemType

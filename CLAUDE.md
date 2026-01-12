@@ -82,6 +82,8 @@ uv run alembic upgrade head                            # Apply migrations
 uv run alembic revision --autogenerate -m "msg"        # Create migration
 uv run python tests/validator/run_model_validation.py  # Validate models after changes
 make format && make lint                               # Code quality (required before commits)
+make check-all                                         # Format + lint + typecheck
+make clean                                             # Remove __pycache__ and generated files
 ```
 
 ### Backend Testing (curl-based, run from `backend/`)
@@ -202,6 +204,17 @@ uv run python tests/validator/run_model_validation.py
 | TypeScript errors | Run `npm run build` to check type errors |
 | Enum serialization error | Add `use_enum_values=True` to Pydantic ConfigDict |
 | Code changes not taking effect | Clear Python cache: run `stop_all.bat` or manually delete `__pycache__` dirs |
+
+## Claude Code Skills
+
+Two custom skills are available for feature development:
+
+| Skill | Description | Use When |
+|-------|-------------|----------|
+| `/pearl-backend-dev` | FastAPI backend development patterns | Creating endpoints, CRUD classes, models, schemas |
+| `/pearl-frontend-dev` | React frontend development patterns | Creating components, forms, tables, API integration |
+
+These skills provide detailed code templates following project standards.
 
 ## Component Documentation
 
@@ -376,7 +389,7 @@ Real-time notifications for user assignments and comments:
 
 **Notification Types:**
 - `assignment_prod` - Assigned as production programmer
-- `assignment_qc` - Assigned as QC programmer  
+- `assignment_qc` - Assigned as QC programmer
 - `comment_added` - New comment on items user is assigned to
 
 **States:**
@@ -386,3 +399,20 @@ Real-time notifications for user assignments and comments:
 **WebSocket Events:**
 - `notification_created` - New notification for a user
 - `notification_count_updated` - Updated unread count for a user
+
+## WebSocket Message Types
+
+All WebSocket messages follow the format `{type}_created`, `{type}_updated`, or `{type}_deleted`:
+
+| Entity | Created | Updated | Deleted |
+|--------|---------|---------|---------|
+| Study | `study_created` | `study_updated` | `study_deleted` |
+| Database Release | `database_release_created` | `database_release_updated` | `database_release_deleted` |
+| Reporting Effort | `reporting_effort_created` | `reporting_effort_updated` | `reporting_effort_deleted` |
+| Tracker | `reporting_effort_tracker_created` | `reporting_effort_tracker_updated` | `reporting_effort_tracker_deleted` |
+| Package | `package_created` | `package_updated` | `package_deleted` |
+| Text Element | `text_element_created` | `text_element_updated` | `text_element_deleted` |
+| User | `user_created` | `user_updated` | `user_deleted` |
+| Notification | `notification_created` | - | - |
+
+Frontend components use `useWebSocketRefresh(['entity_prefix'], refetchCallback)` to listen for these events.

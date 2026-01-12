@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.session import get_db
-from app.models.user import User, UserRole
+from app.models.user import User
 from sqlalchemy import select
 
 
@@ -199,26 +199,6 @@ def require_admin():
         return current_user
     
     return admin_checker
-
-
-# Keep require_role for backwards compatibility during migration
-# TODO: Remove after migration is complete
-def require_role(required_roles: list[UserRole]):
-    """
-    DEPRECATED: Use require_admin() instead.
-    Dependency factory to check if user has required role.
-    """
-    async def role_checker(current_user: User = Depends(get_current_user)) -> User:
-        # Convert old role check to new is_admin check
-        if UserRole.ADMIN in required_roles and current_user.is_admin:
-            return current_user
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Admin privileges required.",
-        )
-        return current_user
-    
-    return role_checker
 
 
 def require_admin_or_lead():

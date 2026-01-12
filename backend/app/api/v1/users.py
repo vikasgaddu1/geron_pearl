@@ -39,8 +39,8 @@ async def create_user(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         await broadcast_user_created(user)
         return user
@@ -133,8 +133,8 @@ async def update_user(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         await broadcast_user_updated(user)
         return user
@@ -195,8 +195,8 @@ async def delete_user(
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent")
         )
-    except Exception as audit_error:
-        print(f"Audit logging error: {audit_error}")
+    except Exception:
+        pass  # Audit logging is best-effort
 
     await broadcast_user_deleted(user)
     return user

@@ -19,9 +19,7 @@ class ReportingEffortItemTrackerBase(BaseModel):
     qc_programmer_id: Optional[int] = Field(None, description="User ID of QC programmer")
     qc_status: Optional[QCStatus] = Field(None, description="QC status")
     qc_completion_date: Optional[date] = Field(None, description="QC completion date")
-    programmer_comments: Optional[str] = Field(None, description="Comments from programmer")
-    biostat_comments: Optional[str] = Field(None, description="Comments from biostatistician")
-    in_production: bool = Field(False, description="Whether item is currently in production")
+    in_production_flag: bool = Field(False, description="Whether item is currently in production")
     complexity: int = Field(
         default=3, 
         ge=1, 

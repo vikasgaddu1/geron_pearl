@@ -86,7 +86,6 @@ async def create_reporting_effort(
             )
 
         created_reporting_effort = await reporting_effort.create(db, obj_in=reporting_effort_in)
-        print(f"Reporting effort created successfully: {created_reporting_effort.database_release_label} (ID: {created_reporting_effort.id})")
 
         # Log audit trail
         try:
@@ -100,17 +99,14 @@ async def create_reporting_effort(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         # Broadcast WebSocket event for real-time updates
         try:
-            print(f"About to broadcast reporting_effort_created...")
             await broadcast_reporting_effort_created(created_reporting_effort)
-            print(f"Broadcast completed successfully")
-        except Exception as ws_error:
-            # Log WebSocket error but don't fail the request
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
 
         return created_reporting_effort
     except Exception as e:
@@ -240,7 +236,6 @@ async def update_reporting_effort(
         updated_reporting_effort = await reporting_effort.update(
             db, db_obj=db_reporting_effort, obj_in=reporting_effort_in
         )
-        print(f"Reporting effort updated successfully: {updated_reporting_effort.database_release_label} (ID: {updated_reporting_effort.id})")
 
         # Log audit trail
         try:
@@ -254,17 +249,14 @@ async def update_reporting_effort(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         # Broadcast WebSocket event for real-time updates
         try:
-            print(f"About to broadcast reporting_effort_updated...")
             await broadcast_reporting_effort_updated(updated_reporting_effort)
-            print(f"Update broadcast completed successfully")
-        except Exception as ws_error:
-            # Log WebSocket error but don't fail the request
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
 
         return updated_reporting_effort
     except HTTPException:
@@ -305,7 +297,6 @@ async def delete_reporting_effort(
         await require_study_lead_access(db, current_user, db_reporting_effort.study_id)
 
         deleted_reporting_effort = await reporting_effort.delete(db, id=reporting_effort_id)
-        print(f"Reporting effort deleted successfully: {deleted_reporting_effort.database_release_label} (ID: {deleted_reporting_effort.id})")
 
         # Log audit trail
         try:
@@ -319,21 +310,19 @@ async def delete_reporting_effort(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         # Broadcast WebSocket event for real-time updates
         try:
             await broadcast_reporting_effort_deleted(reporting_effort_id)
-        except Exception as ws_error:
-            # Log WebSocket error but don't fail the request
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
 
         return deleted_reporting_effort
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Error deleting reporting effort: {e}")
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete reporting effort"

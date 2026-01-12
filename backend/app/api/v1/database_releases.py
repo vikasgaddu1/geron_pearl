@@ -54,7 +54,6 @@ async def create_database_release(
             )
 
         created_release = await database_release.create(db, obj_in=database_release_in)
-        print(f"Database release created successfully: {created_release.database_release_label} for study {created_release.study_id} (ID: {created_release.id})")
 
         # Log audit trail
         try:
@@ -68,17 +67,14 @@ async def create_database_release(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         # Broadcast WebSocket event for real-time updates
         try:
-            print(f"About to broadcast database_release_created...")
             await broadcast_database_release_created(created_release)
-            print(f"Broadcast completed successfully")
-        except Exception as ws_error:
-            # Log WebSocket error but don't fail the request
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
 
         return created_release
     except Exception as e:
@@ -181,9 +177,7 @@ async def update_database_release(
                     detail="Database release with this label already exists for this study"
                 )
 
-        print(f"About to update database release ID {database_release_id} to '{database_release_in.database_release_label}'")
         updated_release = await database_release.update(db, db_obj=db_release, obj_in=database_release_in)
-        print(f"Database release updated successfully: {updated_release.database_release_label} (ID: {updated_release.id})")
 
         # Log audit trail
         try:
@@ -197,17 +191,14 @@ async def update_database_release(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         # Broadcast WebSocket event for real-time updates
         try:
-            print(f"About to broadcast database_release_updated...")
             await broadcast_database_release_updated(updated_release)
-            print(f"Update broadcast completed successfully")
-        except Exception as ws_error:
-            # Log WebSocket error but don't fail the request
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
 
         return updated_release
     except HTTPException:
@@ -265,15 +256,14 @@ async def delete_database_release(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         # Broadcast WebSocket event for real-time updates
         try:
             await broadcast_database_release_deleted(database_release_id)
-        except Exception as ws_error:
-            # Log WebSocket error but don't fail the request
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
 
         return deleted_release
     except HTTPException:

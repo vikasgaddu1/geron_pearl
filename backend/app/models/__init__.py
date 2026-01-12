@@ -10,7 +10,7 @@ from app.models.package_tlf_details import PackageTlfDetails
 from app.models.package_dataset_details import PackageDatasetDetails
 from app.models.package_item_footnote import PackageItemFootnote
 from app.models.package_item_acronym import PackageItemAcronym
-from app.models.user import User, UserRole, UserDepartment
+from app.models.user import User, UserDepartment
 from app.models.reporting_effort_item import ReportingEffortItem, SourceType
 from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker, ProductionStatus, QCStatus
 from app.models.reporting_effort_tlf_details import ReportingEffortTlfDetails
@@ -47,7 +47,6 @@ __all__ = [
     "PackageItemFootnote",
     "PackageItemAcronym",
     "User",
-    "UserRole",
     "UserDepartment",
     "ReportingEffortItem",
     "SourceType",

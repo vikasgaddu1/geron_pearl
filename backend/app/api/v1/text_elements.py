@@ -41,7 +41,6 @@ async def create_text_element(
             )
 
         created_text_element = await text_element.create(db, obj_in=text_element_in)
-        print(f"TextElement created successfully: {created_text_element.type.value} - {created_text_element.label[:50]}... (ID: {created_text_element.id})")
 
         # Log audit trail
         try:
@@ -55,23 +54,19 @@ async def create_text_element(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         # Broadcast WebSocket event for real-time updates
         try:
-            print(f"About to broadcast text_element_created...")
             await broadcast_text_element_created(created_text_element)
-            print(f"Broadcast completed successfully")
-        except Exception as ws_error:
-            # Log WebSocket error but don't fail the request
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
 
         return created_text_element
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
-        print(f"Error creating text element: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create text element"
@@ -93,11 +88,9 @@ async def read_text_elements(
             text_elements = await text_element.get_by_type(db, type=type, skip=skip, limit=limit)
         else:
             text_elements = await text_element.get_multi(db, skip=skip, limit=limit)
-        
-        print(f"Retrieved {len(text_elements)} text elements")
+
         return text_elements
-    except Exception as e:
-        print(f"Error retrieving text elements: {e}")
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve text elements"
@@ -117,10 +110,8 @@ async def search_text_elements(
     """
     try:
         text_elements = await text_element.search_by_label(db, search_term=q, skip=skip, limit=limit)
-        print(f"Found {len(text_elements)} text elements matching '{q}'")
         return text_elements
-    except Exception as e:
-        print(f"Error searching text elements: {e}")
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to search text elements"
@@ -143,13 +134,11 @@ async def read_text_element(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Text element not found"
             )
-        
-        print(f"Retrieved text element: {db_text_element.type.value} - {db_text_element.label[:50]}...")
+
         return db_text_element
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Error retrieving text element {text_element_id}: {e}")
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve text element"
@@ -198,7 +187,6 @@ async def update_text_element(
                 )
 
         updated_text_element = await text_element.update(db, db_obj=db_text_element, obj_in=text_element_in)
-        print(f"TextElement updated successfully: ID {updated_text_element.id}")
 
         # Log audit trail
         try:
@@ -212,23 +200,19 @@ async def update_text_element(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         # Broadcast WebSocket event for real-time updates
         try:
-            print(f"About to broadcast text_element_updated...")
             await broadcast_text_element_updated(updated_text_element)
-            print(f"Broadcast completed successfully")
-        except Exception as ws_error:
-            # Log WebSocket error but don't fail the request
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
 
         return updated_text_element
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Error updating text element {text_element_id}: {e}")
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update text element"
@@ -261,7 +245,6 @@ async def delete_text_element(
         deleted_label = db_text_element.label
 
         deleted_text_element = await text_element.delete(db, id=text_element_id)
-        print(f"TextElement deleted successfully: ID {text_element_id}")
 
         # Log audit trail
         try:
@@ -275,23 +258,19 @@ async def delete_text_element(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         # Broadcast WebSocket event for real-time updates
         try:
-            print(f"About to broadcast text_element_deleted...")
             await broadcast_text_element_deleted(deleted_text_element)
-            print(f"Broadcast completed successfully")
-        except Exception as ws_error:
-            # Log WebSocket error but don't fail the request
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
 
         return deleted_text_element
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Error deleting text element {text_element_id}: {e}")
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete text element"

@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.models.user import User as UserModel
 from app.core.config import settings
-from app.core.security import get_current_user
+from app.core.security import require_admin
 
 router = APIRouter()
 
@@ -22,15 +22,6 @@ router = APIRouter()
 BACKUP_DIR = Path("backups")
 BACKUP_DIR.mkdir(exist_ok=True)
 
-
-def require_admin(current_user: UserModel = Depends(get_current_user)) -> UserModel:
-    """Dependency to check if user has admin access via JWT."""
-    if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
-    return current_user
 
 def get_db_connection_string():
     """Get database connection string for pg_dump."""
@@ -165,8 +156,7 @@ async def list_backups(
                     metadata["size_bytes"] = backup_file.stat().st_size
                 
                 backups.append(metadata)
-            except Exception as e:
-                print(f"Error reading metadata file {metadata_file}: {e}")
+            except Exception:
                 continue
         
         # Sort by creation date (newest first)
@@ -323,35 +313,25 @@ async def perform_restore(db_url: str, backup_path: Path):
         GRANT ALL ON SCHEMA public TO public;
         """
 
-        print("Dropping existing schema...")
-        drop_result = subprocess.run(
+        subprocess.run(
             ["psql", db_url, "-c", drop_schema_sql],
             capture_output=True,
             text=True,
             timeout=60
         )
 
-        if drop_result.returncode != 0:
-            print(f"Warning: Schema drop had issues: {drop_result.stderr}")
-
         # Now restore from backup
-        print(f"Restoring from {backup_path}...")
-        result = subprocess.run(
+        subprocess.run(
             ["psql", db_url, "-f", str(backup_path)],
             capture_output=True,
             text=True,
             timeout=600  # 10 minute timeout
         )
 
-        if result.returncode != 0:
-            print(f"Restore error: {result.stderr}")
-        else:
-            print(f"Database restored successfully from {backup_path}")
-
     except subprocess.TimeoutExpired:
-        print("Database restore timed out after 10 minutes")
-    except Exception as e:
-        print(f"Database restore failed: {e}")
+        pass  # Restore timed out
+    except Exception:
+        pass  # Restore failed
 
 @router.get("/status", response_model=Dict[str, Any])
 async def get_backup_status(

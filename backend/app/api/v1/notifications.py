@@ -29,8 +29,8 @@ async def broadcast_notification_count(user_id: int, unread_count: int):
             }
         }
         await manager.broadcast_json(message)
-    except Exception as e:
-        print(f"WebSocket broadcast error: {e}")
+    except Exception:
+        pass  # WebSocket broadcast is best-effort
 
 
 async def broadcast_new_notification(user_id: int, notification_data: dict):
@@ -44,8 +44,8 @@ async def broadcast_new_notification(user_id: int, notification_data: dict):
             }
         }
         await manager.broadcast_json(message)
-    except Exception as e:
-        print(f"WebSocket broadcast error: {e}")
+    except Exception:
+        pass  # WebSocket broadcast is best-effort
 
 
 @router.get("/", response_model=List[NotificationWithDetails])

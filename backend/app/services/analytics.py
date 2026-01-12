@@ -17,7 +17,7 @@ Provides:
 
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date, timedelta
-from sqlalchemy import select, and_, func, case
+from sqlalchemy import select, and_, func, case, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.study import Study
@@ -589,8 +589,4 @@ class AnalyticsService:
             "generated_at": datetime.utcnow().isoformat(),
             "weeks": forecast_weeks
         }
-
-
-# Import for backward compatibility with or_ 
-from sqlalchemy import or_
 

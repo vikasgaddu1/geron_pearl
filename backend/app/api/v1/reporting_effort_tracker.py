@@ -51,8 +51,8 @@ async def broadcast_tracker_assignment_updated(tracker_data, assignment_type: st
             }
         }
         await manager.broadcast(str(message_data).replace("'", '"'))
-    except Exception as e:
-        print(f"WebSocket broadcast error: {e}")
+    except Exception:
+        pass  # WebSocket broadcast is best-effort
 
 router = APIRouter()
 
@@ -170,8 +170,7 @@ async def create_tracker(
             )
         
         created_tracker = await reporting_effort_item_tracker.create(db, obj_in=tracker_in)
-        print(f"Tracker created successfully for item {tracker_in.reporting_effort_item_id} (Tracker ID: {created_tracker.id})")
-        
+
         # Log audit trail
         try:
             await audit_log.log_action(
@@ -184,14 +183,14 @@ async def create_tracker(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
         
         # Broadcast WebSocket event
         try:
             await broadcast_tracker_updated(created_tracker)
-        except Exception as ws_error:
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
         
         return created_tracker
         
@@ -535,8 +534,7 @@ async def update_tracker(
         updated_tracker = await reporting_effort_item_tracker.update(
             db, db_obj=db_tracker, obj_in=update_data
         )
-        print(f"Tracker updated successfully: ID {updated_tracker.id}")
-        
+
         # Log audit trail
         try:
             changes = {
@@ -553,8 +551,8 @@ async def update_tracker(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
         
         # Create notifications for new programmer assignments
         try:
@@ -593,14 +591,14 @@ async def update_tracker(
                     assigned_by_user_id=current_user.id,
                     assigned_by_username=current_user.username
                 )
-        except Exception as notif_error:
-            print(f"Notification creation error: {notif_error}")
-        
+        except Exception:
+            pass  # Notification is best-effort
+
         # Broadcast WebSocket event
         try:
             await broadcast_tracker_updated(updated_tracker)
-        except Exception as ws_error:
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
         
         return updated_tracker
         
@@ -655,8 +653,8 @@ async def delete_tracker(
                     "item_type": db_item.item_type,
                     "effort_id": db_item.reporting_effort_id
                 }
-        except Exception as e:
-            print(f"Error getting item info: {e}")
+        except Exception:
+            pass
         
         # Get user context for enhanced WebSocket messaging
         user_info = None
@@ -669,13 +667,12 @@ async def delete_tracker(
                         "user_id": db_user.id,
                         "username": db_user.username
                     }
-            except Exception as e:
-                print(f"Error getting user info: {e}")
+            except Exception:
+                pass
         
         # Delete the tracker
         await reporting_effort_item_tracker.delete(db, id=tracker_id)
-        print(f"Tracker deleted successfully: ID {tracker_id}")
-        
+
         # Log audit trail
         try:
             await audit_log.log_action(
@@ -688,8 +685,8 @@ async def delete_tracker(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
         
         # Broadcast WebSocket event with enhanced context
         try:
@@ -698,8 +695,8 @@ async def delete_tracker(
                 user_info=user_info, 
                 item_info=item_info
             )
-        except Exception as ws_error:
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
         
         # Return 204 No Content (no response body)
         return
@@ -795,9 +792,7 @@ async def assign_programmer(
         updated_tracker = await reporting_effort_item_tracker.update(
             db, db_obj=db_tracker, obj_in=tracker_update
         )
-        
-        print(f"Assigned {assignment.role} programmer {assignment.user_id} to tracker {tracker_id}")
-        
+
         # Log audit trail
         try:
             changes = {
@@ -819,8 +814,8 @@ async def assign_programmer(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
         
         # Create notification for the assigned user
         try:
@@ -842,16 +837,16 @@ async def assign_programmer(
                 assigned_by_user_id=current_user.id,
                 assigned_by_username=current_user.username
             )
-        except Exception as notif_error:
-            print(f"Notification creation error: {notif_error}")
-        
+        except Exception:
+            pass  # Notification is best-effort
+
         # Broadcast specialized assignment update
         try:
             await broadcast_tracker_assignment_updated(
                 updated_tracker, assignment.role, assignment.user_id
             )
-        except Exception as ws_error:
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
         
         return updated_tracker
         
@@ -929,9 +924,7 @@ async def unassign_programmer(
         updated_tracker = await reporting_effort_item_tracker.update(
             db, db_obj=db_tracker, obj_in=tracker_update
         )
-        
-        print(f"Unassigned {role} programmer from tracker {tracker_id}")
-        
+
         # Log audit trail
         try:
             changes = {
@@ -952,14 +945,14 @@ async def unassign_programmer(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
         
         # Broadcast assignment update
         try:
             await broadcast_tracker_assignment_updated(updated_tracker, role, None)
-        except Exception as ws_error:
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
         
         return updated_tracker
         
@@ -1080,14 +1073,9 @@ async def bulk_assign_programmers(
                     ip_address=request.client.host if request.client else None,
                     user_agent=request.headers.get("user-agent")
                 )
-            except Exception as audit_error:
-                print(f"Audit logging error: {audit_error}")
-        
-        if errors:
-            print(f"Bulk assignment completed with {len(errors)} errors: {errors}")
-        else:
-            print(f"Bulk assignment completed successfully: {len(updated_trackers)} trackers updated")
-        
+            except Exception:
+                pass  # Audit logging is best-effort
+
         return updated_trackers
         
     except Exception as e:
@@ -1195,8 +1183,6 @@ async def bulk_update_status(
             except Exception as e:
                 errors.append(f"Tracker {tracker_id}: {str(e)}")
 
-        print(f"Bulk status update completed: {len(updated_trackers)} trackers updated, {len(errors)} errors")
-
         # Log bulk update audit trail
         try:
             await audit_log.log_action(
@@ -1216,8 +1202,8 @@ async def bulk_update_status(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
 
         return updated_trackers
 
@@ -1403,8 +1389,8 @@ async def bulk_assign_and_update_status(
                             assigned_by_user_id=current_user.id,
                             assigned_by_username=current_user.username
                         )
-                except Exception as notif_error:
-                    print(f"Notification creation error: {notif_error}")
+                except Exception:
+                    pass  # Notification is best-effort
                     
         except Exception as e:
             errors.append(f"Tracker {tracker_id}: {str(e)}")
@@ -1429,8 +1415,8 @@ async def bulk_assign_and_update_status(
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent")
         )
-    except Exception as audit_error:
-        print(f"Audit logging error: {audit_error}")
+    except Exception:
+        pass  # Audit logging is best-effort
 
     # Convert trackers to dict for response
     tracker_dicts = []
@@ -1854,8 +1840,8 @@ async def import_trackers(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent")
             )
-        except Exception as audit_error:
-            print(f"Audit logging error: {audit_error}")
+        except Exception:
+            pass  # Audit logging is best-effort
         
         return {
             "message": "Import completed",

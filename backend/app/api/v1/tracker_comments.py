@@ -5,7 +5,7 @@ Blog-style comment system with real-time WebSocket updates
 
 from datetime import datetime
 from typing import List, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Header, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -45,9 +45,6 @@ async def create_comment(
     - Broadcasts WebSocket event for real-time updates
     """
     try:
-        # Debug: Log the user information
-        print(f"DEBUG: Creating comment for user_id={current_user.id}, username={current_user.username}")
-        
         # Create the comment
         created_comment = await tracker_comment.create(
             db=db, 
@@ -120,8 +117,8 @@ async def create_comment(
                     production_programmer_id=db_tracker.production_programmer_id,
                     qc_programmer_id=db_tracker.qc_programmer_id
                 )
-        except Exception as notif_error:
-            print(f"Comment notification error: {notif_error}")
+        except Exception:
+            pass  # Notification is best-effort
         
         return created_comment_with_user
         

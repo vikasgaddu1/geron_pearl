@@ -1,9 +1,12 @@
 """CRUD operations for ReportingEffortItem."""
 
+import logging
 from typing import List, Optional, Dict, Any
 from sqlalchemy import select, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+
+logger = logging.getLogger(__name__)
 
 from app.models.reporting_effort_item import ReportingEffortItem
 from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker
@@ -90,10 +93,6 @@ class ReportingEffortItemCRUD:
         Returns:
             Created item with all relationships, or None if duplicate and skip_duplicates=True
         """
-        # Initialize logger first
-        import logging
-        logger = logging.getLogger(__name__)
-        
         # Check for duplicate
         existing = await self.get_by_unique_key(
             db,
@@ -417,9 +416,6 @@ class ReportingEffortItemCRUD:
         skipped_items = []
         
         for pkg_item in package_items:
-            # Create reporting effort item - not used anymore, can be removed
-            # item_data = ReportingEffortItemCreate(...)
-            
             # Build the complete item data with details
             from app.schemas.reporting_effort_item import (
                 ReportingEffortItemCreateWithDetails,
@@ -466,12 +462,6 @@ class ReportingEffortItemCRUD:
                     ))
             
             # Create complete item data with details
-            # Always pass string values for enums
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.info(f"About to create ReportingEffortItemCreateWithDetails")
-            logger.info(f"pkg_item.item_type = {pkg_item.item_type} (type={type(pkg_item.item_type)})")
-            
             item_data_with_details = ReportingEffortItemCreateWithDetails(
                 reporting_effort_id=reporting_effort_id,
                 source_type=SourceType.PACKAGE.value,  # Use enum value
@@ -631,8 +621,6 @@ class ReportingEffortItemCRUD:
                     })
                     
             except Exception as create_error:
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.error(f"Error in create_with_details for TLF item {pkg_item.item_code}: {str(create_error)}", exc_info=True)
                 raise
         
@@ -752,8 +740,6 @@ class ReportingEffortItemCRUD:
                     })
                     
             except Exception as create_error:
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.error(f"Error in create_with_details for Dataset item {pkg_item.item_code}: {str(create_error)}", exc_info=True)
                 raise
         
@@ -788,8 +774,6 @@ class ReportingEffortItemCRUD:
         Returns:
             Dictionary with created_items, skipped_items, and summary
         """
-        import logging
-        logger = logging.getLogger(__name__)
         # Get source items
         source_items = await self.get_by_reporting_effort(
             db, 
@@ -806,9 +790,6 @@ class ReportingEffortItemCRUD:
         logger.info(f"Starting copy from reporting effort {source_reporting_effort_id} to {target_reporting_effort_id}, processing {len(source_items)} items")
         
         for src_item in source_items:
-            # Create new item - not used anymore, can be removed
-            # item_data = ReportingEffortItemCreate(...)
-            
             # Build the complete item data with details
             from app.schemas.reporting_effort_item import (
                 ReportingEffortItemCreateWithDetails,
@@ -926,8 +907,6 @@ class ReportingEffortItemCRUD:
         Returns:
             Dictionary with created_items, skipped_items, and summary
         """
-        import logging
-        logger = logging.getLogger(__name__)
         # Get source items, filtering for TLF items only
         source_items = await self.get_by_reporting_effort(
             db, 
@@ -1050,8 +1029,6 @@ class ReportingEffortItemCRUD:
         Returns:
             Dictionary with created_items, skipped_items, and summary
         """
-        import logging
-        logger = logging.getLogger(__name__)
         # Get source items, filtering for Dataset items only
         source_items = await self.get_by_reporting_effort(
             db, 

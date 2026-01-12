@@ -595,8 +595,8 @@ async def update_reporting_effort_item(
         # Broadcast WebSocket event
         try:
             await broadcast_reporting_effort_item_updated(updated_item)
-        except Exception as ws_error:
-            print(f"WebSocket broadcast error: {ws_error}")
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
         
         # Build response with full details (similar to get_by_effort)
         item_dict = {
@@ -1143,8 +1143,6 @@ async def copy_items_from_package(
         )
         logger.info(f"Copy operation completed successfully: {copy_result['summary']}")
         
-        print(f"Copy operation results: {copy_result['summary']['created_count']} created, {copy_result['summary']['skipped_count']} skipped")
-        
         # Log audit trail
         try:
             await audit_log.log_action(
@@ -1262,8 +1260,6 @@ async def copy_tlf_items_from_package(
         )
         logger.info(f"TLF copy operation completed successfully: {copy_result['summary']}")
         
-        print(f"TLF copy operation results: {copy_result['summary']['created_count']} created, {copy_result['summary']['skipped_count']} skipped")
-        
         # Log audit trail
         try:
             await audit_log.log_action(
@@ -1379,8 +1375,6 @@ async def copy_dataset_items_from_package(
         )
         logger.info(f"Dataset copy operation completed successfully: {copy_result['summary']}")
         
-        print(f"Dataset copy operation results: {copy_result['summary']['created_count']} created, {copy_result['summary']['skipped_count']} skipped")
-        
         # Log audit trail
         try:
             await audit_log.log_action(
@@ -1494,8 +1488,6 @@ async def copy_items_from_reporting_effort(
             item_ids=copy_request.item_ids
         )
         logger.info(f"Copy operation completed successfully: {copy_result['summary']}")
-        
-        print(f"Copy operation results: {copy_result['summary']['created_count']} created, {copy_result['summary']['skipped_count']} skipped")
         
         # Process results for audit logging and WebSocket broadcast
         created_items = copy_result['created_items']
@@ -1617,8 +1609,6 @@ async def copy_tlf_items_from_reporting_effort(
             item_ids=copy_request.item_ids
         )
         logger.info(f"TLF copy operation completed successfully: {copy_result['summary']}")
-        
-        print(f"TLF copy operation results: {copy_result['summary']['created_count']} created, {copy_result['summary']['skipped_count']} skipped")
         
         # Process results for audit logging and WebSocket broadcast
         created_items = copy_result['created_items']
@@ -1744,8 +1734,6 @@ async def copy_dataset_items_from_reporting_effort(
             item_ids=copy_request.item_ids
         )
         logger.info(f"Dataset copy operation completed successfully: {copy_result['summary']}")
-        
-        print(f"Dataset copy operation results: {copy_result['summary']['created_count']} created, {copy_result['summary']['skipped_count']} skipped")
         
         # Process results for audit logging and WebSocket broadcast
         created_items = copy_result['created_items']

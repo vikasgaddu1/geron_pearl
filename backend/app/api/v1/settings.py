@@ -37,8 +37,7 @@ async def get_settings(
             updated_at=settings.updated_at,
             updated_by_username=settings.updated_by_user.username if settings.updated_by_user else None
         )
-    except Exception as e:
-        print(f"Error fetching settings: {e}")
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve settings"
@@ -64,8 +63,6 @@ async def update_settings(
             updated_by_user_id=current_user.id
         )
 
-        print(f"Settings updated by user {current_user.username} (ID: {current_user.id})")
-
         # Build response with username
         return AppSettings(
             id=settings.id,
@@ -77,8 +74,7 @@ async def update_settings(
         )
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Error updating settings: {e}")
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update settings"
@@ -99,8 +95,7 @@ async def get_default_due_date_offset(
     try:
         offset = await app_settings.get_default_due_date_offset(db)
         return {"value": offset}
-    except Exception as e:
-        print(f"Error fetching due date offset: {e}")
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve setting"

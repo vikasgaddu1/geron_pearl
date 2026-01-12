@@ -10,14 +10,6 @@ if TYPE_CHECKING:
     from app.models.user_study_role import UserStudyRole
 
 
-# Keeping UserRole for backwards compatibility during migration
-# TODO: Remove after migration is complete
-class UserRole(str, Enum):
-    ADMIN = "ADMIN"
-    EDITOR = "EDITOR"
-    VIEWER = "VIEWER"
-
-
 class UserDepartment(str, Enum):
     PROGRAMMING = "programming"
     BIOSTATISTICS = "biostatistics"
