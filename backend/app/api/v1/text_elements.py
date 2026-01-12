@@ -2,10 +2,10 @@
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud import text_element
+from app.crud import text_element, audit_log
 from app.db.session import get_db
 from app.models.text_element import TextElementType
 from app.schemas.text_element import TextElement, TextElementCreate, TextElementUpdate
@@ -20,12 +20,13 @@ router = APIRouter()
 async def create_text_element(
     *,
     db: AsyncSession = Depends(get_db),
+    request: Request,
     text_element_in: TextElementCreate,
     current_user: User = Depends(require_admin_or_lead()),
 ) -> TextElement:
     """
     Create a new text element.
-    
+
     Requires: Admin or Study LEAD role (in any study).
     """
     try:
@@ -38,10 +39,25 @@ async def create_text_element(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"A {text_element_in.type.value} with this label and content already exists. Duplicate entries are not allowed."
             )
-        
+
         created_text_element = await text_element.create(db, obj_in=text_element_in)
         print(f"TextElement created successfully: {created_text_element.type.value} - {created_text_element.label[:50]}... (ID: {created_text_element.id})")
-        
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="text_elements",
+                record_id=created_text_element.id,
+                action="CREATE",
+                user_id=current_user.id,
+                changes={"type": created_text_element.type.value, "label": created_text_element.label},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            print(f"Audit logging error: {audit_error}")
+
         # Broadcast WebSocket event for real-time updates
         try:
             print(f"About to broadcast text_element_created...")
@@ -50,7 +66,7 @@ async def create_text_element(
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
             print(f"WebSocket broadcast error: {ws_error}")
-        
+
         return created_text_element
     except Exception as e:
         if isinstance(e, HTTPException):
@@ -144,13 +160,14 @@ async def read_text_element(
 async def update_text_element(
     *,
     db: AsyncSession = Depends(get_db),
+    request: Request,
     text_element_id: int,
     text_element_in: TextElementUpdate,
     current_user: User = Depends(require_admin_or_lead()),
 ) -> TextElement:
     """
     Update a text element.
-    
+
     Requires: Admin or Study LEAD role (in any study).
     """
     try:
@@ -160,7 +177,10 @@ async def update_text_element(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Text element not found"
             )
-        
+
+        # Capture old values for audit
+        old_values = {"type": db_text_element.type.value, "label": db_text_element.label}
+
         # Check for duplicate label+content combination if any field is being updated
         if text_element_in.label is not None or text_element_in.type is not None or text_element_in.content is not None:
             # Use the new values if provided, otherwise use existing values
@@ -176,10 +196,25 @@ async def update_text_element(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"A {check_type.value} with this label and content already exists. Duplicate entries are not allowed."
                 )
-        
+
         updated_text_element = await text_element.update(db, db_obj=db_text_element, obj_in=text_element_in)
         print(f"TextElement updated successfully: ID {updated_text_element.id}")
-        
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="text_elements",
+                record_id=updated_text_element.id,
+                action="UPDATE",
+                user_id=current_user.id,
+                changes={"old": old_values, "new": {"type": updated_text_element.type.value, "label": updated_text_element.label}},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            print(f"Audit logging error: {audit_error}")
+
         # Broadcast WebSocket event for real-time updates
         try:
             print(f"About to broadcast text_element_updated...")
@@ -188,7 +223,7 @@ async def update_text_element(
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
             print(f"WebSocket broadcast error: {ws_error}")
-        
+
         return updated_text_element
     except HTTPException:
         raise
@@ -204,12 +239,13 @@ async def update_text_element(
 async def delete_text_element(
     *,
     db: AsyncSession = Depends(get_db),
+    request: Request,
     text_element_id: int,
     current_user: User = Depends(require_admin_or_lead()),
 ) -> TextElement:
     """
     Delete a text element.
-    
+
     Requires: Admin or Study LEAD role (in any study).
     """
     try:
@@ -219,10 +255,29 @@ async def delete_text_element(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Text element not found"
             )
-        
+
+        # Capture values for audit before deletion
+        deleted_type = db_text_element.type.value
+        deleted_label = db_text_element.label
+
         deleted_text_element = await text_element.delete(db, id=text_element_id)
         print(f"TextElement deleted successfully: ID {text_element_id}")
-        
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="text_elements",
+                record_id=text_element_id,
+                action="DELETE",
+                user_id=current_user.id,
+                changes={"deleted": {"type": deleted_type, "label": deleted_label}},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            print(f"Audit logging error: {audit_error}")
+
         # Broadcast WebSocket event for real-time updates
         try:
             print(f"About to broadcast text_element_deleted...")
@@ -231,7 +286,7 @@ async def delete_text_element(
         except Exception as ws_error:
             # Log WebSocket error but don't fail the request
             print(f"WebSocket broadcast error: {ws_error}")
-        
+
         return deleted_text_element
     except HTTPException:
         raise

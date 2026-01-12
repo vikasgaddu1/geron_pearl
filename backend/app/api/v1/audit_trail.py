@@ -99,7 +99,7 @@ async def get_audit_logs(
             if log.user_id:
                 db_user = await user.get(db, id=log.user_id)
                 if db_user:
-                    log_dict["user_name"] = db_user.full_name or db_user.username
+                    log_dict["user_name"] = db_user.username
                     log_dict["user_email"] = db_user.email
             
             enriched_logs.append(AuditLogWithDetails(**log_dict))
@@ -235,7 +235,7 @@ async def get_record_history(
             if log.user_id:
                 db_user = await user.get(db, id=log.user_id)
                 if db_user:
-                    log_dict["user_name"] = db_user.full_name or db_user.username
+                    log_dict["user_name"] = db_user.username
                     log_dict["user_email"] = db_user.email
             
             enriched_logs.append(AuditLogWithDetails(**log_dict))

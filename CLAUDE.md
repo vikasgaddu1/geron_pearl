@@ -54,6 +54,24 @@ await broadcast_entity_created(created_entity)
 Schema.model_validate(sqlalchemy_model).model_dump(mode='json')
 ```
 
+**Audit Logging** - ALL CRUD operations on major entities must log to audit trail:
+```python
+from app.crud import audit_log
+
+# After successful CRUD operation
+await audit_log.log_action(
+    db,
+    table_name="entity_name",
+    record_id=entity.id,
+    action="CREATE",  # or "UPDATE", "DELETE"
+    user_id=current_user.id,
+    changes={"field": "value"},
+    ip_address=request.client.host if request.client else None,
+    user_agent=request.headers.get("user-agent")
+)
+```
+**Entities with audit logging**: Studies, Database Releases, Reporting Efforts, Users, Packages, Text Elements, Reporting Effort Items, Reporting Effort Trackers
+
 ## Essential Commands
 
 ### Backend
@@ -89,6 +107,10 @@ npm run preview   # Preview production build
 
 ### Stop Processes (Windows)
 ```bash
+# Recommended: Use stop_all.bat to stop servers and clear Python cache
+./stop_all.bat
+
+# Manual process termination
 netstat -ano | findstr :8000              # Find backend PID
 netstat -ano | findstr :5173              # Find frontend PID
 powershell -Command "Stop-Process -Id <PID> -Force"
@@ -110,7 +132,7 @@ PEARL/
 │   └── src/
 │       ├── api/          # API client (axios) and endpoint functions
 │       ├── components/   # Reusable UI (shadcn/ui primitives in ui/)
-│       ├── features/     # Feature modules (dashboard, packages, reporting, etc.)
+│       ├── features/     # Feature modules (dashboard, packages, reporting, audit-logs, etc.)
 │       ├── stores/       # Zustand state management
 │       └── types/        # TypeScript type definitions
 ```
@@ -148,6 +170,7 @@ User (admin, analyst, viewer roles) | AuditLog (change tracking) | Notification 
 - **State Management**: Zustand for global state, TanStack Query for server state
 - **Data Tables**: TanStack Table with filtering, sorting, pagination
 - **Real-time Updates**: WebSocket manager with auto-reconnect
+- **Date Formatting**: Use `formatDateTime()` from `@/lib/utils` - handles UTC timestamps from backend
 
 ### Database Migrations
 **⚠️ MANDATORY**: Always use Alembic migrations when adding or deleting columns in existing tables. This ensures Railway deployment automatically picks up schema changes.
@@ -178,6 +201,7 @@ uv run python tests/validator/run_model_validation.py
 | Model validation errors | Run `uv run python tests/validator/run_model_validation.py` |
 | TypeScript errors | Run `npm run build` to check type errors |
 | Enum serialization error | Add `use_enum_values=True` to Pydantic ConfigDict |
+| Code changes not taking effect | Clear Python cache: run `stop_all.bat` or manually delete `__pycache__` dirs |
 
 ## Component Documentation
 
@@ -335,7 +359,16 @@ When adding a new validation rule:
 | Database Releases (own studies) | User Management |
 | Reporting Efforts (own studies) | Global Settings |
 | Packages & TFL Properties | Database Backup |
-| Study Member Management | Other users' studies |
+| Study Member Management | Audit Logs |
+| | Other users' studies |
+
+## Audit Log System
+
+Admin-only feature for tracking all system changes:
+- **Frontend**: `/audit-logs` route (admin-only, accessible from sidebar)
+- **Backend**: `/api/v1/audit-trail/` endpoints
+- **Features**: Filter by action type, entity type, user, date range; view detailed change history
+- **Logged Actions**: CREATE, UPDATE, DELETE on all major entities
 
 ## Notification System
 

@@ -17,6 +17,12 @@ echo Stopping React Frontend Server...
 call "%~dp0stop_react_frontend.bat"
 
 echo.
+echo Clearing Python cache...
+powershell -Command "Get-ChildItem -Path '%~dp0backend\app' -Recurse -Filter '*.pyc' -ErrorAction SilentlyContinue | Remove-Item -Force"
+powershell -Command "Get-ChildItem -Path '%~dp0backend\app' -Recurse -Directory -Filter '__pycache__' -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force"
+echo Python cache cleared.
+
+echo.
 echo ========================================
 echo   All PEARL servers have been stopped
 echo ========================================

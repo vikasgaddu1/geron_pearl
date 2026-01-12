@@ -108,7 +108,12 @@ export function isValidEmail(email: string): boolean {
 
 export function formatDate(date: string | Date | null | undefined): string {
   if (!date) return '-'
-  const d = new Date(date)
+  // Ensure UTC timestamps from backend are properly interpreted
+  let dateStr = typeof date === 'string' ? date : date.toISOString()
+  if (typeof date === 'string' && !date.endsWith('Z') && !date.includes('+') && !date.includes('-', 10)) {
+    dateStr = date + 'Z'
+  }
+  const d = new Date(dateStr)
   if (isNaN(d.getTime())) return '-'
   return d.toLocaleDateString('en-US', {
     year: 'numeric',
@@ -119,7 +124,13 @@ export function formatDate(date: string | Date | null | undefined): string {
 
 export function formatDateTime(date: string | Date | null | undefined): string {
   if (!date) return '-'
-  const d = new Date(date)
+  // Ensure UTC timestamps from backend are properly interpreted
+  // Backend returns timestamps without 'Z' suffix, so we add it if missing
+  let dateStr = typeof date === 'string' ? date : date.toISOString()
+  if (typeof date === 'string' && !date.endsWith('Z') && !date.includes('+') && !date.includes('-', 10)) {
+    dateStr = date + 'Z'
+  }
+  const d = new Date(dateStr)
   if (isNaN(d.getTime())) return '-'
   return d.toLocaleString('en-US', {
     year: 'numeric',
@@ -132,7 +143,12 @@ export function formatDateTime(date: string | Date | null | undefined): string {
 
 export function formatRelativeTime(date: string | Date): string {
   const now = new Date()
-  const then = new Date(date)
+  // Ensure UTC timestamps from backend are properly interpreted
+  let dateStr = typeof date === 'string' ? date : date.toISOString()
+  if (typeof date === 'string' && !date.endsWith('Z') && !date.includes('+') && !date.includes('-', 10)) {
+    dateStr = date + 'Z'
+  }
+  const then = new Date(dateStr)
   const diffMs = now.getTime() - then.getTime()
   const diffMins = Math.floor(diffMs / 60000)
   const diffHours = Math.floor(diffMins / 60)

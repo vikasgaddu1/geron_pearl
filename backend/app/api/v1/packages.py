@@ -216,12 +216,13 @@ async def update_package(
 async def delete_package(
     *,
     db: AsyncSession = Depends(get_db),
+    request: Request,
     package_id: int,
     current_user: User = Depends(require_admin_or_lead()),
 ) -> Package:
     """
     Delete a package.
-    
+
     Requires: Admin or Study LEAD role (in any study).
     """
     try:
@@ -231,7 +232,10 @@ async def delete_package(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Package not found"
             )
-        
+
+        # Capture values for audit before deletion
+        deleted_name = db_package.package_name
+
         # Check for associated package items before deletion
         associated_items = await package_item.get_by_package_id(db, package_id=package_id)
         if associated_items:
@@ -243,21 +247,36 @@ async def delete_package(
                 if more_count > 0:
                     detail_msg += f" and {more_count} more"
             detail_msg += ". Please delete all associated items first."
-            
+
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=detail_msg
             )
-        
+
         deleted_package = await package.delete(db, id=package_id)
         print(f"Package deleted successfully: {deleted_package.package_name} (ID: {deleted_package.id})")
-        
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="packages",
+                record_id=package_id,
+                action="DELETE",
+                user_id=current_user.id,
+                changes={"deleted": {"package_name": deleted_name}},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception as audit_error:
+            print(f"Audit logging error: {audit_error}")
+
         # Broadcast WebSocket event
         try:
             await broadcast_package_deleted(deleted_package)
         except Exception as ws_error:
             print(f"WebSocket broadcast error: {ws_error}")
-        
+
         return deleted_package
     except Exception as e:
         if isinstance(e, HTTPException):
