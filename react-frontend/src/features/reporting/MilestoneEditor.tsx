@@ -47,7 +47,6 @@ import {
   Target,
   Copy,
   Link2,
-  AlertTriangle,
   Tag
 } from 'lucide-react'
 import { cn } from '@/lib/utils'

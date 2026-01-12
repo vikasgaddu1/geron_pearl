@@ -50,7 +50,7 @@ export function ExcelUpload({
   onUpload,
   templateFilename = 'template.csv',
 }: ExcelUploadProps) {
-  const [_file, setFile] = useState<File | null>(null)
+  const [, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<Record<string, string>[]>([])
   const [errors, setErrors] = useState<string[]>([])
   const [isUploading, setIsUploading] = useState(false)

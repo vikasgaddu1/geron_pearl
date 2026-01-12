@@ -21,7 +21,7 @@ export function ForgotPasswordPage() {
     try {
       await forgotPassword(email)
       setIsSuccess(true)
-    } catch (error) {
+    } catch {
       // Error handled in useAuth
     } finally {
       setIsLoading(false)

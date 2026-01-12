@@ -43,13 +43,12 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
-import { Users, Plus, Settings, History, AlertTriangle } from 'lucide-react'
+import { Users, Plus, Settings, AlertTriangle } from 'lucide-react'
 import {
   getStudyTeam,
   addTeamMember,
   changeAllocation,
   endAssignment,
-  getAllocationHistory,
 } from '@/api/endpoints/teamAssignments'
 import { getUsers } from '@/api/endpoints/users'
 import type {

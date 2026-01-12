@@ -332,26 +332,32 @@ export function ReportingEffortItems() {
 
 
   // Filter items by tab
-  const filterByTab = (item: ReportingEffortItem) => {
+  // Memoized filter function
+  const filterByTab = useCallback((item: ReportingEffortItem) => {
     const subtype = item.item_subtype?.toLowerCase()
     if (activeTab === 'tlf') return ['table', 'listing', 'figure'].includes(subtype || '')
     if (activeTab === 'sdtm') return subtype === 'sdtm'
     if (activeTab === 'adam') return subtype === 'adam'
     return true
-  }
+  }, [activeTab])
 
-  // Filter items by search and tab
-  const filteredItems = items
-    .filter(filterByTab)
-    .filter((item) =>
-      item.item_code.toLowerCase().includes(search.toLowerCase()) ||
-      (item.item_description?.toLowerCase().includes(search.toLowerCase()) ?? false)
-    )
+  // Memoized filtered items - only recalculate when items, activeTab, or search change
+  const filteredItems = useMemo(() =>
+    items
+      .filter(filterByTab)
+      .filter((item) =>
+        item.item_code.toLowerCase().includes(search.toLowerCase()) ||
+        (item.item_description?.toLowerCase().includes(search.toLowerCase()) ?? false)
+      ),
+    [items, filterByTab, search]
+  )
 
-  // Count items per tab
-  const tlfCount = items.filter(i => ['table', 'listing', 'figure'].includes(i.item_subtype?.toLowerCase() || '')).length
-  const sdtmCount = items.filter(i => i.item_subtype?.toLowerCase() === 'sdtm').length
-  const adamCount = items.filter(i => i.item_subtype?.toLowerCase() === 'adam').length
+  // Memoized counts per tab - only recalculate when items change
+  const { tlfCount, sdtmCount, adamCount } = useMemo(() => ({
+    tlfCount: items.filter(i => ['table', 'listing', 'figure'].includes(i.item_subtype?.toLowerCase() || '')).length,
+    sdtmCount: items.filter(i => i.item_subtype?.toLowerCase() === 'sdtm').length,
+    adamCount: items.filter(i => i.item_subtype?.toLowerCase() === 'adam').length,
+  }), [items])
 
   const selectedEffort = efforts.find((e) => e.id === Number(selectedEffortId))
 

@@ -45,7 +45,7 @@ export interface ColumnDef<T> {
   filterType?: FilterType
   filterOptions?: string[]
   helpText?: string
-  cell?: (value: any, row: T) => ReactNode
+  cell?: (value: T[keyof T], row: T) => ReactNode
   enableSorting?: boolean
 }
 
@@ -81,8 +81,9 @@ export function DataTable<T>({
 
   // Check for horizontal overflow
   useEffect(() => {
+    const container = scrollContainerRef.current
+
     const checkOverflow = () => {
-      const container = scrollContainerRef.current
       if (container) {
         const hasOverflow = container.scrollWidth > container.clientWidth
         setHasHorizontalOverflow(hasOverflow)
@@ -90,20 +91,28 @@ export function DataTable<T>({
       }
     }
 
-    checkOverflow()
-    window.addEventListener('resize', checkOverflow)
-    
-    const container = scrollContainerRef.current
-    if (container) {
-      container.addEventListener('scroll', () => {
+    const handleScroll = () => {
+      if (container) {
         setIsScrolledRight(container.scrollLeft > 0)
         // Check if scrolled to end
         const atEnd = container.scrollLeft + container.clientWidth >= container.scrollWidth - 5
         setHasHorizontalOverflow(!atEnd)
-      })
+      }
     }
 
-    return () => window.removeEventListener('resize', checkOverflow)
+    checkOverflow()
+    window.addEventListener('resize', checkOverflow)
+
+    if (container) {
+      container.addEventListener('scroll', handleScroll)
+    }
+
+    return () => {
+      window.removeEventListener('resize', checkOverflow)
+      if (container) {
+        container.removeEventListener('scroll', handleScroll)
+      }
+    }
   }, [data, columns])
 
   // Build TanStack Table columns

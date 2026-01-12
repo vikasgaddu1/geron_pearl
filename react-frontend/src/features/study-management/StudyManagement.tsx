@@ -22,7 +22,6 @@ import { EmptyState } from '@/components/common/EmptyState'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
 import { useAuthStore } from '@/stores/authStore'
 import { StudyMembersDialog } from './StudyMembersDialog'
-import { Checkbox } from '@/components/ui/checkbox'
 import type { Study, DatabaseRelease, ReportingEffort, BulkHierarchyRow, UseCase, UseCaseSummary } from '@/types'
 import { cn, getErrorMessage } from '@/lib/utils'
 
@@ -38,7 +37,7 @@ interface TreeNode {
 
 export function StudyManagement() {
   const queryClient = useQueryClient()
-  const { currentUser, studyRolesState, isLeadForStudy } = useAuthStore()
+  const { currentUser, isLeadForStudy } = useAuthStore()
   const isGlobalAdmin = currentUser?.is_admin === true
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [selectedNode, setSelectedNode] = useState<TreeNode | null>(null)

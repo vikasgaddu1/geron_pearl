@@ -1,10 +1,9 @@
 import { useEffect } from 'react'
-import { Bell, Check, CheckCheck, X, User, MessageSquare, UserPlus } from 'lucide-react'
+import { Bell, CheckCheck, X, User, MessageSquare, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,

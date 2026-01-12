@@ -21,7 +21,7 @@ export function LoginPage() {
     
     try {
       await login({ username, password })
-    } catch (error) {
+    } catch {
       // Error handling is done in useAuth hook
     }
   }

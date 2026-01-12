@@ -17,7 +17,7 @@ import {
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import type { TeamMemberUtilization } from '@/types/analytics'
+import type { TeamMemberUtilization, AssignmentDetail } from '@/types/analytics'
 
 interface TeamUtilizationChartProps {
   members: TeamMemberUtilization[]
@@ -133,7 +133,7 @@ export function TeamUtilizationChart({ members, isLoading = false }: TeamUtiliza
                         {payload.studyCount} studies
                       </div>
                       <div className="text-xs mt-1">
-                        {payload.assignments.map((a: any, i: number) => (
+                        {payload.assignments.map((a: AssignmentDetail, i: number) => (
                           <div key={i}>
                             {a.study_label}: {a.allocation_percentage}%
                           </div>

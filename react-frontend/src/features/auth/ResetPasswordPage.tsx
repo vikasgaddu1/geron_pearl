@@ -48,7 +48,7 @@ export function ResetPasswordPage() {
     setIsLoading(true)
     try {
       await resetPassword(token, newPassword, confirmPassword)
-    } catch (error) {
+    } catch {
       // Error handled in useAuth
     } finally {
       setIsLoading(false)

@@ -44,6 +44,17 @@ import { HelpIcon } from '@/components/common/HelpIcon'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
 import { formatDate, formatDateTime, getErrorMessage } from '@/lib/utils'
 import type { ReportingEffortItemTracker, TrackerStatus, TrackerComment, CommentType, Priority, TrackerTag, ProductionStatus, QCStatus } from '@/types'
+
+// Extended type to handle flat username field from API
+interface CommentWithFlatUsername extends TrackerComment {
+  username?: string
+}
+
+// Type for tracker status updates
+interface TrackerStatusUpdate {
+  production_status?: ProductionStatus
+  qc_status?: QCStatus
+}
 import { KanbanBoard, QCFailureCommentDialog } from '@/components/tracker'
 import { useAuthStore } from '@/stores/authStore'
 import { MilestoneEditor } from './MilestoneEditor'
@@ -53,6 +64,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
+import { PRIORITY_BADGE_COLORS, TAG_PRESET_COLORS, formatPriority } from '@/lib/constants'
 
 // Separate status arrays for Production and QC
 const PRODUCTION_STATUSES: ProductionStatus[] = ['not_started', 'in_progress', 'ready_for_qc', 'on_hold']
@@ -63,22 +75,6 @@ const QC_STATUSES_READY: QCStatus[] = ['not_started', 'in_progress', 'failed', '
 // Legacy combined list for backward compatibility
 const TRACKER_STATUSES: TrackerStatus[] = ['not_started', 'in_progress', 'ready_for_qc', 'completed', 'on_hold', 'failed']
 const PRIORITIES: Priority[] = ['critical', 'high', 'medium', 'low']
-
-// Preset colors for tags
-const TAG_COLORS = [
-  '#EF4444', // Red
-  '#F97316', // Orange
-  '#F59E0B', // Amber
-  '#84CC16', // Lime
-  '#22C55E', // Green
-  '#14B8A6', // Teal
-  '#06B6D4', // Cyan
-  '#3B82F6', // Blue
-  '#6366F1', // Indigo
-  '#8B5CF6', // Violet
-  '#A855F7', // Purple
-  '#EC4899', // Pink
-]
 
 export function TrackerManagement() {
   const queryClient = useQueryClient()
@@ -245,9 +241,7 @@ export function TrackerManagement() {
 
   // Check if current user can perform bulk operations
   const canBulkAssign = currentUser?.is_admin || studyPermissions?.can_bulk_assign === true
-  const canBulkStatusUpdate = currentUser?.is_admin || studyPermissions?.can_bulk_status_update === true
-  const canDeleteTrackers = currentUser?.is_admin || studyPermissions?.can_delete_items === true
-  
+
   // Check if current user is a Study LEAD (for individual tracker operations)
   const isStudyLead = studyPermissions?.role === 'LEAD'
 
@@ -304,7 +298,7 @@ export function TrackerManagement() {
       setSearchParams({}, { replace: true })
       setUrlParamsApplied(true)
     }, 100)
-  }, [searchParams, studies, efforts, allReleases, urlParamsApplied, setSearchParams])
+  }, [searchParams, studies, efforts, allReleases, urlParamsApplied, setSearchParams, setSelectedStudyId, setSelectedReleaseId, setSelectedEffortId])
 
   // Mutations
   const bulkAssignStatus = useMutation({
@@ -483,17 +477,17 @@ export function TrackerManagement() {
     onError: (error) => toast.error(`Failed to assign tags: ${getErrorMessage(error)}`),
   })
 
-  // Filter trackers by tab (TLF vs SDTM vs ADaM)
-  const filterByTab = (tracker: ReportingEffortItemTracker) => {
-    const subtype = tracker.item_subtype?.toLowerCase()
-    if (activeTab === 'tlf') return ['table', 'listing', 'figure'].includes(subtype || '')
-    if (activeTab === 'sdtm') return subtype === 'sdtm'
-    if (activeTab === 'adam') return subtype === 'adam'
-    return true
-  }
-
   // Apply all filters
   const filteredTrackers = useMemo(() => {
+    // Filter by tab (TLF vs SDTM vs ADaM)
+    const filterByTab = (tracker: ReportingEffortItemTracker) => {
+      const subtype = tracker.item_subtype?.toLowerCase()
+      if (activeTab === 'tlf') return ['table', 'listing', 'figure'].includes(subtype || '')
+      if (activeTab === 'sdtm') return subtype === 'sdtm'
+      if (activeTab === 'adam') return subtype === 'adam'
+      return true
+    }
+
     let result = trackers.filter(filterByTab)
     
     // My Tasks filter
@@ -529,15 +523,17 @@ export function TrackerManagement() {
     return result
   }, [trackers, activeTab, commentFilter, tagFilter, milestoneFilter, taskFilter, currentUser, itemCodeFilter])
 
-  const handleSelectRow = (id: number, checked: boolean) => {
-    const newSelected = new Set(selectedRows)
-    if (checked) {
-      newSelected.add(id)
-    } else {
-      newSelected.delete(id)
-    }
-    setSelectedRows(newSelected)
-  }
+  const handleSelectRow = useCallback((id: number, checked: boolean) => {
+    setSelectedRows(prev => {
+      const newSelected = new Set(prev)
+      if (checked) {
+        newSelected.add(id)
+      } else {
+        newSelected.delete(id)
+      }
+      return newSelected
+    })
+  }, [])
 
   const handleBulkAssignStatus = () => {
     // Validate: Production and QC programmer cannot be the same person
@@ -746,18 +742,18 @@ export function TrackerManagement() {
     setCommentDialogOpen(true)
   }
 
-  const handleProductionFlagToggle = (trackerId: number, newValue: boolean) => {
+  const handleProductionFlagToggle = useCallback((trackerId: number, newValue: boolean) => {
     const tracker = trackers.find(t => t.id === trackerId)
     if (!tracker) return
-    
+
     // Validate: can only set to true if both statuses are completed
     if (newValue && (tracker.production_status !== 'completed' || tracker.qc_status !== 'completed')) {
       toast.error('Both Production and QC must be Completed to set In Production flag')
       return
     }
-    
+
     updateProductionFlag.mutate({ trackerId, value: newValue })
-  }
+  }, [trackers, updateProductionFlag])
 
   const handleAddComment = async () => {
     if (!selectedTracker || !newComment.text.trim()) return
@@ -846,14 +842,14 @@ export function TrackerManagement() {
   // All users can be assigned as programmers - their access is determined by study roles
   const programmers = useMemo(() => users, [users])
 
-  const getProgrammerName = (id?: number) => {
+  const getProgrammerName = useCallback((id?: number) => {
     if (!id) return '-'
     const user = users.find((u) => u.id === id)
     return user?.username || '-'
-  }
+  }, [users])
 
   // Define table columns - changes based on active tab
-  const getColumns = (): ColumnDef<ReportingEffortItemTracker>[] => {
+  const getColumns = useCallback((): ColumnDef<ReportingEffortItemTracker>[] => {
     const baseColumns: ColumnDef<ReportingEffortItemTracker>[] = [
       {
         id: 'select',
@@ -998,15 +994,9 @@ export function TrackerManagement() {
       helpText: 'Task priority level.',
       cell: (value) => {
         const priority = (value as string) || 'medium'
-        const priorityColors: Record<string, string> = {
-          critical: 'bg-red-500 text-white',
-          high: 'bg-orange-500 text-white',
-          medium: 'bg-yellow-500 text-black',
-          low: 'bg-green-500 text-white',
-        }
         return (
-          <Badge className={`text-xs ${priorityColors[priority]}`}>
-            {priority.charAt(0).toUpperCase() + priority.slice(1)}
+          <Badge className={`text-xs ${PRIORITY_BADGE_COLORS[priority]}`}>
+            {formatPriority(priority)}
           </Badge>
         )
       },
@@ -1142,9 +1132,9 @@ export function TrackerManagement() {
     )
 
     return baseColumns
-  }
+  }, [selectedRows, handleSelectRow, activeTab, allTags, users, assignTag, removeTag, getProgrammerName, handleProductionFlagToggle])
 
-  const columns = useMemo(() => getColumns(), [activeTab, selectedRows, users, allTags])
+  const columns = useMemo(() => getColumns(), [getColumns])
 
   if (effortsLoading) {
     return <PageLoader text="Loading..." />
@@ -2020,7 +2010,7 @@ export function TrackerManagement() {
             {replyingTo && (
               <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded text-sm">
                 <Reply className="h-4 w-4" />
-                <span>Replying to {(replyingTo as any).username || replyingTo.user?.username || 'Unknown'}</span>
+                <span>Replying to {(replyingTo as CommentWithFlatUsername).username || replyingTo.user?.username || 'Unknown'}</span>
                 <Button variant="ghost" size="sm" className="ml-auto h-6" onClick={cancelReply}>
                   <X className="h-3 w-3" />
                 </Button>
@@ -2079,7 +2069,7 @@ export function TrackerManagement() {
                             return
                           }
                           
-                          const updateData: any = {}
+                          const updateData: TrackerStatusUpdate = {}
                           if (newComment.production_status) updateData.production_status = newComment.production_status
                           if (newComment.qc_status) updateData.qc_status = newComment.qc_status
                           
@@ -2219,7 +2209,7 @@ export function TrackerManagement() {
                 </PopoverTrigger>
                 <PopoverContent className="w-64">
                   <div className="grid grid-cols-6 gap-2">
-                    {TAG_COLORS.map((color) => (
+                    {TAG_PRESET_COLORS.map((color) => (
                       <button
                         key={color}
                         className={`w-8 h-8 rounded-full border-2 ${newTag.color === color ? 'border-foreground' : 'border-transparent'}`}
@@ -2256,7 +2246,7 @@ export function TrackerManagement() {
                         </PopoverTrigger>
                         <PopoverContent className="w-64">
                           <div className="grid grid-cols-6 gap-2">
-                            {TAG_COLORS.map((color) => (
+                            {TAG_PRESET_COLORS.map((color) => (
                               <button
                                 key={color}
                                 className={`w-8 h-8 rounded-full border-2 ${editingTag.color === color ? 'border-foreground' : 'border-transparent'}`}
@@ -2617,7 +2607,7 @@ function CommentItem({
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="font-semibold text-sm">{(comment as any).username || comment.user?.username || 'Unknown'}</span>
+            <span className="font-semibold text-sm">{(comment as CommentWithFlatUsername).username || comment.user?.username || 'Unknown'}</span>
             {comment.is_resolved && <Badge variant="secondary" className="text-xs">Resolved</Badge>}
             <span className="text-xs text-muted-foreground">{formatDateTime(comment.created_at)}</span>
           </div>

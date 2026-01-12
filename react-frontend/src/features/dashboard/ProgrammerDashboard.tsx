@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
+import { MetricCard } from '@/components/common/MetricCard'
 import { DataTable, ColumnDef } from '@/components/common/DataTable'
 import { trackerApi } from '@/api'
 import { useAuthStore } from '@/stores/authStore'
@@ -55,7 +56,14 @@ import {
   Tooltip,
 } from 'recharts'
 import type { ReportingEffortItemTracker } from '@/types'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
+import {
+  PRIORITY_BADGE_COLORS,
+  PRIORITY_CHART_COLORS,
+  STATUS_CHART_COLORS,
+  ITEM_TYPE_CHART_COLORS,
+  formatPriority,
+} from '@/lib/constants'
 
 export function ProgrammerDashboard() {
   const { currentUser } = useAuthStore()
@@ -79,11 +87,12 @@ export function ProgrammerDashboard() {
 
   // Filter trackers for the logged-in user
   // Use Number() to ensure type consistency (API might return string IDs)
-  const myTrackers = userId
-    ? allTrackers.filter(
-        (t) => Number(t.production_programmer_id) === Number(userId) || Number(t.qc_programmer_id) === Number(userId)
-      )
-    : []
+  const myTrackers = useMemo(() => {
+    if (!userId) return []
+    return allTrackers.filter(
+      (t) => Number(t.production_programmer_id) === Number(userId) || Number(t.qc_programmer_id) === Number(userId)
+    )
+  }, [userId, allTrackers])
 
   // Get unique values for filter dropdowns
   const filterOptions = useMemo(() => {
@@ -242,6 +251,18 @@ export function ProgrammerDashboard() {
     })
   }, [filteredTrackers, userId])
 
+  // Navigate to tracker management with pre-selected filters
+  const navigateToTracker = useCallback((tracker: ReportingEffortItemTracker, includeItemCode = false) => {
+    // Navigate to tracker management - the page will need to handle the query params
+    const params = new URLSearchParams()
+    if (tracker.study_id) params.set('studyId', String(tracker.study_id))
+    if (tracker.reporting_effort_id) params.set('effortId', String(tracker.reporting_effort_id))
+    if (includeItemCode && tracker.item_code) params.set('itemCode', tracker.item_code)
+    // Include item subtype to auto-select the correct tab (TLF, SDTM, or ADaM)
+    if (includeItemCode && tracker.item_subtype) params.set('itemSubtype', tracker.item_subtype)
+    navigate(`/tracker-management?${params.toString()}`)
+  }, [navigate])
+
   // Define columns for the flat list DataTable
   const flatListColumns: ColumnDef<typeof flatListData[0]>[] = useMemo(() => [
     {
@@ -282,16 +303,10 @@ export function ProgrammerDashboard() {
       filterType: 'select',
       filterOptions: ['critical', 'high', 'medium', 'low'],
       cell: (value) => {
-        const priorityColors: Record<string, string> = {
-          critical: 'bg-red-500 text-white',
-          high: 'bg-orange-500 text-white',
-          medium: 'bg-yellow-500 text-black',
-          low: 'bg-green-500 text-white',
-        }
         const priority = value || 'medium'
         return (
-          <Badge className={`text-xs ${priorityColors[priority]}`}>
-            {priority.charAt(0).toUpperCase() + priority.slice(1)}
+          <Badge className={`text-xs ${PRIORITY_BADGE_COLORS[priority]}`}>
+            {formatPriority(priority)}
           </Badge>
         )
       },
@@ -357,19 +372,7 @@ export function ProgrammerDashboard() {
         </Button>
       ),
     },
-  ], [])
-
-  // Navigate to tracker management with pre-selected filters
-  const navigateToTracker = (tracker: ReportingEffortItemTracker, includeItemCode = false) => {
-    // Navigate to tracker management - the page will need to handle the query params
-    const params = new URLSearchParams()
-    if (tracker.study_id) params.set('studyId', String(tracker.study_id))
-    if (tracker.reporting_effort_id) params.set('effortId', String(tracker.reporting_effort_id))
-    if (includeItemCode && tracker.item_code) params.set('itemCode', tracker.item_code)
-    // Include item subtype to auto-select the correct tab (TLF, SDTM, or ADaM)
-    if (includeItemCode && tracker.item_subtype) params.set('itemSubtype', tracker.item_subtype)
-    navigate(`/tracker-management?${params.toString()}`)
-  }
+  ], [navigateToTracker])
 
   // Calculate metrics
   const totalAssignments = myTrackers.length
@@ -456,16 +459,6 @@ export function ProgrammerDashboard() {
       .sort((a, b) => b.value - a.value)
   }, [myTrackers])
 
-  // Colors for item types
-  const ITEM_TYPE_COLORS: Record<string, string> = {
-    table: '#3b82f6',    // Blue
-    listing: '#8b5cf6',  // Purple
-    figure: '#ec4899',   // Pink
-    SDTM: '#14b8a6',     // Teal
-    ADaM: '#f59e0b',     // Amber
-    Unknown: '#6b7280',  // Gray
-  }
-
   // Completion rate
   const completedCount = myTrackers.filter((t) => {
     const isProd = Number(t.production_programmer_id) === Number(userId)
@@ -473,23 +466,6 @@ export function ProgrammerDashboard() {
     return status === 'completed'
   }).length
   const completionRate = totalAssignments > 0 ? Math.round((completedCount / totalAssignments) * 100) : 0
-
-  // Color schemes
-  const STATUS_COLORS: Record<string, string> = {
-    not_started: '#6b7280',
-    in_progress: '#3b82f6',
-    ready_for_qc: '#8b5cf6',
-    completed: '#22c55e',
-    on_hold: '#eab308',
-    failed: '#ef4444',
-  }
-
-  const PRIORITY_COLORS: Record<string, string> = {
-    critical: '#ef4444',
-    high: '#f97316',
-    medium: '#eab308',
-    low: '#22c55e',
-  }
 
   if (isLoading) {
     return <PageLoader text="Loading your assignments..." />
@@ -604,7 +580,7 @@ export function ProgrammerDashboard() {
                       {statusData.map((entry, index) => (
                         <Cell
                           key={`cell-${index}`}
-                          fill={STATUS_COLORS[entry.key] || '#6b7280'}
+                          fill={STATUS_CHART_COLORS[entry.key] || '#6b7280'}
                         />
                       ))}
                     </Pie>
@@ -620,7 +596,7 @@ export function ProgrammerDashboard() {
                   <div key={entry.key} className="flex items-center gap-1 text-xs">
                     <div
                       className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: STATUS_COLORS[entry.key] || '#6b7280' }}
+                      style={{ backgroundColor: STATUS_CHART_COLORS[entry.key] || '#6b7280' }}
                     />
                     <span className="text-muted-foreground">{entry.name}: {entry.value}</span>
                   </div>
@@ -660,7 +636,7 @@ export function ProgrammerDashboard() {
                     />
                     <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                       {priorityData.map((entry) => (
-                        <Cell key={entry.key} fill={PRIORITY_COLORS[entry.key] || '#6b7280'} />
+                        <Cell key={entry.key} fill={PRIORITY_CHART_COLORS[entry.key] || '#6b7280'} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -671,7 +647,7 @@ export function ProgrammerDashboard() {
                   <div key={entry.key} className="flex items-center gap-1 text-xs">
                     <div
                       className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: PRIORITY_COLORS[entry.key] }}
+                      style={{ backgroundColor: PRIORITY_CHART_COLORS[entry.key] }}
                     />
                     <span className="text-muted-foreground">{entry.name}: {entry.value}</span>
                   </div>
@@ -711,7 +687,7 @@ export function ProgrammerDashboard() {
                     />
                     <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                       {itemTypeData.map((entry) => (
-                        <Cell key={entry.key} fill={ITEM_TYPE_COLORS[entry.key] || '#6b7280'} />
+                        <Cell key={entry.key} fill={ITEM_TYPE_CHART_COLORS[entry.key] || '#6b7280'} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -722,7 +698,7 @@ export function ProgrammerDashboard() {
                   <div key={entry.key} className="flex items-center gap-1 text-xs">
                     <div
                       className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: ITEM_TYPE_COLORS[entry.key] || '#6b7280' }}
+                      style={{ backgroundColor: ITEM_TYPE_CHART_COLORS[entry.key] || '#6b7280' }}
                     />
                     <span className="text-muted-foreground">{entry.name}: {entry.value}</span>
                   </div>
@@ -1020,16 +996,10 @@ export function ProgrammerDashboard() {
                                       const status = isProd ? tracker.production_status : tracker.qc_status
                                       const dueDate = tracker.due_date
                                       const commentCount = tracker.unresolved_comment_count || 0
-                                      const priorityColors: Record<string, string> = {
-                                        critical: 'bg-red-500 text-white',
-                                        high: 'bg-orange-500 text-white',
-                                        medium: 'bg-yellow-500 text-black',
-                                        low: 'bg-green-500 text-white',
-                                      }
 
                                       return (
-                                        <TableRow 
-                                          key={tracker.id} 
+                                        <TableRow
+                                          key={tracker.id}
                                           className="hover:bg-muted/50 cursor-pointer"
                                           onClick={() => navigateToTracker(tracker, true)}
                                         >
@@ -1038,8 +1008,8 @@ export function ProgrammerDashboard() {
                                             {tracker.item_title || '-'}
                                           </TableCell>
                                           <TableCell>
-                                            <Badge className={`text-xs ${priorityColors[tracker.priority || 'medium']}`}>
-                                              {(tracker.priority || 'medium').charAt(0).toUpperCase() + (tracker.priority || 'medium').slice(1)}
+                                            <Badge className={`text-xs ${PRIORITY_BADGE_COLORS[tracker.priority || 'medium']}`}>
+                                              {formatPriority(tracker.priority)}
                                             </Badge>
                                           </TableCell>
                                           <TableCell>
@@ -1099,36 +1069,6 @@ export function ProgrammerDashboard() {
   )
 }
 
-interface MetricCardProps {
-  title: string
-  value: number
-  icon: React.ElementType
-  variant?: 'default' | 'info' | 'warning' | 'danger' | 'success'
-}
-
-function MetricCard({ title, value, icon: Icon, variant = 'default' }: MetricCardProps) {
-  const colorClasses = {
-    default: 'text-primary',
-    info: 'text-blue-500',
-    warning: 'text-yellow-500',
-    danger: 'text-red-500',
-    success: 'text-green-500',
-  }
-
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="flex items-center gap-4">
-          <Icon className={`h-8 w-8 ${colorClasses[variant]}`} />
-          <div>
-            <p className={`text-3xl font-bold ${colorClasses[variant]}`}>{value}</p>
-            <p className="text-sm text-muted-foreground">{title}</p>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
 
 
 

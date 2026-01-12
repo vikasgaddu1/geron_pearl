@@ -135,22 +135,6 @@ export function looksLikeRegex(pattern: string): boolean {
 }
 
 /**
- * Auto-detect filter mode based on pattern
- */
-export function detectFilterMode(pattern: string): 'plain' | 'wildcard' | 'regex' {
-  if (hasWildcard(pattern)) return 'wildcard'
-  if (looksLikeRegex(pattern)) return 'regex'
-  return 'plain'
-}
-
-/**
- * Normalize value for comparison (trim, lowercase)
- */
-export function normalizeValue(value: string | undefined | null): string {
-  return (value || '').toString().trim().toLowerCase()
-}
-
-/**
  * Extract unique values from array of objects for a given key
  */
 export function getUniqueValues<T>(data: T[], key: keyof T): string[] {

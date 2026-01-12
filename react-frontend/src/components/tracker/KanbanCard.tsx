@@ -2,9 +2,15 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { PriorityBadge } from '@/components/common/StatusBadge'
 import { MessageSquare, User, Calendar, GripVertical, Factory } from 'lucide-react'
-import type { ReportingEffortItemTracker, Priority } from '@/types'
+import type { ReportingEffortItemTracker } from '@/types'
 import { formatDate } from '@/lib/utils'
 import { DragEvent } from 'react'
+
+// Extended tracker type to handle flat API response fields
+interface TrackerWithFlatFields extends ReportingEffortItemTracker {
+  prod_programmer_username?: string
+  qc_programmer_username?: string
+}
 
 interface KanbanCardProps {
   tracker: ReportingEffortItemTracker
@@ -18,10 +24,10 @@ export function KanbanCard({ tracker, statusField, onClick, isDraggable = true, 
   // Get programmer name - handle both nested object and flat username field formats
   // API returns flat fields: prod_programmer_username, qc_programmer_username
   // Types define nested objects: production_programmer?.username
-  const trackerAny = tracker as any
-  const programmerName = statusField === 'production' 
-    ? (tracker.production_programmer?.username || trackerAny.prod_programmer_username)
-    : (tracker.qc_programmer?.username || trackerAny.qc_programmer_username)
+  const trackerData = tracker as TrackerWithFlatFields
+  const programmerName = statusField === 'production'
+    ? (tracker.production_programmer?.username || trackerData.prod_programmer_username)
+    : (tracker.qc_programmer?.username || trackerData.qc_programmer_username)
   
   const hasUnresolvedComments = (tracker.unresolved_comment_count || 0) > 0
 
@@ -106,10 +112,8 @@ export function KanbanCard({ tracker, statusField, onClick, isDraggable = true, 
         
         {/* In Production Flag - Always visible, clickable to toggle */}
         {(() => {
-          // Cast to any to access flat fields from API response
-          const trackerData = tracker as any
-          const prodStatus = tracker.production_status || trackerData.production_status
-          const qcStatus = tracker.qc_status || trackerData.qc_status
+          const prodStatus = tracker.production_status
+          const qcStatus = tracker.qc_status
           const canToggle = prodStatus === 'completed' && qcStatus === 'completed'
           
           return (

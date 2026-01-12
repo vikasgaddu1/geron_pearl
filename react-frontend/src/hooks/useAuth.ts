@@ -1,7 +1,12 @@
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { AxiosError } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
 import { authApi, type LoginRequest } from '@/api/endpoints/auth'
+
+interface ApiErrorResponse {
+  detail?: string
+}
 
 export function useAuth() {
   const navigate = useNavigate()
@@ -57,8 +62,9 @@ export function useAuth() {
       
       toast.success('Login successful!')
       navigate('/dashboard')
-    } catch (error: any) {
-      const message = error.response?.data?.detail || 'Login failed. Please check your credentials.'
+    } catch (error) {
+      const axiosError = error as AxiosError<ApiErrorResponse>
+      const message = axiosError.response?.data?.detail || 'Login failed. Please check your credentials.'
       toast.error(message)
       setStudyRolesLoading(false)
       throw error
@@ -84,8 +90,9 @@ export function useAuth() {
       const response = await authApi.forgotPassword(email)
       toast.success(response.message)
       return response
-    } catch (error: any) {
-      const message = error.response?.data?.detail || 'Failed to send reset email'
+    } catch (error) {
+      const axiosError = error as AxiosError<ApiErrorResponse>
+      const message = axiosError.response?.data?.detail || 'Failed to send reset email'
       toast.error(message)
       throw error
     }
@@ -101,8 +108,9 @@ export function useAuth() {
       toast.success(response.message)
       navigate('/login')
       return response
-    } catch (error: any) {
-      const message = error.response?.data?.detail || 'Failed to reset password'
+    } catch (error) {
+      const axiosError = error as AxiosError<ApiErrorResponse>
+      const message = axiosError.response?.data?.detail || 'Failed to reset password'
       toast.error(message)
       throw error
     }

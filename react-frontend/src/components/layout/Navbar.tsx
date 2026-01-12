@@ -21,7 +21,6 @@ import { useAuth } from '@/hooks/useAuth'
 import { Badge } from '@/components/ui/badge'
 import { ThemeSelector } from '@/components/layout/ThemeSelector'
 import { NotificationDropdown } from '@/components/layout/NotificationDropdown'
-import { cn } from '@/lib/utils'
 import { useEffect } from 'react'
 
 export function Navbar() {

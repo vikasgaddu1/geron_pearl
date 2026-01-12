@@ -75,7 +75,7 @@ export function DirectorDashboard() {
   })
 
   // Fetch QC metrics
-  const { data: qcMetrics, isLoading: isLoadingQC } = useQuery({
+  const { data: qcMetrics } = useQuery({
     queryKey: ['qcMetrics'],
     queryFn: () => getQCMetrics(undefined, 30),
     refetchInterval: 60000,

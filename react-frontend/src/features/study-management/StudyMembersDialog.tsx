@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Users, UserPlus, Shield, Pencil, X, Crown, Eye, Search } from 'lucide-react'
+import { Users, UserPlus, Pencil, X, Crown, Eye, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { studiesApi, usersApi } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -32,7 +32,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { PageLoader } from '@/components/common/LoadingSpinner'
-import type { Study, StudyMember, StudyRole, User } from '@/types'
+import type { Study, StudyMember, StudyRole } from '@/types'
 import { getErrorMessage, cn } from '@/lib/utils'
 
 const STUDY_ROLES: StudyRole[] = ['VIEWER', 'EDITOR', 'LEAD']

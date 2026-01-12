@@ -40,11 +40,6 @@ export interface UseCaseFormData {
   description?: string
 }
 
-export interface UseCaseAssignment {
-  reporting_effort_id: number
-  use_case_id: number
-}
-
 export interface BulkUseCaseAssignment {
   reporting_effort_ids: number[]
   use_case_id: number

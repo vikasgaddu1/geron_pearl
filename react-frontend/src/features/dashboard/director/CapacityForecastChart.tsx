@@ -23,7 +23,7 @@ interface CapacityForecastChartProps {
 }
 
 export function CapacityForecastChart({ weeks, isLoading = false }: CapacityForecastChartProps) {
-  const chartData = weeks.map((w, i) => ({
+  const chartData = weeks.map((w) => ({
     week: `Week ${w.week_number}`,
     date: new Date(w.week_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     fte: w.fte,

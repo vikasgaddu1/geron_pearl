@@ -187,6 +187,7 @@ logs/
 *.tmp
 *.temp
 *~
+tmpclaude-*
 
 # OS generated files
 .DS_Store

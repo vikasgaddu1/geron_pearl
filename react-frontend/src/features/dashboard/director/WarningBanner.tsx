@@ -7,9 +7,8 @@
  * - Capacity gaps
  */
 
-import { AlertTriangle, UserX, Users, XCircle } from 'lucide-react'
+import { AlertTriangle, UserX, Users } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
 import type { DashboardWarnings } from '@/types/analytics'
 
 interface WarningBannerProps {

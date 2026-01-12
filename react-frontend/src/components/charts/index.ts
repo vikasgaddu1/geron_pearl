@@ -1,4 +1,4 @@
-export { MilestoneGantt, MilestoneGanttCompact } from './MilestoneGantt'
+export { MilestoneGantt } from './MilestoneGantt'
 
 
 
