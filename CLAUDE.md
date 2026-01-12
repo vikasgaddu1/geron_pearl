@@ -87,16 +87,33 @@ make clean                                             # Remove __pycache__ and 
 ```
 
 ### Backend Testing (curl-based, run from `backend/`)
+
+**Automated API Tests** (requires Git Bash or WSL on Windows):
 ```bash
+# Pre-requisite: Server must be running
+uv run python run.py
+
+# Run from backend/ directory using Git Bash or WSL:
 ./tests/scripts/test_crud_simple.sh                    # Core CRUD for studies
-./tests/scripts/test_packages_crud.sh                  # Package management
+./tests/scripts/test_packages_crud.sh                  # Package management  
 ./tests/scripts/test_reporting_effort_tracker_crud.sh  # Tracker operations
 ./tests/scripts/test_comments_crud.sh                  # Comment system
 ./tests/scripts/test_users_crud.sh                     # User management
 ./tests/scripts/test_audit_logging.sh                  # Audit trail
 ./tests/scripts/test_study_deletion_protection.sh      # Deletion protection
+./tests/scripts/test_database_releases_crud.sh         # Database releases
+./tests/scripts/test_role_based_permissions.sh         # Role access control
+./tests/scripts/test_preflight_comprehensive.sh        # Full pre-flight suite
 ```
-**Note**: Server must be running (`uv run python run.py`) before running tests.
+
+**Run All Automated Tests (Pre-flight)**:
+```bash
+# Using Git Bash or WSL on Windows
+cd backend
+bash ./tests/scripts/test_preflight_comprehensive.sh
+```
+
+**Note**: All test scripts require bash. On Windows, use Git Bash or WSL.
 
 ### Frontend
 ```bash
@@ -216,11 +233,76 @@ Two custom skills are available for feature development:
 
 These skills provide detailed code templates following project standards.
 
+## Testing Strategy
+
+### Automated vs Manual Testing
+
+| Test Category | Automated | Manual | Notes |
+|--------------|-----------|--------|-------|
+| User CRUD | ✅ | Verify UI | `test_users_crud.sh` |
+| Study Hierarchy CRUD | ✅ | Verify UI | `test_crud_simple.sh`, `test_database_releases_crud.sh` |
+| Package Management | ✅ | Verify UI | `test_packages_crud.sh` |
+| Tracker Workflow | ✅ | Verify status badges | `test_reporting_effort_tracker_crud.sh` |
+| Comments | ✅ | Verify threading UI | `test_comments_crud.sh` |
+| Deletion Protection | ✅ | Verify error messages | `test_study_deletion_protection.sh` |
+| Role-Based Access | ✅ | Verify menu visibility | `test_role_based_permissions.sh` |
+| Audit Logging | ✅ | Verify entries | `test_audit_logging.sh` |
+| Duplicate Prevention | ✅ | Verify error messages | All CRUD scripts |
+| WebSocket Real-time | ❌ | Two-browser test | Requires human verification |
+| Notifications UI | ❌ | Check bell icon | Requires human verification |
+| UI/UX Verification | ❌ | Visual inspection | Button states, menu visibility |
+
+### Running Automated Tests
+
+**Pre-requisites:**
+1. Backend server running: `cd backend && uv run python run.py`
+2. Bash shell (Git Bash or WSL on Windows)
+
+**Run comprehensive pre-flight test:**
+```bash
+cd backend
+bash ./tests/scripts/test_preflight_comprehensive.sh
+```
+
+**Run individual test suites:**
+```bash
+cd backend
+bash ./tests/scripts/test_crud_simple.sh           # Studies
+bash ./tests/scripts/test_users_crud.sh            # Users  
+bash ./tests/scripts/test_packages_crud.sh         # Packages
+bash ./tests/scripts/test_comments_crud.sh         # Comments
+bash ./tests/scripts/test_audit_logging.sh         # Audit logs
+```
+
+### Manual Testing Guide
+
+For comprehensive human testing, see:
+- **Full Guide**: [docs/MANUAL_TESTING_GUIDE.md](docs/MANUAL_TESTING_GUIDE.md) - 145 test cases with detailed steps
+- **Checklist**: [docs/MANUAL_TEST_CHECKLIST.md](docs/MANUAL_TEST_CHECKLIST.md) - Printable with automated/manual indicators
+
+**Manual testing focuses on:**
+1. WebSocket real-time sync (two browsers)
+2. UI role permissions (menu/button visibility)
+3. Notification bell UI
+4. Complex multi-step workflows
+5. Visual confirmations of state changes
+
+### Test Data for Manual Testing
+
+| Entity | Test Data |
+|--------|-----------|
+| Users | `test_lead` / `LeadPass123!`, `test_editor` / `EditorPass123!`, `test_viewer` / `ViewerPass123!` |
+| Studies | `TEST-001`, `TEST-002` |
+| DB Releases | `DBR-001` (2026-01-15), `DBR-002` (2026-02-15) |
+| Packages | `PKG-SAFETY-001`, `PKG-EFFICACY-001` |
+| Text Elements | Title: `Safety Summary`, Footnote: `AE Source`, Population: `SAFFL` |
+
 ## Component Documentation
 
 - **Backend**: [backend/CLAUDE.md](backend/CLAUDE.md) - API patterns, CRUD interface, debugging
 - **Frontend**: [react-frontend/CLAUDE.md](react-frontend/CLAUDE.md) - React patterns, TanStack Query, forms
 - **Testing**: [backend/tests/README.md](backend/tests/README.md) - Curl-based test philosophy
+- **Manual Testing**: [docs/MANUAL_TESTING_GUIDE.md](docs/MANUAL_TESTING_GUIDE.md) - Human tester guide
 
 ## Railway Deployment
 
