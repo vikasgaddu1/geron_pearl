@@ -18,8 +18,9 @@ call "%~dp0stop_react_frontend.bat"
 
 echo.
 echo Clearing Python cache...
-powershell -Command "Get-ChildItem -Path '%~dp0backend\app' -Recurse -Filter '*.pyc' -ErrorAction SilentlyContinue | Remove-Item -Force"
-powershell -Command "Get-ChildItem -Path '%~dp0backend\app' -Recurse -Directory -Filter '__pycache__' -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force"
+REM Clear cache from entire backend directory (not just app subfolder)
+powershell -Command "Get-ChildItem -Path '%~dp0backend' -Recurse -Filter '*.pyc' -ErrorAction SilentlyContinue | Remove-Item -Force"
+powershell -Command "Get-ChildItem -Path '%~dp0backend' -Recurse -Directory -Filter '__pycache__' -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force"
 echo Python cache cleared.
 
 echo.

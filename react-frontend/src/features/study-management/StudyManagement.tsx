@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { GitBranch, Plus, Edit, Trash2, RefreshCw, ChevronRight, ChevronDown, Folder, FolderOpen, FileText, Users, Upload, Tag, X } from 'lucide-react'
+import { GitBranch, Plus, Edit, Trash2, RefreshCw, ChevronRight, ChevronDown, Folder, FolderOpen, FileText, Users, Upload, Tag, X, Lock, Unlock, History } from 'lucide-react'
 import { toast } from 'sonner'
 import { studiesApi, databaseReleasesApi, reportingEffortsApi, useCasesApi } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,8 @@ import { EmptyState } from '@/components/common/EmptyState'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
 import { useAuthStore } from '@/stores/authStore'
 import { StudyMembersDialog } from './StudyMembersDialog'
+import { LockReportingEffortDialog } from './LockReportingEffortDialog'
+import { LockHistoryDialog } from './LockHistoryDialog'
 import type { Study, DatabaseRelease, ReportingEffort, BulkHierarchyRow, UseCase, UseCaseSummary } from '@/types'
 import { cn, getErrorMessage } from '@/lib/utils'
 
@@ -47,6 +49,8 @@ export function StudyManagement() {
   const [membersDialogOpen, setMembersDialogOpen] = useState(false)
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false)
   const [useCasesDialogOpen, setUseCasesDialogOpen] = useState(false)
+  const [lockDialogOpen, setLockDialogOpen] = useState(false)
+  const [lockHistoryDialogOpen, setLockHistoryDialogOpen] = useState(false)
   const [formData, setFormData] = useState({ label: '', date: '' })
 
   const formatDateForInput = (value?: string) => (value ? value.slice(0, 10) : '')
@@ -405,7 +409,12 @@ export function StudyManagement() {
             <span className="w-5" />
           )}
           <Icon className="h-4 w-4" />
-          <span className="text-sm flex-1">{node.label}</span>
+          <span className="text-sm flex-1 flex items-center gap-1.5">
+            {node.label}
+            {node.type === 'effort' && (node.data as ReportingEffort).is_locked && (
+              <Lock className="h-3.5 w-3.5 text-amber-500" />
+            )}
+          </span>
           
           {/* Inline Manage Members button for studies */}
           {canManageMembersForStudy && (
@@ -553,11 +562,35 @@ export function StudyManagement() {
                       Manage Members
                     </Button>
                   )}
-                  {selectedNode.type === 'effort' && (
-                    <Button size="sm" variant="outline" onClick={() => setUseCasesDialogOpen(true)}>
-                      <Tag className="h-4 w-4 mr-2" />
-                      Manage Use Cases
-                    </Button>
+                  {selectedNode.type === 'effort' && canEditSelectedStudy && (
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => setUseCasesDialogOpen(true)}>
+                        <Tag className="h-4 w-4 mr-2" />
+                        Manage Use Cases
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setLockDialogOpen(true)}
+                        className={(selectedNode.data as ReportingEffort).is_locked ? 'border-green-500 text-green-600 hover:bg-green-50' : 'border-amber-500 text-amber-600 hover:bg-amber-50'}
+                      >
+                        {(selectedNode.data as ReportingEffort).is_locked ? (
+                          <>
+                            <Unlock className="h-4 w-4 mr-2" />
+                            Unlock
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="h-4 w-4 mr-2" />
+                            Lock
+                          </>
+                        )}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setLockHistoryDialogOpen(true)}>
+                        <History className="h-4 w-4 mr-2" />
+                        Lock History
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -565,6 +598,33 @@ export function StudyManagement() {
                 <p className="mt-2 text-xs text-muted-foreground">
                   Use "Manage Members" to add team members and assign roles (Lead, Editor, Viewer) for this study.
                 </p>
+              )}
+              {selectedNode.type === 'effort' && (selectedNode.data as ReportingEffort).is_locked && (
+                <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <Lock className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm">
+                      <p className="font-medium text-amber-700 dark:text-amber-400">
+                        Locked
+                        {(selectedNode.data as ReportingEffort).locked_by_username && (
+                          <span className="font-normal text-amber-600 dark:text-amber-500">
+                            {' '}by {(selectedNode.data as ReportingEffort).locked_by_username}
+                          </span>
+                        )}
+                        {(selectedNode.data as ReportingEffort).locked_at && (
+                          <span className="font-normal text-amber-600 dark:text-amber-500">
+                            {' '}on {new Date((selectedNode.data as ReportingEffort).locked_at!).toLocaleDateString()}
+                          </span>
+                        )}
+                      </p>
+                      {(selectedNode.data as ReportingEffort).lock_reason && (
+                        <p className="text-amber-600 dark:text-amber-400 mt-1">
+                          {(selectedNode.data as ReportingEffort).lock_reason}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
               )}
               {selectedNode.type === 'effort' && (selectedNode.data as ReportingEffort).use_cases && (selectedNode.data as ReportingEffort).use_cases!.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">
@@ -773,6 +833,20 @@ export function StudyManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Lock/Unlock Dialog */}
+      <LockReportingEffortDialog
+        reportingEffort={selectedNode?.type === 'effort' ? (selectedNode.data as ReportingEffort) : null}
+        open={lockDialogOpen}
+        onOpenChange={setLockDialogOpen}
+      />
+
+      {/* Lock History Dialog */}
+      <LockHistoryDialog
+        reportingEffort={selectedNode?.type === 'effort' ? (selectedNode.data as ReportingEffort) : null}
+        open={lockHistoryDialogOpen}
+        onOpenChange={setLockHistoryDialogOpen}
+      />
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ClipboardCheck, RefreshCw, Users, CheckCircle, MessageSquare, Edit, Trash2, Send, X, Tag, Plus, Reply, LayoutList, Kanban, UserCheck, Calendar, Factory, AlertTriangle, Target, CheckSquare } from 'lucide-react'
+import { ClipboardCheck, RefreshCw, Users, CheckCircle, MessageSquare, Edit, Trash2, Send, X, Tag, Plus, Reply, LayoutList, Kanban, UserCheck, Calendar, Factory, AlertTriangle, Target, CheckSquare, Lock } from 'lucide-react'
 import { toast } from 'sonner'
 import { reportingEffortsApi, trackerApi, trackerCommentsApi, trackerTagsApi, usersApi, studiesApi, databaseReleasesApi, useDefaultDueDateOffset, phasesApi, milestonesApi } from '@/api'
 import { useReportingSelectionStore } from '@/stores/reportingSelectionStore'
@@ -244,6 +244,15 @@ export function TrackerManagement() {
 
   // Check if current user is a Study LEAD (for individual tracker operations)
   const isStudyLead = studyPermissions?.role === 'LEAD'
+
+  // Get the selected effort object to check lock status
+  const selectedEffort = useMemo(() => {
+    if (!selectedEffortId) return null
+    return efforts.find(e => e.id === Number(selectedEffortId)) || null
+  }, [efforts, selectedEffortId])
+
+  // Check if the selected reporting effort is locked
+  const isEffortLocked = selectedEffort?.is_locked === true
 
   // WebSocket refresh
   const refetch = useCallback(() => {
@@ -1061,18 +1070,21 @@ export function TrackerManagement() {
           return (
             <div className="flex items-center justify-end gap-2">
               {/* In Production Toggle */}
-              <TooltipWrapper 
-                content={canToggleProd 
-                  ? (isInProduction ? 'In Production - Click to toggle' : 'Not In Production - Click to toggle')
-                  : 'Both Prod and QC must be completed to toggle'}
+              <TooltipWrapper
+                content={isEffortLocked
+                  ? 'Reporting effort is locked'
+                  : canToggleProd
+                    ? (isInProduction ? 'In Production - Click to toggle' : 'Not In Production - Click to toggle')
+                    : 'Both Prod and QC must be completed to toggle'}
               >
-                <label className="flex cursor-pointer select-none items-center">
+                <label className={`flex select-none items-center ${isEffortLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
                   <div className="relative">
                     <input
                       type="checkbox"
                       checked={isInProduction}
                       onChange={(e) => {
                         e.stopPropagation()
+                        if (isEffortLocked) return
                         if (!isInProduction && !canToggleProd) {
                           toast.error('Both Production and QC must be Completed to set In Production flag')
                           return
@@ -1080,12 +1092,12 @@ export function TrackerManagement() {
                         handleProductionFlagToggle(tracker.id, !isInProduction)
                       }}
                       className="sr-only"
-                      disabled={!canToggleProd && !isInProduction}
+                      disabled={isEffortLocked || (!canToggleProd && !isInProduction)}
                     />
                     <div
                       className={`box block h-5 w-9 rounded-full transition-colors ${
                         isInProduction ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
-                      } ${!canToggleProd && !isInProduction ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      } ${isEffortLocked || (!canToggleProd && !isInProduction) ? 'opacity-50 cursor-not-allowed' : ''}`}
                     />
                     <div
                       className={`absolute left-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white shadow transition-transform ${
@@ -1099,10 +1111,10 @@ export function TrackerManagement() {
               </TooltipWrapper>
 
               {/* Comments Button */}
-              <TooltipWrapper 
-                content={`Comments: ${tracker.comment_count || 0} total, ${tracker.unresolved_comment_count || 0} unresolved`}
+              <TooltipWrapper
+                content={isEffortLocked ? 'Reporting effort is locked' : `Comments: ${tracker.comment_count || 0} total, ${tracker.unresolved_comment_count || 0} unresolved`}
               >
-                <Button variant="ghost" size="icon" onClick={() => handleOpenComments(tracker)} className="relative h-8 w-8">
+                <Button variant="ghost" size="icon" onClick={() => handleOpenComments(tracker)} className="relative h-8 w-8" disabled={isEffortLocked}>
                   <MessageSquare className="h-4 w-4" />
                   {(tracker.unresolved_comment_count || 0) > 0 && (
                     <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full h-4 w-4 flex items-center justify-center">
@@ -1111,17 +1123,17 @@ export function TrackerManagement() {
                   )}
                 </Button>
               </TooltipWrapper>
-              
+
               {/* Edit Button */}
-              <TooltipWrapper content="Edit tracker">
-                <Button variant="ghost" size="icon" onClick={() => handleEdit(tracker)} className="h-8 w-8">
+              <TooltipWrapper content={isEffortLocked ? 'Reporting effort is locked' : 'Edit tracker'}>
+                <Button variant="ghost" size="icon" onClick={() => handleEdit(tracker)} className="h-8 w-8" disabled={isEffortLocked}>
                   <Edit className="h-4 w-4" />
                 </Button>
               </TooltipWrapper>
-              
+
               {/* Delete Button */}
-              <TooltipWrapper content="Delete tracker">
-                <Button variant="ghost" size="icon" onClick={() => handleDelete(tracker)} className="h-8 w-8">
+              <TooltipWrapper content={isEffortLocked ? 'Reporting effort is locked' : 'Delete tracker'}>
+                <Button variant="ghost" size="icon" onClick={() => handleDelete(tracker)} className="h-8 w-8" disabled={isEffortLocked}>
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
               </TooltipWrapper>
@@ -1132,7 +1144,7 @@ export function TrackerManagement() {
     )
 
     return baseColumns
-  }, [selectedRows, handleSelectRow, activeTab, allTags, users, assignTag, removeTag, getProgrammerName, handleProductionFlagToggle])
+  }, [selectedRows, handleSelectRow, activeTab, allTags, users, assignTag, removeTag, getProgrammerName, handleProductionFlagToggle, isEffortLocked])
 
   const columns = useMemo(() => getColumns(), [getColumns])
 
@@ -1149,6 +1161,12 @@ export function TrackerManagement() {
               <CardTitle className="flex items-center gap-2">
                 <ClipboardCheck className="h-5 w-5 text-primary" />
                 Tracker Management
+                {isEffortLocked && (
+                  <Badge variant="outline" className="ml-2 gap-1 bg-amber-500/15 text-amber-600 border-amber-500/30">
+                    <Lock className="h-3 w-3" />
+                    Locked
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription>
                 Manage programmer assignments, status tracking, and tags. Use checkboxes to select items for bulk updates.
@@ -1189,22 +1207,22 @@ export function TrackerManagement() {
             </TooltipWrapper>
             {selectedRows.size > 0 && canBulkAssign && (
               <>
-                <TooltipWrapper content={`Assign tag to ${selectedRows.size} selected trackers`}>
-                  <Button variant="outline" size="sm" onClick={() => setBulkTagOpen(true)}>
+                <TooltipWrapper content={isEffortLocked ? 'Reporting effort is locked' : `Assign tag to ${selectedRows.size} selected trackers`}>
+                  <Button variant="outline" size="sm" onClick={() => setBulkTagOpen(true)} disabled={isEffortLocked}>
                     <Tag className="h-4 w-4 mr-2" />
                     Tag ({selectedRows.size})
                   </Button>
                 </TooltipWrapper>
                 {availableMilestones.length > 0 && (
-                  <TooltipWrapper content={`Assign milestone to ${selectedRows.size} selected trackers`}>
-                    <Button variant="outline" size="sm" onClick={() => setBulkMilestoneOpen(true)}>
+                  <TooltipWrapper content={isEffortLocked ? 'Reporting effort is locked' : `Assign milestone to ${selectedRows.size} selected trackers`}>
+                    <Button variant="outline" size="sm" onClick={() => setBulkMilestoneOpen(true)} disabled={isEffortLocked}>
                       <Target className="h-4 w-4 mr-2" />
                       Milestone ({selectedRows.size})
                     </Button>
                   </TooltipWrapper>
                 )}
-                <TooltipWrapper content={`Assign programmers and update status for ${selectedRows.size} selected trackers`}>
-                  <Button variant="outline" size="sm" onClick={() => setBulkAssignStatusOpen(true)}>
+                <TooltipWrapper content={isEffortLocked ? 'Reporting effort is locked' : `Assign programmers and update status for ${selectedRows.size} selected trackers`}>
+                  <Button variant="outline" size="sm" onClick={() => setBulkAssignStatusOpen(true)} disabled={isEffortLocked}>
                     <UserCheck className="h-4 w-4 mr-2" />
                     Assign & Update ({selectedRows.size})
                   </Button>
@@ -1503,10 +1521,15 @@ export function TrackerManagement() {
               {viewMode === 'kanban-prod' && (
                 <div className="mb-4">
                   <h3 className="text-lg font-medium mb-2">Production Kanban</h3>
-                  <KanbanBoard 
-                    trackers={filteredTrackers} 
+                  <KanbanBoard
+                    trackers={filteredTrackers}
                     statusField="production"
                     onCardClick={(tracker) => {
+                      // Lock check
+                      if (isEffortLocked) {
+                        toast.error('Reporting effort is locked. Cannot view/edit comments.')
+                        return
+                      }
                       // Permission check: Only production programmer, admin, or study lead can interact in Prod Kanban
                       const isAdmin = currentUser?.is_admin
                       const isProductionProgrammer = currentUser && tracker.production_programmer_id === currentUser.id
@@ -1519,10 +1542,15 @@ export function TrackerManagement() {
                       setCommentDialogOpen(true)
                     }}
                     onStatusChange={(trackerId, newStatus) => {
+                      // Lock check
+                      if (isEffortLocked) {
+                        toast.error('Reporting effort is locked. Cannot change status.')
+                        return
+                      }
                       // Find the tracker to validate the update
                       const tracker = trackers.find(t => t.id === trackerId)
                       if (!tracker) return
-                      
+
                       // Permission check: Only production programmer, admin, or study lead can change production status
                       const isAdmin = currentUser?.is_admin
                       const isProductionProgrammer = currentUser && tracker.production_programmer_id === currentUser.id
@@ -1530,19 +1558,19 @@ export function TrackerManagement() {
                         toast.error('Only the assigned production programmer or study lead can change production status')
                         return
                       }
-                      
+
                       // Validate: production programmer must be assigned to change status (except not_started)
                       if (newStatus !== 'not_started' && !tracker.production_programmer_id) {
                         toast.error('Cannot change status without a production programmer assigned')
                         return
                       }
-                      
+
                       // Validate: Cannot set production status to 'completed' directly - it's auto-set by QC completion
                       if (newStatus === 'completed') {
                         toast.error("Production status cannot be set to 'Completed' directly. It is automatically set when QC marks the item as completed.")
                         return
                       }
-                      
+
                       // Update the tracker via API
                       updateTracker.mutate({
                         id: trackerId,
@@ -1557,10 +1585,15 @@ export function TrackerManagement() {
               {viewMode === 'kanban-qc' && (
                 <div className="mb-4">
                   <h3 className="text-lg font-medium mb-2">QC Kanban</h3>
-                  <KanbanBoard 
-                    trackers={filteredTrackers} 
+                  <KanbanBoard
+                    trackers={filteredTrackers}
                     statusField="qc"
                     onCardClick={(tracker) => {
+                      // Lock check
+                      if (isEffortLocked) {
+                        toast.error('Reporting effort is locked. Cannot view/edit comments.')
+                        return
+                      }
                       // Permission check: Only QC programmer, admin, or study lead can interact in QC Kanban
                       const isAdmin = currentUser?.is_admin
                       const isQCProgrammer = currentUser && tracker.qc_programmer_id === currentUser.id
@@ -1573,10 +1606,15 @@ export function TrackerManagement() {
                       setCommentDialogOpen(true)
                     }}
                     onStatusChange={(trackerId, newStatus) => {
+                      // Lock check
+                      if (isEffortLocked) {
+                        toast.error('Reporting effort is locked. Cannot change status.')
+                        return
+                      }
                       // Find the tracker to validate the update
                       const tracker = trackers.find(t => t.id === trackerId)
                       if (!tracker) return
-                      
+
                       // Permission check: Only QC programmer, admin, or study lead can change QC status
                       const isAdmin = currentUser?.is_admin
                       const isQCProgrammer = currentUser && tracker.qc_programmer_id === currentUser.id
@@ -1584,25 +1622,25 @@ export function TrackerManagement() {
                         toast.error('Only the assigned QC programmer or study lead can change QC status')
                         return
                       }
-                      
+
                       // Validate: QC programmer must be assigned to change status (except not_started)
                       if (newStatus !== 'not_started' && !tracker.qc_programmer_id) {
                         toast.error('Cannot change status without a QC programmer assigned')
                         return
                       }
-                      
+
                       // Validate: QC 'completed' or 'failed' only allowed when production is 'ready_for_qc'
                       if ((newStatus === 'completed' || newStatus === 'failed') && tracker.production_status !== 'ready_for_qc') {
                         toast.error(`QC can only be marked as '${newStatus === 'completed' ? 'Completed' : 'Failed'}' when production status is 'Ready for QC'`)
                         return
                       }
-                      
+
                       // Validate: Cannot mark QC as completed if there are unresolved comments
                       if (newStatus === 'completed' && (tracker.unresolved_comment_count || 0) > 0) {
                         toast.error(`Cannot mark QC as completed: ${tracker.unresolved_comment_count} unresolved comment(s) must be addressed first`)
                         return
                       }
-                      
+
                       // If changing to 'failed', show comment dialog instead of direct update
                       if (newStatus === 'failed') {
                         setQcFailureTrackerId(trackerId)
@@ -1610,7 +1648,7 @@ export function TrackerManagement() {
                         setQcFailureDialogOpen(true)
                         return
                       }
-                      
+
                       // Update the tracker via API
                       updateTracker.mutate({
                         id: trackerId,

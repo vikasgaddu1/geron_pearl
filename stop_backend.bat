@@ -24,6 +24,14 @@ if "!found!"=="0" (
 REM Also try to kill any uvicorn processes
 taskkill /F /IM uvicorn.exe >nul 2>&1
 
+REM Kill any Python processes running from the backend directory
+REM This catches zombie processes that may not be listening on port 8000
+for /f "tokens=2" %%a in ('wmic process where "commandline like '%%backend%%run.py%%'" get processid 2^>nul ^| findstr /r "[0-9]"') do (
+    echo Found backend Python process: PID %%a
+    taskkill /F /PID %%a >nul 2>&1
+    echo Stopped process %%a
+)
+
 echo.
 echo Backend server stopped.
 timeout /t 2 >nul

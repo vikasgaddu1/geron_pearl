@@ -1,5 +1,5 @@
 import { apiClient } from '../client'
-import type { ReportingEffort, ReportingEffortFormData } from '@/types'
+import type { ReportingEffort, ReportingEffortFormData, LockHistoryEntry } from '@/types'
 
 const BASE_PATH = '/api/v1/reporting-efforts'
 
@@ -31,6 +31,22 @@ export const reportingEffortsApi = {
 
   delete: async (id: number): Promise<void> => {
     await apiClient.delete(`${BASE_PATH}/${id}`)
+  },
+
+  // Lock/Unlock operations
+  lock: async (id: number, reason: string): Promise<ReportingEffort> => {
+    const response = await apiClient.post(`${BASE_PATH}/${id}/lock`, { reason })
+    return response.data
+  },
+
+  unlock: async (id: number, reason: string): Promise<ReportingEffort> => {
+    const response = await apiClient.post(`${BASE_PATH}/${id}/unlock`, { reason })
+    return response.data
+  },
+
+  getLockHistory: async (id: number): Promise<LockHistoryEntry[]> => {
+    const response = await apiClient.get(`${BASE_PATH}/${id}/lock-history`)
+    return response.data
   },
 }
 

@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.crud.tracker_comment import tracker_comment
 from app.crud.reporting_effort_item_tracker import reporting_effort_item_tracker
+from app.crud.reporting_effort_item import reporting_effort_item
+from app.crud.reporting_effort import reporting_effort
 from app.schemas.tracker_comment import (
     TrackerCommentCreate,
     TrackerComment, 
@@ -45,10 +47,22 @@ async def create_comment(
     - Broadcasts WebSocket event for real-time updates
     """
     try:
+        # Check if the reporting effort is locked
+        db_tracker = await reporting_effort_item_tracker.get(db, id=obj_in.tracker_id)
+        if db_tracker:
+            db_item = await reporting_effort_item.get(db, id=db_tracker.reporting_effort_item_id)
+            if db_item:
+                db_effort = await reporting_effort.get(db, id=db_item.reporting_effort_id)
+                if db_effort and db_effort.is_locked:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Cannot add comment: This reporting effort is locked. Reason: {db_effort.lock_reason}. Unlock to make changes."
+                    )
+
         # Create the comment
         created_comment = await tracker_comment.create(
-            db=db, 
-            obj_in=obj_in, 
+            db=db,
+            obj_in=obj_in,
             user_id=current_user.id
         )
         

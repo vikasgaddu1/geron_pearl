@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
-from app.crud import reporting_effort_item_tracker, reporting_effort_item, user, audit_log, app_settings, milestone_tracker_assignment
+from app.crud import reporting_effort_item_tracker, reporting_effort_item, reporting_effort, user, audit_log, app_settings, milestone_tracker_assignment
 from app.db.session import get_db
 from app.core.security import get_current_user
 from app.core.study_permissions import (
@@ -394,7 +394,17 @@ async def update_tracker(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Tracker not found"
             )
-        
+
+        # Check if the reporting effort is locked
+        db_item = await reporting_effort_item.get(db, id=db_tracker.reporting_effort_item_id)
+        if db_item:
+            db_effort = await reporting_effort.get(db, id=db_item.reporting_effort_id)
+            if db_effort and db_effort.is_locked:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Cannot update tracker: This reporting effort is locked. Reason: {db_effort.lock_reason}. Unlock to make changes."
+                )
+
         # Convert to dict for validation
         update_data = tracker_in.model_dump(exclude_unset=True) if hasattr(tracker_in, 'model_dump') else tracker_in.dict(exclude_unset=True)
         
@@ -973,6 +983,17 @@ async def unassign_programmer(
             detail="Failed to unassign programmer"
         )
 
+# Helper function to check if a tracker's reporting effort is locked
+async def check_tracker_effort_locked(db: AsyncSession, db_tracker) -> tuple[bool, str]:
+    """Check if the reporting effort for a tracker is locked. Returns (is_locked, reason)."""
+    db_item = await reporting_effort_item.get(db, id=db_tracker.reporting_effort_item_id)
+    if db_item:
+        db_effort = await reporting_effort.get(db, id=db_item.reporting_effort_id)
+        if db_effort and db_effort.is_locked:
+            return True, db_effort.lock_reason
+    return False, ""
+
+
 # Bulk Operations
 @router.post("/bulk-assign", response_model=List[ReportingEffortItemTracker])
 async def bulk_assign_programmers(
@@ -1019,6 +1040,12 @@ async def bulk_assign_programmers(
                 db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
                 if not db_tracker:
                     errors.append(f"Tracker {tracker_id} not found")
+                    continue
+                
+                # Check if the reporting effort is locked
+                is_locked, lock_reason = await check_tracker_effort_locked(db, db_tracker)
+                if is_locked:
+                    errors.append(f"Tracker {tracker_id}: Cannot assign - reporting effort is locked. Reason: {lock_reason}")
                     continue
                 
                 # Verify user exists
@@ -1135,6 +1162,12 @@ async def bulk_update_status(
                 db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
                 if not db_tracker:
                     errors.append(f"Tracker {tracker_id} not found")
+                    continue
+
+                # Check if the reporting effort is locked
+                is_locked, lock_reason = await check_tracker_effort_locked(db, db_tracker)
+                if is_locked:
+                    errors.append(f"Tracker {tracker_id}: Cannot update - reporting effort is locked. Reason: {lock_reason}")
                     continue
 
                 update_data = {k: v for k, v in update.items() if k not in ["id", "tracker_id"]}
@@ -1268,6 +1301,12 @@ async def bulk_assign_and_update_status(
             db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
             if not db_tracker:
                 errors.append(f"Tracker {tracker_id} not found")
+                continue
+            
+            # Check if the reporting effort is locked
+            is_locked, lock_reason = await check_tracker_effort_locked(db, db_tracker)
+            if is_locked:
+                errors.append(f"Tracker {tracker_id}: Cannot modify - reporting effort is locked. Reason: {lock_reason}")
                 continue
             
             # Store original programmer IDs for notification comparison

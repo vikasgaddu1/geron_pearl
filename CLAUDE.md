@@ -221,6 +221,31 @@ uv run python tests/validator/run_model_validation.py
 | TypeScript errors | Run `npm run build` to check type errors |
 | Enum serialization error | Add `use_enum_values=True` to Pydantic ConfigDict |
 | Code changes not taking effect | Clear Python cache: run `stop_all.bat` or manually delete `__pycache__` dirs |
+| New endpoints return 404 | Hot-reload limitation - do full server restart (see below) |
+| API returns old data after code changes | Kill ALL Python processes and restart (see below) |
+| Frontend API calls fail with ERR_CONNECTION_REFUSED | Ensure frontend dev server is running: `.\start_react_frontend.bat` |
+
+### ⚠️ Uvicorn Hot-Reload Limitation (Windows)
+
+**Problem**: When adding NEW endpoints or modifying module-level functions (like `serialize_*` functions), uvicorn's hot-reload may NOT pick up the changes properly.
+
+**Root Cause**: 
+- When `reporting_efforts.py` changes, WatchFiles reimports that module (new `router` object created)
+- BUT `__init__.py` is NOT reimported, so `api_router` still references the **old** router
+- Result: New endpoints return 404, modified functions return old data
+
+**Symptoms**:
+- Module-level print statements appear in logs (module is reimported)
+- Function-level print statements do NOT appear (old function still in use)
+- New endpoints return 404 even though code exists
+- Modified serialize functions return old field structure
+
+**Solution**:
+1. For structural changes (new endpoints, new fields in serialize functions), do a **full server restart**
+2. Kill ALL Python processes: `Get-Process python* | Stop-Process -Force`
+3. Clear cache and restart: `.\stop_all.bat` then `.\start_backend.bat`
+
+**Hot-reload DOES work for**: Changes inside existing endpoint functions (e.g., modifying query logic)
 
 ## Claude Code Skills
 

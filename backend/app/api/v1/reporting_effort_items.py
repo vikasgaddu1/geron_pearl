@@ -121,11 +121,18 @@ async def create_reporting_effort_item(
         
         # Check user has LEAD access to this study
         await require_study_lead_access(db, current_user, db_effort.study_id)
-        
+
+        # Check if reporting effort is locked
+        if db_effort.is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot create item: This reporting effort is locked. Reason: {db_effort.lock_reason}. Unlock to make changes."
+            )
+
         # Check for duplicate item
         # This will be handled by the unique constraint in the model
         # But we can provide better error messages here
-        
+
         # Check for duplicate item (moved to CRUD layer but also check here for better error message)
         existing_item = await reporting_effort_item.get_by_unique_key(
             db,
@@ -566,10 +573,18 @@ async def update_reporting_effort_item(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reporting effort item not found"
             )
-        
+
+        # Check if reporting effort is locked
+        db_effort = await reporting_effort.get(db, id=db_item.reporting_effort_id)
+        if db_effort and db_effort.is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot update item: This reporting effort is locked. Reason: {db_effort.lock_reason}. Unlock to make changes."
+            )
+
         # Store original data for audit
         original_data = sqlalchemy_to_dict(db_item)
-        
+
         updated_item = await reporting_effort_item.update(db, db_obj=db_item, obj_in=item_in)
         logger.info(f"Reporting effort item updated successfully: {updated_item.item_code} (ID: {updated_item.id})")
         
@@ -704,7 +719,15 @@ async def delete_reporting_effort_item(
                 )
             # Check user has LEAD access to this study
             await require_study_lead_access(db, current_user, db_effort.study_id)
-        
+
+        # Check if reporting effort is locked
+        db_effort = await reporting_effort.get(db, id=db_item.reporting_effort_id)
+        if db_effort and db_effort.is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot delete item: This reporting effort is locked. Reason: {db_effort.lock_reason}. Unlock to make changes."
+            )
+
         # Check deletion protection
         protection_error = await reporting_effort_item.check_deletion_protection(db, id=item_id)
         if protection_error:
@@ -789,6 +812,13 @@ async def bulk_create_tlf_items(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reporting effort not found"
+            )
+        
+        # Check if reporting effort is locked
+        if db_effort.is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot create items: This reporting effort is locked. Reason: {db_effort.lock_reason}. Unlock to make changes."
             )
         
         # Validate all items first
@@ -986,6 +1016,13 @@ async def bulk_create_dataset_items(
                 detail="Reporting effort not found"
             )
         
+        # Check if reporting effort is locked
+        if db_effort.is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot create items: This reporting effort is locked. Reason: {db_effort.lock_reason}. Unlock to make changes."
+            )
+        
         # Validate all items first
         for idx, item in enumerate(items_in):
             # Validate subtype
@@ -1116,13 +1153,20 @@ async def copy_items_from_package(
 
     try:
         logger.info(f"Starting copy operation: package_id={copy_request.package_id}, reporting_effort_id={reporting_effort_id}")
-        
+
         # Verify reporting effort exists
         db_effort = await reporting_effort.get(db, id=reporting_effort_id)
         if not db_effort:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reporting effort not found"
+            )
+        
+        # Check if reporting effort is locked
+        if db_effort.is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot copy items: Target reporting effort is locked. Reason: {db_effort.lock_reason}. Unlock to make changes."
             )
         
         # Verify package exists  
@@ -1242,6 +1286,13 @@ async def copy_tlf_items_from_package(
                 detail="Only study leads can copy items"
             )
         
+        # Check if reporting effort is locked
+        if db_effort.is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot copy TLF items: Target reporting effort is locked. Reason: {db_effort.lock_reason}. Unlock to make changes."
+            )
+        
         # Verify package exists  
         from app.crud.package import package
         db_package = await package.get(db, id=copy_request.package_id)
@@ -1357,6 +1408,13 @@ async def copy_dataset_items_from_package(
                 detail="Only study leads can copy items"
             )
         
+        # Check if reporting effort is locked
+        if db_effort.is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot copy Dataset items: Target reporting effort is locked. Reason: {db_effort.lock_reason}. Unlock to make changes."
+            )
+        
         # Verify package exists  
         from app.crud.package import package
         db_package = await package.get(db, id=copy_request.package_id)
@@ -1470,6 +1528,13 @@ async def copy_items_from_reporting_effort(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Target reporting effort not found"
+            )
+        
+        # Check if target reporting effort is locked
+        if db_effort.is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot copy items: Target reporting effort is locked. Reason: {db_effort.lock_reason}. Unlock to make changes."
             )
         
         # Verify source reporting effort exists
@@ -1591,6 +1656,13 @@ async def copy_tlf_items_from_reporting_effort(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only study leads can copy items"
+            )
+        
+        # Check if target reporting effort is locked
+        if db_effort.is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot copy TLF items: Target reporting effort is locked. Reason: {db_effort.lock_reason}. Unlock to make changes."
             )
         
         # Verify source reporting effort exists
@@ -1716,6 +1788,13 @@ async def copy_dataset_items_from_reporting_effort(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only study leads can copy items"
+            )
+        
+        # Check if target reporting effort is locked
+        if db_effort.is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot copy Dataset items: Target reporting effort is locked. Reason: {db_effort.lock_reason}. Unlock to make changes."
             )
         
         # Verify source reporting effort exists

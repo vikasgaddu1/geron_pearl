@@ -8,7 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.crud import reporting_effort, study, database_release, audit_log
 from app.crud.reporting_effort_usecase import reporting_effort_usecase_assignment
 from app.db.session import get_db
-from app.schemas.reporting_effort import ReportingEffort, ReportingEffortCreate, ReportingEffortUpdate
+from app.schemas.reporting_effort import (
+    ReportingEffort, ReportingEffortCreate, ReportingEffortUpdate,
+    ReportingEffortLockRequest, ReportingEffortLockHistoryEntry
+)
 from app.api.v1.websocket import broadcast_reporting_effort_created, broadcast_reporting_effort_updated, broadcast_reporting_effort_deleted
 from app.core.security import get_current_user
 from app.core.study_permissions import require_study_lead_access
@@ -29,6 +32,12 @@ def serialize_reporting_effort(effort, use_cases: List[Dict] = None) -> Dict[str
         "study_label": effort.study.study_label if effort.study else None,
         "database_release_label_full": effort.database_release.database_release_label if effort.database_release else None,
         "use_cases": use_cases or [],
+        # Lock status fields
+        "is_locked": effort.is_locked,
+        "locked_at": effort.locked_at.isoformat() if effort.locked_at else None,
+        "locked_by_id": effort.locked_by_id,
+        "locked_by_username": effort.locked_by.username if effort.locked_by else None,
+        "lock_reason": effort.lock_reason,
     }
     return data
 
@@ -220,6 +229,13 @@ async def update_reporting_effort(
         # Check user has LEAD access to this study
         await require_study_lead_access(db, current_user, db_reporting_effort.study_id)
 
+        # Check if reporting effort is locked
+        if db_reporting_effort.is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot update: This reporting effort is locked. Reason: {db_reporting_effort.lock_reason}. Unlock to make changes."
+            )
+
         # Check if new label conflicts with existing reporting effort for same database release
         if reporting_effort_in.database_release_label:
             existing_effort = await reporting_effort.get_by_release_and_label(
@@ -293,6 +309,13 @@ async def delete_reporting_effort(
         # Check user has LEAD access to this study
         await require_study_lead_access(db, current_user, db_reporting_effort.study_id)
 
+        # Check if reporting effort is locked
+        if db_reporting_effort.is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot delete: This reporting effort is locked. Reason: {db_reporting_effort.lock_reason}. Unlock to make changes."
+            )
+
         # Check for associated items before deletion
         items_count = await reporting_effort.get_items_count(db, id=reporting_effort_id)
         if items_count > 0:
@@ -335,4 +358,207 @@ async def delete_reporting_effort(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete reporting effort"
+        )
+
+
+# ==================== Lock/Unlock Endpoints ====================
+
+
+@router.post("/{reporting_effort_id}/lock")
+async def lock_reporting_effort_endpoint(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    reporting_effort_id: int,
+    lock_request: ReportingEffortLockRequest,
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Lock a reporting effort to prevent modifications.
+
+    Requires: Admin or Study LEAD role for the study.
+    """
+    try:
+        db_reporting_effort = await reporting_effort.get(db, id=reporting_effort_id)
+        if not db_reporting_effort:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Reporting effort not found"
+            )
+
+        # Check user has LEAD access to this study
+        await require_study_lead_access(db, current_user, db_reporting_effort.study_id)
+
+        # Check if already locked
+        if db_reporting_effort.is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Reporting effort is already locked"
+            )
+
+        # Lock the reporting effort
+        locked_effort = await reporting_effort.lock(
+            db, id=reporting_effort_id, user_id=current_user.id, reason=lock_request.reason
+        )
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="reporting_efforts",
+                record_id=reporting_effort_id,
+                action="UPDATE",
+                user_id=current_user.id,
+                changes={"action": "LOCK", "reason": lock_request.reason},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception:
+            pass  # Audit logging is best-effort
+
+        # Broadcast WebSocket event for real-time updates
+        try:
+            await broadcast_reporting_effort_updated(locked_effort)
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
+
+        # Get use cases for response
+        use_cases = await reporting_effort_usecase_assignment.get_use_cases_for_effort(
+            db, reporting_effort_id=reporting_effort_id
+        )
+        use_case_dicts = [{'id': uc.id, 'name': uc.name, 'color': uc.color} for uc in use_cases]
+
+        return serialize_reporting_effort(locked_effort, use_case_dicts)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to lock reporting effort"
+        )
+
+
+@router.post("/{reporting_effort_id}/unlock")
+async def unlock_reporting_effort_endpoint(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    reporting_effort_id: int,
+    lock_request: ReportingEffortLockRequest,
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Unlock a reporting effort to allow modifications.
+
+    Requires: Admin or Study LEAD role for the study.
+    """
+    try:
+        db_reporting_effort = await reporting_effort.get(db, id=reporting_effort_id)
+        if not db_reporting_effort:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Reporting effort not found"
+            )
+
+        # Check user has LEAD access to this study
+        await require_study_lead_access(db, current_user, db_reporting_effort.study_id)
+
+        # Check if not locked
+        if not db_reporting_effort.is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Reporting effort is not locked"
+            )
+
+        # Unlock the reporting effort
+        unlocked_effort = await reporting_effort.unlock(
+            db, id=reporting_effort_id, user_id=current_user.id, reason=lock_request.reason
+        )
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="reporting_efforts",
+                record_id=reporting_effort_id,
+                action="UPDATE",
+                user_id=current_user.id,
+                changes={"action": "UNLOCK", "reason": lock_request.reason},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception:
+            pass  # Audit logging is best-effort
+
+        # Broadcast WebSocket event for real-time updates
+        try:
+            await broadcast_reporting_effort_updated(unlocked_effort)
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
+
+        # Get use cases for response
+        use_cases = await reporting_effort_usecase_assignment.get_use_cases_for_effort(
+            db, reporting_effort_id=reporting_effort_id
+        )
+        use_case_dicts = [{'id': uc.id, 'name': uc.name, 'color': uc.color} for uc in use_cases]
+
+        return serialize_reporting_effort(unlocked_effort, use_case_dicts)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to unlock reporting effort"
+        )
+
+
+@router.get("/{reporting_effort_id}/lock-history", response_model=List[ReportingEffortLockHistoryEntry])
+async def get_lock_history(
+    *,
+    db: AsyncSession = Depends(get_db),
+    reporting_effort_id: int,
+    current_user: User = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
+    """
+    Get the lock/unlock history for a reporting effort.
+
+    Requires: Authenticated user.
+    """
+    try:
+        db_reporting_effort = await reporting_effort.get(db, id=reporting_effort_id)
+        if not db_reporting_effort:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Reporting effort not found"
+            )
+
+        history = await reporting_effort.get_lock_history(db, id=reporting_effort_id)
+
+        return [
+            {
+                "id": entry.id,
+                "action": entry.action.value,
+                "reason": entry.reason,
+                "performed_by_id": entry.performed_by_id,
+                "performed_by_username": entry.performed_by.username if entry.performed_by else "Unknown",
+                "created_at": entry.created_at.isoformat() if entry.created_at else None,
+            }
+            for entry in history
+        ]
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve lock history"
         )

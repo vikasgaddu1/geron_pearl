@@ -1,5 +1,6 @@
 """CRUD operations for ReportingEffort model."""
 
+from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy import select, func
@@ -8,6 +9,8 @@ from sqlalchemy.orm import joinedload
 
 from app.models.reporting_effort import ReportingEffort
 from app.models.reporting_effort_item import ReportingEffortItem
+from app.models.reporting_effort_lock_history import ReportingEffortLockHistory
+from app.models.enums import LockAction
 from app.schemas.reporting_effort import ReportingEffortCreate, ReportingEffortUpdate
 
 
@@ -30,7 +33,11 @@ class ReportingEffortCRUD:
         """Get a reporting effort by ID with related data."""
         result = await db.execute(
             select(ReportingEffort)
-            .options(joinedload(ReportingEffort.study), joinedload(ReportingEffort.database_release))
+            .options(
+                joinedload(ReportingEffort.study),
+                joinedload(ReportingEffort.database_release),
+                joinedload(ReportingEffort.locked_by)
+            )
             .where(ReportingEffort.id == id)
         )
         return result.scalar_one_or_none()
@@ -41,7 +48,11 @@ class ReportingEffortCRUD:
         """Get multiple reporting efforts with pagination and related data."""
         result = await db.execute(
             select(ReportingEffort)
-            .options(joinedload(ReportingEffort.study), joinedload(ReportingEffort.database_release))
+            .options(
+                joinedload(ReportingEffort.study),
+                joinedload(ReportingEffort.database_release),
+                joinedload(ReportingEffort.locked_by)
+            )
             .offset(skip)
             .limit(limit)
         )
@@ -53,7 +64,11 @@ class ReportingEffortCRUD:
         """Get reporting efforts for a specific study with pagination and related data."""
         result = await db.execute(
             select(ReportingEffort)
-            .options(joinedload(ReportingEffort.study), joinedload(ReportingEffort.database_release))
+            .options(
+                joinedload(ReportingEffort.study),
+                joinedload(ReportingEffort.database_release),
+                joinedload(ReportingEffort.locked_by)
+            )
             .where(ReportingEffort.study_id == study_id)
             .offset(skip)
             .limit(limit)
@@ -66,7 +81,11 @@ class ReportingEffortCRUD:
         """Get reporting efforts for a specific database release with pagination and related data."""
         result = await db.execute(
             select(ReportingEffort)
-            .options(joinedload(ReportingEffort.study), joinedload(ReportingEffort.database_release))
+            .options(
+                joinedload(ReportingEffort.study),
+                joinedload(ReportingEffort.database_release),
+                joinedload(ReportingEffort.locked_by)
+            )
             .where(ReportingEffort.database_release_id == database_release_id)
             .offset(skip)
             .limit(limit)
@@ -77,7 +96,11 @@ class ReportingEffortCRUD:
         """Get all reporting efforts for a specific database release (no pagination) with related data."""
         result = await db.execute(
             select(ReportingEffort)
-            .options(joinedload(ReportingEffort.study), joinedload(ReportingEffort.database_release))
+            .options(
+                joinedload(ReportingEffort.study),
+                joinedload(ReportingEffort.database_release),
+                joinedload(ReportingEffort.locked_by)
+            )
             .where(ReportingEffort.database_release_id == database_release_id)
         )
         return list(result.unique().scalars().all())
@@ -88,7 +111,11 @@ class ReportingEffortCRUD:
         """Get reporting efforts for a specific study and database release combination with related data."""
         result = await db.execute(
             select(ReportingEffort)
-            .options(joinedload(ReportingEffort.study), joinedload(ReportingEffort.database_release))
+            .options(
+                joinedload(ReportingEffort.study),
+                joinedload(ReportingEffort.database_release),
+                joinedload(ReportingEffort.locked_by)
+            )
             .where(
                 ReportingEffort.study_id == study_id,
                 ReportingEffort.database_release_id == database_release_id
@@ -106,7 +133,11 @@ class ReportingEffortCRUD:
         # Get all efforts for this release and check normalized labels
         result = await db.execute(
             select(ReportingEffort)
-            .options(joinedload(ReportingEffort.study), joinedload(ReportingEffort.database_release))
+            .options(
+                joinedload(ReportingEffort.study),
+                joinedload(ReportingEffort.database_release),
+                joinedload(ReportingEffort.locked_by)
+            )
             .where(ReportingEffort.database_release_id == database_release_id)
         )
         efforts = result.unique().scalars().all()
@@ -148,6 +179,105 @@ class ReportingEffortCRUD:
             .where(ReportingEffortItem.reporting_effort_id == id)
         )
         return result.scalar() or 0
+
+    # ==================== Lock/Unlock Operations ====================
+
+    async def lock(
+        self, db: AsyncSession, *, id: int, user_id: int, reason: str
+    ) -> ReportingEffort:
+        """Lock a reporting effort with a reason."""
+        db_obj = await self.get(db, id=id)
+        if not db_obj:
+            raise ValueError(f"Reporting effort with id {id} not found")
+
+        if db_obj.is_locked:
+            raise ValueError("Reporting effort is already locked")
+
+        # Update the reporting effort
+        db_obj.is_locked = True
+        db_obj.locked_at = datetime.utcnow()
+        db_obj.locked_by_id = user_id
+        db_obj.lock_reason = reason
+
+        # Create history entry
+        history_entry = ReportingEffortLockHistory(
+            reporting_effort_id=id,
+            performed_by_id=user_id,
+            action=LockAction.LOCK,
+            reason=reason
+        )
+        db.add(history_entry)
+
+        db.add(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
+        return db_obj
+
+    async def unlock(
+        self, db: AsyncSession, *, id: int, user_id: int, reason: str
+    ) -> ReportingEffort:
+        """Unlock a reporting effort with a reason."""
+        db_obj = await self.get(db, id=id)
+        if not db_obj:
+            raise ValueError(f"Reporting effort with id {id} not found")
+
+        if not db_obj.is_locked:
+            raise ValueError("Reporting effort is not locked")
+
+        # Update the reporting effort - clear lock metadata since it's no longer locked
+        # The unlock details are preserved in the history table
+        db_obj.is_locked = False
+        db_obj.locked_at = None
+        db_obj.locked_by_id = None
+        db_obj.lock_reason = None
+
+        # Create history entry (this preserves the unlock details)
+        history_entry = ReportingEffortLockHistory(
+            reporting_effort_id=id,
+            performed_by_id=user_id,
+            action=LockAction.UNLOCK,
+            reason=reason
+        )
+        db.add(history_entry)
+
+        db.add(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
+        return db_obj
+
+    async def get_lock_history(
+        self, db: AsyncSession, *, id: int
+    ) -> List[ReportingEffortLockHistory]:
+        """Get the lock/unlock history for a reporting effort."""
+        result = await db.execute(
+            select(ReportingEffortLockHistory)
+            .options(joinedload(ReportingEffortLockHistory.performed_by))
+            .where(ReportingEffortLockHistory.reporting_effort_id == id)
+            .order_by(ReportingEffortLockHistory.created_at.desc())
+        )
+        return list(result.unique().scalars().all())
+
+    async def is_locked(self, db: AsyncSession, *, id: int) -> bool:
+        """Quick check if a reporting effort is locked."""
+        result = await db.execute(
+            select(ReportingEffort.is_locked)
+            .where(ReportingEffort.id == id)
+        )
+        is_locked = result.scalar_one_or_none()
+        return is_locked if is_locked is not None else False
+
+    async def check_lock_and_get_reason(
+        self, db: AsyncSession, *, id: int
+    ) -> tuple[bool, Optional[str]]:
+        """Check if locked and return the lock reason if so."""
+        result = await db.execute(
+            select(ReportingEffort.is_locked, ReportingEffort.lock_reason)
+            .where(ReportingEffort.id == id)
+        )
+        row = result.one_or_none()
+        if row is None:
+            return False, None
+        return row[0], row[1] if row[0] else None
 
 
 # Create a global instance

@@ -56,6 +56,21 @@ export interface ReportingEffort {
   // Expanded fields for better filtering
   study_label?: string
   database_release_label_full?: string
+  // Lock fields
+  is_locked: boolean
+  locked_at?: string
+  locked_by_id?: number
+  locked_by_username?: string
+  lock_reason?: string
+}
+
+export interface LockHistoryEntry {
+  id: number
+  action: 'LOCK' | 'UNLOCK'
+  reason: string
+  performed_by_id: number
+  performed_by_username: string
+  created_at: string
 }
 
 export interface User {

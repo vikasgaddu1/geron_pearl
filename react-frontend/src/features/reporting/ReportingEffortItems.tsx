@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ClipboardList, Plus, Edit, Trash2, RefreshCw, Search, Copy } from 'lucide-react'
+import { ClipboardList, Plus, Edit, Trash2, RefreshCw, Search, Copy, Lock } from 'lucide-react'
 import { toast } from 'sonner'
 import { reportingEffortsApi, reportingEffortItemsApi, packagesApi, studiesApi, databaseReleasesApi, useIGVersions } from '@/api'
 import { useReportingSelectionStore } from '@/stores/reportingSelectionStore'
@@ -143,6 +143,15 @@ export function ReportingEffortItems() {
   // Check if current user can perform copy/delete operations
   const canBulkCopy = currentUser?.is_admin || studyPermissions?.can_bulk_copy === true
   const canDeleteItems = currentUser?.is_admin || studyPermissions?.can_delete_items === true
+
+  // Get the selected effort object to check lock status
+  const selectedEffort = useMemo(() => {
+    if (!selectedEffortId) return null
+    return efforts.find(e => e.id === Number(selectedEffortId)) || null
+  }, [efforts, selectedEffortId])
+
+  // Check if the selected reporting effort is locked
+  const isEffortLocked = selectedEffort?.is_locked === true
 
   // WebSocket refresh
   const refetch = useCallback(() => {
@@ -443,8 +452,6 @@ export function ReportingEffortItems() {
     adamCount: items.filter(i => i.item_subtype?.toLowerCase() === 'adam').length,
   }), [items])
 
-  const selectedEffort = efforts.find((e) => e.id === Number(selectedEffortId))
-
   if (effortsLoading) {
     return <PageLoader text="Loading reporting efforts..." />
   }
@@ -457,6 +464,12 @@ export function ReportingEffortItems() {
             <CardTitle className="flex items-center gap-2">
               <ClipboardList className="h-5 w-5 text-primary" />
               Reporting Effort Items
+              {isEffortLocked && (
+                <Badge variant="outline" className="ml-2 gap-1 bg-amber-500/15 text-amber-600 border-amber-500/30">
+                  <Lock className="h-3 w-3" />
+                  Locked
+                </Badge>
+              )}
             </CardTitle>
             <CardDescription>
               Manage TLFs and datasets for reporting efforts
@@ -467,11 +480,11 @@ export function ReportingEffortItems() {
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setCopyDialogOpen(true)} disabled={!selectedEffortId || !canBulkCopy}>
+            <Button variant="outline" size="sm" onClick={() => setCopyDialogOpen(true)} disabled={!selectedEffortId || !canBulkCopy || isEffortLocked} title={isEffortLocked ? 'Reporting effort is locked' : ''}>
               <Copy className="h-4 w-4 mr-2" />
               Copy Items
             </Button>
-            <Button size="sm" onClick={handleAdd} disabled={!selectedEffortId}>
+            <Button size="sm" onClick={handleAdd} disabled={!selectedEffortId || isEffortLocked} title={isEffortLocked ? 'Reporting effort is locked' : ''}>
               <Plus className="h-4 w-4 mr-2" />
               Add Item
             </Button>
@@ -679,11 +692,11 @@ export function ReportingEffortItems() {
                               )}
                               <TableCell className="text-right">
                                 <div className="flex justify-end gap-1">
-                                  <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
+                                  <Button variant="ghost" size="icon" onClick={() => handleEdit(item)} disabled={isEffortLocked} title={isEffortLocked ? 'Reporting effort is locked' : ''}>
                                     <Edit className="h-4 w-4" />
                                   </Button>
                                   {canDeleteItems && (
-                                    <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
+                                    <Button variant="ghost" size="icon" onClick={() => handleDelete(item)} disabled={isEffortLocked} title={isEffortLocked ? 'Reporting effort is locked' : ''}>
                                       <Trash2 className="h-4 w-4 text-destructive" />
                                     </Button>
                                   )}
