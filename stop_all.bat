@@ -24,6 +24,11 @@ powershell -Command "Get-ChildItem -Path '%~dp0backend' -Recurse -Directory -Fil
 echo Python cache cleared.
 
 echo.
+echo Cleaning up temp files...
+del /Q "%~dp0tmpclaude-*-cwd" 2>nul
+echo Temp files cleaned.
+
+echo.
 echo ========================================
 echo   All PEARL servers have been stopped
 echo ========================================
