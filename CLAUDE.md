@@ -187,6 +187,10 @@ uv run python tests/validator/run_model_validation.py
 
 ## Railway Deployment
 
+### Current Production URLs
+- **Backend**: `https://backend-production-2cc8.up.railway.app`
+- **Frontend**: `https://frontend-production-9345.up.railway.app`
+
 ### Default Admin User
 On fresh database initialization, a default admin user is created:
 - **Username**: `admin`
@@ -206,21 +210,27 @@ On fresh database initialization, a default admin user is created:
 4. **Update nginx.railway.conf** with new backend hostname, commit & push
 5. **Update backend** `ALLOWED_ORIGINS` with frontend URL
 
-### Backend Environment Variables
+### Backend Environment Variables (5 Service Variables)
 
-| Variable | Value | Notes |
-|----------|-------|-------|
-| `DATABASE_URL` | (link from PostgreSQL) | **Must be named exactly `DATABASE_URL`** - not `POSTGRES_DB` |
-| `JWT_SECRET` | secure random string | For token signing |
-| `ALLOWED_ORIGINS` | `["https://your-frontend.up.railway.app"]` | **Must be valid JSON with quotes!** |
-| `FRONTEND_URL` | `https://your-frontend.up.railway.app` | For password reset links |
+| Variable | Current Value | Notes |
+|----------|---------------|-------|
+| `ALLOWED_ORIGINS` | `["https://frontend-production-9345.up.railway.app"]` | **Must be valid JSON with double quotes!** |
+| `DATABASE_URL` | `postgresql://postgres:...@postgres.railway.internal:5432/railway` | Auto-linked from PostgreSQL service |
+| `FRONTEND_URL` | `https://frontend-production-9345.up.railway.app` | For password reset links |
+| `JWT_SECRET` | `dev-secret-key-change-in-production` | **⚠️ Change in production!** |
+| `POSTGRES_DB` | `railway` | Auto-set by Railway (not used by app) |
 
-### Frontend Environment Variables
+*Plus 8 variables auto-added by Railway (PGHOST, PGPORT, etc.)*
 
-| Variable | Value | Notes |
-|----------|-------|-------|
-| `BACKEND_URL` | `https://your-backend.up.railway.app` | **Must include `https://` prefix!** |
-| `PORT` | (auto-set by Railway) | Don't set manually |
+### Frontend Environment Variables (1 Service Variable)
+
+| Variable | Current Value | Notes |
+|----------|---------------|-------|
+| `BACKEND_URL` | `https://backend-production-2cc8.up.railway.app` | **Must include `https://` prefix!** |
+
+*Plus 8 variables auto-added by Railway*
+
+**Note**: `PORT` is auto-set by Railway - don't set it manually.
 
 ### Critical Configuration Notes
 
