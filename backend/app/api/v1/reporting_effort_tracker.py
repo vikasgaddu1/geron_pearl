@@ -621,6 +621,7 @@ async def delete_tracker(
     """
     Delete a tracker entry.
     Admin or Study Lead only functionality.
+    Cannot delete if tracker has associated comments.
     """
     # Permission check: Admin or Study Lead can delete trackers
     if not current_user.is_admin:
@@ -638,6 +639,14 @@ async def delete_tracker(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Tracker not found"
+            )
+
+        # Check for associated comments before deletion
+        comments_count = await reporting_effort_item_tracker.get_comments_count(db, id=tracker_id)
+        if comments_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot delete tracker: {comments_count} associated comment(s) exist. Delete them first."
             )
         
         # Store tracker data for audit logging and broadcasting before deletion

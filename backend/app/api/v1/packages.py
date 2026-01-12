@@ -10,10 +10,11 @@ from app.crud import package, package_item, text_element, audit_log
 from app.db.session import get_db
 from app.schemas.package import Package, PackageCreate, PackageUpdate, PackageWithItems
 from app.schemas.package_item import (
-    PackageItem, PackageItemCreate, PackageItemUpdate, 
+    PackageItem, PackageItemCreate, PackageItemUpdate,
     PackageItemCreateWithDetails, PackageTlfDetailsCreate,
-    PackageDatasetDetailsCreate, ItemTypeEnum
+    PackageDatasetDetailsCreate
 )
+from app.models.enums import ItemType
 from app.schemas.text_element import TextElementCreate
 from app.models.text_element import TextElementType
 from app.api.v1.websocket import (
@@ -621,7 +622,7 @@ async def bulk_create_tlf_items(
                 # Create package item with details
                 item_create = PackageItemCreateWithDetails(
                     package_id=package_id,
-                    item_type=ItemTypeEnum.TLF,
+                    item_type=ItemType.TLF,
                     item_subtype=item.item_subtype,
                     item_code=item.item_code,
                     tlf_details=PackageTlfDetailsCreate(
@@ -720,7 +721,7 @@ async def bulk_create_dataset_items(
                 # Create package item with dataset details
                 item_create = PackageItemCreateWithDetails(
                     package_id=package_id,
-                    item_type=ItemTypeEnum.Dataset,
+                    item_type=ItemType.Dataset,
                     item_subtype=item.item_subtype,
                     item_code=item.item_code,
                     dataset_details=PackageDatasetDetailsCreate(

@@ -12,9 +12,9 @@ from app.models.package_dataset_details import PackageDatasetDetails
 from app.models.package_item_footnote import PackageItemFootnote
 from app.models.package_item_acronym import PackageItemAcronym
 from app.schemas.package_item import (
-    PackageItemCreate, PackageItemUpdate, PackageItemCreateWithDetails,
-    ItemTypeEnum
+    PackageItemCreate, PackageItemUpdate, PackageItemCreateWithDetails
 )
+from app.models.enums import ItemType
 
 
 class PackageItemCRUD:
@@ -70,7 +70,7 @@ class PackageItemCRUD:
         await db.flush()  # Get the ID without committing
         
         # Create TLF details if provided and item is TLF
-        if obj_in.item_type == ItemTypeEnum.TLF and obj_in.tlf_details:
+        if obj_in.item_type == ItemType.TLF and obj_in.tlf_details:
             tlf_details = PackageTlfDetails(
                 package_item_id=db_obj.id,
                 title_id=obj_in.tlf_details.title_id,
@@ -80,7 +80,7 @@ class PackageItemCRUD:
             db.add(tlf_details)
         
         # Create Dataset details if provided and item is Dataset
-        elif obj_in.item_type == ItemTypeEnum.Dataset and obj_in.dataset_details:
+        elif obj_in.item_type == ItemType.Dataset and obj_in.dataset_details:
             dataset_details = PackageDatasetDetails(
                 package_item_id=db_obj.id,
                 label=obj_in.dataset_details.label,

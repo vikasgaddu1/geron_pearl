@@ -13,6 +13,7 @@ from app.api.v1 import api_router
 from app.core.config import settings
 from app.db.init_db import init_db
 from app.db.session import engine
+from app.middleware.error_logging import ErrorLoggingMiddleware
 
 # MCP is optional - only load if available
 try:
@@ -70,6 +71,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add error logging middleware (logs errors to database)
+app.add_middleware(ErrorLoggingMiddleware)
+
 # Add MCP integration (if available)
 if MCP_AVAILABLE:
     mcp = FastApiMCP(app)
@@ -82,15 +86,18 @@ if MCP_AVAILABLE:
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """
     Global exception handler for unhandled exceptions.
+    Error is already logged by ErrorLoggingMiddleware.
     """
+    correlation_id = getattr(request.state, 'correlation_id', None)
     logger.error(f"Unhandled exception on {request.url}: {exc}", exc_info=True)
-    
+
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "detail": "Internal server error",
             "path": str(request.url),
             "method": request.method,
+            "correlation_id": correlation_id,
         }
     )
 

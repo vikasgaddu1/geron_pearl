@@ -1,5 +1,6 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
+import { reportApiError } from '@/lib/errorReporter'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -147,6 +148,13 @@ apiClient.interceptors.response.use(
       const errorData = error.response.data as { detail?: string; message?: string } | undefined
       const message = errorData?.detail || errorData?.message || 'An error occurred'
       console.error('API Error:', message)
+
+      // Report 5xx server errors to the error logging system
+      if (error.response.status >= 500) {
+        const endpoint = originalRequest?.url || 'unknown'
+        const method = originalRequest?.method || 'unknown'
+        reportApiError(new Error(`${error.response.status}: ${message}`), endpoint, method)
+      }
     } else if (error.request) {
       // Request made but no response
       console.error('Network Error: No response received')
@@ -154,7 +162,7 @@ apiClient.interceptors.response.use(
       // Request setup error
       console.error('Request Error:', error.message)
     }
-    
+
     return Promise.reject(error)
   }
 )

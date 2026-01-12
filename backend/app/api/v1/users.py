@@ -169,12 +169,25 @@ async def delete_user(
 ) -> Any:
     """
     Delete a user.
+
+    Cannot delete if:
+    - User is assigned to trackers as production or QC programmer
+    - User has study role assignments
+    - User is the only admin
     """
     user = await crud.user.get(db, id=id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
+        )
+
+    # Check for references before deletion
+    references = await crud.user.get_usage_references(db, id=id)
+    if crud.user.has_blocking_references(references):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=crud.user.format_reference_error(references)
         )
 
     # Capture values for audit before deletion

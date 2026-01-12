@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker
 from app.models.milestone_tracker_assignment import MilestoneTrackerAssignment
+from app.models.tracker_comment import TrackerComment
 from app.schemas.reporting_effort_item_tracker import (
     ReportingEffortItemTrackerCreate,
     ReportingEffortItemTrackerUpdate
@@ -712,6 +713,14 @@ class ReportingEffortItemTrackerCRUD:
             'total_items': total_items,
             'created_item_ids': created_ids
         }
+
+    async def get_comments_count(self, db: AsyncSession, *, id: int) -> int:
+        """Get count of comments for a tracker."""
+        result = await db.execute(
+            select(func.count(TrackerComment.id))
+            .where(TrackerComment.tracker_id == id)
+        )
+        return result.scalar() or 0
 
 
 # Create singleton instance

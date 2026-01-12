@@ -7,7 +7,7 @@ from app.schemas.text_element import TextElement, TextElementCreate, TextElement
 from app.schemas.package import Package, PackageCreate, PackageInDB, PackageUpdate, PackageWithItems
 from app.schemas.package_item import (
     PackageItem, PackageItemCreate, PackageItemInDB, PackageItemUpdate,
-    PackageItemCreateWithDetails, ItemTypeEnum,
+    PackageItemCreateWithDetails,
     PackageTlfDetailsCreate, PackageTlfDetailsInDB,
     PackageDatasetDetailsCreate, PackageDatasetDetailsInDB,
     PackageItemFootnoteCreate, PackageItemAcronymCreate
@@ -69,7 +69,7 @@ __all__ = [
     "Package", "PackageCreate", "PackageInDB", "PackageUpdate", "PackageWithItems",
     # PackageItem schemas
     "PackageItem", "PackageItemCreate", "PackageItemInDB", "PackageItemUpdate",
-    "PackageItemCreateWithDetails", "ItemTypeEnum",
+    "PackageItemCreateWithDetails",
     "PackageTlfDetailsCreate", "PackageTlfDetailsInDB",
     "PackageDatasetDetailsCreate", "PackageDatasetDetailsInDB",
     "PackageItemFootnoteCreate", "PackageItemAcronymCreate",

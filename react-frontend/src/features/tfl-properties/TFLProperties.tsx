@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileText, Plus, Edit, Trash2, RefreshCw, Upload } from 'lucide-react'
+import { FileText, Plus, Edit, Trash2, RefreshCw, Upload, Link, Unlink } from 'lucide-react'
 import { toast } from 'sonner'
 import { textElementsApi } from '@/api'
 import { getErrorMessage } from '@/lib/utils'
@@ -277,6 +277,46 @@ export function TFLProperties() {
     const fieldLabels = TYPE_FIELD_LABELS[activeTab]
     return [
       {
+        id: 'status',
+        header: 'Status',
+        accessorKey: 'is_used',
+        filterType: 'select',
+        filterOptions: [
+          { value: 'true', label: 'In Use' },
+          { value: 'false', label: 'Unused' },
+        ],
+        helpText: 'Shows whether this element is assigned to any package items',
+        cell: (value, element) => (
+          <TooltipWrapper
+            content={
+              element.is_used
+                ? `Used ${element.usage_count || 1} time(s) - cannot be deleted`
+                : 'Not assigned to any package items - can be safely deleted'
+            }
+          >
+            <Badge
+              variant={element.is_used ? 'default' : 'outline'}
+              className={element.is_used
+                ? 'bg-green-100 text-green-800 hover:bg-green-100 border-green-200'
+                : 'bg-gray-50 text-gray-500 border-gray-200'
+              }
+            >
+              {element.is_used ? (
+                <>
+                  <Link className="h-3 w-3 mr-1" />
+                  In Use ({element.usage_count || 0})
+                </>
+              ) : (
+                <>
+                  <Unlink className="h-3 w-3 mr-1" />
+                  Unused
+                </>
+              )}
+            </Badge>
+          </TooltipWrapper>
+        ),
+      },
+      {
         id: 'label',
         header: fieldLabels.labelField,
         accessorKey: 'label',
@@ -309,11 +349,13 @@ export function TFLProperties() {
                 <Edit className="h-4 w-4" />
               </Button>
             </TooltipWrapper>
-            <TooltipWrapper content="Delete text element">
+            <TooltipWrapper content={element.is_used ? "Cannot delete - element is in use" : "Delete text element"}>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => handleDelete(element)}
+                disabled={element.is_used}
+                className={element.is_used ? 'opacity-50 cursor-not-allowed' : ''}
               >
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>

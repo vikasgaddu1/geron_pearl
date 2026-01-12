@@ -16,6 +16,7 @@ import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { SettingsPage } from '@/features/settings/SettingsPage'
 import { AuditLogsPage } from '@/features/audit-logs/AuditLogsPage'
+import { ErrorLogsPage } from '@/features/error-logs/ErrorLogsPage'
 
 function App() {
   return (
@@ -111,6 +112,14 @@ function App() {
             element={
               <ProtectedRoute requireAdmin>
                 <AuditLogsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="error-logs"
+            element={
+              <ProtectedRoute requireAdmin>
+                <ErrorLogsPage />
               </ProtectedRoute>
             }
           />

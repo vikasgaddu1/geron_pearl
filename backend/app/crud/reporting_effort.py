@@ -2,11 +2,12 @@
 
 from typing import List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.models.reporting_effort import ReportingEffort
+from app.models.reporting_effort_item import ReportingEffortItem
 from app.schemas.reporting_effort import ReportingEffortCreate, ReportingEffortUpdate
 
 
@@ -139,6 +140,14 @@ class ReportingEffortCRUD:
             await db.delete(db_obj)
             await db.commit()
         return db_obj
+
+    async def get_items_count(self, db: AsyncSession, *, id: int) -> int:
+        """Get count of reporting effort items for a reporting effort."""
+        result = await db.execute(
+            select(func.count(ReportingEffortItem.id))
+            .where(ReportingEffortItem.reporting_effort_id == id)
+        )
+        return result.scalar() or 0
 
 
 # Create a global instance

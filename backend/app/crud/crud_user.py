@@ -1,8 +1,12 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, func
+from sqlalchemy import select, update, delete, func, or_
 from sqlalchemy.exc import IntegrityError
 from app.models.user import User, AuthProvider
+from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker
+from app.models.user_study_role import UserStudyRole
+from app.models.tracker_comment import TrackerComment
+from app.models.notification import Notification
 from app.schemas.user import UserCreate, UserUpdate
 from app.core.security import get_password_hash
 
@@ -111,6 +115,80 @@ class UserCRUD:
             await db.delete(obj)
             await db.commit()
         return obj
+
+    async def get_usage_references(self, db: AsyncSession, *, id: int) -> Dict[str, Any]:
+        """
+        Check if a user is being referenced by other entities.
+
+        Returns a dictionary with:
+        - tracker_assignments: count of tracker assignments (prod or QC)
+        - study_roles: count of study role assignments
+        - comments: count of comments created by this user
+        - is_only_admin: whether this is the only admin user
+        """
+        references = {
+            "tracker_assignments": 0,
+            "study_roles": 0,
+            "comments": 0,
+            "is_only_admin": False,
+        }
+
+        # Check tracker assignments (production or QC programmer)
+        result = await db.execute(
+            select(func.count(ReportingEffortItemTracker.id))
+            .where(
+                or_(
+                    ReportingEffortItemTracker.production_programmer_id == id,
+                    ReportingEffortItemTracker.qc_programmer_id == id
+                )
+            )
+        )
+        references["tracker_assignments"] = result.scalar() or 0
+
+        # Check study role assignments
+        result = await db.execute(
+            select(func.count(UserStudyRole.id))
+            .where(UserStudyRole.user_id == id)
+        )
+        references["study_roles"] = result.scalar() or 0
+
+        # Check comments created by this user
+        result = await db.execute(
+            select(func.count(TrackerComment.id))
+            .where(TrackerComment.user_id == id)
+        )
+        references["comments"] = result.scalar() or 0
+
+        # Check if this is the only admin
+        user = await self.get(db, id=id)
+        if user and user.is_admin:
+            result = await db.execute(
+                select(func.count(User.id))
+                .where(User.is_admin == True, User.id != id)
+            )
+            other_admins = result.scalar() or 0
+            references["is_only_admin"] = other_admins == 0
+
+        return references
+
+    def has_blocking_references(self, references: Dict[str, Any]) -> bool:
+        """Check if any blocking references exist."""
+        return (
+            references["tracker_assignments"] > 0 or
+            references["study_roles"] > 0 or
+            references["is_only_admin"]
+        )
+
+    def format_reference_error(self, references: Dict[str, Any]) -> str:
+        """Format reference error message."""
+        messages = []
+        if references["is_only_admin"]:
+            messages.append("this is the only admin user")
+        if references["tracker_assignments"] > 0:
+            messages.append(f"assigned to {references['tracker_assignments']} tracker(s) as programmer")
+        if references["study_roles"] > 0:
+            messages.append(f"has {references['study_roles']} study role assignment(s)")
+        return f"Cannot delete user: {'; '.join(messages)}. Remove these assignments first."
 
 
 user = UserCRUD()

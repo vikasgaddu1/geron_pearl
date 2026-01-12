@@ -42,5 +42,12 @@ class TextElementInDB(TextElementBase):
 
 class TextElement(TextElementInDB):
     """Schema for text element responses."""
-    
+
     pass
+
+
+class TextElementWithUsage(TextElementInDB):
+    """Schema for text element with usage information."""
+
+    usage_count: int = Field(0, description="Number of times this text element is used")
+    is_used: bool = Field(False, description="Whether this text element is used anywhere")

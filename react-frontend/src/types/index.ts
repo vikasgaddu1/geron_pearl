@@ -136,6 +136,8 @@ export interface TextElement {
   content?: string
   created_at: string
   updated_at: string
+  usage_count?: number
+  is_used?: boolean
 }
 
 // ==================== Package Types ====================

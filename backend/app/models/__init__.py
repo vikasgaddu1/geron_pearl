@@ -18,6 +18,7 @@ from app.models.reporting_effort_dataset_details import ReportingEffortDatasetDe
 from app.models.reporting_effort_item_footnote import ReportingEffortItemFootnote
 from app.models.reporting_effort_item_acronym import ReportingEffortItemAcronym
 from app.models.audit_log import AuditLog
+from app.models.error_log import ErrorLog
 from app.models.tracker_comment import TrackerComment
 from app.models.tracker_tag import TrackerTag, TrackerItemTag
 from app.models.tracker_status_history import TrackerStatusHistory
@@ -58,6 +59,7 @@ __all__ = [
     "ReportingEffortItemFootnote",
     "ReportingEffortItemAcronym",
     "AuditLog",
+    "ErrorLog",
     "TrackerComment",
     "TrackerTag",
     "TrackerItemTag",

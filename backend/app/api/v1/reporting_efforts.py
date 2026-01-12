@@ -280,6 +280,7 @@ async def delete_reporting_effort(
     Delete a reporting effort.
 
     Requires: Admin or Study LEAD role for the study.
+    Cannot delete if reporting effort has associated items.
     """
     try:
         db_reporting_effort = await reporting_effort.get(db, id=reporting_effort_id)
@@ -289,12 +290,20 @@ async def delete_reporting_effort(
                 detail="Reporting effort not found"
             )
 
+        # Check user has LEAD access to this study
+        await require_study_lead_access(db, current_user, db_reporting_effort.study_id)
+
+        # Check for associated items before deletion
+        items_count = await reporting_effort.get_items_count(db, id=reporting_effort_id)
+        if items_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot delete reporting effort: {items_count} associated item(s) exist. Delete them first."
+            )
+
         # Capture values for audit before deletion
         deleted_label = db_reporting_effort.database_release_label
         deleted_study_id = db_reporting_effort.study_id
-
-        # Check user has LEAD access to this study
-        await require_study_lead_access(db, current_user, db_reporting_effort.study_id)
 
         deleted_reporting_effort = await reporting_effort.delete(db, id=reporting_effort_id)
 

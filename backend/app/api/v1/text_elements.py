@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.crud import text_element, audit_log
 from app.db.session import get_db
 from app.models.text_element import TextElementType
-from app.schemas.text_element import TextElement, TextElementCreate, TextElementUpdate
+from app.schemas.text_element import TextElement, TextElementCreate, TextElementUpdate, TextElementWithUsage
 from app.api.v1.websocket import broadcast_text_element_created, broadcast_text_element_updated, broadcast_text_element_deleted
 from app.core.security import require_admin_or_lead
 from app.models.user import User
@@ -73,23 +73,44 @@ async def create_text_element(
         )
 
 
-@router.get("/", response_model=List[TextElement])
+@router.get("/", response_model=List[TextElementWithUsage])
 async def read_text_elements(
     db: AsyncSession = Depends(get_db),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
-    type: Optional[TextElementType] = Query(None, description="Filter by text element type")
-) -> List[TextElement]:
+    type: Optional[TextElementType] = Query(None, description="Filter by text element type"),
+    include_usage: bool = Query(True, description="Include usage count information")
+) -> List[TextElementWithUsage]:
     """
     Retrieve text elements with optional filtering by type.
+    Includes usage_count and is_used fields to indicate if the element is being used.
     """
     try:
-        if type:
-            text_elements = await text_element.get_by_type(db, type=type, skip=skip, limit=limit)
+        if include_usage:
+            if type:
+                return await text_element.get_by_type_with_usage(db, type=type, skip=skip, limit=limit)
+            else:
+                return await text_element.get_multi_with_usage(db, skip=skip, limit=limit)
         else:
-            text_elements = await text_element.get_multi(db, skip=skip, limit=limit)
-
-        return text_elements
+            # Return without usage info (add default values)
+            if type:
+                elements = await text_element.get_by_type(db, type=type, skip=skip, limit=limit)
+            else:
+                elements = await text_element.get_multi(db, skip=skip, limit=limit)
+            # Add default usage fields
+            return [
+                {
+                    "id": te.id,
+                    "type": te.type,
+                    "label": te.label,
+                    "content": te.content,
+                    "created_at": te.created_at,
+                    "updated_at": te.updated_at,
+                    "usage_count": 0,
+                    "is_used": False
+                }
+                for te in elements
+            ]
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -231,6 +252,7 @@ async def delete_text_element(
     Delete a text element.
 
     Requires: Admin or Study LEAD role (in any study).
+    Text element cannot be deleted if it's being used by any package items.
     """
     try:
         db_text_element = await text_element.get(db, id=text_element_id)
@@ -238,6 +260,14 @@ async def delete_text_element(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Text element not found"
+            )
+
+        # Check for references before deletion
+        references = await text_element.get_usage_references(db, id=text_element_id)
+        if text_element.has_references(references):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=text_element.format_reference_error(references)
             )
 
         # Capture values for audit before deletion
