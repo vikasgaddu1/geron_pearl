@@ -19,6 +19,7 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { ExcelUpload } from '@/components/common/ExcelUpload'
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
+import { TooltipWrapper } from '@/components/common/TooltipWrapper'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
 import { useAuthStore } from '@/stores/authStore'
 import { StudyMembersDialog } from './StudyMembersDialog'
@@ -568,24 +569,43 @@ export function StudyManagement() {
                         <Tag className="h-4 w-4 mr-2" />
                         Manage Use Cases
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setLockDialogOpen(true)}
-                        className={(selectedNode.data as ReportingEffort).is_locked ? 'border-green-500 text-green-600 hover:bg-green-50' : 'border-amber-500 text-amber-600 hover:bg-amber-50'}
+                      {/* Lock Toggle Switch */}
+                      <TooltipWrapper
+                        content={(selectedNode.data as ReportingEffort).is_locked 
+                          ? 'Currently Locked - Click to unlock' 
+                          : 'Currently Unlocked - Click to lock'}
+                        side="bottom"
                       >
-                        {(selectedNode.data as ReportingEffort).is_locked ? (
-                          <>
-                            <Unlock className="h-4 w-4 mr-2" />
-                            Unlock
-                          </>
-                        ) : (
-                          <>
-                            <Lock className="h-4 w-4 mr-2" />
-                            Lock
-                          </>
-                        )}
-                      </Button>
+                        <button
+                          type="button"
+                          onClick={() => setLockDialogOpen(true)}
+                          className="flex items-center gap-2 px-3 py-1.5 rounded-md border hover:bg-accent transition-colors"
+                        >
+                          <span className="text-sm font-medium text-muted-foreground">
+                            {(selectedNode.data as ReportingEffort).is_locked ? 'Locked' : 'Unlocked'}
+                          </span>
+                          <div className="relative">
+                            <div
+                              className={`block h-5 w-9 rounded-full transition-colors ${
+                                (selectedNode.data as ReportingEffort).is_locked 
+                                  ? 'bg-amber-500' 
+                                  : 'bg-gray-300 dark:bg-gray-600'
+                              }`}
+                            />
+                            <div
+                              className={`absolute left-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white shadow transition-transform ${
+                                (selectedNode.data as ReportingEffort).is_locked ? 'translate-x-4' : ''
+                              }`}
+                            >
+                              {(selectedNode.data as ReportingEffort).is_locked ? (
+                                <Lock className="h-2.5 w-2.5 text-amber-500" />
+                              ) : (
+                                <Unlock className="h-2.5 w-2.5 text-gray-400" />
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      </TooltipWrapper>
                       <Button size="sm" variant="ghost" onClick={() => setLockHistoryDialogOpen(true)}>
                         <History className="h-4 w-4 mr-2" />
                         Lock History
@@ -839,6 +859,15 @@ export function StudyManagement() {
         reportingEffort={selectedNode?.type === 'effort' ? (selectedNode.data as ReportingEffort) : null}
         open={lockDialogOpen}
         onOpenChange={setLockDialogOpen}
+        onLockStatusChange={(updatedEffort) => {
+          // Update the selectedNode with fresh lock status data
+          if (selectedNode?.type === 'effort' && selectedNode.id === updatedEffort.id) {
+            setSelectedNode({
+              ...selectedNode,
+              data: updatedEffort,
+            })
+          }
+        }}
       />
 
       {/* Lock History Dialog */}

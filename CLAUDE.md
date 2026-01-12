@@ -490,6 +490,30 @@ Admin-only feature for tracking all system changes:
 - **Features**: Filter by action type, entity type, user, date range; view detailed change history
 - **Logged Actions**: CREATE, UPDATE, DELETE on all major entities
 
+## Reporting Effort Lock System
+
+Reporting efforts can be locked to prevent modifications during data freezes or final reviews:
+
+**Lock Behavior** - When locked, the following are prevented:
+- Creating, editing, or deleting items
+- Updating tracker assignments and statuses
+- Adding or resolving comments
+- Any modifications to phases and milestones
+
+**Lock Fields** (on ReportingEffort):
+- `is_locked` - Boolean flag
+- `locked_at` - Timestamp when locked
+- `locked_by_id` - User who locked
+- `lock_reason` - Required reason text
+
+**Lock History Table** (`reporting_effort_lock_history`):
+- Tracks all lock/unlock actions with timestamps and reasons
+- Actions: `LOCK`, `UNLOCK`
+
+**Authorization**: Only admin or study LEAD can lock/unlock
+
+**Frontend Warning**: When locking, shows items not yet marked "In Production" and requires confirmation
+
 ## Notification System
 
 Real-time notifications for user assignments and comments:
@@ -521,5 +545,6 @@ All WebSocket messages follow the format `{type}_created`, `{type}_updated`, or 
 | Text Element | `text_element_created` | `text_element_updated` | `text_element_deleted` |
 | User | `user_created` | `user_updated` | `user_deleted` |
 | Notification | `notification_created` | - | - |
+| Lock History | `lock_history_created` | - | - |
 
 Frontend components use `useWebSocketRefresh(['entity_prefix'], refetchCallback)` to listen for these events.

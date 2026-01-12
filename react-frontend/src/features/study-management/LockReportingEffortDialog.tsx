@@ -24,12 +24,14 @@ interface LockReportingEffortDialogProps {
   reportingEffort: ReportingEffort | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  onLockStatusChange?: (updatedEffort: ReportingEffort) => void
 }
 
 export function LockReportingEffortDialog({
   reportingEffort,
   open,
   onOpenChange,
+  onLockStatusChange,
 }: LockReportingEffortDialogProps) {
   const queryClient = useQueryClient()
   const [reason, setReason] = useState('')
@@ -50,11 +52,12 @@ export function LockReportingEffortDialog({
 
   const lockMutation = useMutation({
     mutationFn: () => reportingEffortsApi.lock(reportingEffort!.id, reason),
-    onSuccess: () => {
+    onSuccess: (updatedEffort) => {
       toast.success('Reporting effort locked successfully')
       queryClient.invalidateQueries({ queryKey: ['reporting-efforts'] })
       queryClient.invalidateQueries({ queryKey: ['studies'] })
       queryClient.invalidateQueries({ queryKey: ['trackers'] })
+      onLockStatusChange?.(updatedEffort)
       handleClose()
     },
     onError: (error) => {
@@ -64,11 +67,12 @@ export function LockReportingEffortDialog({
 
   const unlockMutation = useMutation({
     mutationFn: () => reportingEffortsApi.unlock(reportingEffort!.id, reason),
-    onSuccess: () => {
+    onSuccess: (updatedEffort) => {
       toast.success('Reporting effort unlocked successfully')
       queryClient.invalidateQueries({ queryKey: ['reporting-efforts'] })
       queryClient.invalidateQueries({ queryKey: ['studies'] })
       queryClient.invalidateQueries({ queryKey: ['trackers'] })
+      onLockStatusChange?.(updatedEffort)
       handleClose()
     },
     onError: (error) => {
