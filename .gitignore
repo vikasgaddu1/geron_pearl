@@ -303,6 +303,7 @@ temp/
 test-results/
 playwright-report/
 test-results.xml
+test_output.json
 
 # Playwright MCP screenshots and artifacts
 .playwright-mcp/
