@@ -39,8 +39,9 @@ import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
+import { TextElementCombobox } from '@/components/common/TextElementCombobox'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
-import type { ReportingEffortItem, ItemType, ItemSubtype } from '@/types'
+import type { ReportingEffortItem, ItemType, ItemSubtype, ReportingEffortItemCreateWithDetails } from '@/types'
 
 const ITEM_TYPES: ItemType[] = ['TLF', 'Dataset']
 const TLF_SUBTYPES: ItemSubtype[] = ['Table', 'Listing', 'Figure']
@@ -76,6 +77,13 @@ export function ReportingEffortItems() {
     item_subtype: 'Table' as ItemSubtype,
     ig_version_id: undefined as number | undefined,
     dataset_label: '',  // For SDTM/ADaM items - e.g., "Demographics" for DM
+    sorting_order: undefined as number | undefined,  // Run order for datasets
+    // TLF properties
+    title_id: null as number | null,
+    population_flag_id: null as number | null,
+    ich_category_id: null as number | null,
+    footnote_ids: [] as number[],
+    acronym_ids: [] as number[],
   })
 
   // Fetch IG versions for the form
@@ -145,8 +153,8 @@ export function ReportingEffortItems() {
 
   // Mutations
   const createItem = useMutation({
-    mutationFn: (data: Partial<ReportingEffortItem>) =>
-      reportingEffortItemsApi.create({ ...data, reporting_effort_id: Number(selectedEffortId) }),
+    mutationFn: (data: ReportingEffortItemCreateWithDetails) =>
+      reportingEffortItemsApi.createWithDetails(Number(selectedEffortId), data),
     onSuccess: () => {
       toast.success('Item created successfully')
       queryClient.invalidateQueries({ queryKey: ['reporting-effort-items', selectedEffortId] })
@@ -206,6 +214,13 @@ export function ReportingEffortItems() {
       item_subtype: 'Table',
       ig_version_id: undefined,
       dataset_label: '',
+      sorting_order: undefined,
+      // Reset TLF properties
+      title_id: null,
+      population_flag_id: null,
+      ich_category_id: null,
+      footnote_ids: [],
+      acronym_ids: [],
     })
     setSelectedItem(null)
   }
@@ -258,6 +273,13 @@ export function ReportingEffortItems() {
       item_subtype: item.item_subtype || 'Table',
       ig_version_id: item.dataset_details?.ig_version_id,
       dataset_label: item.dataset_details?.label || '',
+      sorting_order: item.dataset_details?.sorting_order,
+      // Populate TLF details
+      title_id: item.tlf_details?.title_id || null,
+      population_flag_id: item.tlf_details?.population_flag_id || null,
+      ich_category_id: item.tlf_details?.ich_category_id || null,
+      footnote_ids: item.footnotes?.map(f => f.footnote_id) || [],
+      acronym_ids: item.acronyms?.map(a => a.acronym_id) || [],
     })
     setDialogOpen(true)
   }
@@ -268,21 +290,49 @@ export function ReportingEffortItems() {
   }
 
   const handleSubmit = () => {
-    const data: Record<string, unknown> = {
+    const data: ReportingEffortItemCreateWithDetails = {
+      reporting_effort_id: Number(selectedEffortId),
       item_code: formData.item_code,
-      item_description: formData.item_description,
+      item_description: formData.item_description || undefined,
       item_type: formData.item_type,
       item_subtype: formData.item_subtype,
     }
     
-    // Add dataset_details for Dataset items (label and/or ig_version_id)
+    // Add TLF details for TLF items
+    if (formData.item_type === 'TLF') {
+      data.tlf_details = {
+        title_id: formData.title_id,
+        population_flag_id: formData.population_flag_id,
+        ich_category_id: formData.ich_category_id,
+      }
+      
+      // Add footnotes
+      if (formData.footnote_ids.length > 0) {
+        data.footnotes = formData.footnote_ids.map((id, index) => ({
+          footnote_id: id,
+          sequence_number: index + 1,
+        }))
+      }
+      
+      // Add acronyms
+      if (formData.acronym_ids.length > 0) {
+        data.acronyms = formData.acronym_ids.map(id => ({
+          acronym_id: id,
+        }))
+      }
+    }
+    
+    // Add dataset_details for Dataset items (label, ig_version_id, sorting_order)
     if (formData.item_type === 'Dataset') {
-      const datasetDetails: Record<string, unknown> = {}
+      const datasetDetails: { label?: string; ig_version_id?: number; sorting_order?: number } = {}
       if (formData.dataset_label) {
         datasetDetails.label = formData.dataset_label
       }
       if (formData.ig_version_id) {
         datasetDetails.ig_version_id = formData.ig_version_id
+      }
+      if (formData.sorting_order !== undefined) {
+        datasetDetails.sorting_order = formData.sorting_order
       }
       if (Object.keys(datasetDetails).length > 0) {
         data.dataset_details = datasetDetails
@@ -290,7 +340,41 @@ export function ReportingEffortItems() {
     }
     
     if (selectedItem) {
-      updateItem.mutate({ id: selectedItem.id, data })
+      // For update, include all details
+      const updateData: Record<string, unknown> = {
+        item_code: formData.item_code,
+        item_description: formData.item_description,
+        item_subtype: formData.item_subtype,
+      }
+      
+      // Include TLF details for TLF items
+      if (formData.item_type === 'TLF') {
+        updateData.tlf_details = {
+          title_id: formData.title_id,
+          population_flag_id: formData.population_flag_id,
+          ich_category_id: formData.ich_category_id,
+        }
+        // Include footnotes (even if empty, to clear them)
+        updateData.footnotes = formData.footnote_ids.map((id, index) => ({
+          footnote_id: id,
+          sequence_number: index + 1,
+        }))
+        // Include acronyms (even if empty, to clear them)
+        updateData.acronyms = formData.acronym_ids.map(id => ({
+          acronym_id: id,
+        }))
+      }
+      
+      // Include dataset details for Dataset items (always include to allow clearing values)
+      if (formData.item_type === 'Dataset') {
+        updateData.dataset_details = {
+          label: formData.dataset_label || null,
+          ig_version_id: formData.ig_version_id || null,
+          sorting_order: formData.sorting_order ?? null,
+        }
+      }
+      
+      updateItem.mutate({ id: selectedItem.id, data: updateData })
     } else {
       createItem.mutate(data)
     }
@@ -620,82 +704,175 @@ export function ReportingEffortItems() {
 
       {/* Add/Edit Item Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{selectedItem ? 'Edit Item' : 'Add New Item'}</DialogTitle>
+            <DialogTitle>
+              {selectedItem 
+                ? `Edit ${formData.item_type === 'TLF' ? 'TLF Report' : 'Dataset'}` 
+                : `Add New ${formData.item_type === 'TLF' ? 'TLF Report' : 'Dataset'}`}
+            </DialogTitle>
             <DialogDescription>
-              {selectedItem ? 'Update item details.' : `Add an item to ${selectedEffort?.database_release_label}.`}
+              {selectedItem 
+                ? 'Update item details.' 
+                : `Add a new ${formData.item_type === 'TLF' ? 'TLF report' : 'dataset'} to ${selectedEffort?.database_release_label}.`}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {/* Row 1: Item Type selector */}
             <div className="grid gap-2">
-              <Label htmlFor="item_code">Item Code</Label>
-              <Input
-                id="item_code"
-                value={formData.item_code}
-                onChange={(e) => setFormData((prev) => ({ ...prev, item_code: e.target.value }))}
-                placeholder="e.g., T-14.1.1"
-              />
+              <Label>Item Type</Label>
+              <Select
+                value={formData.item_type}
+                onValueChange={(value: ItemType) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    item_type: value,
+                    item_subtype: value === 'TLF' ? 'Table' : 'SDTM',
+                    item_description: '', // Clear description when switching
+                    ig_version_id: value === 'Dataset' ? latestIGVersions.SDTM?.id : undefined,
+                  }))
+                }}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ITEM_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="item_description">Description (Optional)</Label>
-              <Input
-                id="item_description"
-                value={formData.item_description}
-                onChange={(e) => setFormData((prev) => ({ ...prev, item_description: e.target.value }))}
-                placeholder="Enter description..."
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>Item Type</Label>
-                <Select
-                  value={formData.item_type}
-                  onValueChange={(value: ItemType) => {
-                    setFormData((prev) => ({
-                      ...prev,
-                      item_type: value,
-                      item_subtype: value === 'TLF' ? 'Table' : 'SDTM',
-                      // Auto-select latest SDTM version when switching to Dataset type
-                      ig_version_id: value === 'Dataset' ? latestIGVersions.SDTM?.id : undefined,
-                    }))
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ITEM_TYPES.map((type) => (
-                      <SelectItem key={type} value={type}>{type}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>Subtype</Label>
-                <Select
-                  value={formData.item_subtype}
-                  onValueChange={(value: ItemSubtype) => {
-                    // Auto-select latest IG version when switching between SDTM and ADaM
-                    const newIGVersionId = formData.item_type === 'Dataset' 
-                      ? (value === 'SDTM' ? latestIGVersions.SDTM?.id : latestIGVersions.ADaM?.id)
-                      : undefined
-                    setFormData((prev) => ({ ...prev, item_subtype: value, ig_version_id: newIGVersionId }))
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(formData.item_type === 'TLF' ? TLF_SUBTYPES : DATASET_SUBTYPES).map((subtype) => (
-                      <SelectItem key={subtype} value={subtype}>{subtype}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+
+            {/* TLF Form - matches Package Items layout */}
+            {formData.item_type === 'TLF' && (
+              <>
+                {/* Row 2: TLF Type and Item Code */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label>TLF Type *</Label>
+                    <Select
+                      value={formData.item_subtype}
+                      onValueChange={(value: ItemSubtype) => {
+                        setFormData((prev) => ({ ...prev, item_subtype: value }))
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TLF_SUBTYPES.map((subtype) => (
+                          <SelectItem key={subtype} value={subtype}>{subtype}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="item_code">Title Key / Code *</Label>
+                    <Input
+                      id="item_code"
+                      value={formData.item_code}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, item_code: e.target.value }))}
+                      placeholder="e.g., t14.1.1"
+                    />
+                  </div>
+                </div>
+                
+                {/* Row 3: Title */}
+                <div className="grid gap-2">
+                  <Label>Title</Label>
+                  <TextElementCombobox
+                    type="title"
+                    value={formData.title_id}
+                    onChange={(id) => setFormData((prev) => ({ ...prev, title_id: id }))}
+                    placeholder="Search or create title..."
+                  />
+                </div>
+                
+                {/* Row 4: Population Flag and ICH Category */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label>Population Flag</Label>
+                    <TextElementCombobox
+                      type="population_set"
+                      value={formData.population_flag_id}
+                      onChange={(id) => setFormData((prev) => ({ ...prev, population_flag_id: id }))}
+                      placeholder="Search or create population..."
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>ICH Category</Label>
+                    <TextElementCombobox
+                      type="ich_category"
+                      value={formData.ich_category_id}
+                      onChange={(id) => setFormData((prev) => ({ ...prev, ich_category_id: id }))}
+                      placeholder="Search or create ICH category..."
+                    />
+                  </div>
+                </div>
+                
+                {/* Row 5: Footnotes */}
+                <div className="grid gap-2">
+                  <Label>Footnotes</Label>
+                  <TextElementCombobox
+                    type="footnote"
+                    values={formData.footnote_ids}
+                    onMultiChange={(ids) => setFormData((prev) => ({ ...prev, footnote_ids: ids }))}
+                    multiple
+                    placeholder="Search or create footnotes..."
+                  />
+                </div>
+                
+                {/* Row 6: Acronyms */}
+                <div className="grid gap-2">
+                  <Label>Acronyms</Label>
+                  <TextElementCombobox
+                    type="acronyms_set"
+                    values={formData.acronym_ids}
+                    onMultiChange={(ids) => setFormData((prev) => ({ ...prev, acronym_ids: ids }))}
+                    multiple
+                    placeholder="Search or create acronyms..."
+                  />
+                </div>
+              </>
+            )}
+            
+            {/* Dataset Form */}
             {formData.item_type === 'Dataset' && (
               <>
+                {/* Row 2: Dataset Type and Item Code */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label>Dataset Type *</Label>
+                    <Select
+                      value={formData.item_subtype}
+                      onValueChange={(value: ItemSubtype) => {
+                        const newIGVersionId = value === 'SDTM' ? latestIGVersions.SDTM?.id : latestIGVersions.ADaM?.id
+                        setFormData((prev) => ({ ...prev, item_subtype: value, ig_version_id: newIGVersionId }))
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DATASET_SUBTYPES.map((subtype) => (
+                          <SelectItem key={subtype} value={subtype}>{subtype}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="item_code">Dataset Name *</Label>
+                    <Input
+                      id="item_code"
+                      value={formData.item_code}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, item_code: e.target.value.toUpperCase() }))}
+                      placeholder="e.g., DM, AE, ADSL"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 3: Dataset Label */}
                 <div className="grid gap-2">
                   <Label htmlFor="dataset_label">Dataset Label</Label>
                   <Input
@@ -708,6 +885,8 @@ export function ReportingEffortItems() {
                     Descriptive name for the dataset (shown in dashboards)
                   </p>
                 </div>
+
+                {/* Row 4: IG Version */}
                 {filteredIGVersions.length > 0 && (
                   <div className="grid gap-2">
                     <Label>IG Version</Label>
@@ -737,6 +916,25 @@ export function ReportingEffortItems() {
                     </p>
                   </div>
                 )}
+
+                {/* Row 5: Run Order */}
+                <div className="grid gap-2">
+                  <Label htmlFor="sorting_order">Run Order</Label>
+                  <Input
+                    id="sorting_order"
+                    type="number"
+                    min={1}
+                    value={formData.sorting_order || ''}
+                    onChange={(e) => setFormData((prev) => ({ 
+                      ...prev, 
+                      sorting_order: e.target.value ? parseInt(e.target.value) : undefined 
+                    }))}
+                    placeholder="Display order (1, 2, 3...)"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Order in which dataset programs should be run
+                  </p>
+                </div>
               </>
             )}
           </div>

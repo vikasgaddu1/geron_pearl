@@ -1,5 +1,5 @@
 import { apiClient } from '../client'
-import type { ReportingEffortItem, BulkOperationResult } from '@/types'
+import type { ReportingEffortItem, BulkOperationResult, ReportingEffortItemCreateWithDetails } from '@/types'
 
 const BASE_PATH = '/api/v1/reporting-effort-items'
 
@@ -21,6 +21,12 @@ export const reportingEffortItemsApi = {
 
   create: async (data: Partial<ReportingEffortItem>): Promise<ReportingEffortItem> => {
     const response = await apiClient.post(`${BASE_PATH}/`, data)
+    return response.data
+  },
+
+  // Create item with TLF details (title, population, ICH category, footnotes, acronyms)
+  createWithDetails: async (effortId: number, data: ReportingEffortItemCreateWithDetails): Promise<ReportingEffortItem> => {
+    const response = await apiClient.post(`${BASE_PATH}/${effortId}/items`, data)
     return response.data
   },
 

@@ -45,5 +45,31 @@ class ReportingEffort(ReportingEffortInDB):
     database_release_label_full: Optional[str] = Field(None, description="Label of the associated database release")
     # Use cases assigned to this reporting effort
     use_cases: List[UseCaseSummary] = Field(default_factory=list, description="Use cases assigned to this effort")
+    # Lock status fields
+    is_locked: bool = Field(False, description="Whether the reporting effort is locked")
+    locked_at: Optional[datetime] = Field(None, description="When the reporting effort was locked/unlocked")
+    locked_by_id: Optional[int] = Field(None, description="User ID who locked/unlocked")
+    locked_by_username: Optional[str] = Field(None, description="Username of user who locked/unlocked")
+    lock_reason: Optional[str] = Field(None, description="Reason for the lock/unlock")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ==================== Lock Request/Response Schemas ====================
+
+
+class ReportingEffortLockRequest(BaseModel):
+    """Schema for locking/unlocking a reporting effort."""
+    reason: str = Field(..., min_length=1, max_length=1000, description="Required reason for the lock/unlock action")
+
+
+class ReportingEffortLockHistoryEntry(BaseModel):
+    """Schema for a single lock history entry."""
+    id: int = Field(..., description="Unique identifier for the history entry")
+    action: str = Field(..., description="Action performed: LOCK or UNLOCK")
+    reason: str = Field(..., description="Reason provided for the action")
+    performed_by_id: int = Field(..., description="User ID who performed the action")
+    performed_by_username: str = Field(..., description="Username of user who performed the action")
+    created_at: datetime = Field(..., description="When the action was performed")
 
     model_config = ConfigDict(from_attributes=True)

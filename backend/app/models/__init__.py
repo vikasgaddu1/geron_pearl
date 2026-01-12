@@ -33,6 +33,8 @@ from app.models.study_team_assignment import StudyTeamAssignment, JobType, Exper
 from app.models.item_completion_record import ItemCompletionRecord
 from app.models.study_sister_relation import StudySisterRelation, CODE_ADAPTATION_FACTOR
 from app.models.notification import Notification, NotificationType
+from app.models.reporting_effort_lock_history import ReportingEffortLockHistory
+from app.models.enums import LockAction
 
 __all__ = [
     "Study", 
@@ -83,5 +85,7 @@ __all__ = [
     "StudySisterRelation",
     "CODE_ADAPTATION_FACTOR",
     "Notification",
-    "NotificationType"
+    "NotificationType",
+    "ReportingEffortLockHistory",
+    "LockAction"
 ]

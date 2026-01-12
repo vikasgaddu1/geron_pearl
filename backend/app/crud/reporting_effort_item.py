@@ -297,8 +297,11 @@ class ReportingEffortItemCRUD:
         """Update a reporting effort item including dataset/TLF details."""
         update_data = obj_in.model_dump(exclude_unset=True)
         
-        # Handle dataset_details separately
+        # Handle nested objects separately
         dataset_details_update = update_data.pop('dataset_details', None)
+        tlf_details_update = update_data.pop('tlf_details', None)
+        footnotes_update = update_data.pop('footnotes', None)
+        acronyms_update = update_data.pop('acronyms', None)
         
         # Update main item fields
         for field, value in update_data.items():
@@ -307,9 +310,8 @@ class ReportingEffortItemCRUD:
         db.add(db_obj)
         await db.flush()
         
-        # Update dataset details if provided
+        # Update dataset details if provided (for Dataset items)
         if dataset_details_update is not None:
-            # Load existing dataset details
             result = await db.execute(
                 select(ReportingEffortDatasetDetails)
                 .where(ReportingEffortDatasetDetails.reporting_effort_item_id == db_obj.id)
@@ -317,18 +319,69 @@ class ReportingEffortItemCRUD:
             existing_details = result.scalar_one_or_none()
             
             if existing_details:
-                # Update existing dataset details
                 for field, value in dataset_details_update.items():
-                    if value is not None:
-                        setattr(existing_details, field, value)
+                    # Allow null values to clear fields
+                    setattr(existing_details, field, value)
                 db.add(existing_details)
             elif db_obj.item_type == ItemType.Dataset:
-                # Create new dataset details if item is Dataset type and none exist
                 new_details = ReportingEffortDatasetDetails(
                     reporting_effort_item_id=db_obj.id,
                     **{k: v for k, v in dataset_details_update.items() if v is not None}
                 )
                 db.add(new_details)
+        
+        # Update TLF details if provided (for TLF items)
+        if tlf_details_update is not None:
+            result = await db.execute(
+                select(ReportingEffortTlfDetails)
+                .where(ReportingEffortTlfDetails.reporting_effort_item_id == db_obj.id)
+            )
+            existing_tlf = result.scalar_one_or_none()
+            
+            if existing_tlf:
+                for field, value in tlf_details_update.items():
+                    # Allow null values to clear fields
+                    setattr(existing_tlf, field, value)
+                db.add(existing_tlf)
+            elif db_obj.item_type == ItemType.TLF:
+                new_tlf = ReportingEffortTlfDetails(
+                    reporting_effort_item_id=db_obj.id,
+                    **{k: v for k, v in tlf_details_update.items() if v is not None}
+                )
+                db.add(new_tlf)
+        
+        # Update footnotes if provided (replaces all existing)
+        if footnotes_update is not None:
+            # Delete existing footnotes
+            await db.execute(
+                ReportingEffortItemFootnote.__table__.delete().where(
+                    ReportingEffortItemFootnote.reporting_effort_item_id == db_obj.id
+                )
+            )
+            # Add new footnotes
+            for fn_data in footnotes_update:
+                fn = ReportingEffortItemFootnote(
+                    reporting_effort_item_id=db_obj.id,
+                    footnote_id=fn_data['footnote_id'],
+                    sequence_number=fn_data.get('sequence_number')
+                )
+                db.add(fn)
+        
+        # Update acronyms if provided (replaces all existing)
+        if acronyms_update is not None:
+            # Delete existing acronyms
+            await db.execute(
+                ReportingEffortItemAcronym.__table__.delete().where(
+                    ReportingEffortItemAcronym.reporting_effort_item_id == db_obj.id
+                )
+            )
+            # Add new acronyms
+            for acr_data in acronyms_update:
+                acr = ReportingEffortItemAcronym(
+                    reporting_effort_item_id=db_obj.id,
+                    acronym_id=acr_data['acronym_id']
+                )
+                db.add(acr)
         
         await db.commit()
         await db.refresh(db_obj)

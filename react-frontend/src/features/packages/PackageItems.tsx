@@ -1,6 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
 import { PackageOpen, Plus, Edit, Trash2, RefreshCw, Search, Upload, Download, CheckSquare, Loader2, FileSpreadsheet } from 'lucide-react'
 import { toast } from 'sonner'
 import { packagesApi, textElementsApi } from '@/api'
@@ -39,6 +38,7 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
+import { usePackageSelectionStore } from '@/stores/packageSelectionStore'
 import type { PackageItem, TextElement } from '@/types'
 import { TLFItemForm, TLFFormData } from './TLFItemForm'
 import { DatasetItemForm, DatasetFormData } from './DatasetItemForm'
@@ -46,8 +46,8 @@ import { DatasetItemForm, DatasetFormData } from './DatasetItemForm'
 type TabType = 'tlf' | 'sdtm' | 'adam'
 
 export function PackageItems() {
-  const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
+  const { selectedPackageId, setSelectedPackageId } = usePackageSelectionStore()
   const [activeTab, setActiveTab] = useState<TabType>('tlf')
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -72,6 +72,7 @@ export function PackageItems() {
     item_code: '',
     label: '',
     sorting_order: undefined,
+    ig_version_id: undefined,
   })
 
   // Upload state
@@ -86,8 +87,6 @@ export function PackageItems() {
     datasetItems: [],
   })
   const [uploading, setUploading] = useState(false)
-
-  const selectedPackageId = searchParams.get('package')
 
   // Queries
   const { data: packages = [], isLoading: packagesLoading } = useQuery({
@@ -223,7 +222,7 @@ export function PackageItems() {
   }
 
   const handlePackageChange = (packageId: string) => {
-    setSearchParams({ package: packageId })
+    setSelectedPackageId(packageId)
     setSelectedRows(new Set())
   }
 
@@ -258,6 +257,7 @@ export function PackageItems() {
         item_code: item.item_code,
         label: item.dataset_details?.label || '',
         sorting_order: item.dataset_details?.sorting_order,
+        ig_version_id: item.dataset_details?.ig_version_id,
       })
     }
     setDialogOpen(true)
@@ -310,6 +310,7 @@ export function PackageItems() {
         dataset_details: {
           label: datasetFormData.label || undefined,
           sorting_order: datasetFormData.sorting_order,
+          ig_version_id: datasetFormData.ig_version_id,
         },
         footnotes: [],
         acronyms: [],
@@ -769,10 +770,14 @@ export function PackageItems() {
         <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>
-              {selectedItem ? 'Edit Item' : `Add New ${isTLFForm ? 'TLF Report' : 'Dataset'}`}
+              {selectedItem 
+                ? `Edit ${isTLFForm ? 'TLF Report' : 'Dataset'}`
+                : `Add New ${isTLFForm ? 'TLF Report' : 'Dataset'}`}
             </DialogTitle>
             <DialogDescription>
-              {selectedItem ? 'Update item details.' : `Add a new ${isTLFForm ? 'TLF report' : 'dataset'} to the package.`}
+              {selectedItem 
+                ? 'Update item details.' 
+                : `Add a new ${isTLFForm ? 'TLF report' : 'dataset'} to the package.`}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">

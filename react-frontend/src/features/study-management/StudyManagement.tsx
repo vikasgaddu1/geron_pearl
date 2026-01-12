@@ -439,17 +439,19 @@ export function StudyManagement() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <GitBranch className="h-5 w-5 text-primary" />
-              Study Management
-            </CardTitle>
-            <CardDescription>
-              Manage studies, database releases, and reporting efforts. Select a study to manage team members and permissions.
-            </CardDescription>
+        <CardHeader className="pb-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <GitBranch className="h-5 w-5 text-primary" />
+                Study Management
+              </CardTitle>
+              <CardDescription className="mt-1.5">
+                Manage studies, database releases, and reporting efforts. Select a study to manage team members and permissions.
+              </CardDescription>
+            </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 pt-3 border-t mt-4">
             <Button variant="outline" size="sm" onClick={refetch}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh

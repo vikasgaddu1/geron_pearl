@@ -1,8 +1,10 @@
 """SQLAlchemy model for ReportingEffort."""
 
-from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint
+from datetime import datetime
+from typing import TYPE_CHECKING, List, Optional
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import TYPE_CHECKING, List
 
 from app.db.base import Base
 from app.db.mixins import TimestampMixin
@@ -13,6 +15,7 @@ if TYPE_CHECKING:
     from app.models.reporting_effort_item import ReportingEffortItem
     from app.models.reporting_effort_phase import ReportingEffortPhase
     from app.models.reporting_effort_usecase import ReportingEffortUseCaseAssignment
+    from app.models.user import User
 
 
 class ReportingEffort(Base, TimestampMixin):
@@ -29,6 +32,12 @@ class ReportingEffort(Base, TimestampMixin):
     
     # Data fields
     database_release_label: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    # Lock fields
+    is_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    locked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    locked_by_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    lock_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Relationships
     study: Mapped["Study"] = relationship("Study", back_populates="reporting_efforts")
@@ -49,7 +58,8 @@ class ReportingEffort(Base, TimestampMixin):
         back_populates="reporting_effort",
         cascade="all, delete-orphan"
     )
-    
+    locked_by: Mapped[Optional["User"]] = relationship("User", foreign_keys=[locked_by_id])
+
     # Unique constraint to prevent duplicate reporting efforts for same database release with same label
     __table_args__ = (
         UniqueConstraint('database_release_id', 'database_release_label', name='uq_database_release_reporting_effort_label'),

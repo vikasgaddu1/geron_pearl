@@ -229,8 +229,43 @@ export interface ReportingEffortItem {
   item_subtype?: ItemSubtype
   dataset_details?: DatasetDetails
   tlf_details?: TLFDetails
+  footnotes?: ReportingEffortItemFootnote[]
+  acronyms?: ReportingEffortItemAcronym[]
   created_at: string
   updated_at: string
+}
+
+export interface ReportingEffortTlfDetails {
+  title_id?: number | null
+  population_flag_id?: number | null
+  ich_category_id?: number | null
+}
+
+export interface ReportingEffortDatasetDetails {
+  label?: string
+  sorting_order?: number
+  ig_version_id?: number | null
+}
+
+export interface ReportingEffortItemFootnote {
+  footnote_id: number
+  sequence_number?: number
+}
+
+export interface ReportingEffortItemAcronym {
+  acronym_id: number
+}
+
+export interface ReportingEffortItemCreateWithDetails {
+  reporting_effort_id: number
+  item_type: ItemType
+  item_subtype: ItemSubtype
+  item_code: string
+  item_description?: string
+  tlf_details?: ReportingEffortTlfDetails
+  dataset_details?: ReportingEffortDatasetDetails
+  footnotes?: ReportingEffortItemFootnote[]
+  acronyms?: ReportingEffortItemAcronym[]
 }
 
 // ==================== Implementation Guide Version Types ====================

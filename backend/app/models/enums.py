@@ -15,3 +15,9 @@ class SourceType(str, Enum):
     REPORTING_EFFORT = "reporting_effort"
     CUSTOM = "custom"
     BULK_UPLOAD = "bulk_upload"
+
+
+class LockAction(str, Enum):
+    """Enum for lock/unlock actions on reporting efforts."""
+    LOCK = "LOCK"
+    UNLOCK = "UNLOCK"

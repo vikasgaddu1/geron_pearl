@@ -2,7 +2,10 @@
 
 from app.schemas.study import Study, StudyCreate, StudyInDB, StudyUpdate
 from app.schemas.database_release import DatabaseRelease, DatabaseReleaseCreate, DatabaseReleaseInDB, DatabaseReleaseUpdate
-from app.schemas.reporting_effort import ReportingEffort, ReportingEffortCreate, ReportingEffortInDB, ReportingEffortUpdate
+from app.schemas.reporting_effort import (
+    ReportingEffort, ReportingEffortCreate, ReportingEffortInDB, ReportingEffortUpdate,
+    ReportingEffortLockRequest, ReportingEffortLockHistoryEntry
+)
 from app.schemas.text_element import TextElement, TextElementCreate, TextElementInDB, TextElementUpdate
 from app.schemas.package import Package, PackageCreate, PackageInDB, PackageUpdate, PackageWithItems
 from app.schemas.package_item import (
@@ -63,6 +66,7 @@ __all__ = [
     "DatabaseRelease", "DatabaseReleaseCreate", "DatabaseReleaseInDB", "DatabaseReleaseUpdate",
     # ReportingEffort schemas
     "ReportingEffort", "ReportingEffortCreate", "ReportingEffortInDB", "ReportingEffortUpdate",
+    "ReportingEffortLockRequest", "ReportingEffortLockHistoryEntry",
     # TextElement schemas
     "TextElement", "TextElementCreate", "TextElementInDB", "TextElementUpdate",
     # Package schemas

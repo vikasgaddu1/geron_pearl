@@ -71,6 +71,27 @@ class ReportingEffortDatasetDetailsUpdate(BaseModel):
     ig_version_id: Optional[int] = Field(None, description="Implementation Guide version ID")
 
 
+class ReportingEffortTlfDetailsUpdate(BaseModel):
+    """Schema for updating TLF details."""
+    
+    title_id: Optional[int] = Field(None, description="Reference to title text element")
+    population_flag_id: Optional[int] = Field(None, description="Reference to population flag text element")
+    ich_category_id: Optional[int] = Field(None, description="Reference to ICH category text element")
+
+
+class ReportingEffortItemFootnoteUpdate(BaseModel):
+    """Schema for footnote association in updates."""
+    
+    footnote_id: int = Field(..., gt=0, description="Footnote text element ID")
+    sequence_number: Optional[int] = Field(None, description="Display order")
+
+
+class ReportingEffortItemAcronymUpdate(BaseModel):
+    """Schema for acronym association in updates."""
+    
+    acronym_id: int = Field(..., gt=0, description="Acronym text element ID")
+
+
 class ReportingEffortItemUpdate(BaseModel):
     """Schema for updating a ReportingEffortItem."""
     
@@ -79,6 +100,9 @@ class ReportingEffortItemUpdate(BaseModel):
     item_description: Optional[str] = Field(None, max_length=500, description="Description of the item")
     is_active: Optional[bool] = None
     dataset_details: Optional[ReportingEffortDatasetDetailsUpdate] = Field(None, description="Dataset details to update")
+    tlf_details: Optional[ReportingEffortTlfDetailsUpdate] = Field(None, description="TLF details to update")
+    footnotes: Optional[List[ReportingEffortItemFootnoteUpdate]] = Field(None, description="Footnotes to set (replaces existing)")
+    acronyms: Optional[List[ReportingEffortItemAcronymUpdate]] = Field(None, description="Acronyms to set (replaces existing)")
 
 
 class ReportingEffortItemInDB(ReportingEffortItemBase):
