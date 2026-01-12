@@ -103,7 +103,8 @@ async def check_database_release_deletion_dependencies(
     dependent_efforts = await reporting_effort_crud.get_by_database_release_id(db, database_release_id=database_release_id)
     
     if dependent_efforts:
-        effort_labels = [effort.reporting_effort_label for effort in dependent_efforts[:5]]
+        # Note: ReportingEffort.database_release_label is the effort's own label (confusingly named)
+        effort_labels = [effort.database_release_label for effort in dependent_efforts[:5]]
         count = len(dependent_efforts)
         labels_text = ", ".join(effort_labels)
         

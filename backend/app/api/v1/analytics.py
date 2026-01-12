@@ -22,7 +22,11 @@ from app.schemas.analytics import (
     OverAllocatedUserWarning,
     MilestoneEstimateResponse,
     CapacityForecastResponse,
-    QCMetricsResponse
+    QCMetricsResponse,
+    EntityOverviewResponse,
+    StudyOverview,
+    UseCaseBreakdown,
+    UseCaseCombination,
 )
 from app.models.user import User as UserModel
 from app.core.security import get_current_user
@@ -315,7 +319,7 @@ async def get_estimation_accuracy(
 ):
     """
     Get estimation accuracy metrics (factor-based vs actual velocity).
-    
+
     Shows how well the system's predictions match reality.
     """
     # This would compare factor-based estimates with actual velocity
@@ -325,4 +329,111 @@ async def get_estimation_accuracy(
         "message": "Estimation accuracy tracking will be available once sufficient completion data is collected",
         "minimum_data_required": "4 weeks of completion data per programmer"
     }
+
+
+# ==================== ENTITY OVERVIEW ====================
+
+@router.get("/entity-overview", response_model=EntityOverviewResponse)
+async def get_entity_overview(
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+) -> EntityOverviewResponse:
+    """
+    Get overview of all entities in the system.
+
+    Returns counts of studies, database releases, reporting efforts, and use cases.
+    """
+    from sqlalchemy import select, func
+    from app.models.study import Study
+    from app.models.database_release import DatabaseRelease
+    from app.models.reporting_effort import ReportingEffort
+    from app.models.reporting_effort_usecase import ReportingEffortUseCase, ReportingEffortUseCaseAssignment
+
+    # Get total counts
+    total_studies = (await db.execute(select(func.count(Study.id)))).scalar() or 0
+    total_db_releases = (await db.execute(select(func.count(DatabaseRelease.id)))).scalar() or 0
+    total_reporting_efforts = (await db.execute(select(func.count(ReportingEffort.id)))).scalar() or 0
+    total_usecases = (await db.execute(select(func.count(ReportingEffortUseCase.id)))).scalar() or 0
+
+    # Get per-study breakdown
+    studies_result = await db.execute(select(Study))
+    studies = list(studies_result.scalars().all())
+
+    study_overviews = []
+    for study in studies:
+        # Count database releases for this study
+        db_count = (await db.execute(
+            select(func.count(DatabaseRelease.id)).where(DatabaseRelease.study_id == study.id)
+        )).scalar() or 0
+
+        # Count reporting efforts for this study (through database releases)
+        re_count = (await db.execute(
+            select(func.count(ReportingEffort.id))
+            .join(DatabaseRelease, ReportingEffort.database_release_id == DatabaseRelease.id)
+            .where(DatabaseRelease.study_id == study.id)
+        )).scalar() or 0
+
+        # Count use case assignments for this study (through assignment table)
+        uc_count = (await db.execute(
+            select(func.count(ReportingEffortUseCaseAssignment.id))
+            .join(ReportingEffort, ReportingEffortUseCaseAssignment.reporting_effort_id == ReportingEffort.id)
+            .join(DatabaseRelease, ReportingEffort.database_release_id == DatabaseRelease.id)
+            .where(DatabaseRelease.study_id == study.id)
+        )).scalar() or 0
+
+        study_overviews.append(StudyOverview(
+            study_id=study.id,
+            study_label=study.study_label,
+            database_release_count=db_count,
+            reporting_effort_count=re_count,
+            usecase_count=uc_count
+        ))
+
+    # Get use case breakdown: actual names of (study, db_release, reporting_effort) combinations per use case
+    usecase_breakdown = []
+    
+    # Get all use cases
+    usecases_result = await db.execute(select(ReportingEffortUseCase))
+    usecases = list(usecases_result.scalars().all())
+    
+    for usecase in usecases:
+        # Get all reporting efforts assigned to this use case with their study and db_release names
+        combinations_result = await db.execute(
+            select(
+                Study.study_label,
+                DatabaseRelease.database_release_label,
+                ReportingEffort.id.label('reporting_effort_id'),
+                ReportingEffort.database_release_label.label('reporting_effort_label')
+            )
+            .select_from(ReportingEffortUseCaseAssignment)
+            .join(ReportingEffort, ReportingEffortUseCaseAssignment.reporting_effort_id == ReportingEffort.id)
+            .join(DatabaseRelease, ReportingEffort.database_release_id == DatabaseRelease.id)
+            .join(Study, DatabaseRelease.study_id == Study.id)
+            .where(ReportingEffortUseCaseAssignment.use_case_id == usecase.id)
+            .distinct()
+        )
+        
+        combinations = [
+            UseCaseCombination(
+                study_label=row[0],
+                db_release_name=row[1],
+                reporting_effort_id=row[2],
+                reporting_effort_name=row[3]
+            )
+            for row in combinations_result.all()
+        ]
+        
+        usecase_breakdown.append(UseCaseBreakdown(
+            usecase_name=usecase.name,
+            combinations=combinations
+        ))
+
+    return EntityOverviewResponse(
+        total_studies=total_studies,
+        total_database_releases=total_db_releases,
+        total_reporting_efforts=total_reporting_efforts,
+        total_usecases=total_usecases,
+        studies=study_overviews,
+        usecase_breakdown=usecase_breakdown
+    )
 

@@ -241,3 +241,39 @@ class BurndownResponse(BaseModel):
     data_points: List[BurndownDataPoint]
     projected_completion_date: Optional[str]
 
+
+# ==================== ENTITY OVERVIEW SCHEMAS ====================
+
+class StudyOverview(BaseModel):
+    """Overview for a single study."""
+    study_id: int
+    study_label: str
+    database_release_count: int
+    reporting_effort_count: int
+    usecase_count: int
+
+
+class UseCaseCombination(BaseModel):
+    """A single study/db_release/reporting_effort combination."""
+    study_label: str
+    db_release_name: str
+    reporting_effort_id: int
+    reporting_effort_name: str
+
+
+class UseCaseBreakdown(BaseModel):
+    """List of (study, db_release, reporting_effort) combinations per use case."""
+    usecase_name: str
+    combinations: List[UseCaseCombination] = Field(default_factory=list)
+
+
+class EntityOverviewResponse(BaseModel):
+    """Entity overview for director dashboard."""
+    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    total_studies: int
+    total_database_releases: int
+    total_reporting_efforts: int
+    total_usecases: int
+    studies: List[StudyOverview]
+    usecase_breakdown: List[UseCaseBreakdown] = Field(default_factory=list)
+

@@ -161,3 +161,34 @@ export interface MilestoneEstimateResponse {
   error?: string
 }
 
+// Entity Overview
+export interface StudyOverview {
+  study_id: number
+  study_label: string
+  database_release_count: number
+  reporting_effort_count: number
+  usecase_count: number
+}
+
+export interface UseCaseCombination {
+  study_label: string
+  db_release_name: string
+  reporting_effort_id: number
+  reporting_effort_name: string
+}
+
+export interface UseCaseBreakdown {
+  usecase_name: string
+  combinations: UseCaseCombination[]
+}
+
+export interface EntityOverviewResponse {
+  generated_at: string
+  total_studies: number
+  total_database_releases: number
+  total_reporting_efforts: number
+  total_usecases: number
+  studies: StudyOverview[]
+  usecase_breakdown: UseCaseBreakdown[]
+}
+

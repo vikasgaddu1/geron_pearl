@@ -12,6 +12,7 @@ import type {
   CapacityForecastResponse,
   QCMetricsResponse,
   MilestoneEstimateResponse,
+  EntityOverviewResponse,
 } from '../../types/analytics'
 
 const BASE_URL = '/api/v1/analytics'
@@ -114,6 +115,14 @@ export const getMilestoneEstimate = async (
   const response = await apiClient.get<MilestoneEstimateResponse>(
     `${BASE_URL}/milestone/${milestoneId}/estimate`
   )
+  return response.data
+}
+
+/**
+ * Get entity overview for director dashboard
+ */
+export const getEntityOverview = async (): Promise<EntityOverviewResponse> => {
+  const response = await apiClient.get<EntityOverviewResponse>(`${BASE_URL}/entity-overview`)
   return response.data
 }
 

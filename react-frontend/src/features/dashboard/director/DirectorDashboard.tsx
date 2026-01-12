@@ -24,6 +24,7 @@ import { PortfolioHealthTable } from './PortfolioHealthTable'
 import { VelocityTrendChart } from './VelocityTrendChart'
 import { TeamUtilizationChart } from './TeamUtilizationChart'
 import { CapacityForecastChart } from './CapacityForecastChart'
+import { EntityOverviewCharts } from './EntityOverviewCharts'
 import {
   getPortfolioHealth,
   getTeamUtilization,
@@ -31,6 +32,7 @@ import {
   getCapacityForecast,
   getStudyVelocity,
   getQCMetrics,
+  getEntityOverview,
 } from '@/api/endpoints/analytics'
 
 export function DirectorDashboard() {
@@ -79,6 +81,13 @@ export function DirectorDashboard() {
     refetchInterval: 60000,
   })
 
+  // Fetch entity overview
+  const { data: entityOverview, isLoading: isLoadingEntityOverview } = useQuery({
+    queryKey: ['entityOverview'],
+    queryFn: getEntityOverview,
+    refetchInterval: 60000,
+  })
+
   // Get summary stats
   const totalStudies = portfolioHealth?.studies.length || 0
   const atRiskStudies = portfolioHealth?.summary.at_risk || 0
@@ -107,6 +116,9 @@ export function DirectorDashboard() {
 
       {/* Warning Banner */}
       <WarningBanner warnings={warnings ?? null} isLoading={isLoadingWarnings} />
+
+      {/* Entity Overview Charts */}
+      <EntityOverviewCharts data={entityOverview ?? null} isLoading={isLoadingEntityOverview} />
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
