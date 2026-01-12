@@ -187,63 +187,76 @@ uv run python tests/validator/run_model_validation.py
 
 ## Railway Deployment
 
-### Current Production URLs
-- **Backend**: `https://geronpearl-production.up.railway.app`
-- **Frontend**: `https://geronpearl-production-6de9.up.railway.app`
+### Default Admin User
+On fresh database initialization, a default admin user is created:
+- **Username**: `admin`
+- **Password**: `admin123`
+- **⚠️ Change this password after first login!**
+
+### Fresh Railway Setup Steps
+
+1. **Create PostgreSQL** service first
+2. **Create Backend** service:
+   - Root Directory: `/backend`
+   - Link PostgreSQL (creates `DATABASE_URL` automatically)
+   - Add variables: `JWT_SECRET`, `ALLOWED_ORIGINS`, `FRONTEND_URL`
+3. **Create Frontend** service:
+   - Root Directory: `/react-frontend`
+   - Add `BACKEND_URL` (with `https://` prefix!)
+4. **Update nginx.railway.conf** with new backend hostname, commit & push
+5. **Update backend** `ALLOWED_ORIGINS` with frontend URL
+
+### Backend Environment Variables
+
+| Variable | Value | Notes |
+|----------|-------|-------|
+| `DATABASE_URL` | (link from PostgreSQL) | **Must be named exactly `DATABASE_URL`** - not `POSTGRES_DB` |
+| `JWT_SECRET` | secure random string | For token signing |
+| `ALLOWED_ORIGINS` | `["https://your-frontend.up.railway.app"]` | **Must be valid JSON with quotes!** |
+| `FRONTEND_URL` | `https://your-frontend.up.railway.app` | For password reset links |
+
+### Frontend Environment Variables
+
+| Variable | Value | Notes |
+|----------|-------|-------|
+| `BACKEND_URL` | `https://your-backend.up.railway.app` | **Must include `https://` prefix!** |
+| `PORT` | (auto-set by Railway) | Don't set manually |
+
+### Critical Configuration Notes
+
+**Backend PORT**: The `start.sh` uses `${PORT:-8000}` to listen on Railway's dynamic port:
+```bash
+exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+```
+
+**DATABASE_URL Auto-Conversion**: The config automatically converts `postgresql://` to `postgresql+asyncpg://` for async SQLAlchemy.
+
+**nginx Host Header**: Must match your backend's Railway hostname in `nginx.railway.conf`:
+```nginx
+proxy_set_header Host your-backend-name.up.railway.app;
+```
 
 ### Frontend Deployment (Docker-based)
-**⚠️ DO NOT use nixpacks** - it has reliability issues on Railway (apt package installation fails with "context canceled"). Use Dockerfile instead.
+**⚠️ DO NOT use nixpacks** - it has reliability issues on Railway. Use Dockerfile instead.
 
 **Key files:**
 - `react-frontend/Dockerfile` - Multi-stage build (node:20-alpine → nginx:alpine)
 - `react-frontend/nginx.railway.conf` - nginx config with API proxy
-- `react-frontend/.dockerignore` - Must NOT exclude `package-lock.json` (required for `npm ci`)
-
-**Critical nginx configuration:**
-```nginx
-# DNS resolver required for external hostname resolution
-resolver 8.8.8.8 8.8.4.4 valid=300s;
-
-# Listen on Railway's dynamic PORT (not hardcoded 80)
-listen ${PORT};
-
-# Proxy to backend with SNI support for HTTPS
-proxy_ssl_server_name on;
-proxy_set_header Host geronpearl-production.up.railway.app;
-```
-
-**Runtime variable substitution:**
-```dockerfile
-# Use envsubst to replace $PORT and $BACKEND_URL at container start
-CMD ["/bin/sh", "-c", "envsubst '$PORT $BACKEND_URL' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
-```
-
-### Frontend Railway Environment Variables
-| Variable | Value | Purpose |
-|----------|-------|---------|
-| `PORT` | (auto-set by Railway) | nginx listen port |
-| `BACKEND_URL` | `https://geronpearl-production.up.railway.app` | API proxy target |
-| `VITE_API_BASE_URL` | (optional, empty is fine) | Build-time API URL |
-| `VITE_WS_URL` | (optional) | Build-time WebSocket URL |
+- `react-frontend/.dockerignore` - Must NOT exclude `package-lock.json`
 
 ### Common Railway Deployment Issues
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
-| nixpacks "context canceled" | Railway infrastructure issue with apt | Use Dockerfile instead of nixpacks.toml |
-| `npm ci` fails "package-lock.json not found" | `.dockerignore` excludes it | Remove `package-lock.json` from `.dockerignore` |
-| Exit code 137 (OOM) | `npm install -g serve` in small container | Use nginx:alpine instead of node + serve |
-| 502 "connection refused" | nginx listening on wrong port | Use `${PORT}` variable, not hardcoded 80 |
+| 500 on login "invalid URL prefix" | `BACKEND_URL` missing `https://` | Add `https://` prefix to `BACKEND_URL` |
+| 500 on login "JSONDecodeError" | `ALLOWED_ORIGINS` not valid JSON | Use `["https://..."]` with quotes |
+| 502 "connection refused" | Backend not listening on Railway's PORT | Use `${PORT:-8000}` in start.sh |
+| Database connection to localhost | `DATABASE_URL` not set or wrong name | Must be named exactly `DATABASE_URL` |
+| bcrypt version error | passlib incompatible with bcrypt 4.1+ | Pin `bcrypt==4.0.1` in requirements.txt |
+| Missing column errors | Model has columns not in database | Add columns to `repair_missing_columns.py` migration |
+| nixpacks "context canceled" | Railway infrastructure issue | Use Dockerfile instead of nixpacks |
 | 502 on API proxy | Can't resolve backend hostname | Add `resolver 8.8.8.8 8.8.4.4` to nginx |
 | 502 on HTTPS proxy | SNI not enabled | Add `proxy_ssl_server_name on` |
-| 405 on POST /api/* | API hitting frontend, not proxied | Add `/api` location block with proxy_pass |
-
-### Backend Deployment
-Backend uses nixpacks (Python detection works fine). Key environment variables:
-- `DATABASE_URL` - PostgreSQL connection string (Railway provides)
-- `JWT_SECRET` - Token signing key
-- `JWT_REFRESH_SECRET` - Refresh token signing key
-- `ALLOWED_ORIGINS` - CORS origins JSON array
 
 ## Authentication & Authorization
 
