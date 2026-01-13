@@ -594,3 +594,32 @@ async def broadcast_comment_resolved(tracker_id: int, comment_id: int, unresolve
     })
     await manager.broadcast(message)
     logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
+# Study Responsible User WebSocket broadcasting functions
+async def broadcast_study_responsible_user_created(responsible_user_data: dict):
+    """Broadcast that a responsible user was assigned to a study."""
+    logger.info(f"Broadcasting study_responsible_user_created: study_id={responsible_user_data.get('study_id')}, user_id={responsible_user_data.get('user_id')}")
+    message = broadcast_message("study_responsible_user_created", responsible_user_data)
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_study_responsible_user_updated(responsible_user_data: dict):
+    """Broadcast that a responsible user's status was updated."""
+    logger.info(f"Broadcasting study_responsible_user_updated: study_id={responsible_user_data.get('study_id')}, user_id={responsible_user_data.get('user_id')}")
+    message = broadcast_message("study_responsible_user_updated", responsible_user_data)
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")
+
+
+async def broadcast_study_responsible_user_deleted(study_id: int, user_id: int, username: str):
+    """Broadcast that a responsible user was removed from a study."""
+    logger.info(f"Broadcasting study_responsible_user_deleted: study_id={study_id}, user_id={user_id}")
+    message = broadcast_message("study_responsible_user_deleted", {
+        "study_id": study_id,
+        "user_id": user_id,
+        "username": username
+    })
+    await manager.broadcast(message)
+    logger.debug(f"Broadcast completed to {len(manager.active_connections)} connections")

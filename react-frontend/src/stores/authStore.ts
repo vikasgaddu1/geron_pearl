@@ -8,7 +8,7 @@ interface AuthTokens {
 }
 
 interface StudyRolesState {
-  leadStudyIds: number[]
+  responsibleStudyIds: number[]
   studyRoles: Record<number, StudyRole>
 }
 
@@ -30,12 +30,12 @@ interface AuthState {
   login: (user: User, tokens: AuthTokens) => void
   logout: () => void
   updateUser: (user: Partial<User>) => void
-  setStudyRoles: (leadStudyIds: number[], studyRoles: Record<number, StudyRole>) => void
+  setStudyRoles: (responsibleStudyIds: number[], studyRoles: Record<number, StudyRole>) => void
   setStudyRolesLoading: (loading: boolean) => void
   
   // Computed helpers
-  isLeadForStudy: (studyId: number) => boolean
-  hasLeadAccess: () => boolean
+  isResponsibleForStudy: (studyId: number) => boolean
+  hasResponsibleAccess: () => boolean
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -95,9 +95,9 @@ export const useAuthStore = create<AuthState>()(
       },
       
       // Set study roles
-      setStudyRoles: (leadStudyIds, studyRoles) =>
+      setStudyRoles: (responsibleStudyIds, studyRoles) =>
         set({
-          studyRolesState: { leadStudyIds, studyRoles },
+          studyRolesState: { responsibleStudyIds, studyRoles },
           studyRolesLoading: false,
         }),
       
@@ -105,22 +105,22 @@ export const useAuthStore = create<AuthState>()(
       setStudyRolesLoading: (loading) =>
         set({ studyRolesLoading: loading }),
       
-      // Check if user is LEAD for a specific study
-      isLeadForStudy: (studyId) => {
+      // Check if user is responsible for a specific study
+      isResponsibleForStudy: (studyId) => {
         const state = get()
-        // Global admins have LEAD access everywhere
+        // Global admins have full access everywhere
         if (state.currentUser?.is_admin) return true
-        // Check if user has explicit LEAD role for this study
-        return state.studyRolesState?.leadStudyIds.includes(studyId) ?? false
+        // Check if user is a responsible user for this study
+        return state.studyRolesState?.responsibleStudyIds.includes(studyId) ?? false
       },
-      
-      // Check if user has LEAD access to any study (or is admin)
-      hasLeadAccess: () => {
+
+      // Check if user has responsible access to any study (or is admin)
+      hasResponsibleAccess: () => {
         const state = get()
-        // Global admins have LEAD access everywhere
+        // Global admins have full access everywhere
         if (state.currentUser?.is_admin) return true
-        // Check if user has LEAD role for at least one study
-        return (state.studyRolesState?.leadStudyIds.length ?? 0) > 0
+        // Check if user is responsible for at least one study
+        return (state.studyRolesState?.responsibleStudyIds.length ?? 0) > 0
       },
     }),
     {

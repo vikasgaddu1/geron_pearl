@@ -23,6 +23,7 @@ from app.crud.study_team_assignment import study_team_assignment
 from app.crud.item_completion_record import item_completion_record
 from app.crud.study_sister_relation import study_sister_relation
 from app.crud.notification import notification
+from app.crud.study_responsible_user import study_responsible_user
 
 __all__ = [
     "study", 
@@ -48,5 +49,6 @@ __all__ = [
     "study_team_assignment",
     "item_completion_record",
     "study_sister_relation",
-    "notification"
+    "notification",
+    "study_responsible_user"
 ]

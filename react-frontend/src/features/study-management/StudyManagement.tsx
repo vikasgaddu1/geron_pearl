@@ -40,7 +40,7 @@ interface TreeNode {
 
 export function StudyManagement() {
   const queryClient = useQueryClient()
-  const { currentUser, isLeadForStudy } = useAuthStore()
+  const { currentUser, isResponsibleForStudy } = useAuthStore()
   const isGlobalAdmin = currentUser?.is_admin === true
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [selectedNode, setSelectedNode] = useState<TreeNode | null>(null)
@@ -233,10 +233,10 @@ export function StudyManagement() {
   // Build tree structure - filter studies based on user role
   const buildTree = (): TreeNode[] => {
     // For global admins, show all studies
-    // For LEAD users, only show studies where they have LEAD role
-    const filteredStudies = isGlobalAdmin 
-      ? studies 
-      : studies.filter((study) => isLeadForStudy(study.id))
+    // For responsible users, only show studies where they have responsible access
+    const filteredStudies = isGlobalAdmin
+      ? studies
+      : studies.filter((study) => isResponsibleForStudy(study.id))
     
     return filteredStudies.map((study) => {
       const studyReleases = releases.filter((r) => r.study_id === study.id)
@@ -268,10 +268,10 @@ export function StudyManagement() {
   
   // Check if user has permission for currently selected study
   const canEditSelectedStudy = selectedNode && (
-    isGlobalAdmin || 
-    (selectedNode.type === 'study' && isLeadForStudy(selectedNode.id)) ||
-    (selectedNode.type === 'release' && isLeadForStudy((selectedNode.data as DatabaseRelease).study_id)) ||
-    (selectedNode.type === 'effort' && isLeadForStudy((selectedNode.data as ReportingEffort).study_id))
+    isGlobalAdmin ||
+    (selectedNode.type === 'study' && isResponsibleForStudy(selectedNode.id)) ||
+    (selectedNode.type === 'release' && isResponsibleForStudy((selectedNode.data as DatabaseRelease).study_id)) ||
+    (selectedNode.type === 'effort' && isResponsibleForStudy((selectedNode.data as ReportingEffort).study_id))
   )
 
   const toggleNode = (nodeKey: string) => {
@@ -377,7 +377,7 @@ export function StudyManagement() {
     
     // Check if user can manage members for this specific study
     const canManageMembersForStudy = node.type === 'study' && (
-      isGlobalAdmin || isLeadForStudy(node.id)
+      isGlobalAdmin || isResponsibleForStudy(node.id)
     )
 
     const Icon = node.type === 'study'

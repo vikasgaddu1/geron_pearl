@@ -111,9 +111,9 @@ class UserStudyRoleCRUD(BaseCRUD[UserStudyRole, UserStudyRoleCreate, UserStudyRo
             other_users = result.scalars().all()
             
             for user in other_users:
-                # Admins have LEAD access everywhere
+                # Admins have full access everywhere (shown as Global Admin in UI)
                 if user.is_admin:
-                    effective_role = StudyRole.LEAD
+                    effective_role = StudyRole.EDITOR  # Just a placeholder, UI shows "Global Admin"
                 else:
                     effective_role = StudyRole.VIEWER
                 
@@ -197,13 +197,19 @@ class UserStudyRoleCRUD(BaseCRUD[UserStudyRole, UserStudyRoleCreate, UserStudyRo
         return list(result.scalars().all())
 
     async def get_leads_for_study(
-        self, 
-        db: AsyncSession, 
-        *, 
+        self,
+        db: AsyncSession,
+        *,
         study_id: int
     ) -> List[User]:
-        """Get all users with LEAD role in a study (excluding global admins)."""
-        return await self.get_users_with_role(db, study_id=study_id, role=StudyRole.LEAD)
+        """
+        DEPRECATED: Use study_responsible_user CRUD instead.
+        Get all users with LEAD role in a study (excluding global admins).
+        Note: LEAD role is no longer used - use responsible users system.
+        """
+        # This method is kept for backward compatibility but should not be used
+        # Use study_responsible_user.get_by_study instead
+        return []
 
     async def bulk_assign_roles(
         self, 

@@ -8,6 +8,7 @@ from app.db.mixins import TimestampMixin
 if TYPE_CHECKING:
     from app.models.tracker_comment import TrackerComment
     from app.models.user_study_role import UserStudyRole
+    from app.models.study_responsible_user import StudyResponsibleUser
 
 
 class UserDepartment(str, Enum):
@@ -62,6 +63,13 @@ class User(Base, TimestampMixin):
     # Study-scoped role assignments
     study_roles = relationship(
         "UserStudyRole",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
+    # Studies where this user is responsible (replaces LEAD role)
+    responsible_studies = relationship(
+        "StudyResponsibleUser",
         back_populates="user",
         cascade="all, delete-orphan"
     )

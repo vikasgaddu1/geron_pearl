@@ -103,15 +103,20 @@ class UserStudyRolesResponse(BaseModel):
 
 
 class StudyPermissions(BaseModel):
-    """Schema for current user's permissions in a study."""
+    """Schema for current user's permissions in a study.
+    
+    Note: role is a string to accommodate both StudyRole enum values (VIEWER, EDITOR)
+    and the special "RESPONSIBLE" role for study responsible users.
+    """
     study_id: int
-    role: StudyRole
+    role: str  # Can be "VIEWER", "EDITOR", or "RESPONSIBLE"
     can_view: bool
     can_edit: bool
     can_bulk_assign: bool
     can_bulk_status_update: bool
     can_delete_items: bool
     can_manage_members: bool
+    can_manage_responsible_users: bool = False
     can_bulk_copy: bool
     can_manage_packages: bool = False
     can_manage_tfl_properties: bool = False
@@ -120,6 +125,6 @@ class StudyPermissions(BaseModel):
 class MyStudyRolesResponse(BaseModel):
     """Response schema for current user's study roles."""
     is_admin: bool = Field(..., description="Whether user is a global administrator")
-    lead_study_ids: List[int] = Field(..., description="List of study IDs where user has LEAD role")
-    study_roles: dict = Field(..., description="Dict mapping study_id to role name")
+    responsible_study_ids: List[int] = Field(..., description="List of study IDs where user is a responsible user")
+    study_roles: dict = Field(..., description="Dict mapping study_id to role name (EDITOR or VIEWER)")
 

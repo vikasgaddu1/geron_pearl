@@ -35,6 +35,7 @@ from app.models.study_sister_relation import StudySisterRelation, CODE_ADAPTATIO
 from app.models.notification import Notification, NotificationType
 from app.models.reporting_effort_lock_history import ReportingEffortLockHistory
 from app.models.enums import LockAction
+from app.models.study_responsible_user import StudyResponsibleUser
 
 __all__ = [
     "Study", 
@@ -87,5 +88,6 @@ __all__ = [
     "Notification",
     "NotificationType",
     "ReportingEffortLockHistory",
-    "LockAction"
+    "LockAction",
+    "StudyResponsibleUser"
 ]

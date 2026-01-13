@@ -118,28 +118,28 @@ Use auth store helpers to conditionally render UI based on user roles:
 ```typescript
 import { useAuthStore } from '@/stores/authStore';
 
-const { currentUser, isLeadForStudy, hasLeadAccess } = useAuthStore();
+const { currentUser, isResponsibleForStudy, hasResponsibleAccess } = useAuthStore();
 
 // Check if user is global admin
 const isAdmin = currentUser?.is_admin;
 
-// Check if user is LEAD for a specific study (or admin)
-const canEditStudy = isAdmin || isLeadForStudy(studyId);
+// Check if user is a responsible user for a specific study (or admin)
+const canEditStudy = isAdmin || isResponsibleForStudy(studyId);
 
-// Check if user has LEAD access in any study (for global resources like packages)
-const canManagePackages = isAdmin || hasLeadAccess();
+// Check if user has responsible access in any study (for global resources like packages)
+const canManagePackages = isAdmin || hasResponsibleAccess();
 ```
 
 For protected routes in `App.tsx`:
 
 ```typescript
-<ProtectedRoute requireAdminOrLead>  {/* Admin or any LEAD */}
+<ProtectedRoute requireAdminOrLead>  {/* Admin or any responsible user */}
 <ProtectedRoute requireAdmin>        {/* Admin only */}
 ```
 
 **Permission matrix:**
-| Resource | Admin | LEAD (own study) | LEAD (other study) | EDITOR/VIEWER |
-|----------|-------|------------------|--------------------|--------------| 
+| Resource | Admin | Responsible (own study) | Responsible (other study) | EDITOR/VIEWER |
+|----------|-------|-------------------------|---------------------------|---------------|
 | Study Management (own studies) | ✅ | ✅ | ❌ | ❌ |
 | Packages & TFL Properties | ✅ | ✅ | ✅ | ❌ |
 | User Management | ✅ | ❌ | ❌ | ❌ |

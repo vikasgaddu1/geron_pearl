@@ -9,6 +9,7 @@ from app.db.mixins import TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.user_study_role import UserStudyRole
+    from app.models.study_responsible_user import StudyResponsibleUser
 
 
 class Study(Base, TimestampMixin):
@@ -29,6 +30,13 @@ class Study(Base, TimestampMixin):
         back_populates="study",
         cascade="all, delete-orphan"
     )
-    
+
+    # Responsible users for this study (replaces LEAD role)
+    responsible_users: Mapped[List["StudyResponsibleUser"]] = relationship(
+        "StudyResponsibleUser",
+        back_populates="study",
+        cascade="all, delete-orphan"
+    )
+
     def __repr__(self) -> str:
         return f"<Study(id={self.id}, study_label='{self.study_label}')>"

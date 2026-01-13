@@ -5,7 +5,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud import study, user_study_role, user, audit_log
+from app.crud import study, user_study_role, user, audit_log, study_responsible_user
 from app.crud import database_release, reporting_effort
 from app.db.session import get_db
 from app.schemas.study import Study, StudyCreate, StudyUpdate, BulkHierarchyRow, BulkHierarchyResponse
@@ -15,11 +15,19 @@ from app.schemas.user_study_role import (
     AssignStudyRoleRequest, UserStudyRole, UserStudyRoleUpdate,
     StudyMembersResponse, StudyMember, StudyPermissions
 )
+from app.schemas.study_responsible_user import (
+    AssignResponsibleUserRequest, UpdateResponsibleUserRequest,
+    StudyResponsibleUserWithUser, StudyResponsibleUsersResponse
+)
 from app.models.user_study_role import StudyRole
 from app.models.user import User as UserModel
 from app.core.security import get_current_user, require_admin
 from app.core.study_permissions import get_user_study_role, is_study_admin, get_study_permissions, require_study_lead_access
-from app.api.v1.websocket import broadcast_study_created, broadcast_study_updated, broadcast_study_deleted
+from app.api.v1.websocket import (
+    broadcast_study_created, broadcast_study_updated, broadcast_study_deleted,
+    broadcast_study_responsible_user_created, broadcast_study_responsible_user_updated,
+    broadcast_study_responsible_user_deleted
+)
 
 router = APIRouter()
 
@@ -614,4 +622,373 @@ async def remove_study_member(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to remove study member"
+        )
+
+
+# ============================================================================
+# Study Responsible Users Management Endpoints
+# ============================================================================
+
+@router.get("/{study_id}/responsible-users", response_model=StudyResponsibleUsersResponse)
+async def get_study_responsible_users(
+    *,
+    db: AsyncSession = Depends(get_db),
+    study_id: int,
+    current_user: UserModel = Depends(get_current_user),
+) -> StudyResponsibleUsersResponse:
+    """
+    Get all responsible users for a study.
+
+    Responsible users have admin-level permissions within the study.
+    Only study responsible users (or global admins) can view this list.
+    """
+    try:
+        # Check if study exists
+        db_study = await study.get(db, id=study_id)
+        if not db_study:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Study not found"
+            )
+
+        # Check permissions - responsible user or admin can view responsible users
+        user_role = await get_user_study_role(db, current_user, study_id)
+        if not is_study_admin(user_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only study responsible users or admins can view responsible user assignments"
+            )
+
+        # Get responsible users with details
+        responsible_users_data = await study_responsible_user.get_responsible_users_with_details(
+            db, study_id=study_id
+        )
+
+        responsible_users = [StudyResponsibleUserWithUser(**ru) for ru in responsible_users_data]
+
+        return StudyResponsibleUsersResponse(
+            study_id=study_id,
+            study_label=db_study.study_label,
+            responsible_users=responsible_users,
+            total_count=len(responsible_users)
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get study responsible users"
+        )
+
+
+@router.post("/{study_id}/responsible-users", response_model=StudyResponsibleUserWithUser)
+async def assign_responsible_user(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    study_id: int,
+    assignment: AssignResponsibleUserRequest,
+    current_user: UserModel = Depends(get_current_user),
+) -> StudyResponsibleUserWithUser:
+    """
+    Assign a user as responsible for a study.
+
+    Only admins or existing responsible users can assign new responsible users.
+    """
+    try:
+        # Check if study exists
+        db_study = await study.get(db, id=study_id)
+        if not db_study:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Study not found"
+            )
+
+        # Check permissions - admin or existing responsible user
+        user_role = await get_user_study_role(db, current_user, study_id)
+        if not is_study_admin(user_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only study responsible users or admins can assign responsible users"
+            )
+
+        # Check if target user exists
+        target_user = await user.get(db, id=assignment.user_id)
+        if not target_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        # Cannot assign global admins (they already have full access everywhere)
+        if target_user.is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot assign global administrators as responsible users (they already have full access)"
+            )
+
+        # Check if already assigned
+        existing = await study_responsible_user.get_by_user_and_study(
+            db, user_id=assignment.user_id, study_id=study_id
+        )
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is already a responsible user for this study"
+            )
+
+        # Create the assignment
+        created = await study_responsible_user.assign(
+            db,
+            study_id=study_id,
+            user_id=assignment.user_id,
+            is_primary=assignment.is_primary
+        )
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="study_responsible_users",
+                record_id=created.id,
+                action="CREATE",
+                user_id=current_user.id,
+                changes={
+                    "study_id": study_id,
+                    "user_id": assignment.user_id,
+                    "username": target_user.username,
+                    "is_primary": assignment.is_primary
+                },
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception:
+            pass  # Audit logging is best-effort
+
+        # Build response
+        response = StudyResponsibleUserWithUser(
+            id=created.id,
+            study_id=created.study_id,
+            user_id=created.user_id,
+            is_primary=created.is_primary,
+            username=target_user.username,
+            email=target_user.email,
+            created_at=created.created_at,
+            updated_at=created.updated_at
+        )
+
+        # Broadcast WebSocket event for real-time updates
+        try:
+            await broadcast_study_responsible_user_created(response.model_dump(mode='json'))
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
+
+        return response
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to assign responsible user"
+        )
+
+
+@router.put("/{study_id}/responsible-users/{user_id}", response_model=StudyResponsibleUserWithUser)
+async def update_responsible_user(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    study_id: int,
+    user_id: int,
+    update_data: UpdateResponsibleUserRequest,
+    current_user: UserModel = Depends(get_current_user),
+) -> StudyResponsibleUserWithUser:
+    """
+    Update a responsible user's status (e.g., set as primary).
+
+    Only admins or existing responsible users can update.
+    """
+    try:
+        # Check if study exists
+        db_study = await study.get(db, id=study_id)
+        if not db_study:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Study not found"
+            )
+
+        # Check permissions
+        current_user_role = await get_user_study_role(db, current_user, study_id)
+        if not is_study_admin(current_user_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only study responsible users or admins can update responsible users"
+            )
+
+        # Check if target user exists
+        target_user = await user.get(db, id=user_id)
+        if not target_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        # Check if assignment exists
+        existing = await study_responsible_user.get_by_user_and_study(
+            db, user_id=user_id, study_id=study_id
+        )
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User is not a responsible user for this study"
+            )
+
+        # Update the assignment
+        updated = await study_responsible_user.set_primary(
+            db,
+            study_id=study_id,
+            user_id=user_id,
+            is_primary=update_data.is_primary
+        )
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="study_responsible_users",
+                record_id=updated.id,
+                action="UPDATE",
+                user_id=current_user.id,
+                changes={
+                    "study_id": study_id,
+                    "user_id": user_id,
+                    "username": target_user.username,
+                    "is_primary": update_data.is_primary
+                },
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception:
+            pass  # Audit logging is best-effort
+
+        # Build response
+        response = StudyResponsibleUserWithUser(
+            id=updated.id,
+            study_id=updated.study_id,
+            user_id=updated.user_id,
+            is_primary=updated.is_primary,
+            username=target_user.username,
+            email=target_user.email,
+            created_at=updated.created_at,
+            updated_at=updated.updated_at
+        )
+
+        # Broadcast WebSocket event for real-time updates
+        try:
+            await broadcast_study_responsible_user_updated(response.model_dump(mode='json'))
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
+
+        return response
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update responsible user"
+        )
+
+
+@router.delete("/{study_id}/responsible-users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_responsible_user(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    study_id: int,
+    user_id: int,
+    current_user: UserModel = Depends(get_current_user),
+) -> None:
+    """
+    Remove a user's responsible status from a study.
+
+    Only admins or existing responsible users can remove.
+    Cannot remove the last responsible user from a study.
+    """
+    try:
+        # Check if study exists
+        db_study = await study.get(db, id=study_id)
+        if not db_study:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Study not found"
+            )
+
+        # Check permissions
+        current_user_role = await get_user_study_role(db, current_user, study_id)
+        if not is_study_admin(current_user_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only study responsible users or admins can remove responsible users"
+            )
+
+        # Check if target user exists
+        target_user = await user.get(db, id=user_id)
+        if not target_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        # Check if assignment exists
+        existing = await study_responsible_user.get_by_user_and_study(
+            db, user_id=user_id, study_id=study_id
+        )
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User is not a responsible user for this study"
+            )
+
+        # Check if this is the last responsible user (don't allow removal)
+        all_responsible = await study_responsible_user.get_by_study(db, study_id=study_id)
+        if len(all_responsible) == 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot remove the last responsible user from a study"
+            )
+
+        # Remove the assignment
+        await study_responsible_user.remove(db, study_id=study_id, user_id=user_id)
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="study_responsible_users",
+                record_id=existing.id,
+                action="DELETE",
+                user_id=current_user.id,
+                changes={
+                    "study_id": study_id,
+                    "user_id": user_id,
+                    "username": target_user.username
+                },
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception:
+            pass  # Audit logging is best-effort
+
+        # Broadcast WebSocket event for real-time updates
+        try:
+            await broadcast_study_responsible_user_deleted(study_id, user_id, target_user.username)
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
+
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to remove responsible user"
         )

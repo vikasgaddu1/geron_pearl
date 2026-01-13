@@ -1,14 +1,18 @@
 import { apiClient } from '../client'
-import type { 
-  Study, 
-  StudyFormData, 
-  StudyMembersResponse, 
-  StudyPermissions, 
+import type {
+  Study,
+  StudyFormData,
+  StudyMembersResponse,
+  StudyPermissions,
   UserStudyRole,
   AssignStudyRoleRequest,
   StudyRole,
   BulkHierarchyRow,
   BulkHierarchyResponse,
+  StudyResponsibleUser,
+  StudyResponsibleUsersResponse,
+  AssignResponsibleUserRequest,
+  UpdateResponsibleUserRequest,
 } from '@/types'
 
 const BASE_PATH = '/api/v1/studies'
@@ -84,6 +88,39 @@ export const studiesApi = {
    */
   removeMember: async (studyId: number, userId: number): Promise<void> => {
     await apiClient.delete(`${BASE_PATH}/${studyId}/members/${userId}`)
+  },
+
+  // ==================== Study Responsible Users Management ====================
+
+  /**
+   * Get all responsible users for a study
+   */
+  getResponsibleUsers: async (studyId: number): Promise<StudyResponsibleUsersResponse> => {
+    const response = await apiClient.get(`${BASE_PATH}/${studyId}/responsible-users`)
+    return response.data
+  },
+
+  /**
+   * Assign a user as responsible for a study
+   */
+  assignResponsibleUser: async (studyId: number, data: AssignResponsibleUserRequest): Promise<StudyResponsibleUser> => {
+    const response = await apiClient.post(`${BASE_PATH}/${studyId}/responsible-users`, data)
+    return response.data
+  },
+
+  /**
+   * Update a responsible user's status (e.g., set as primary)
+   */
+  updateResponsibleUser: async (studyId: number, userId: number, data: UpdateResponsibleUserRequest): Promise<StudyResponsibleUser> => {
+    const response = await apiClient.put(`${BASE_PATH}/${studyId}/responsible-users/${userId}`, data)
+    return response.data
+  },
+
+  /**
+   * Remove a user's responsible status from a study
+   */
+  removeResponsibleUser: async (studyId: number, userId: number): Promise<void> => {
+    await apiClient.delete(`${BASE_PATH}/${studyId}/responsible-users/${userId}`)
   },
 }
 

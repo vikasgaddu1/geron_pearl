@@ -87,7 +87,7 @@ export interface User {
 
 // ==================== Study-Scoped Access Control Types ====================
 
-export type StudyRole = 'VIEWER' | 'EDITOR' | 'LEAD'
+export type StudyRole = 'VIEWER' | 'EDITOR'
 
 export interface UserStudyRole {
   id: number
@@ -115,15 +115,19 @@ export interface StudyMembersResponse {
   total_count: number
 }
 
+// Permission role includes StudyRole values plus "RESPONSIBLE" for responsible users
+export type PermissionRole = StudyRole | 'RESPONSIBLE'
+
 export interface StudyPermissions {
   study_id: number
-  role: StudyRole
+  role: PermissionRole  // Can be "VIEWER", "EDITOR", or "RESPONSIBLE"
   can_view: boolean
   can_edit: boolean
   can_bulk_assign: boolean
   can_bulk_status_update: boolean
   can_delete_items: boolean
   can_manage_members: boolean
+  can_manage_responsible_users: boolean
   can_bulk_copy: boolean
   can_manage_packages: boolean
   can_manage_tfl_properties: boolean
@@ -131,8 +135,37 @@ export interface StudyPermissions {
 
 export interface MyStudyRolesResponse {
   is_admin: boolean
-  lead_study_ids: number[]
+  responsible_study_ids: number[]
   study_roles: Record<number, StudyRole>
+}
+
+// ==================== Study Responsible User Types ====================
+
+export interface StudyResponsibleUser {
+  id: number
+  study_id: number
+  user_id: number
+  is_primary: boolean
+  username: string
+  email?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface StudyResponsibleUsersResponse {
+  study_id: number
+  study_label: string
+  responsible_users: StudyResponsibleUser[]
+  total_count: number
+}
+
+export interface AssignResponsibleUserRequest {
+  user_id: number
+  is_primary: boolean
+}
+
+export interface UpdateResponsibleUserRequest {
+  is_primary: boolean
 }
 
 export interface AssignStudyRoleRequest {
@@ -471,6 +504,7 @@ export type WebSocketEventType =
   | 'user_created' | 'user_updated' | 'user_deleted'
   | 'text_element_created' | 'text_element_updated' | 'text_element_deleted'
   | 'notification_created' | 'notification_count_updated'
+  | 'study_responsible_user_created' | 'study_responsible_user_updated' | 'study_responsible_user_deleted'
 
 export interface WebSocketMessage {
   type: WebSocketEventType

@@ -560,7 +560,8 @@ async def update_reporting_effort_item(
         if db_item:
             study_role = await get_user_study_role_for_reporting_effort(db, current_user, db_item.reporting_effort_id)
             from app.models.user_study_role import StudyRole
-            if study_role not in (StudyRole.EDITOR, StudyRole.LEAD):
+            from app.core.study_permissions import RESPONSIBLE_ROLE
+            if study_role not in (StudyRole.EDITOR, RESPONSIBLE_ROLE):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Viewers do not have permission to update items"

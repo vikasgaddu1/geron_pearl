@@ -203,12 +203,12 @@ def require_admin():
 
 def require_admin_or_lead():
     """
-    Dependency factory to check if user is an admin or has LEAD role in at least one study.
+    Dependency factory to check if user is an admin or is a responsible user for at least one study.
     Used for global resources like packages and text elements.
-    
+
     Returns:
         FastAPI dependency function
-    
+
     Example:
         @router.post("/", dependencies=[Depends(require_admin_or_lead())])
     """
@@ -219,25 +219,24 @@ def require_admin_or_lead():
         # Admins always have access
         if current_user.is_admin:
             return current_user
-        
-        # Check if user has LEAD role in at least one study
-        from app.models.user_study_role import UserStudyRole, StudyRole
+
+        # Check if user is a responsible user for at least one study
+        from app.models.study_responsible_user import StudyResponsibleUser
         result = await db.execute(
-            select(UserStudyRole).where(
-                UserStudyRole.user_id == current_user.id,
-                UserStudyRole.role == StudyRole.LEAD
+            select(StudyResponsibleUser).where(
+                StudyResponsibleUser.user_id == current_user.id
             )
         )
-        lead_role = result.scalar_one_or_none()
-        
-        if lead_role:
+        responsible_role = result.scalar_one_or_none()
+
+        if responsible_role:
             return current_user
-        
+
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Admin or Study Lead privileges required.",
+            detail="Access denied. Admin or Study Responsible User privileges required.",
         )
-    
+
     return admin_or_lead_checker
 
 

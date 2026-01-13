@@ -233,37 +233,37 @@ async def get_my_study_roles(
 ):
     """
     Get all study roles for the current user.
-    
+
     Returns:
         - is_admin: True if user is global admin
-        - lead_study_ids: List of study IDs where user has LEAD role
-        - study_roles: Dict mapping study_id to role name
+        - responsible_study_ids: List of study IDs where user is a responsible user
+        - study_roles: Dict mapping study_id to role name (EDITOR or VIEWER)
     """
-    from app.crud import user_study_role
-    from app.models.user_study_role import StudyRole
-    
-    # Global admins have LEAD access everywhere
+    from app.crud import user_study_role, study_responsible_user
+
+    # Global admins have full access everywhere
     if current_user.is_admin:
         return {
             "is_admin": True,
-            "lead_study_ids": [],  # Empty because admin has access to ALL studies
+            "responsible_study_ids": [],  # Empty because admin has access to ALL studies
             "study_roles": {}
         }
-    
-    # Get explicit role assignments
+
+    # Get responsible study assignments
+    responsible_study_ids = await study_responsible_user.get_responsible_study_ids(
+        db, user_id=current_user.id
+    )
+
+    # Get explicit role assignments (EDITOR or VIEWER)
     study_roles_list = await user_study_role.get_by_user(db, user_id=current_user.id)
-    
-    lead_study_ids = []
+
     study_roles = {}
-    
     for sr in study_roles_list:
         study_roles[sr.study_id] = sr.role.value
-        if sr.role == StudyRole.LEAD:
-            lead_study_ids.append(sr.study_id)
-    
+
     return {
         "is_admin": False,
-        "lead_study_ids": lead_study_ids,
+        "responsible_study_ids": responsible_study_ids,
         "study_roles": study_roles
     }
 

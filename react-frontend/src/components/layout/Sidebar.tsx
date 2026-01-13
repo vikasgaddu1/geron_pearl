@@ -89,15 +89,15 @@ function NavItemLink({ item }: { item: NavItem }) {
   )
 }
 
-function NavGroupItem({ group, isAdmin, hasLeadAccess }: { group: NavGroup; isAdmin: boolean; hasLeadAccess: boolean }) {
+function NavGroupItem({ group, isAdmin, hasResponsibleAccess }: { group: NavGroup; isAdmin: boolean; hasResponsibleAccess: boolean }) {
   const location = useLocation()
-  
+
   // Filter items based on permissions
   const visibleItems = useMemo(() => group.items.filter((item) => {
     if (item.adminOnly) return isAdmin
-    if (item.adminOrLeadOnly) return isAdmin || hasLeadAccess
+    if (item.adminOrLeadOnly) return isAdmin || hasResponsibleAccess
     return true
-  }), [group.items, isAdmin, hasLeadAccess])
+  }), [group.items, isAdmin, hasResponsibleAccess])
   
   // Check if any items are in the current path (for default open state)
   const hasActiveItem = visibleItems.some((item) => location.pathname === item.href)
@@ -134,10 +134,10 @@ function NavGroupItem({ group, isAdmin, hasLeadAccess }: { group: NavGroup; isAd
 }
 
 export function Sidebar() {
-  const { currentUser, hasLeadAccess, studyRolesLoading } = useAuthStore()
+  const { currentUser, hasResponsibleAccess, studyRolesLoading } = useAuthStore()
   const isAdmin = currentUser?.is_admin === true
-  // If study roles are still loading, treat as no LEAD access to prevent flash of unauthorized items
-  const userHasLeadAccess = studyRolesLoading ? false : hasLeadAccess()
+  // If study roles are still loading, treat as no responsible access to prevent flash of unauthorized items
+  const userHasResponsibleAccess = studyRolesLoading ? false : hasResponsibleAccess()
   
   // Filter navigation based on user permissions
   const navigation = useMemo(() => {
@@ -146,17 +146,17 @@ export function Sidebar() {
         // Check if group has any visible items
         const visibleItems = item.items.filter((navItem) => {
           if (navItem.adminOnly) return isAdmin
-          if (navItem.adminOrLeadOnly) return isAdmin || userHasLeadAccess
+          if (navItem.adminOrLeadOnly) return isAdmin || userHasResponsibleAccess
           return true
         })
         return visibleItems.length > 0
       } else {
         if (item.adminOnly) return isAdmin
-        if (item.adminOrLeadOnly) return isAdmin || userHasLeadAccess
+        if (item.adminOrLeadOnly) return isAdmin || userHasResponsibleAccess
         return true
       }
     })
-  }, [isAdmin, userHasLeadAccess])
+  }, [isAdmin, userHasResponsibleAccess])
   
   return (
     <aside className="hidden md:flex w-64 flex-col border-r bg-background">
@@ -164,7 +164,7 @@ export function Sidebar() {
         <nav className="space-y-2 px-3">
           {navigation.map((item, index) =>
             isNavGroup(item) ? (
-              <NavGroupItem key={index} group={item} isAdmin={isAdmin} hasLeadAccess={userHasLeadAccess} />
+              <NavGroupItem key={index} group={item} isAdmin={isAdmin} hasResponsibleAccess={userHasResponsibleAccess} />
             ) : (
               <NavItemLink key={item.href} item={item} />
             )

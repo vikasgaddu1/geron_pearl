@@ -58,6 +58,11 @@ from app.schemas.notification import (
     Notification as NotificationSchema, NotificationCreate, NotificationInDB, NotificationUpdate,
     NotificationWithDetails, NotificationCountResponse
 )
+from app.schemas.study_responsible_user import (
+    StudyResponsibleUser, StudyResponsibleUserCreate, StudyResponsibleUserInDB,
+    StudyResponsibleUserUpdate, StudyResponsibleUserWithUser, StudyResponsibleUsersResponse,
+    AssignResponsibleUserRequest, UpdateResponsibleUserRequest
+)
 
 __all__ = [
     # Study schemas
@@ -110,5 +115,9 @@ __all__ = [
     "UserStudyRolesResponse", "StudyPermissions", "MyStudyRolesResponse",
     # Notification schemas
     "NotificationSchema", "NotificationCreate", "NotificationInDB", "NotificationUpdate",
-    "NotificationWithDetails", "NotificationCountResponse"
+    "NotificationWithDetails", "NotificationCountResponse",
+    # StudyResponsibleUser schemas
+    "StudyResponsibleUser", "StudyResponsibleUserCreate", "StudyResponsibleUserInDB",
+    "StudyResponsibleUserUpdate", "StudyResponsibleUserWithUser", "StudyResponsibleUsersResponse",
+    "AssignResponsibleUserRequest", "UpdateResponsibleUserRequest"
 ]

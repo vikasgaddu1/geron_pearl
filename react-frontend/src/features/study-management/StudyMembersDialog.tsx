@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Users, UserPlus, Pencil, X, Crown, Eye, Search } from 'lucide-react'
+import { Users, UserPlus, Pencil, X, Crown, Eye, Search, Star, StarOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { studiesApi, usersApi } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -32,10 +32,10 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { PageLoader } from '@/components/common/LoadingSpinner'
-import type { Study, StudyMember, StudyRole } from '@/types'
+import type { Study, StudyMember, StudyRole, StudyResponsibleUser } from '@/types'
 import { getErrorMessage, cn } from '@/lib/utils'
 
-const STUDY_ROLES: StudyRole[] = ['VIEWER', 'EDITOR', 'LEAD']
+const STUDY_ROLES: StudyRole[] = ['VIEWER', 'EDITOR']
 
 interface StudyMembersDialogProps {
   study: Study | null
@@ -44,14 +44,13 @@ interface StudyMembersDialogProps {
 }
 
 function StudyRoleBadge({ role, isExplicit }: { role: StudyRole; isExplicit: boolean }) {
-  const config = {
-    LEAD: { icon: Crown, className: 'bg-amber-500/15 text-amber-600 border-amber-500/30', label: 'Lead' },
+  const config: Record<StudyRole, { icon: typeof Pencil; className: string; label: string }> = {
     EDITOR: { icon: Pencil, className: 'bg-blue-500/15 text-blue-600 border-blue-500/30', label: 'Editor' },
     VIEWER: { icon: Eye, className: 'bg-slate-500/15 text-slate-600 border-slate-500/30', label: 'Viewer' },
   }
-  
+
   const { icon: Icon, className, label } = config[role]
-  
+
   return (
     <Badge variant="outline" className={cn('gap-1', className, !isExplicit && 'opacity-60')}>
       <Icon className="h-3 w-3" />
@@ -81,11 +80,22 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
   const [editingMember, setEditingMember] = useState<StudyMember | null>(null)
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false)
   const [memberToRemove, setMemberToRemove] = useState<StudyMember | null>(null)
+  // Responsible users state
+  const [selectedResponsibleUserId, setSelectedResponsibleUserId] = useState<number | null>(null)
+  const [removeResponsibleDialogOpen, setRemoveResponsibleDialogOpen] = useState(false)
+  const [responsibleToRemove, setResponsibleToRemove] = useState<StudyResponsibleUser | null>(null)
 
   // Fetch study members
   const { data: membersData, isLoading: membersLoading } = useQuery({
     queryKey: ['study-members', study?.id],
     queryFn: () => studiesApi.getMembers(study!.id, false), // Don't include defaults initially
+    enabled: !!study && open,
+  })
+
+  // Fetch responsible users
+  const { data: responsibleData, isLoading: responsibleLoading } = useQuery({
+    queryKey: ['study-responsible-users', study?.id],
+    queryFn: () => studiesApi.getResponsibleUsers(study!.id),
     enabled: !!study && open,
   })
 
@@ -96,7 +106,7 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
     enabled: open,
   })
 
-  // Mutations
+  // Mutations for members
   const assignMember = useMutation({
     mutationFn: ({ studyId, userId, role }: { studyId: number; userId: number; role: StudyRole }) =>
       studiesApi.assignMember(studyId, { user_id: userId, role }),
@@ -132,6 +142,42 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
     onError: (error) => toast.error(`Failed to remove member: ${getErrorMessage(error)}`),
   })
 
+  // Mutations for responsible users
+  const assignResponsibleUser = useMutation({
+    mutationFn: ({ studyId, userId, isPrimary }: { studyId: number; userId: number; isPrimary: boolean }) =>
+      studiesApi.assignResponsibleUser(studyId, { user_id: userId, is_primary: isPrimary }),
+    onSuccess: () => {
+      toast.success('Responsible user assigned successfully')
+      queryClient.invalidateQueries({ queryKey: ['study-responsible-users', study?.id] })
+      queryClient.invalidateQueries({ queryKey: ['me', 'study-roles'] })
+      setSelectedResponsibleUserId(null)
+    },
+    onError: (error) => toast.error(`Failed to assign responsible user: ${getErrorMessage(error)}`),
+  })
+
+  const updateResponsibleUser = useMutation({
+    mutationFn: ({ studyId, userId, isPrimary }: { studyId: number; userId: number; isPrimary: boolean }) =>
+      studiesApi.updateResponsibleUser(studyId, userId, { is_primary: isPrimary }),
+    onSuccess: () => {
+      toast.success('Responsible user updated successfully')
+      queryClient.invalidateQueries({ queryKey: ['study-responsible-users', study?.id] })
+    },
+    onError: (error) => toast.error(`Failed to update responsible user: ${getErrorMessage(error)}`),
+  })
+
+  const removeResponsibleUser = useMutation({
+    mutationFn: ({ studyId, userId }: { studyId: number; userId: number }) =>
+      studiesApi.removeResponsibleUser(studyId, userId),
+    onSuccess: () => {
+      toast.success('Responsible user removed')
+      queryClient.invalidateQueries({ queryKey: ['study-responsible-users', study?.id] })
+      queryClient.invalidateQueries({ queryKey: ['me', 'study-roles'] })
+      setRemoveResponsibleDialogOpen(false)
+      setResponsibleToRemove(null)
+    },
+    onError: (error) => toast.error(`Failed to remove responsible user: ${getErrorMessage(error)}`),
+  })
+
   // Filter members by search term
   const members = membersData?.members || []
   const filteredMembers = members.filter(
@@ -140,12 +186,24 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
       (m.email && m.email.toLowerCase().includes(searchTerm.toLowerCase()))
   )
 
+  // Get responsible users
+  const responsibleUsers = responsibleData?.responsible_users || []
+
   // Get users that don't have an explicit role yet (for adding)
   const explicitMemberIds = new Set(members.filter(m => m.is_explicit_assignment).map(m => m.id))
+  const responsibleUserIds = new Set(responsibleUsers.map(r => r.user_id))
   const availableUsers = allUsers.filter(
-    (u) => 
-      !explicitMemberIds.has(u.id) && 
+    (u) =>
+      !explicitMemberIds.has(u.id) &&
       !u.is_admin && // Can't assign study roles to global admins
+      u.is_active
+  )
+
+  // Users available for responsible assignment (exclude admins and already-assigned)
+  const availableResponsibleUsers = allUsers.filter(
+    (u) =>
+      !responsibleUserIds.has(u.id) &&
+      !u.is_admin && // Admins already have full access
       u.is_active
   )
 
@@ -169,6 +227,29 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
     removeMember.mutate({ studyId: study.id, userId: memberToRemove.id })
   }
 
+  // Responsible user handlers
+  const handleAssignResponsible = () => {
+    if (!study || !selectedResponsibleUserId) return
+    // If no responsible users yet, make this one primary
+    const isPrimary = responsibleUsers.length === 0
+    assignResponsibleUser.mutate({ studyId: study.id, userId: selectedResponsibleUserId, isPrimary })
+  }
+
+  const handleSetPrimary = (user: StudyResponsibleUser) => {
+    if (!study) return
+    updateResponsibleUser.mutate({ studyId: study.id, userId: user.user_id, isPrimary: true })
+  }
+
+  const handleRemoveResponsibleClick = (user: StudyResponsibleUser) => {
+    setResponsibleToRemove(user)
+    setRemoveResponsibleDialogOpen(true)
+  }
+
+  const handleRemoveResponsibleConfirm = () => {
+    if (!study || !responsibleToRemove) return
+    removeResponsibleUser.mutate({ studyId: study.id, userId: responsibleToRemove.user_id })
+  }
+
   if (!study) return null
 
   return (
@@ -186,9 +267,96 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
           </DialogHeader>
 
           <div className="flex-1 overflow-hidden flex flex-col gap-4">
+            {/* Responsible Users Section */}
+            <div className="border rounded-lg p-4 bg-amber-500/5 border-amber-500/20">
+              <div className="flex items-center gap-2 mb-3">
+                <Crown className="h-4 w-4 text-amber-600" />
+                <Label className="text-sm font-medium">Responsible Users</Label>
+                <span className="text-xs text-muted-foreground">(Full admin access within this study)</span>
+              </div>
+
+              {/* Current responsible users */}
+              {responsibleLoading ? (
+                <div className="text-sm text-muted-foreground">Loading...</div>
+              ) : responsibleUsers.length === 0 ? (
+                <div className="text-sm text-muted-foreground mb-3">No responsible users assigned yet.</div>
+              ) : (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {responsibleUsers.map((user) => (
+                    <Badge
+                      key={user.user_id}
+                      variant="outline"
+                      className="gap-1.5 py-1 px-2 bg-amber-500/15 text-amber-700 border-amber-500/30"
+                    >
+                      {user.is_primary && <Star className="h-3 w-3 fill-current" />}
+                      {user.username}
+                      {user.email && <span className="text-xs opacity-70">({user.email})</span>}
+                      <div className="flex items-center gap-0.5 ml-1">
+                        {!user.is_primary && (
+                          <button
+                            onClick={() => handleSetPrimary(user)}
+                            className="hover:text-amber-800 p-0.5"
+                            title="Set as primary"
+                          >
+                            <StarOff className="h-3 w-3" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleRemoveResponsibleClick(user)}
+                          className="hover:text-destructive p-0.5"
+                          title="Remove"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              {/* Add responsible user */}
+              <div className="flex gap-2">
+                <Select
+                  value={selectedResponsibleUserId?.toString() || ''}
+                  onValueChange={(value) => setSelectedResponsibleUserId(parseInt(value))}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Add a responsible user..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableResponsibleUsers.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground text-center max-w-xs">
+                        No users available. Global admins already have full access.
+                      </div>
+                    ) : (
+                      availableResponsibleUsers.map((user) => (
+                        <SelectItem key={user.id} value={user.id.toString()}>
+                          <div className="flex items-center gap-2">
+                            <span>{user.username}</span>
+                            {user.email && (
+                              <span className="text-xs text-muted-foreground">({user.email})</span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                <Button
+                  onClick={handleAssignResponsible}
+                  disabled={!selectedResponsibleUserId || assignResponsibleUser.isPending}
+                  variant="outline"
+                  className="border-amber-500/30 hover:bg-amber-500/10"
+                >
+                  <UserPlus className="h-4 w-4 mr-1" />
+                  Add
+                </Button>
+              </div>
+            </div>
+
             {/* Add Member Section */}
             <div className="border rounded-lg p-4 bg-muted/30">
-              <Label className="text-sm font-medium mb-2 block">Add Member</Label>
+              <Label className="text-sm font-medium mb-2 block">Add Study Member</Label>
               <div className="flex gap-2">
                 <Select
                   value={selectedUserId?.toString() || ''}
@@ -200,7 +368,7 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
                   <SelectContent>
                     {availableUsers.length === 0 ? (
                       <div className="p-2 text-sm text-muted-foreground text-center max-w-xs">
-                        No users available. Global admins already have LEAD access. Create non-admin users to assign study roles.
+                        No users available. Global admins already have full access. Create non-admin users to assign study roles.
                       </div>
                     ) : (
                       availableUsers.map((user) => (
@@ -354,7 +522,7 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
             <div className="flex gap-4 text-xs text-muted-foreground border-t pt-3">
               <div className="flex items-center gap-1">
                 <Crown className="h-3 w-3 text-amber-600" />
-                <span><strong>Lead:</strong> Full admin access within this study</span>
+                <span><strong>Responsible:</strong> Full admin access within this study</span>
               </div>
               <div className="flex items-center gap-1">
                 <Pencil className="h-3 w-3 text-blue-600" />
@@ -369,7 +537,7 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
         </DialogContent>
       </Dialog>
 
-      {/* Remove Confirmation Dialog */}
+      {/* Remove Member Confirmation Dialog */}
       <ConfirmDialog
         open={removeDialogOpen}
         onOpenChange={setRemoveDialogOpen}
@@ -378,6 +546,17 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
         confirmLabel="Remove"
         variant="destructive"
         onConfirm={handleRemoveConfirm}
+      />
+
+      {/* Remove Responsible User Confirmation Dialog */}
+      <ConfirmDialog
+        open={removeResponsibleDialogOpen}
+        onOpenChange={setRemoveResponsibleDialogOpen}
+        title="Remove Responsible User?"
+        description={`Remove "${responsibleToRemove?.username}" as a responsible user for this study? They will lose admin access to this study.`}
+        confirmLabel="Remove"
+        variant="destructive"
+        onConfirm={handleRemoveResponsibleConfirm}
       />
     </>
   )

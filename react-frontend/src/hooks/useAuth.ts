@@ -10,17 +10,17 @@ interface ApiErrorResponse {
 
 export function useAuth() {
   const navigate = useNavigate()
-  const { 
-    currentUser, 
-    isAuthenticated, 
-    isLoading, 
-    login, 
-    logout: storeLogout, 
+  const {
+    currentUser,
+    isAuthenticated,
+    isLoading,
+    login,
+    logout: storeLogout,
     setLoading,
     setStudyRoles,
     setStudyRolesLoading,
-    hasLeadAccess,
-    isLeadForStudy,
+    hasResponsibleAccess,
+    isResponsibleForStudy,
     studyRolesState,
     studyRolesLoading,
   } = useAuthStore()
@@ -30,7 +30,7 @@ export function useAuth() {
     try {
       setStudyRolesLoading(true)
       const studyRolesData = await authApi.getMyStudyRoles()
-      setStudyRoles(studyRolesData.lead_study_ids, studyRolesData.study_roles)
+      setStudyRoles(studyRolesData.responsible_study_ids, studyRolesData.study_roles)
     } catch (error) {
       console.error('Failed to fetch study roles:', error)
       setStudyRolesLoading(false)
@@ -54,7 +54,7 @@ export function useAuth() {
       // Fetch study roles after successful login
       try {
         const studyRolesData = await authApi.getMyStudyRoles()
-        setStudyRoles(studyRolesData.lead_study_ids, studyRolesData.study_roles)
+        setStudyRoles(studyRolesData.responsible_study_ids, studyRolesData.study_roles)
       } catch (roleError) {
         console.error('Failed to fetch study roles:', roleError)
         setStudyRolesLoading(false)
@@ -125,8 +125,8 @@ export function useAuth() {
     forgotPassword,
     resetPassword,
     fetchStudyRoles,
-    hasLeadAccess,
-    isLeadForStudy,
+    hasResponsibleAccess,
+    isResponsibleForStudy,
     studyRolesState,
     studyRolesLoading,
   }

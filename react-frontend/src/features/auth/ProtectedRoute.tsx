@@ -11,7 +11,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requireAdmin, requireAdminOrLead }: ProtectedRouteProps) {
-  const { isAuthenticated, currentUser, isLoading, hasLeadAccess } = useAuthStore()
+  const { isAuthenticated, currentUser, isLoading, hasResponsibleAccess } = useAuthStore()
   const location = useLocation()
 
   // Show loading spinner while checking auth state
@@ -43,9 +43,9 @@ export function ProtectedRoute({ children, requireAdmin, requireAdminOrLead }: P
     )
   }
 
-  // Check admin or LEAD access if required
+  // Check admin or responsible user access if required
   if (requireAdminOrLead) {
-    const hasAccess = currentUser.is_admin || hasLeadAccess()
+    const hasAccess = currentUser.is_admin || hasResponsibleAccess()
     if (!hasAccess) {
       return (
         <div className="min-h-screen flex items-center justify-center">
@@ -55,7 +55,7 @@ export function ProtectedRoute({ children, requireAdmin, requireAdminOrLead }: P
             <p className="text-sm text-muted-foreground">
               You don't have permission to access this page.
               <br />
-              Administrator or Study Lead access required.
+              Administrator or Study Responsible User access required.
             </p>
           </div>
         </div>

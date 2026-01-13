@@ -14,6 +14,7 @@ from app.models.reporting_effort_item_tracker import (
 from app.models.tracker_status_history import TrackerStatusHistory
 from app.models.user import User
 from app.models.user_study_role import StudyRole
+from app.core.study_permissions import RESPONSIBLE_ROLE
 
 
 class TrackerWorkflowService:
@@ -177,8 +178,8 @@ class TrackerWorkflowService:
         
         # If study_role is provided, use it for permission checks
         if study_role is not None:
-            # Study Lead has full access within the study
-            if study_role == StudyRole.LEAD:
+            # Responsible user has full access within the study
+            if study_role == RESPONSIBLE_ROLE:
                 return True, ""
             
             # Study Viewer cannot modify
@@ -242,8 +243,8 @@ class TrackerWorkflowService:
         
         # If study_role is provided, use it for permission determination
         if study_role is not None:
-            # Study Lead has full access within the study
-            if study_role == StudyRole.LEAD:
+            # Responsible user has full access within the study
+            if study_role == RESPONSIBLE_ROLE:
                 return {
                     "production_status": True,
                     "qc_status": True,
