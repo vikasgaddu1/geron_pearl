@@ -147,7 +147,12 @@ This document tracks the implementation progress for transforming PEARL into a m
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| `phase8-railway-setup` | Configure Railway: cron service with health endpoint, cost alerts | PENDING | |
+| `phase8-railway-setup` | Configure Railway: cron service with health endpoint, cost alerts | **DONE** | `cron_worker.py`, deployment guide |
+
+**Phase 8 Files Created:**
+- `backend/cron_worker.py` - Scheduled task runner (retention, subscription checks)
+- `backend/Dockerfile.cron` - Docker image for cron worker service
+- `docs/RAILWAY_MULTI_TENANT_DEPLOYMENT.md` - Comprehensive deployment guide
 
 ---
 
@@ -177,8 +182,8 @@ To minimize merge conflicts during parallel development:
 | Phase 5 - Sample Data | 2 | 2 | 100% |
 | Phase 6 - Help | 2 | 2 | 100% |
 | Phase 7 - Operations | 4 | 4 | 100% |
-| Phase 8 - Railway | 1 | 0 | 0% |
-| **Total** | **28** | **27** | **96%** |
+| Phase 8 - Railway | 1 | 1 | 100% |
+| **Total** | **28** | **28** | **100%** |
 
 ---
 
