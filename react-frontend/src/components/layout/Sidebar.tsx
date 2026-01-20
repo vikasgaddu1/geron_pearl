@@ -14,6 +14,7 @@ import {
   Settings,
   History,
   AlertTriangle,
+  HelpCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -64,6 +65,8 @@ const allNavigation: (NavItem | NavGroup)[] = [
       { title: 'Tracker Management', href: '/app/tracker-management', icon: ClipboardCheck },
     ],
   },
+  // Help link - accessible by all users
+  { title: 'Help', href: '/app/help', icon: HelpCircle },
 ]
 
 function isNavGroup(item: NavItem | NavGroup): item is NavGroup {

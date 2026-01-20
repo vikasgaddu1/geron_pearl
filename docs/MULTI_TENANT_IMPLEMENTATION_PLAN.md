@@ -112,8 +112,16 @@ This document tracks the implementation progress for transforming PEARL into a m
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| `phase6-help-page` | Create HelpPage with video tutorials and searchable FAQ | PENDING | |
-| `phase6-onboarding` | Create first-time login onboarding wizard for new tenant admins | PENDING | |
+| `phase6-help-page` | Create HelpPage with video tutorials and searchable FAQ | **DONE** | `HelpPage.tsx` with FAQ and tutorials |
+| `phase6-onboarding` | Create first-time login onboarding wizard for new tenant admins | **DONE** | `OnboardingWizard.tsx` with multi-step tour |
+
+**Phase 6 Files Created:**
+- `react-frontend/src/features/help/HelpPage.tsx` - Searchable FAQ, video tutorials, help center
+- `react-frontend/src/features/onboarding/OnboardingWizard.tsx` - Multi-step onboarding for new admins
+- `react-frontend/src/features/onboarding/OnboardingProvider.tsx` - Context provider for onboarding
+- `react-frontend/src/features/settings/SampleDataSettings.tsx` - UI for sample data management
+- `react-frontend/src/hooks/useOnboarding.ts` - Onboarding state management hook
+- `backend/app/api/v1/tenant_data.py` - Added onboarding status/complete endpoints
 
 ---
 

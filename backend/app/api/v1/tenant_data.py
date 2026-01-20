@@ -4,6 +4,7 @@ This module provides endpoints for:
 - Resetting tenant data to sample state
 - Checking sample data status
 - Seeding sample data on demand
+- Marking onboarding as complete
 """
 
 import logging
@@ -11,11 +12,13 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import get_current_user, require_admin
 from app.db.session import get_db
 from app.models.user import User
+from app.models.tenant import Tenant
 from app.services.sample_data import (
     seed_sample_data,
     clear_tenant_data,
@@ -186,3 +189,67 @@ async def clear_all_data_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to clear data: {str(e)}",
         )
+
+
+# =============================================================================
+# Onboarding Endpoints
+# =============================================================================
+
+class OnboardingStatus(BaseModel):
+    """Onboarding status for a tenant."""
+    onboarding_completed: bool
+    sample_data_seeded: bool
+    tenant_id: int
+
+
+@router.get("/onboarding/status", response_model=OnboardingStatus)
+async def get_onboarding_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    Get onboarding status for the current tenant.
+    """
+    result = await db.execute(
+        select(Tenant).where(Tenant.id == current_user.tenant_id)
+    )
+    tenant = result.scalar_one_or_none()
+    
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant not found",
+        )
+    
+    return OnboardingStatus(
+        onboarding_completed=tenant.onboarding_completed,
+        sample_data_seeded=tenant.sample_data_seeded,
+        tenant_id=tenant.id,
+    )
+
+
+@router.post("/onboarding/complete")
+async def complete_onboarding(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    Mark onboarding as complete for the current tenant.
+    """
+    result = await db.execute(
+        select(Tenant).where(Tenant.id == current_user.tenant_id)
+    )
+    tenant = result.scalar_one_or_none()
+    
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant not found",
+        )
+    
+    tenant.onboarding_completed = True
+    await db.commit()
+    
+    logger.info(f"Onboarding completed for tenant {tenant.id} by user {current_user.id}")
+    
+    return {"message": "Onboarding completed", "tenant_id": tenant.id}

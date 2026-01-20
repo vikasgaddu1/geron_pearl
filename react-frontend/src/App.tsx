@@ -20,6 +20,7 @@ import { ErrorLogsPage } from '@/features/error-logs/ErrorLogsPage'
 import { LandingPage, PricingPage, SignupPage, TermsPage, PrivacyPage } from '@/features/marketing'
 import { SuperAdminLoginPage, SuperAdminDashboard, SuperAdminProtectedRoute } from '@/features/super-admin'
 import { ImpersonationBanner } from '@/components/layout/ImpersonationBanner'
+import { HelpPage } from '@/features/help'
 
 function App() {
   return (
@@ -163,6 +164,16 @@ function App() {
               </ProtectedRoute>
             }
           />
+          
+          {/* Help - accessible by all authenticated users */}
+          <Route
+            path="help"
+            element={
+              <ProtectedRoute>
+                <HelpPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Accessible by all authenticated users - access based on study roles */}
           <Route
@@ -187,6 +198,7 @@ function App() {
         <Route path="/tracker-management" element={<Navigate to="/app/tracker-management" replace />} />
         <Route path="/settings" element={<Navigate to="/app/settings" replace />} />
         <Route path="/audit-logs" element={<Navigate to="/app/audit-logs" replace />} />
+        <Route path="/help" element={<Navigate to="/app/help" replace />} />
       </Routes>
     </>
   )

@@ -61,3 +61,29 @@ export const clearAllData = async (): Promise<DataCounts> => {
   const response = await api.delete<DataCounts>('/tenant/clear-all');
   return response.data;
 };
+
+// =============================================================================
+// Onboarding endpoints
+// =============================================================================
+
+export interface OnboardingStatus {
+  onboarding_completed: boolean;
+  sample_data_seeded: boolean;
+  tenant_id: number;
+}
+
+/**
+ * Get onboarding status for the tenant
+ */
+export const getOnboardingStatus = async (): Promise<OnboardingStatus> => {
+  const response = await api.get<OnboardingStatus>('/tenant/onboarding/status');
+  return response.data;
+};
+
+/**
+ * Mark onboarding as complete
+ */
+export const completeOnboarding = async (): Promise<{ message: string; tenant_id: number }> => {
+  const response = await api.post('/tenant/onboarding/complete');
+  return response.data;
+};

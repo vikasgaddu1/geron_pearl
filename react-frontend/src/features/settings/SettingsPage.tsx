@@ -46,6 +46,7 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { Textarea } from '@/components/ui/textarea'
 import { getErrorMessage, formatDateTime } from '@/lib/utils'
 import type { IGVersion, UseCase } from '@/types'
+import { SampleDataSettings } from './SampleDataSettings'
 
 type StandardType = 'SDTM' | 'ADaM'
 
@@ -630,6 +631,9 @@ export function SettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Sample Data Management */}
+      <SampleDataSettings />
 
       {/* Add/Edit IG Version Dialog */}
       <Dialog open={igDialogOpen} onOpenChange={setIgDialogOpen}>
