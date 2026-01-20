@@ -319,9 +319,9 @@ export function SignupPage() {
           {/* Terms */}
           <p className="text-xs text-center text-gray-500">
             By signing up, you agree to our{' '}
-            <a href="#" className="text-indigo-600 hover:underline">Terms of Service</a>
+            <Link to="/terms" className="text-indigo-600 hover:underline">Terms of Service</Link>
             {' '}and{' '}
-            <a href="#" className="text-indigo-600 hover:underline">Privacy Policy</a>
+            <Link to="/privacy" className="text-indigo-600 hover:underline">Privacy Policy</Link>
           </p>
         </form>
 

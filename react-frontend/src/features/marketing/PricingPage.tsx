@@ -263,22 +263,27 @@ export function PricingPage() {
                     )}
                   </ul>
 
-                  <Link 
-                    to={plan.price_monthly === 0 ? '#' : `/signup?plan=${plan.id}`}
-                    className="block"
-                  >
-                    <Button
-                      className={`w-full ${
-                        plan.is_popular
-                          ? 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700'
-                          : ''
-                      }`}
-                      variant={plan.is_popular ? 'default' : 'outline'}
-                      size="lg"
-                    >
-                      {plan.price_monthly === 0 ? 'Contact Sales' : 'Start Free Trial'}
-                    </Button>
-                  </Link>
+                  {plan.price_monthly === 0 ? (
+                    <a href="mailto:sales@pearl.app?subject=Enterprise%20Plan%20Inquiry" className="block">
+                      <Button variant="outline" size="lg" className="w-full">
+                        Contact Sales
+                      </Button>
+                    </a>
+                  ) : (
+                    <Link to={`/signup?plan=${plan.id}`} className="block">
+                      <Button
+                        className={`w-full ${
+                          plan.is_popular
+                            ? 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700'
+                            : ''
+                        }`}
+                        variant={plan.is_popular ? 'default' : 'outline'}
+                        size="lg"
+                      >
+                        Start Free Trial
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               ))}
             </div>

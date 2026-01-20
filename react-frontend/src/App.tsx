@@ -17,7 +17,7 @@ import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { SettingsPage } from '@/features/settings/SettingsPage'
 import { AuditLogsPage } from '@/features/audit-logs/AuditLogsPage'
 import { ErrorLogsPage } from '@/features/error-logs/ErrorLogsPage'
-import { LandingPage, PricingPage, SignupPage } from '@/features/marketing'
+import { LandingPage, PricingPage, SignupPage, TermsPage, PrivacyPage } from '@/features/marketing'
 
 function App() {
   return (
@@ -31,6 +31,8 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         
         {/* Legacy route redirects - support old /login path */}
         <Route path="/login" element={<Navigate to="/app/login" replace />} />

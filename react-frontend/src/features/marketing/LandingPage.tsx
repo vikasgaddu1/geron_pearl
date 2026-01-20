@@ -80,9 +80,6 @@ export function LandingPage() {
               <Link to="/pricing" className="text-gray-600 hover:text-gray-900 font-medium">
                 Pricing
               </Link>
-              <Link to="/help" className="text-gray-600 hover:text-gray-900 font-medium">
-                Help
-              </Link>
               <Link to="/app/login" className="text-gray-600 hover:text-gray-900 font-medium">
                 Login
               </Link>
@@ -253,24 +250,22 @@ export function LandingPage() {
               <h4 className="font-semibold text-white mb-4">Product</h4>
               <ul className="space-y-2 text-sm">
                 <li><Link to="/pricing" className="hover:text-white">Pricing</Link></li>
-                <li><Link to="/help" className="hover:text-white">Documentation</Link></li>
-                <li><a href="#" className="hover:text-white">Changelog</a></li>
+                <li><Link to="/signup" className="hover:text-white">Get Started</Link></li>
+                <li><Link to="/app/login" className="hover:text-white">Login</Link></li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold text-white mb-4">Company</h4>
+              <h4 className="font-semibold text-white mb-4">Contact</h4>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white">About</a></li>
-                <li><a href="#" className="hover:text-white">Contact</a></li>
-                <li><a href="#" className="hover:text-white">Careers</a></li>
+                <li><a href="mailto:support@pearl.app" className="hover:text-white">Support</a></li>
+                <li><a href="mailto:sales@pearl.app" className="hover:text-white">Sales</a></li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold text-white mb-4">Legal</h4>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-white">Terms of Service</a></li>
-                <li><a href="#" className="hover:text-white">Security</a></li>
+                <li><Link to="/privacy" className="hover:text-white">Privacy Policy</Link></li>
+                <li><Link to="/terms" className="hover:text-white">Terms of Service</Link></li>
               </ul>
             </div>
           </div>
