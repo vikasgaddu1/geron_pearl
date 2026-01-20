@@ -96,15 +96,15 @@ const FAQ_DATA = [
     questions: [
       {
         q: 'What are the different user roles?',
-        a: 'Admin: Full system access including user management. LEAD: Can manage assigned studies, releases, packages. EDITOR: Can edit tracker data in assigned studies. VIEWER: Read-only access to assigned studies.',
+        a: 'Admin: Full system access including user management. Responsible: Full admin access within assigned studies. Editor: Can edit tracker data in assigned studies. Viewer: Read-only access to assigned studies.',
       },
       {
         q: 'How do I assign users to studies?',
-        a: 'As an admin or study LEAD, go to the study details and click "Manage Members". You can add users and assign them roles (LEAD, EDITOR, or VIEWER) for that specific study.',
+        a: 'As an admin or study Responsible user, go to the study details and click "Manage Members". You can add users as Responsible (full study access), Editor, or Viewer for that specific study.',
       },
       {
         q: 'Can a user have different roles in different studies?',
-        a: 'Yes! A user might be a LEAD for Study A but only an EDITOR for Study B. Role assignments are per-study, giving you flexibility in team organization.',
+        a: 'Yes! A user might be Responsible for Study A but only an Editor for Study B. Role assignments are per-study, giving you flexibility in team organization.',
       },
     ],
   },
@@ -208,25 +208,37 @@ export function HelpPage() {
 
       {/* Quick Links */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <Card className="hover:border-indigo-500 cursor-pointer transition-colors">
+        <Card 
+          className="hover:border-indigo-500 cursor-pointer transition-colors"
+          onClick={() => document.getElementById('faq-section')?.scrollIntoView({ behavior: 'smooth' })}
+        >
           <CardContent className="p-4 flex flex-col items-center text-center">
             <BookOpen className="h-8 w-8 text-indigo-500 mb-2" />
             <span className="font-medium">Documentation</span>
           </CardContent>
         </Card>
-        <Card className="hover:border-indigo-500 cursor-pointer transition-colors">
+        <Card 
+          className="hover:border-indigo-500 cursor-pointer transition-colors"
+          onClick={() => document.getElementById('video-section')?.scrollIntoView({ behavior: 'smooth' })}
+        >
           <CardContent className="p-4 flex flex-col items-center text-center">
             <PlayCircle className="h-8 w-8 text-indigo-500 mb-2" />
             <span className="font-medium">Video Tutorials</span>
           </CardContent>
         </Card>
-        <Card className="hover:border-indigo-500 cursor-pointer transition-colors">
+        <Card 
+          className="hover:border-indigo-500 cursor-pointer transition-colors"
+          onClick={() => document.getElementById('contact-section')?.scrollIntoView({ behavior: 'smooth' })}
+        >
           <CardContent className="p-4 flex flex-col items-center text-center">
             <MessageCircle className="h-8 w-8 text-indigo-500 mb-2" />
             <span className="font-medium">Contact Support</span>
           </CardContent>
         </Card>
-        <Card className="hover:border-indigo-500 cursor-pointer transition-colors">
+        <Card 
+          className="hover:border-indigo-500 cursor-pointer transition-colors"
+          onClick={() => document.getElementById('faq-section')?.scrollIntoView({ behavior: 'smooth' })}
+        >
           <CardContent className="p-4 flex flex-col items-center text-center">
             <FileText className="h-8 w-8 text-indigo-500 mb-2" />
             <span className="font-medium">Release Notes</span>
@@ -235,7 +247,7 @@ export function HelpPage() {
       </div>
 
       {/* Video Tutorials Section */}
-      <section className="mb-10">
+      <section id="video-section" className="mb-10">
         <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <PlayCircle className="h-5 w-5 text-indigo-500" />
           Video Tutorials
@@ -261,7 +273,7 @@ export function HelpPage() {
       </section>
 
       {/* FAQ Section */}
-      <section>
+      <section id="faq-section">
         <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <MessageCircle className="h-5 w-5 text-indigo-500" />
           Frequently Asked Questions
@@ -321,7 +333,7 @@ export function HelpPage() {
       </section>
 
       {/* Contact Support */}
-      <section className="mt-10">
+      <section id="contact-section" className="mt-10">
         <Card className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
           <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-4">
             <div>
@@ -330,7 +342,11 @@ export function HelpPage() {
                 Our support team is here to assist you with any questions.
               </p>
             </div>
-            <Button variant="secondary" className="whitespace-nowrap">
+            <Button 
+              variant="secondary" 
+              className="whitespace-nowrap"
+              onClick={() => window.location.href = 'mailto:support@pearl-app.com?subject=PEARL Support Request'}
+            >
               <MessageCircle className="h-4 w-4 mr-2" />
               Contact Support
             </Button>

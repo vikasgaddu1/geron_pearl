@@ -175,8 +175,8 @@ const STEPS = [
             <p className="text-sm text-gray-600">Full access to all features and settings</p>
           </div>
           <div className="flex items-start gap-3">
-            <div className="w-16 text-xs font-medium text-purple-600">LEAD</div>
-            <p className="text-sm text-gray-600">Manage assigned studies, releases, packages</p>
+            <div className="w-16 text-xs font-medium text-amber-600">RESPONSIBLE</div>
+            <p className="text-sm text-gray-600">Full admin access within assigned studies</p>
           </div>
           <div className="flex items-start gap-3">
             <div className="w-16 text-xs font-medium text-blue-600">EDITOR</div>
