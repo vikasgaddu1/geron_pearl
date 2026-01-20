@@ -22,7 +22,9 @@ from app.models.reporting_effort import ReportingEffort
 from app.models.package import Package
 from app.models.package_item import PackageItem
 from app.models.text_element import TextElement, TextElementType
+from app.models.tenant import Tenant
 from app.models.user import User
+from app.models.enums import ItemType
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +40,16 @@ SAMPLE_STUDIES = [
             {
                 "release_name": "DBR-001",
                 "release_date": date.today() + timedelta(days=30),
+                "reporting_efforts": [
+                    {"name": "Interim Analysis"},
+                ],
             },
             {
                 "release_name": "DBR-002",
                 "release_date": date.today() + timedelta(days=90),
+                "reporting_efforts": [
+                    {"name": "Final CSR"},
+                ],
             },
         ],
     },
@@ -51,37 +59,46 @@ SAMPLE_STUDIES = [
             {
                 "release_name": "Final-DBR",
                 "release_date": date.today() + timedelta(days=60),
+                "reporting_efforts": [
+                    {"name": "Primary Analysis"},
+                    {"name": "Safety Update"},
+                ],
             },
         ],
     },
 ]
 
+# Package items use: item_type (TLF/Dataset), item_subtype (Table/Listing/Figure or SDTM/ADaM), item_code
 SAMPLE_PACKAGES = [
     {
         "package_name": "PKG-SAFETY",
         "items": [
-            {"item_name": "t-ae-summary", "item_type": "table"},
-            {"item_name": "t-ae-soc-pt", "item_type": "table"},
-            {"item_name": "t-ae-severity", "item_type": "table"},
-            {"item_name": "l-ae-listing", "item_type": "listing"},
-            {"item_name": "f-ae-overview", "item_type": "figure"},
+            {"item_type": ItemType.TLF, "item_subtype": "Table", "item_code": "t-ae-summary"},
+            {"item_type": ItemType.TLF, "item_subtype": "Table", "item_code": "t-ae-soc-pt"},
+            {"item_type": ItemType.TLF, "item_subtype": "Table", "item_code": "t-ae-severity"},
+            {"item_type": ItemType.TLF, "item_subtype": "Listing", "item_code": "l-ae-listing"},
+            {"item_type": ItemType.TLF, "item_subtype": "Figure", "item_code": "f-ae-overview"},
+            {"item_type": ItemType.Dataset, "item_subtype": "ADaM", "item_code": "ADAE"},
         ],
     },
     {
         "package_name": "PKG-EFFICACY",
         "items": [
-            {"item_name": "t-primary-endpoint", "item_type": "table"},
-            {"item_name": "t-secondary-endpoints", "item_type": "table"},
-            {"item_name": "f-kaplan-meier", "item_type": "figure"},
-            {"item_name": "f-forest-plot", "item_type": "figure"},
+            {"item_type": ItemType.TLF, "item_subtype": "Table", "item_code": "t-primary-endpoint"},
+            {"item_type": ItemType.TLF, "item_subtype": "Table", "item_code": "t-secondary-endpoints"},
+            {"item_type": ItemType.TLF, "item_subtype": "Figure", "item_code": "f-kaplan-meier"},
+            {"item_type": ItemType.TLF, "item_subtype": "Figure", "item_code": "f-forest-plot"},
+            {"item_type": ItemType.Dataset, "item_subtype": "ADaM", "item_code": "ADEFF"},
         ],
     },
     {
         "package_name": "PKG-DEMOGRAPHICS",
         "items": [
-            {"item_name": "t-demographics", "item_type": "table"},
-            {"item_name": "t-disposition", "item_type": "table"},
-            {"item_name": "t-medical-history", "item_type": "table"},
+            {"item_type": ItemType.TLF, "item_subtype": "Table", "item_code": "t-demographics"},
+            {"item_type": ItemType.TLF, "item_subtype": "Table", "item_code": "t-disposition"},
+            {"item_type": ItemType.TLF, "item_subtype": "Table", "item_code": "t-medical-history"},
+            {"item_type": ItemType.Dataset, "item_subtype": "SDTM", "item_code": "DM"},
+            {"item_type": ItemType.Dataset, "item_subtype": "SDTM", "item_code": "MH"},
         ],
     },
 ]
@@ -146,13 +163,14 @@ async def seed_sample_data(
     counts = {
         "studies": 0,
         "database_releases": 0,
+        "reporting_efforts": 0,
         "packages": 0,
         "package_items": 0,
         "text_elements": 0,
     }
     
     try:
-        # Seed studies with database releases
+        # Seed studies with database releases and reporting efforts
         for study_data in SAMPLE_STUDIES:
             study = Study(
                 tenant_id=tenant_id,
@@ -171,7 +189,19 @@ async def seed_sample_data(
                     release_date=release_data["release_date"],
                 )
                 db.add(db_release)
+                await db.flush()  # Get db_release.id
                 counts["database_releases"] += 1
+                
+                # Add reporting efforts for this database release
+                for effort_data in release_data.get("reporting_efforts", []):
+                    reporting_effort = ReportingEffort(
+                        tenant_id=tenant_id,
+                        study_id=study.id,
+                        database_release_id=db_release.id,
+                        name=effort_data["name"],
+                    )
+                    db.add(reporting_effort)
+                    counts["reporting_efforts"] += 1
         
         # Seed packages with package items
         for package_data in SAMPLE_PACKAGES:
@@ -187,8 +217,9 @@ async def seed_sample_data(
             for item_data in package_data.get("items", []):
                 package_item = PackageItem(
                     package_id=package.id,
-                    item_name=item_data["item_name"],
                     item_type=item_data["item_type"],
+                    item_subtype=item_data["item_subtype"],
+                    item_code=item_data["item_code"],
                 )
                 db.add(package_item)
                 counts["package_items"] += 1
@@ -204,12 +235,21 @@ async def seed_sample_data(
             db.add(text_element)
             counts["text_elements"] += 1
         
+        # Update tenant's sample_data_seeded flag
+        result = await db.execute(
+            select(Tenant).where(Tenant.id == tenant_id)
+        )
+        tenant = result.scalar_one_or_none()
+        if tenant:
+            tenant.sample_data_seeded = True
+        
         await db.commit()
         
         logger.info(
             f"Sample data seeded for tenant {tenant_id}: "
             f"{counts['studies']} studies, "
             f"{counts['database_releases']} releases, "
+            f"{counts['reporting_efforts']} reporting efforts, "
             f"{counts['packages']} packages, "
             f"{counts['package_items']} items, "
             f"{counts['text_elements']} text elements"

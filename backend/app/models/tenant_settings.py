@@ -68,19 +68,8 @@ class TenantSettings(Base, TimestampMixin):
         doc="Email for system notifications (defaults to admin email)"
     )
     
-    # Feature toggles
-    onboarding_completed: Mapped[bool] = mapped_column(
-        Boolean, 
-        nullable=False, 
-        default=False,
-        doc="Whether tenant has completed onboarding"
-    )
-    sample_data_active: Mapped[bool] = mapped_column(
-        Boolean, 
-        nullable=False, 
-        default=True,
-        doc="Whether sample data is still present"
-    )
+    # Note: onboarding_completed and sample_data_seeded are on the Tenant model,
+    # not here, to avoid duplication and ensure single source of truth.
     
     # Relationships
     tenant: Mapped["Tenant"] = relationship(
@@ -97,6 +86,4 @@ DEFAULT_TENANT_SETTINGS = {
     "timezone": "UTC",
     "date_format": "YYYY-MM-DD",
     "time_format": "HH:mm",
-    "onboarding_completed": False,
-    "sample_data_active": True,
 }

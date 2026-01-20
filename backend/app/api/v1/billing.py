@@ -276,9 +276,14 @@ async def stripe_webhook(
         except Exception as e:
             logger.error(f"Failed to send welcome email: {e}")
         
-        # TODO: Seed sample data for the new tenant
-        # This will be implemented in Phase 5
-        # await seed_sample_data(db, tenant.id)
+        # Seed sample data for the new tenant
+        try:
+            from app.services.sample_data import seed_sample_data
+            await seed_sample_data(db, tenant.id)
+            logger.info(f"Sample data seeded for tenant {tenant.id}")
+        except Exception as e:
+            # Don't fail the webhook if sample data seeding fails
+            logger.error(f"Failed to seed sample data for tenant {tenant.id}: {e}")
         
         return {"status": "success", "tenant_id": tenant.id}
     
