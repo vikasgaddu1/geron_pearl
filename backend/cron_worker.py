@@ -177,6 +177,16 @@ async def run_all_tasks() -> Dict[str, Any]:
 # =============================================================================
 # HTTP Server for Railway Cron
 # =============================================================================
+#
+# SECURITY NOTE: These endpoints are intentionally unauthenticated because:
+# 1. This service should ONLY be deployed on Railway's internal network
+# 2. Railway cron triggers use internal URLs that are not publicly accessible
+# 3. The service should NOT be exposed to the public internet
+#
+# If you need to expose this service publicly, add API key authentication:
+#   - Add CRON_API_KEY environment variable
+#   - Check X-API-Key header in each endpoint
+# =============================================================================
 
 app = FastAPI(
     title="PEARL Cron Worker",

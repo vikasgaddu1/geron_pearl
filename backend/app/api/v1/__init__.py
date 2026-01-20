@@ -7,7 +7,7 @@ from app.api.v1 import (
     reporting_effort_items, reporting_effort_tracker, tracker_comments, tracker_tags,
     audit_trail, database_backup, settings, reporting_effort_milestones, ig_versions,
     reporting_effort_usecases, team_assignments, analytics, notifications, error_logs,
-    billing, super_admin, tenant_data
+    billing, super_admin, tenant_data, system
 )
 
 api_router = APIRouter()
@@ -60,3 +60,6 @@ api_router.include_router(super_admin.router, prefix="/super-admin", tags=["supe
 
 # Tenant data management (sample data, reset)
 api_router.include_router(tenant_data.router, prefix="/tenant", tags=["tenant-data"])
+
+# System endpoints (health, version, tenant info)
+api_router.include_router(system.router, prefix="/system", tags=["system"])
