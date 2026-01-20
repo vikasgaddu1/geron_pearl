@@ -1,5 +1,11 @@
 """Models package."""
 
+# Multi-tenancy models (import first as other models depend on them)
+from app.models.subscription_plan import SubscriptionPlan, DEFAULT_PLANS
+from app.models.tenant import Tenant, SubscriptionStatus
+from app.models.tenant_settings import TenantSettings, DEFAULT_TENANT_SETTINGS
+from app.models.super_admin import SuperAdmin, DEFAULT_SUPER_ADMIN
+
 from app.models.study import Study
 from app.models.database_release import DatabaseRelease
 from app.models.reporting_effort import ReportingEffort
@@ -38,6 +44,16 @@ from app.models.enums import LockAction
 from app.models.study_responsible_user import StudyResponsibleUser
 
 __all__ = [
+    # Multi-tenancy
+    "Tenant",
+    "SubscriptionStatus",
+    "SubscriptionPlan",
+    "DEFAULT_PLANS",
+    "TenantSettings",
+    "DEFAULT_TENANT_SETTINGS",
+    "SuperAdmin",
+    "DEFAULT_SUPER_ADMIN",
+    # Core entities
     "Study", 
     "DatabaseRelease", 
     "ReportingEffort",

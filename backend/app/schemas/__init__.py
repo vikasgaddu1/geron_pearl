@@ -1,5 +1,17 @@
 """Schemas package."""
 
+# Multi-tenancy schemas
+from app.schemas.tenant import (
+    TenantBase, TenantCreate, TenantUpdate, TenantResponse, TenantWithStats,
+    SubscriptionPlanBase, SubscriptionPlanCreate, SubscriptionPlanResponse,
+    TenantSettingsBase, TenantSettingsUpdate, TenantSettingsResponse
+)
+from app.schemas.super_admin import (
+    SuperAdminBase, SuperAdminCreate, SuperAdminUpdate, SuperAdminResponse,
+    SuperAdminLogin, SuperAdminLoginResponse, MFASetupResponse, MFAVerifyRequest,
+    ImpersonationRequest, ImpersonationResponse
+)
+
 from app.schemas.study import Study, StudyCreate, StudyInDB, StudyUpdate
 from app.schemas.database_release import DatabaseRelease, DatabaseReleaseCreate, DatabaseReleaseInDB, DatabaseReleaseUpdate
 from app.schemas.reporting_effort import (
@@ -65,6 +77,14 @@ from app.schemas.study_responsible_user import (
 )
 
 __all__ = [
+    # Multi-tenancy schemas
+    "TenantBase", "TenantCreate", "TenantUpdate", "TenantResponse", "TenantWithStats",
+    "SubscriptionPlanBase", "SubscriptionPlanCreate", "SubscriptionPlanResponse",
+    "TenantSettingsBase", "TenantSettingsUpdate", "TenantSettingsResponse",
+    # SuperAdmin schemas
+    "SuperAdminBase", "SuperAdminCreate", "SuperAdminUpdate", "SuperAdminResponse",
+    "SuperAdminLogin", "SuperAdminLoginResponse", "MFASetupResponse", "MFAVerifyRequest",
+    "ImpersonationRequest", "ImpersonationResponse",
     # Study schemas
     "Study", "StudyCreate", "StudyInDB", "StudyUpdate",
     # DatabaseRelease schemas  

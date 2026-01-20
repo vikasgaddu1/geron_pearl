@@ -1,7 +1,7 @@
 from enum import Enum
-from sqlalchemy import Column, Integer, String, Enum as SQLEnum, Boolean, DateTime
-from sqlalchemy.orm import relationship
-from typing import TYPE_CHECKING, List
+from sqlalchemy import Column, Integer, String, Enum as SQLEnum, Boolean, DateTime, ForeignKey, Index
+from sqlalchemy.orm import relationship, Mapped, mapped_column
+from typing import TYPE_CHECKING, List, Optional
 from app.db.base import Base
 from app.db.mixins import TimestampMixin
 
@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from app.models.tracker_comment import TrackerComment
     from app.models.user_study_role import UserStudyRole
     from app.models.study_responsible_user import StudyResponsibleUser
+    from app.models.tenant import Tenant
 
 
 class UserDepartment(str, Enum):
@@ -29,11 +30,28 @@ class AuthProvider(str, Enum):
 
 class User(Base, TimestampMixin):
     __tablename__ = "users"
+    
+    # Composite indexes for multi-tenant queries
+    __table_args__ = (
+        Index('ix_users_tenant_email', 'tenant_id', 'email'),
+        Index('ix_users_tenant_active', 'tenant_id', 'is_active'),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
+    
+    # Multi-tenancy: Each user belongs to exactly one tenant
+    tenant_id: Mapped[int] = mapped_column(
+        Integer, 
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        doc="Tenant this user belongs to"
+    )
+    
     username = Column(String, unique=True, index=True, nullable=False)
-    email = Column(String, unique=True, index=True, nullable=True)  # Required for password reset
-    is_admin = Column(Boolean, nullable=False, default=False, doc="Whether user has global admin privileges")
+    # Note: email uniqueness is now per-tenant (enforced at application level)
+    email = Column(String, index=True, nullable=True)  # Required for password reset
+    is_admin = Column(Boolean, nullable=False, default=False, doc="Whether user has tenant admin privileges")
     department = Column(String(50), nullable=True)
     
     # Authentication fields
@@ -72,4 +90,10 @@ class User(Base, TimestampMixin):
         "StudyResponsibleUser",
         back_populates="user",
         cascade="all, delete-orphan"
+    )
+    
+    # Tenant relationship
+    tenant: Mapped["Tenant"] = relationship(
+        "Tenant",
+        back_populates="users"
     )

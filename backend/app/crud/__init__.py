@@ -1,5 +1,9 @@
 """CRUD package."""
 
+# Multi-tenancy CRUD
+from app.crud.tenant import tenant
+from app.crud.super_admin import super_admin
+
 from app.crud.study import study
 from app.crud.database_release import database_release
 from app.crud.reporting_effort import reporting_effort
@@ -26,6 +30,10 @@ from app.crud.notification import notification
 from app.crud.study_responsible_user import study_responsible_user
 
 __all__ = [
+    # Multi-tenancy
+    "tenant",
+    "super_admin",
+    # Core entities
     "study", 
     "database_release", 
     "reporting_effort",

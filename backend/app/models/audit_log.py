@@ -1,6 +1,6 @@
 """SQLAlchemy model for AuditLog."""
 
-from sqlalchemy import Column, Integer, String, ForeignKey, Text, DateTime
+from sqlalchemy import Column, Integer, String, ForeignKey, Text, DateTime, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING, Optional
 from datetime import datetime
@@ -9,6 +9,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.user import User
+    from app.models.tenant import Tenant
 
 
 class AuditLog(Base):
@@ -16,8 +17,23 @@ class AuditLog(Base):
     
     __tablename__ = "audit_log"
     
+    # Composite indexes for multi-tenant queries
+    __table_args__ = (
+        Index('ix_audit_log_tenant_created', 'tenant_id', 'created_at'),
+        Index('ix_audit_log_tenant_table', 'tenant_id', 'table_name'),
+    )
+    
     # Primary key
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    
+    # Multi-tenancy: Each audit log belongs to exactly one tenant
+    tenant_id: Mapped[int] = mapped_column(
+        Integer, 
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        doc="Tenant this audit log belongs to"
+    )
     
     # Audit fields
     table_name: Mapped[str] = mapped_column(
@@ -80,6 +96,10 @@ class AuditLog(Base):
         "User",
         backref="audit_logs"
     )
+    tenant: Mapped["Tenant"] = relationship(
+        "Tenant",
+        backref="audit_logs"
+    )
     
     def __repr__(self) -> str:
-        return f"<AuditLog(id={self.id}, table={self.table_name}, record={self.record_id}, action={self.action}, user={self.user_id})>"
+        return f"<AuditLog(id={self.id}, tenant_id={self.tenant_id}, table={self.table_name}, record={self.record_id}, action={self.action})>"

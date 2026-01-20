@@ -1,6 +1,6 @@
 """SQLAlchemy model for ErrorLog."""
 
-from sqlalchemy import Column, Integer, String, ForeignKey, Text, DateTime
+from sqlalchemy import Column, Integer, String, ForeignKey, Text, DateTime, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING, Optional
 from datetime import datetime
@@ -9,15 +9,31 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.user import User
+    from app.models.tenant import Tenant
 
 
 class ErrorLog(Base):
     """Error log for tracking application errors from frontend and backend."""
 
     __tablename__ = "error_log"
+    
+    # Composite indexes for multi-tenant queries
+    __table_args__ = (
+        Index('ix_error_log_tenant_created', 'tenant_id', 'created_at'),
+        Index('ix_error_log_tenant_severity', 'tenant_id', 'severity'),
+    )
 
     # Primary key
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    
+    # Multi-tenancy: Each error log belongs to exactly one tenant (nullable for unauthenticated errors)
+    tenant_id: Mapped[Optional[int]] = mapped_column(
+        Integer, 
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+        doc="Tenant this error log belongs to (null for unauthenticated errors)"
+    )
 
     # Error classification
     source: Mapped[str] = mapped_column(
@@ -129,6 +145,10 @@ class ErrorLog(Base):
         "User",
         backref="error_logs"
     )
+    tenant: Mapped[Optional["Tenant"]] = relationship(
+        "Tenant",
+        backref="error_logs"
+    )
 
     def __repr__(self) -> str:
-        return f"<ErrorLog(id={self.id}, source={self.source}, severity={self.severity}, type={self.error_type})>"
+        return f"<ErrorLog(id={self.id}, tenant_id={self.tenant_id}, source={self.source}, severity={self.severity}, type={self.error_type})>"
