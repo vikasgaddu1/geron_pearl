@@ -81,14 +81,18 @@ async def login(
     user.last_login_at = datetime.utcnow()
     await db.commit()
     
-    # Create tokens
+    # Create tokens with tenant_id for multi-tenancy
     token_data = {
         "sub": str(user.id),  # JWT sub must be a string
+        "tenant_id": user.tenant_id,  # Include tenant_id for RLS
         "username": user.username,
         "is_admin": user.is_admin,
     }
     access_token = create_access_token(token_data)
-    refresh_token = create_refresh_token({"sub": str(user.id)})
+    refresh_token = create_refresh_token({
+        "sub": str(user.id),
+        "tenant_id": user.tenant_id,
+    })
     
     return {
         "access_token": access_token,
@@ -191,14 +195,18 @@ async def refresh_token(
             detail="User not found or inactive",
         )
     
-    # Create new tokens
+    # Create new tokens with tenant_id for multi-tenancy
     token_data = {
         "sub": str(user.id),  # JWT sub must be a string
+        "tenant_id": user.tenant_id,  # Include tenant_id for RLS
         "username": user.username,
         "is_admin": user.is_admin,
     }
     new_access_token = create_access_token(token_data)
-    new_refresh_token = create_refresh_token({"sub": str(user.id)})
+    new_refresh_token = create_refresh_token({
+        "sub": str(user.id),
+        "tenant_id": user.tenant_id,
+    })
     
     return {
         "access_token": new_access_token,
@@ -482,14 +490,18 @@ async def oauth_callback(
         await db.commit()
         await db.refresh(user)
         
-        # Create JWT tokens
+        # Create JWT tokens with tenant_id for multi-tenancy
         token_data = {
             "sub": str(user.id),  # JWT sub must be a string
+            "tenant_id": user.tenant_id,  # Include tenant_id for RLS
             "username": user.username,
             "is_admin": user.is_admin,
         }
         access_token = create_access_token(token_data)
-        refresh_token = create_refresh_token({"sub": str(user.id)})
+        refresh_token = create_refresh_token({
+            "sub": str(user.id),
+            "tenant_id": user.tenant_id,
+        })
         
         return {
             "access_token": access_token,

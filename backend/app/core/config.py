@@ -74,6 +74,45 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
     project_name: str = "PEARL Backend"
     
+    # ===========================================
+    # Multi-Tenancy / SaaS Configuration
+    # ===========================================
+    
+    # Stripe Integration
+    stripe_secret_key: Optional[str] = Field(default=None, description="Stripe secret key")
+    stripe_publishable_key: Optional[str] = Field(default=None, description="Stripe publishable key")
+    stripe_webhook_secret: Optional[str] = Field(default=None, description="Stripe webhook secret")
+    
+    # Stripe Price IDs for subscription tiers
+    stripe_price_starter: Optional[str] = Field(default=None, description="Stripe price ID for Starter plan")
+    stripe_price_professional: Optional[str] = Field(default=None, description="Stripe price ID for Professional plan")
+    stripe_price_enterprise: Optional[str] = Field(default=None, description="Stripe price ID for Enterprise plan")
+    
+    # Subscription settings
+    trial_period_days: int = Field(default=30, description="Trial period in days")
+    subscription_grace_period_days: int = Field(default=7, description="Grace period for past_due subscriptions")
+    
+    # Super Admin (separate from regular JWT)
+    super_admin_jwt_secret: str = Field(
+        default="super-admin-dev-secret-change-in-production",
+        description="Separate JWT secret for super admin tokens"
+    )
+    super_admin_token_expire_hours: int = Field(default=4, description="Super admin token expiration in hours")
+    super_admin_email: str = Field(
+        default="superadmin@pearl.local",
+        description="Default super admin email"
+    )
+    
+    # Email Provider (for SaaS transactional emails)
+    email_provider: str = Field(default="smtp", description="Email provider: smtp, sendgrid, ses")
+    sendgrid_api_key: Optional[str] = Field(default=None, description="SendGrid API key")
+    
+    # Rate Limiting
+    rate_limit_per_minute: int = Field(default=100, description="Rate limit per tenant per minute")
+    
+    # Application version
+    app_version: str = Field(default="1.0.0", description="Application version")
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=False
