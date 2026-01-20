@@ -23,6 +23,7 @@ from app.models.user_study_role import StudyRole
 from app.models.user import User as UserModel
 from app.core.security import get_current_user, require_admin
 from app.core.study_permissions import get_user_study_role, is_study_admin, get_study_permissions, require_study_lead_access
+from app.core.subscription import require_active_subscription, check_study_limit
 from app.api.v1.websocket import (
     broadcast_study_created, broadcast_study_updated, broadcast_study_deleted,
     broadcast_study_responsible_user_created, broadcast_study_responsible_user_updated,
@@ -39,6 +40,8 @@ async def create_study(
     request: Request,
     study_in: StudyCreate,
     current_user: UserModel = Depends(require_admin()),
+    _subscription: None = Depends(require_active_subscription),
+    _limit: None = Depends(check_study_limit),
 ) -> Study:
     """
     Create a new study.

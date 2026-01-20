@@ -8,6 +8,7 @@ from app.crud import audit_log
 from app.db.session import get_db
 from app.api.v1.websocket import broadcast_user_created, broadcast_user_updated, broadcast_user_deleted
 from app.core.security import require_admin
+from app.core.subscription import require_active_subscription, check_user_limit
 from app.models.user import User as UserModel
 
 router = APIRouter()
@@ -20,6 +21,8 @@ async def create_user(
     request: Request,
     user_in: schemas.UserCreate,
     current_user: UserModel = Depends(require_admin()),
+    _subscription: None = Depends(require_active_subscription),
+    _limit: None = Depends(check_user_limit),
 ) -> Any:
     """
     Create new user with email and password.

@@ -1,5 +1,6 @@
 """Stripe integration service."""
 
+import asyncio
 import stripe
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
@@ -10,6 +11,12 @@ from app.models.tenant import SubscriptionStatus
 
 # Initialize Stripe
 stripe.api_key = settings.stripe_secret_key
+
+
+# =============================================================================
+# Async wrappers for Stripe SDK (which is synchronous)
+# Using asyncio.to_thread to prevent blocking the event loop
+# =============================================================================
 
 
 def map_stripe_status(stripe_status: str) -> SubscriptionStatus:
@@ -44,29 +51,31 @@ async def create_checkout_session(
     The tenant_name and other details are stored in metadata
     and retrieved when the webhook fires.
     """
-    session = stripe.checkout.Session.create(
-        mode="subscription",
-        payment_method_types=["card"],
-        line_items=[{"price": price_id, "quantity": 1}],
-        subscription_data={
-            "trial_period_days": trial_days,
-            "metadata": {
-                "tenant_name": tenant_name,
-                "plan_id": str(plan_id),
+    def _create():
+        return stripe.checkout.Session.create(
+            mode="subscription",
+            payment_method_types=["card"],
+            line_items=[{"price": price_id, "quantity": 1}],
+            subscription_data={
+                "trial_period_days": trial_days,
+                "metadata": {
+                    "tenant_name": tenant_name,
+                    "plan_id": str(plan_id),
+                },
             },
-        },
-        customer_email=email,
-        metadata={
-            "tenant_name": tenant_name,
-            "email": email,
-            "plan_id": str(plan_id),
-            "display_name": display_name or tenant_name.replace("-", " ").title(),
-        },
-        success_url=success_url,
-        cancel_url=cancel_url,
-        allow_promotion_codes=True,
-    )
-    return session
+            customer_email=email,
+            metadata={
+                "tenant_name": tenant_name,
+                "email": email,
+                "plan_id": str(plan_id),
+                "display_name": display_name or tenant_name.replace("-", " ").title(),
+            },
+            success_url=success_url,
+            cancel_url=cancel_url,
+            allow_promotion_codes=True,
+        )
+    
+    return await asyncio.to_thread(_create)
 
 
 async def create_billing_portal_session(
@@ -82,27 +91,35 @@ async def create_billing_portal_session(
     - Cancel subscription
     - Change plan (if configured in Stripe)
     """
-    session = stripe.billing_portal.Session.create(
-        customer=customer_id,
-        return_url=return_url,
-    )
-    return session
+    def _create():
+        return stripe.billing_portal.Session.create(
+            customer=customer_id,
+            return_url=return_url,
+        )
+    
+    return await asyncio.to_thread(_create)
 
 
 async def get_subscription(subscription_id: str) -> Optional[stripe.Subscription]:
     """Get subscription details from Stripe."""
-    try:
-        return stripe.Subscription.retrieve(subscription_id)
-    except stripe.error.StripeError:
-        return None
+    def _get():
+        try:
+            return stripe.Subscription.retrieve(subscription_id)
+        except stripe.error.StripeError:
+            return None
+    
+    return await asyncio.to_thread(_get)
 
 
 async def get_customer(customer_id: str) -> Optional[stripe.Customer]:
     """Get customer details from Stripe."""
-    try:
-        return stripe.Customer.retrieve(customer_id)
-    except stripe.error.StripeError:
-        return None
+    def _get():
+        try:
+            return stripe.Customer.retrieve(customer_id)
+        except stripe.error.StripeError:
+            return None
+    
+    return await asyncio.to_thread(_get)
 
 
 async def cancel_subscription(
@@ -114,16 +131,19 @@ async def cancel_subscription(
     
     By default, cancels at period end to allow access until paid period expires.
     """
-    try:
-        if at_period_end:
-            return stripe.Subscription.modify(
-                subscription_id,
-                cancel_at_period_end=True,
-            )
-        else:
-            return stripe.Subscription.delete(subscription_id)
-    except stripe.error.StripeError:
-        return None
+    def _cancel():
+        try:
+            if at_period_end:
+                return stripe.Subscription.modify(
+                    subscription_id,
+                    cancel_at_period_end=True,
+                )
+            else:
+                return stripe.Subscription.delete(subscription_id)
+        except stripe.error.StripeError:
+            return None
+    
+    return await asyncio.to_thread(_cancel)
 
 
 async def update_subscription_plan(
@@ -139,20 +159,23 @@ async def update_subscription_plan(
     - "none": No proration
     - "always_invoice": Create invoice immediately
     """
-    try:
-        subscription = stripe.Subscription.retrieve(subscription_id)
-        
-        # Update the subscription item's price
-        return stripe.Subscription.modify(
-            subscription_id,
-            items=[{
-                "id": subscription["items"]["data"][0]["id"],
-                "price": new_price_id,
-            }],
-            proration_behavior=proration_behavior,
-        )
-    except stripe.error.StripeError:
-        return None
+    def _update():
+        try:
+            subscription = stripe.Subscription.retrieve(subscription_id)
+            
+            # Update the subscription item's price
+            return stripe.Subscription.modify(
+                subscription_id,
+                items=[{
+                    "id": subscription["items"]["data"][0]["id"],
+                    "price": new_price_id,
+                }],
+                proration_behavior=proration_behavior,
+            )
+        except stripe.error.StripeError:
+            return None
+    
+    return await asyncio.to_thread(_update)
 
 
 def construct_webhook_event(

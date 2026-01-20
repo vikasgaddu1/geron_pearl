@@ -110,6 +110,14 @@ class SubscriptionPlan(Base, TimestampMixin):
         doc="Whether plan is available for new subscriptions"
     )
     
+    # Display flags
+    is_popular: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        doc="Whether to highlight this plan as popular/recommended"
+    )
+    
     # Relationships
     tenants: Mapped[List["Tenant"]] = relationship(
         "Tenant",
@@ -176,6 +184,7 @@ DEFAULT_PLANS = [
             "custom_branding": True,
         },
         "sort_order": 2,
+        "is_popular": True,  # Highlight this plan
     },
     {
         "name": "enterprise",

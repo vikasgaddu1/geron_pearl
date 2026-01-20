@@ -1,5 +1,6 @@
 """Billing and subscription management endpoints."""
 
+import logging
 import secrets
 from datetime import datetime, timedelta
 from typing import Any, List, Optional
@@ -17,10 +18,16 @@ from app.core.stripe import (
     map_stripe_status,
     is_stripe_configured,
 )
+from app.core.email import (
+    send_welcome_email,
+    send_payment_failed_email,
+    send_subscription_canceled_email,
+)
 from app.crud import tenant as tenant_crud
 from app.crud import user as user_crud
 from app.db.session import get_db
 from app.models.tenant import Tenant, SubscriptionStatus
+from app.models.tenant_settings import TenantSettings, DEFAULT_TENANT_SETTINGS
 from app.models.subscription_plan import SubscriptionPlan
 from app.models.user import User
 from app.schemas.billing import (
@@ -35,7 +42,25 @@ from app.schemas.billing import (
 )
 from app.schemas.tenant import TenantCreate
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
+
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+async def _get_tenant_admin(db: AsyncSession, tenant_id: int) -> Optional[User]:
+    """Get the admin user for a tenant (for sending billing emails)."""
+    result = await db.execute(
+        select(User).where(
+            User.tenant_id == tenant_id,
+            User.is_admin == True,
+            User.is_active == True
+        ).limit(1)
+    )
+    return result.scalar_one_or_none()
 
 
 # =============================================================================
@@ -71,7 +96,7 @@ async def list_plans(
             max_studies=plan.max_studies,
             max_storage_mb=plan.max_storage_mb,
             features=plan.features,
-            is_popular=(plan.name == "professional"),  # Mark professional as popular
+            is_popular=plan.is_popular,  # Use database column
         ))
     
     return PlanListResponse(plans=plan_list)
@@ -223,6 +248,13 @@ async def stripe_webhook(
             )
         )
         
+        # Create TenantSettings with defaults
+        tenant_settings = TenantSettings(
+            tenant_id=tenant.id,
+            **DEFAULT_TENANT_SETTINGS
+        )
+        db.add(tenant_settings)
+        
         # Create admin user with random password (they'll set it via email)
         temp_password = secrets.token_urlsafe(16)
         admin_user = User(
@@ -236,10 +268,16 @@ async def stripe_webhook(
         db.add(admin_user)
         await db.commit()
         
-        # TODO: Send welcome email with password reset link
-        # await send_welcome_email(email, tenant.display_name, temp_password)
+        # Send welcome email with login link
+        login_url = f"{settings.frontend_url}/app/login?welcome=true"
+        try:
+            send_welcome_email(email, tenant.display_name, login_url)
+            logger.info(f"Sent welcome email to {email} for tenant {tenant.name}")
+        except Exception as e:
+            logger.error(f"Failed to send welcome email: {e}")
         
         # TODO: Seed sample data for the new tenant
+        # This will be implemented in Phase 5
         # await seed_sample_data(db, tenant.id)
         
         return {"status": "success", "tenant_id": tenant.id}
@@ -264,7 +302,20 @@ async def stripe_webhook(
             tenant.grace_period_ends_at = datetime.utcnow() + timedelta(
                 days=settings.subscription_grace_period_days
             )
-            # TODO: Send payment warning email
+            # Send payment warning email to tenant admin
+            admin_user = await _get_tenant_admin(db, tenant.id)
+            if admin_user and admin_user.email:
+                billing_url = f"{settings.frontend_url}/app/settings"
+                try:
+                    send_payment_failed_email(
+                        admin_user.email,
+                        tenant.display_name,
+                        settings.subscription_grace_period_days,
+                        billing_url
+                    )
+                    logger.info(f"Sent payment warning email to {admin_user.email}")
+                except Exception as e:
+                    logger.error(f"Failed to send payment warning email: {e}")
         
         tenant.subscription_status = new_status
         await db.commit()
@@ -286,7 +337,19 @@ async def stripe_webhook(
         tenant.subscription_status = SubscriptionStatus.canceled
         await db.commit()
         
-        # TODO: Send cancellation confirmation email
+        # Send cancellation confirmation email
+        admin_user = await _get_tenant_admin(db, tenant.id)
+        if admin_user and admin_user.email:
+            reactivate_url = f"{settings.frontend_url}/pricing"
+            try:
+                send_subscription_canceled_email(
+                    admin_user.email,
+                    tenant.display_name,
+                    reactivate_url
+                )
+                logger.info(f"Sent cancellation email to {admin_user.email}")
+            except Exception as e:
+                logger.error(f"Failed to send cancellation email: {e}")
         
         return {"status": "success"}
     
@@ -308,8 +371,42 @@ async def stripe_webhook(
                 days=settings.subscription_grace_period_days
             )
             await db.commit()
+            
+            # Send payment failed email
+            admin_user = await _get_tenant_admin(db, tenant.id)
+            if admin_user and admin_user.email:
+                billing_url = f"{settings.frontend_url}/app/settings"
+                try:
+                    send_payment_failed_email(
+                        admin_user.email,
+                        tenant.display_name,
+                        settings.subscription_grace_period_days,
+                        billing_url
+                    )
+                    logger.info(f"Sent payment failed email to {admin_user.email}")
+                except Exception as e:
+                    logger.error(f"Failed to send payment failed email: {e}")
         
-        # TODO: Send payment failed email
+        return {"status": "success"}
+    
+    # =========================================================================
+    # invoice.paid - Payment successful (clears past_due state)
+    # =========================================================================
+    elif event_type == "invoice.paid":
+        customer_id = data.get("customer")
+        
+        tenant = await tenant_crud.get_by_stripe_customer_id(
+            db, stripe_customer_id=customer_id
+        )
+        if not tenant:
+            return {"status": "tenant_not_found"}
+        
+        # Clear grace period and update status if we were in past_due
+        if tenant.subscription_status == SubscriptionStatus.past_due:
+            tenant.subscription_status = SubscriptionStatus.active
+            tenant.grace_period_ends_at = None
+            await db.commit()
+            logger.info(f"Tenant {tenant.name} subscription reactivated after payment")
         
         return {"status": "success"}
     
