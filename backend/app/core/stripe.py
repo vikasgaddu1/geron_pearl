@@ -1,0 +1,194 @@
+"""Stripe integration service."""
+
+import stripe
+from typing import Optional, Dict, Any
+from datetime import datetime, timedelta
+
+from app.core.config import settings
+from app.models.tenant import SubscriptionStatus
+
+
+# Initialize Stripe
+stripe.api_key = settings.stripe_secret_key
+
+
+def map_stripe_status(stripe_status: str) -> SubscriptionStatus:
+    """Map Stripe subscription status to our SubscriptionStatus enum."""
+    status_map = {
+        "trialing": SubscriptionStatus.trialing,
+        "active": SubscriptionStatus.active,
+        "past_due": SubscriptionStatus.past_due,
+        "canceled": SubscriptionStatus.canceled,
+        "unpaid": SubscriptionStatus.unpaid,
+        "incomplete": SubscriptionStatus.trialing,  # Treat as trialing
+        "incomplete_expired": SubscriptionStatus.canceled,
+        "paused": SubscriptionStatus.past_due,  # Treat paused as past_due
+    }
+    return status_map.get(stripe_status, SubscriptionStatus.canceled)
+
+
+async def create_checkout_session(
+    *,
+    price_id: str,
+    tenant_name: str,
+    email: str,
+    plan_id: int,
+    display_name: Optional[str] = None,
+    trial_days: int = 30,
+    success_url: str,
+    cancel_url: str,
+) -> stripe.checkout.Session:
+    """
+    Create a Stripe Checkout session for new tenant signup.
+    
+    The tenant_name and other details are stored in metadata
+    and retrieved when the webhook fires.
+    """
+    session = stripe.checkout.Session.create(
+        mode="subscription",
+        payment_method_types=["card"],
+        line_items=[{"price": price_id, "quantity": 1}],
+        subscription_data={
+            "trial_period_days": trial_days,
+            "metadata": {
+                "tenant_name": tenant_name,
+                "plan_id": str(plan_id),
+            },
+        },
+        customer_email=email,
+        metadata={
+            "tenant_name": tenant_name,
+            "email": email,
+            "plan_id": str(plan_id),
+            "display_name": display_name or tenant_name.replace("-", " ").title(),
+        },
+        success_url=success_url,
+        cancel_url=cancel_url,
+        allow_promotion_codes=True,
+    )
+    return session
+
+
+async def create_billing_portal_session(
+    customer_id: str,
+    return_url: str,
+) -> stripe.billing_portal.Session:
+    """
+    Create a Stripe Billing Portal session for subscription management.
+    
+    The portal allows customers to:
+    - Update payment method
+    - View invoices
+    - Cancel subscription
+    - Change plan (if configured in Stripe)
+    """
+    session = stripe.billing_portal.Session.create(
+        customer=customer_id,
+        return_url=return_url,
+    )
+    return session
+
+
+async def get_subscription(subscription_id: str) -> Optional[stripe.Subscription]:
+    """Get subscription details from Stripe."""
+    try:
+        return stripe.Subscription.retrieve(subscription_id)
+    except stripe.error.StripeError:
+        return None
+
+
+async def get_customer(customer_id: str) -> Optional[stripe.Customer]:
+    """Get customer details from Stripe."""
+    try:
+        return stripe.Customer.retrieve(customer_id)
+    except stripe.error.StripeError:
+        return None
+
+
+async def cancel_subscription(
+    subscription_id: str,
+    at_period_end: bool = True,
+) -> Optional[stripe.Subscription]:
+    """
+    Cancel a subscription.
+    
+    By default, cancels at period end to allow access until paid period expires.
+    """
+    try:
+        if at_period_end:
+            return stripe.Subscription.modify(
+                subscription_id,
+                cancel_at_period_end=True,
+            )
+        else:
+            return stripe.Subscription.delete(subscription_id)
+    except stripe.error.StripeError:
+        return None
+
+
+async def update_subscription_plan(
+    subscription_id: str,
+    new_price_id: str,
+    proration_behavior: str = "create_prorations",
+) -> Optional[stripe.Subscription]:
+    """
+    Update subscription to a new plan.
+    
+    Proration behavior:
+    - "create_prorations": Charge/credit for time used (default)
+    - "none": No proration
+    - "always_invoice": Create invoice immediately
+    """
+    try:
+        subscription = stripe.Subscription.retrieve(subscription_id)
+        
+        # Update the subscription item's price
+        return stripe.Subscription.modify(
+            subscription_id,
+            items=[{
+                "id": subscription["items"]["data"][0]["id"],
+                "price": new_price_id,
+            }],
+            proration_behavior=proration_behavior,
+        )
+    except stripe.error.StripeError:
+        return None
+
+
+def construct_webhook_event(
+    payload: bytes,
+    signature: str,
+) -> stripe.Event:
+    """
+    Construct and verify a webhook event from Stripe.
+    
+    Raises stripe.error.SignatureVerificationError if invalid.
+    """
+    return stripe.Webhook.construct_event(
+        payload,
+        signature,
+        settings.stripe_webhook_secret,
+    )
+
+
+def get_price_id_for_plan(plan_name: str) -> Optional[str]:
+    """Get the Stripe price ID for a plan name."""
+    price_map = {
+        "starter": settings.stripe_price_starter,
+        "professional": settings.stripe_price_professional,
+        "enterprise": settings.stripe_price_enterprise,
+    }
+    return price_map.get(plan_name.lower())
+
+
+def is_stripe_configured() -> bool:
+    """Check if Stripe is properly configured."""
+    return bool(
+        settings.stripe_secret_key
+        and settings.stripe_webhook_secret
+        and (
+            settings.stripe_price_starter
+            or settings.stripe_price_professional
+            or settings.stripe_price_enterprise
+        )
+    )

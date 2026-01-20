@@ -41,10 +41,16 @@ This document tracks the implementation progress for transforming PEARL into a m
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
 | `phase2-stripe-config` | Add Stripe configuration with multiple price IDs, grace period settings | **DONE** | Config added to `core/config.py` |
-| `phase2-signup-flow` | Create /signup page collecting tenant name + email BEFORE Stripe Checkout | PENDING | |
-| `phase2-billing-endpoints` | Create billing API with idempotent webhooks, Stripe Portal redirect | PENDING | |
-| `phase2-subscription-lifecycle` | Implement grace period logic (7 days), warning emails, access restriction | PENDING | |
-| `phase2-email-service` | Configure email service (SendGrid/SES) for welcome, reset, payment emails | PENDING | |
+| `phase2-signup-flow` | Create /signup page collecting tenant name + email BEFORE Stripe Checkout | **DONE** | Backend: `api/v1/billing.py` - `/signup/initiate` endpoint |
+| `phase2-billing-endpoints` | Create billing API with idempotent webhooks, Stripe Portal redirect | **DONE** | `api/v1/billing.py` - webhooks, portal, overview |
+| `phase2-subscription-lifecycle` | Implement grace period logic (7 days), warning emails, access restriction | **DONE** | `core/subscription.py` - access middleware |
+| `phase2-email-service` | Configure email service (SendGrid/SES) for welcome, reset, payment emails | **DONE** | Added billing emails to `core/email.py` |
+
+**Phase 2 Files Created:**
+- `backend/app/api/v1/billing.py` - Billing API endpoints
+- `backend/app/core/stripe.py` - Stripe service functions
+- `backend/app/core/subscription.py` - Subscription access middleware
+- `backend/app/schemas/billing.py` - Billing schemas
 
 ---
 
@@ -125,14 +131,14 @@ To minimize merge conflicts during parallel development:
 | Phase | Total Tasks | Completed | Progress |
 |-------|-------------|-----------|----------|
 | Phase 1 - Foundation | 7 | 7 | 100% |
-| Phase 2 - Stripe | 5 | 1 | 20% |
+| Phase 2 - Stripe | 5 | 5 | 100% |
 | Phase 3 - Marketing | 3 | 0 | 0% |
 | Phase 4 - Super Admin | 3 | 0 | 0% |
 | Phase 5 - Sample Data | 2 | 0 | 0% |
 | Phase 6 - Help | 2 | 0 | 0% |
 | Phase 7 - Operations | 4 | 0 | 0% |
 | Phase 8 - Railway | 1 | 0 | 0% |
-| **Total** | **27** | **8** | **30%** |
+| **Total** | **27** | **12** | **44%** |
 
 ---
 
