@@ -97,8 +97,14 @@ This document tracks the implementation progress for transforming PEARL into a m
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| `phase5-sample-data` | Create sample data seeding (studies, packages, text elements) | PENDING | |
-| `phase5-reset-mechanism` | Add 'Reset to fresh state' endpoint to clear and re-seed tenant data | PENDING | |
+| `phase5-sample-data` | Create sample data seeding (studies, packages, text elements) | **DONE** | `services/sample_data.py` |
+| `phase5-reset-mechanism` | Add 'Reset to fresh state' endpoint to clear and re-seed tenant data | **DONE** | `/api/v1/tenant/*` endpoints |
+
+**Phase 5 Files Created:**
+- `backend/app/services/sample_data.py` - Sample data definitions and seeding functions
+- `backend/app/api/v1/tenant_data.py` - Tenant data management endpoints
+- `backend/migrations/versions/add_tenant_onboarding_fields.py` - Migration for tenant flags
+- `react-frontend/src/api/endpoints/tenant-data.ts` - Frontend API client
 
 ---
 

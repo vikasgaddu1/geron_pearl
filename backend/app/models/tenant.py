@@ -101,6 +101,20 @@ class Tenant(Base, TimestampMixin):
         doc="Soft delete timestamp (data retained for 90 days)"
     )
     
+    # Onboarding
+    onboarding_completed: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        doc="Whether tenant has completed onboarding wizard"
+    )
+    sample_data_seeded: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        doc="Whether sample data has been seeded for this tenant"
+    )
+    
     # Relationships
     plan: Mapped[Optional["SubscriptionPlan"]] = relationship(
         "SubscriptionPlan",
