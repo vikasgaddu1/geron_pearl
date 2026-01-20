@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from app.api.health import router as health_router
 from app.api.v1 import api_router
 from app.core.config import settings
+from app.core.tenant import TenantContextMiddleware
 from app.db.init_db import init_db
 from app.db.session import engine
 from app.middleware.error_logging import ErrorLoggingMiddleware
@@ -73,6 +74,9 @@ app.add_middleware(
 
 # Add error logging middleware (logs errors to database)
 app.add_middleware(ErrorLoggingMiddleware)
+
+# Add tenant context middleware (extracts tenant_id from JWT for RLS)
+app.add_middleware(TenantContextMiddleware)
 
 # Add MCP integration (if available)
 if MCP_AVAILABLE:

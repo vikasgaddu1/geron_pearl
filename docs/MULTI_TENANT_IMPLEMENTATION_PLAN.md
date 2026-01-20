@@ -15,15 +15,24 @@ This document tracks the implementation progress for transforming PEARL into a m
 |----|------|--------|-------|
 | `phase1-tenant-model` | Create Tenant model with soft-delete, TenantSettings model, SubscriptionPlan table | **DONE** | `models/tenant.py`, `models/subscription_plan.py`, `models/tenant_settings.py` |
 | `phase1-superadmin-table` | Create separate SuperAdmin table with MFA fields and separate JWT issuer | **DONE** | `models/super_admin.py` |
-| `phase1-add-tenant-id` | Add tenant_id to root entities (users, studies, packages, text_elements, audit_logs, error_logs) | **DONE** | Modified 6 model files |
+| `phase1-add-tenant-id` | Add tenant_id to root entities (users, studies, packages, text_elements, audit_logs, error_logs, notifications, app_settings) | **DONE** | Modified 8 model files |
 | `phase1-migration-safe` | Create safe Alembic migration: create default tenant, add nullable tenant_id, backfill, set NOT NULL | **DONE** | `migrations/versions/add_multi_tenancy_foundation.py` |
 | `phase1-composite-indexes` | Add composite indexes (tenant_id + status, tenant_id + created_at, etc.) | **DONE** | Included in migration |
-| `phase1-tenant-context` | Create get_current_tenant_id() dependency, store tenant_id in JWT, set RLS context | **DONE** | `core/tenant.py`, updated `api/v1/auth.py` |
-| `phase1-rls` | Implement PostgreSQL RLS policies; create BYPASSRLS role for super admin | **PARTIAL** | SQL in migration, needs DB testing |
+| `phase1-tenant-context` | Create get_current_tenant_id() dependency, store tenant_id in JWT, set RLS context | **DONE** | `core/tenant.py`, updated `api/v1/auth.py`, registered in `main.py` |
+| `phase1-rls` | Implement PostgreSQL RLS policies; create BYPASSRLS role for super admin | **DONE** | `migrations/versions/add_rls_policies.py` |
 
 **Phase 1 Commits:**
 - `47e68aa` - feat: Add multi-tenancy foundation - models, schemas, CRUD, migration
 - `cf7cbec` - feat: Add Stripe/SaaS config and tenant_id to JWT tokens
+
+**Phase 1 Bug Fixes (from phase1_issues.md review):**
+- Added RLS policies migration with `ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECURITY`, and `CREATE POLICY`
+- Created `pearl_super_admin` role with `BYPASSRLS` privilege
+- Added `tenant_id` to `notifications` and `app_settings` models
+- Fixed username uniqueness: now per-tenant (`UniqueConstraint('tenant_id', 'username')`) instead of global
+- Registered `TenantContextMiddleware` in `main.py`
+- Fixed Boolean/Integer type mismatch in `tenant_settings.py` and `subscription_plan.py`
+- Assigned default plan to default tenant in migration
 
 ---
 
@@ -115,7 +124,7 @@ To minimize merge conflicts during parallel development:
 
 | Phase | Total Tasks | Completed | Progress |
 |-------|-------------|-----------|----------|
-| Phase 1 - Foundation | 7 | 6 | 86% |
+| Phase 1 - Foundation | 7 | 7 | 100% |
 | Phase 2 - Stripe | 5 | 1 | 20% |
 | Phase 3 - Marketing | 3 | 0 | 0% |
 | Phase 4 - Super Admin | 3 | 0 | 0% |
@@ -123,7 +132,7 @@ To minimize merge conflicts during parallel development:
 | Phase 6 - Help | 2 | 0 | 0% |
 | Phase 7 - Operations | 4 | 0 | 0% |
 | Phase 8 - Railway | 1 | 0 | 0% |
-| **Total** | **27** | **7** | **26%** |
+| **Total** | **27** | **8** | **30%** |
 
 ---
 

@@ -4,7 +4,7 @@ from enum import Enum
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -19,6 +19,7 @@ class NotificationType(str, Enum):
 
 if TYPE_CHECKING:
     from app.models.user import User
+    from app.models.tenant import Tenant
     from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker
 
 
@@ -27,8 +28,23 @@ class Notification(Base):
     
     __tablename__ = "notifications"
     
+    # Composite indexes for multi-tenant queries
+    __table_args__ = (
+        Index('ix_notifications_tenant_user', 'tenant_id', 'user_id'),
+        Index('ix_notifications_tenant_unread', 'tenant_id', 'user_id', 'is_read'),
+    )
+    
     # Primary key
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    
+    # Multi-tenancy
+    tenant_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        doc="Tenant this notification belongs to"
+    )
     
     # Foreign keys
     user_id: Mapped[int] = mapped_column(
@@ -118,6 +134,7 @@ class Notification(Base):
     )
     
     # Relationships
+    tenant: Mapped["Tenant"] = relationship("Tenant", backref="notifications")
     user: Mapped["User"] = relationship(
         "User",
         foreign_keys=[user_id],

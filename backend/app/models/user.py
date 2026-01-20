@@ -1,5 +1,5 @@
 from enum import Enum
-from sqlalchemy import Column, Integer, String, Enum as SQLEnum, Boolean, DateTime, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, Enum as SQLEnum, Boolean, DateTime, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from typing import TYPE_CHECKING, List, Optional
 from app.db.base import Base
@@ -31,8 +31,10 @@ class AuthProvider(str, Enum):
 class User(Base, TimestampMixin):
     __tablename__ = "users"
     
-    # Composite indexes for multi-tenant queries
+    # Composite indexes and constraints for multi-tenant queries
     __table_args__ = (
+        # Username must be unique per tenant (not globally)
+        UniqueConstraint('tenant_id', 'username', name='uq_users_tenant_username'),
         Index('ix_users_tenant_email', 'tenant_id', 'email'),
         Index('ix_users_tenant_active', 'tenant_id', 'is_active'),
     )
@@ -48,7 +50,8 @@ class User(Base, TimestampMixin):
         doc="Tenant this user belongs to"
     )
     
-    username = Column(String, unique=True, index=True, nullable=False)
+    # Username is unique per tenant, not globally
+    username = Column(String, index=True, nullable=False)
     # Note: email uniqueness is now per-tenant (enforced at application level)
     email = Column(String, index=True, nullable=True)  # Required for password reset
     is_admin = Column(Boolean, nullable=False, default=False, doc="Whether user has tenant admin privileges")

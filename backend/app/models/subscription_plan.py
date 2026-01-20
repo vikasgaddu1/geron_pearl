@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, List, Optional, Any
 
-from sqlalchemy import Column, Integer, String, JSON
+from sqlalchemy import Column, Integer, String, JSON, Boolean
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
 from app.db.base import Base
@@ -104,7 +104,7 @@ class SubscriptionPlan(Base, TimestampMixin):
     
     # Status
     is_active: Mapped[bool] = mapped_column(
-        Integer, 
+        Boolean, 
         nullable=False, 
         default=True,
         doc="Whether plan is available for new subscriptions"

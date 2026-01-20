@@ -1,26 +1,39 @@
 """Application Settings SQLAlchemy model."""
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, String
+from typing import TYPE_CHECKING
+
+from sqlalchemy import ForeignKey, Integer, String, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.db.mixins import TimestampMixin
 
+if TYPE_CHECKING:
+    from app.models.tenant import Tenant
+
 
 class AppSettings(Base, TimestampMixin):
-    """Application-wide settings table.
+    """Per-tenant application settings table.
 
-    This table is designed to hold a single row (id=1) with all
-    application settings. The single_row constraint ensures only
-    one configuration exists.
+    Each tenant has their own settings row. The unique constraint on
+    tenant_id ensures only one configuration exists per tenant.
     """
 
     __tablename__ = "app_settings"
     __table_args__ = (
-        CheckConstraint("id = 1", name="single_row"),
+        UniqueConstraint('tenant_id', name='uq_app_settings_tenant'),
+        Index('ix_app_settings_tenant', 'tenant_id'),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    
+    # Multi-tenancy
+    tenant_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        doc="Tenant these settings belong to"
+    )
 
     # Settings fields
     default_due_date_offset: Mapped[int] = mapped_column(
@@ -38,7 +51,8 @@ class AppSettings(Base, TimestampMixin):
     )
 
     # Relationships
+    tenant: Mapped["Tenant"] = relationship("Tenant", backref="app_settings")
     updated_by_user = relationship("User", foreign_keys=[updated_by_user_id])
 
     def __repr__(self) -> str:
-        return f"<AppSettings(id={self.id}, default_due_date_offset={self.default_due_date_offset})>"
+        return f"<AppSettings(id={self.id}, tenant_id={self.tenant_id}, default_due_date_offset={self.default_due_date_offset})>"

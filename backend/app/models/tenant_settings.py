@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Boolean
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
 from app.db.base import Base
@@ -70,13 +70,13 @@ class TenantSettings(Base, TimestampMixin):
     
     # Feature toggles
     onboarding_completed: Mapped[bool] = mapped_column(
-        Integer, 
+        Boolean, 
         nullable=False, 
         default=False,
         doc="Whether tenant has completed onboarding"
     )
     sample_data_active: Mapped[bool] = mapped_column(
-        Integer, 
+        Boolean, 
         nullable=False, 
         default=True,
         doc="Whether sample data is still present"
