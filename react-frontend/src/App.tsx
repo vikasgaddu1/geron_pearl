@@ -18,7 +18,7 @@ import { SettingsPage } from '@/features/settings/SettingsPage'
 import { AuditLogsPage } from '@/features/audit-logs/AuditLogsPage'
 import { ErrorLogsPage } from '@/features/error-logs/ErrorLogsPage'
 import { LandingPage, PricingPage, SignupPage, TermsPage, PrivacyPage } from '@/features/marketing'
-import { SuperAdminLoginPage, SuperAdminDashboard } from '@/features/super-admin'
+import { SuperAdminLoginPage, SuperAdminDashboard, SuperAdminProtectedRoute } from '@/features/super-admin'
 import { ImpersonationBanner } from '@/components/layout/ImpersonationBanner'
 
 function App() {
@@ -42,7 +42,14 @@ function App() {
             Platform-level administration for super admins
             ============================================================ */}
         <Route path="/admin/login" element={<SuperAdminLoginPage />} />
-        <Route path="/admin/dashboard" element={<SuperAdminDashboard />} />
+        <Route 
+          path="/admin/dashboard" 
+          element={
+            <SuperAdminProtectedRoute>
+              <SuperAdminDashboard />
+            </SuperAdminProtectedRoute>
+          } 
+        />
         <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
         
         {/* Legacy route redirects - support old /login path */}

@@ -84,19 +84,21 @@ export interface DashboardStats {
   revenue_mrr: number;
 }
 
-// Create a separate axios instance for super admin (different token storage)
+// Super admin token storage
+// Using sessionStorage for enhanced security - token doesn't persist across browser sessions
 const SUPER_ADMIN_TOKEN_KEY = 'super_admin_token';
 
 export const setSuperAdminToken = (token: string) => {
-  localStorage.setItem(SUPER_ADMIN_TOKEN_KEY, token);
+  // Use sessionStorage for super admin tokens (more secure than localStorage)
+  sessionStorage.setItem(SUPER_ADMIN_TOKEN_KEY, token);
 };
 
 export const getSuperAdminToken = (): string | null => {
-  return localStorage.getItem(SUPER_ADMIN_TOKEN_KEY);
+  return sessionStorage.getItem(SUPER_ADMIN_TOKEN_KEY);
 };
 
 export const clearSuperAdminToken = () => {
-  localStorage.removeItem(SUPER_ADMIN_TOKEN_KEY);
+  sessionStorage.removeItem(SUPER_ADMIN_TOKEN_KEY);
 };
 
 // Helper to get auth header for super admin
@@ -191,6 +193,17 @@ export const startImpersonation = async (data: ImpersonationRequest): Promise<Im
   const response = await api.post<ImpersonationResponse>('/super-admin/impersonate', data, {
     headers: getSuperAdminAuthHeader(),
   });
+  return response.data;
+};
+
+/**
+ * End impersonation session (for audit logging)
+ */
+export const endImpersonation = async (tenantId?: number): Promise<{ message: string }> => {
+  const response = await api.post('/super-admin/impersonate/end', 
+    tenantId ? { tenant_id: tenantId } : {},
+    { headers: getSuperAdminAuthHeader() }
+  );
   return response.data;
 };
 

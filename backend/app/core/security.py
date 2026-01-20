@@ -114,6 +114,8 @@ async def get_current_user(
     """
     Get current authenticated user from JWT token.
     
+    Supports both regular access tokens and super admin impersonation tokens.
+    
     Args:
         credentials: HTTP Bearer token from request header
         db: Database session
@@ -125,10 +127,25 @@ async def get_current_user(
         HTTPException: If token is invalid or user not found
     """
     token = credentials.credentials
-    payload = decode_token(token)
     
-    # Verify token type
-    if payload.get("type") != "access":
+    # Try regular token first
+    try:
+        payload = decode_token(token)
+    except HTTPException:
+        # If regular decode fails, try impersonation token
+        try:
+            from app.core.super_admin_security import decode_impersonation_token
+            payload = decode_impersonation_token(token)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    
+    # Verify token type (access or impersonation)
+    token_type = payload.get("type")
+    if token_type not in ("access", "impersonation"):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token type",
@@ -169,6 +186,16 @@ async def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Inactive user",
         )
+    
+    # Store impersonation context on the user object for read-only check
+    if token_type == "impersonation":
+        user._impersonation_context = {
+            "super_admin_id": payload.get("super_admin_id"),
+            "read_only": payload.get("read_only", True),
+            "tenant_id": payload.get("tenant_id"),
+        }
+    else:
+        user._impersonation_context = None
     
     return user
 

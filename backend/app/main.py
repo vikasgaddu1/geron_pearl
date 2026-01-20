@@ -15,6 +15,7 @@ from app.core.tenant import TenantContextMiddleware
 from app.db.init_db import init_db
 from app.db.session import engine
 from app.middleware.error_logging import ErrorLoggingMiddleware
+from app.middleware.impersonation import ImpersonationReadOnlyMiddleware
 
 # MCP is optional - only load if available
 try:
@@ -74,6 +75,9 @@ app.add_middleware(
 
 # Add error logging middleware (logs errors to database)
 app.add_middleware(ErrorLoggingMiddleware)
+
+# Add impersonation read-only middleware (blocks mutations in read-only mode)
+app.add_middleware(ImpersonationReadOnlyMiddleware)
 
 # Add tenant context middleware (extracts tenant_id from JWT for RLS)
 app.add_middleware(TenantContextMiddleware)

@@ -110,6 +110,7 @@ export function SuperAdminDashboard() {
       // Store impersonation token in regular auth storage
       localStorage.setItem('auth_token', response.access_token);
       localStorage.setItem('impersonation_tenant', tenant.display_name);
+      localStorage.setItem('impersonation_tenant_id', String(tenant.id));
       localStorage.setItem('impersonation_read_only', String(response.read_only));
       
       toast.success(`Impersonating ${tenant.display_name}`);

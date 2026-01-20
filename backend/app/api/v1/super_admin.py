@@ -325,13 +325,55 @@ async def impersonate_tenant(
     )
 
 
+@router.post("/impersonate/end")
+async def end_impersonation(
+    request: Request,
+    super_admin: SuperAdmin = Depends(get_current_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    End an impersonation session.
+    
+    This endpoint should be called by the frontend when the super admin
+    clicks "Exit Impersonation". It logs the end of the session for
+    audit purposes.
+    
+    Note: The actual impersonation token is managed by the frontend,
+    so this endpoint is primarily for audit logging.
+    """
+    from app.core.super_admin_security import log_impersonation_end
+    
+    # Extract tenant_id from request if provided
+    body = None
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    
+    tenant_id = body.get("tenant_id") if body else None
+    ip_address = request.client.host if request.client else None
+    
+    # Log impersonation end
+    if tenant_id:
+        await log_impersonation_end(
+            db,
+            super_admin_id=super_admin.id,
+            tenant_id=tenant_id,
+            ip_address=ip_address,
+        )
+    
+    logger.info(f"Super admin {super_admin.email} ended impersonation session")
+    
+    return {"message": "Impersonation session ended"}
+
+
 # =============================================================================
 # Dashboard Endpoints
 # =============================================================================
 
 @router.get("/dashboard/stats", response_model=DashboardStats)
 async def get_dashboard_stats(
-    super_admin: SuperAdmin = Depends(get_current_super_admin),
+    super_admin: SuperAdmin = Depends(require_mfa),
     db: AsyncSession = Depends(get_db),
 ) -> Any:
     """Get platform-wide statistics for the super admin dashboard."""
@@ -392,11 +434,13 @@ async def list_tenants(
     page_size: int = 20,
     status_filter: Optional[str] = None,
     search: Optional[str] = None,
-    super_admin: SuperAdmin = Depends(get_current_super_admin),
+    super_admin: SuperAdmin = Depends(require_mfa),
     db: AsyncSession = Depends(get_db),
 ) -> Any:
     """
     List all tenants with pagination and filtering.
+    
+    Requires MFA in production.
     """
     # Build query
     query = select(Tenant)
@@ -477,10 +521,10 @@ async def list_tenants(
 @router.get("/tenants/{tenant_id}", response_model=TenantSummary)
 async def get_tenant(
     tenant_id: int,
-    super_admin: SuperAdmin = Depends(get_current_super_admin),
+    super_admin: SuperAdmin = Depends(require_mfa),
     db: AsyncSession = Depends(get_db),
 ) -> Any:
-    """Get detailed information about a specific tenant."""
+    """Get detailed information about a specific tenant. Requires MFA in production."""
     tenant = await tenant_crud.get(db, id=tenant_id)
     if not tenant:
         raise HTTPException(
