@@ -87,3 +87,115 @@ export const completeOnboarding = async (): Promise<{ message: string; tenant_id
   const response = await api.post('/tenant/onboarding/complete');
   return response.data;
 };
+
+// =============================================================================
+// GDPR Data Export endpoints
+// =============================================================================
+
+/**
+ * Export all tenant data as JSON (GDPR compliance)
+ */
+export const exportDataJson = async (): Promise<Blob> => {
+  const response = await api.get('/tenant/export-data', { responseType: 'blob' });
+  return response.data;
+};
+
+/**
+ * Export all tenant data as ZIP (GDPR compliance)
+ */
+export const exportDataZip = async (): Promise<Blob> => {
+  const response = await api.get('/tenant/export-data/zip', { responseType: 'blob' });
+  return response.data;
+};
+
+/**
+ * Helper to download a blob as a file
+ */
+export const downloadBlob = (blob: Blob, filename: string): void => {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+};
+
+// =============================================================================
+// Backup and Restore endpoints
+// =============================================================================
+
+export interface BackupStats {
+  studies_created: number;
+  database_releases_created: number;
+  reporting_efforts_created: number;
+  packages_created: number;
+  package_items_created: number;
+  text_elements_created: number;
+}
+
+/**
+ * Download backup as JSON
+ */
+export const downloadBackup = async (): Promise<Blob> => {
+  const response = await api.get('/tenant/backup', { responseType: 'blob' });
+  return response.data;
+};
+
+/**
+ * Download backup as ZIP
+ */
+export const downloadBackupZip = async (): Promise<Blob> => {
+  const response = await api.get('/tenant/backup/zip', { responseType: 'blob' });
+  return response.data;
+};
+
+/**
+ * Restore from backup file
+ */
+export const restoreFromBackup = async (
+  file: File,
+  clearExisting: boolean = false
+): Promise<BackupStats> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api.post<BackupStats>(
+    `/tenant/restore?clear_existing=${clearExisting}`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  );
+  return response.data;
+};
+
+// =============================================================================
+// Usage and Rate Limit endpoints
+// =============================================================================
+
+export interface UsageStats {
+  requests_last_minute: number;
+  requests_last_hour: number;
+  requests_last_day: number;
+  concurrent_requests: number;
+}
+
+export interface RateLimits {
+  requests_per_minute: number;
+  requests_per_hour: number;
+  requests_per_day: number;
+  max_concurrent_requests: number;
+}
+
+export interface UsageResponse {
+  usage: UsageStats;
+  limits: RateLimits;
+  plan_name: string | null;
+}
+
+/**
+ * Get current API usage statistics and rate limits
+ */
+export const getUsageStats = async (): Promise<UsageResponse> => {
+  const response = await api.get<UsageResponse>('/tenant/usage');
+  return response.data;
+};

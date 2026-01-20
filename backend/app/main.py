@@ -12,6 +12,7 @@ from app.api.health import router as health_router
 from app.api.v1 import api_router
 from app.core.config import settings
 from app.core.tenant import TenantContextMiddleware
+from app.core.rate_limiting import RateLimitMiddleware
 from app.db.init_db import init_db
 from app.db.session import engine
 from app.middleware.error_logging import ErrorLoggingMiddleware
@@ -81,6 +82,11 @@ app.add_middleware(ImpersonationReadOnlyMiddleware)
 
 # Add tenant context middleware (extracts tenant_id from JWT for RLS)
 app.add_middleware(TenantContextMiddleware)
+
+# Add rate limiting middleware (uses tenant_id from request.state)
+# Note: Must be added AFTER TenantContextMiddleware in code, which means
+# it runs BEFORE TenantContextMiddleware in the request flow
+app.add_middleware(RateLimitMiddleware)
 
 # Add MCP integration (if available)
 if MCP_AVAILABLE:

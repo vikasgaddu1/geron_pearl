@@ -319,7 +319,7 @@ async def export_user_data(db: AsyncSession, tenant_id: int, user_id: int) -> Di
     Returns user's personal data and activity.
     """
     # Get user
-    result = await self.db.execute(
+    result = await db.execute(
         select(User).where(User.id == user_id, User.tenant_id == tenant_id)
     )
     user = result.scalar_one_or_none()
@@ -328,7 +328,7 @@ async def export_user_data(db: AsyncSession, tenant_id: int, user_id: int) -> Di
         return {"error": "User not found"}
     
     # Get user's audit log entries
-    result = await self.db.execute(
+    result = await db.execute(
         select(AuditLog)
         .where(AuditLog.user_id == user_id)
         .order_by(AuditLog.id.desc())
@@ -337,7 +337,7 @@ async def export_user_data(db: AsyncSession, tenant_id: int, user_id: int) -> Di
     audit_logs = result.scalars().all()
     
     # Get user's notifications
-    result = await self.db.execute(
+    result = await db.execute(
         select(Notification)
         .where(Notification.user_id == user_id)
         .order_by(Notification.id.desc())
