@@ -18,10 +18,13 @@ import { SettingsPage } from '@/features/settings/SettingsPage'
 import { AuditLogsPage } from '@/features/audit-logs/AuditLogsPage'
 import { ErrorLogsPage } from '@/features/error-logs/ErrorLogsPage'
 import { LandingPage, PricingPage, SignupPage, TermsPage, PrivacyPage } from '@/features/marketing'
+import { SuperAdminLoginPage, SuperAdminDashboard } from '@/features/super-admin'
+import { ImpersonationBanner } from '@/components/layout/ImpersonationBanner'
 
 function App() {
   return (
     <>
+      <ImpersonationBanner />
       <Toaster position="top-right" richColors closeButton />
       <Routes>
         {/* ============================================================
@@ -33,6 +36,14 @@ function App() {
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
+        
+        {/* ============================================================
+            SUPER ADMIN ROUTES (/admin/*)
+            Platform-level administration for super admins
+            ============================================================ */}
+        <Route path="/admin/login" element={<SuperAdminLoginPage />} />
+        <Route path="/admin/dashboard" element={<SuperAdminDashboard />} />
+        <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
         
         {/* Legacy route redirects - support old /login path */}
         <Route path="/login" element={<Navigate to="/app/login" replace />} />

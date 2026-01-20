@@ -75,9 +75,21 @@ This document tracks the implementation progress for transforming PEARL into a m
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| `phase4-superadmin-separate-auth` | Create /admin/login with dedicated JWT issuer, MFA enforcement | PENDING | |
-| `phase4-impersonation-secure` | Implement impersonation: 1hr expiry, strict read-only, audit trail | PENDING | |
-| `phase4-superadmin-frontend` | Create dashboard with ImpersonationBanner, exit mechanism, tenant list | PENDING | |
+| `phase4-superadmin-separate-auth` | Create /admin/login with dedicated JWT issuer, MFA enforcement | **DONE** | `core/super_admin_security.py` |
+| `phase4-impersonation-secure` | Implement impersonation: 1hr expiry, strict read-only, audit trail | **DONE** | Audit logged to audit_log table |
+| `phase4-superadmin-frontend` | Create dashboard with ImpersonationBanner, exit mechanism, tenant list | **DONE** | `features/super-admin/` |
+
+**Phase 4 Backend Files:**
+- `backend/app/core/super_admin_security.py` - JWT, MFA, impersonation tokens
+- `backend/app/crud/super_admin.py` - CRUD operations
+- `backend/app/schemas/super_admin.py` - Pydantic schemas
+- `backend/app/api/v1/super_admin.py` - API endpoints
+
+**Phase 4 Frontend Files:**
+- `react-frontend/src/features/super-admin/SuperAdminLoginPage.tsx`
+- `react-frontend/src/features/super-admin/SuperAdminDashboard.tsx`
+- `react-frontend/src/components/layout/ImpersonationBanner.tsx`
+- `react-frontend/src/api/endpoints/super-admin.ts`
 
 ---
 
