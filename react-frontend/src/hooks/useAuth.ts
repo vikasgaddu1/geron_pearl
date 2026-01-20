@@ -61,7 +61,7 @@ export function useAuth() {
       }
       
       toast.success('Login successful!')
-      navigate('/dashboard')
+      navigate('/app/dashboard')
     } catch (error) {
       const axiosError = error as AxiosError<ApiErrorResponse>
       const message = axiosError.response?.data?.detail || 'Login failed. Please check your credentials.'
@@ -81,7 +81,7 @@ export function useAuth() {
     } finally {
       storeLogout()
       toast.success('Logged out successfully')
-      navigate('/login')
+      navigate('/app/login')
     }
   }
 
@@ -106,7 +106,7 @@ export function useAuth() {
         confirm_password: confirmPassword,
       })
       toast.success(response.message)
-      navigate('/login')
+      navigate('/app/login')
       return response
     } catch (error) {
       const axiosError = error as AxiosError<ApiErrorResponse>

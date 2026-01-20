@@ -22,7 +22,7 @@ export function ProtectedRoute({ children, requireAdmin, requireAdminOrLead }: P
   // Redirect to login if not authenticated
   if (!isAuthenticated || !currentUser) {
     // Save the location they were trying to access
-    return <Navigate to="/login" state={{ from: location }} replace />
+    return <Navigate to="/app/login" state={{ from: location }} replace />
   }
 
   // Check admin-only access if required

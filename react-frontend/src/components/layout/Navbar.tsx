@@ -51,7 +51,7 @@ export function Navbar() {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Link to="/" className="flex items-center gap-2 font-semibold group">
+            <Link to="/app/dashboard" className="flex items-center gap-2 font-semibold group">
               <Gem className="h-6 w-6 text-primary group-hover:scale-110 transition-transform" />
               <div className="hidden sm:flex flex-col leading-none">
                 <span className="text-lg font-bold tracking-tight gradient-primary-text">

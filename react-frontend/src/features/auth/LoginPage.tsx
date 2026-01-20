@@ -70,7 +70,7 @@ export function LoginPage() {
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
                 <Link
-                  to="/forgot-password"
+                  to="/app/forgot-password"
                   className="text-sm text-primary hover:underline"
                   tabIndex={-1}
                 >

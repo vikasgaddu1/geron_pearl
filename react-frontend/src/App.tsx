@@ -17,27 +17,47 @@ import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { SettingsPage } from '@/features/settings/SettingsPage'
 import { AuditLogsPage } from '@/features/audit-logs/AuditLogsPage'
 import { ErrorLogsPage } from '@/features/error-logs/ErrorLogsPage'
+import { LandingPage, PricingPage, SignupPage } from '@/features/marketing'
 
 function App() {
   return (
     <>
       <Toaster position="top-right" richColors closeButton />
       <Routes>
-        {/* Public routes */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+        {/* ============================================================
+            PUBLIC MARKETING ROUTES (/)
+            These are the public-facing pages for the SaaS marketing site
+            ============================================================ */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/signup" element={<SignupPage />} />
         
-        {/* Protected routes */}
+        {/* Legacy route redirects - support old /login path */}
+        <Route path="/login" element={<Navigate to="/app/login" replace />} />
+        <Route path="/forgot-password" element={<Navigate to="/app/forgot-password" replace />} />
+        <Route path="/reset-password/:token" element={<Navigate to="/app/reset-password/:token" replace />} />
+        
+        {/* ============================================================
+            APP AUTH ROUTES (/app/login, etc.)
+            These are authentication pages for the tenant application
+            ============================================================ */}
+        <Route path="/app/login" element={<LoginPage />} />
+        <Route path="/app/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/app/reset-password/:token" element={<ResetPasswordPage />} />
+        
+        {/* ============================================================
+            PROTECTED APP ROUTES (/app/*)
+            These require authentication and are the main application
+            ============================================================ */}
         <Route
-          path="/"
+          path="/app"
           element={
             <ProtectedRoute>
               <AppShell />
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route index element={<Navigate to="/app/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           
           {/* Admin or Study Lead routes - accessible by global admins or users with LEAD role */}
@@ -134,6 +154,19 @@ function App() {
             }
           />
         </Route>
+        
+        {/* ============================================================
+            LEGACY ROUTE REDIRECTS
+            Support old paths that didn't have /app prefix
+            ============================================================ */}
+        <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
+        <Route path="/study-management" element={<Navigate to="/app/study-management" replace />} />
+        <Route path="/users" element={<Navigate to="/app/users" replace />} />
+        <Route path="/packages" element={<Navigate to="/app/packages" replace />} />
+        <Route path="/tfl-properties" element={<Navigate to="/app/tfl-properties" replace />} />
+        <Route path="/tracker-management" element={<Navigate to="/app/tracker-management" replace />} />
+        <Route path="/settings" element={<Navigate to="/app/settings" replace />} />
+        <Route path="/audit-logs" element={<Navigate to="/app/audit-logs" replace />} />
       </Routes>
     </>
   )

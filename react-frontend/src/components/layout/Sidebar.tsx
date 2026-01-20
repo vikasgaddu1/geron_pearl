@@ -37,31 +37,31 @@ interface NavGroup {
 }
 
 const allNavigation: (NavItem | NavGroup)[] = [
-  { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { title: 'Dashboard', href: '/app/dashboard', icon: LayoutDashboard },
   {
     title: 'Data Management',
     items: [
-      { title: 'Study Management', href: '/study-management', icon: GitBranch, adminOrLeadOnly: true },
-      { title: 'TFL Properties', href: '/tfl-properties', icon: FileText, adminOrLeadOnly: true },
-      { title: 'User Management', href: '/users', icon: Users, adminOnly: true },
-      { title: 'Database Backup', href: '/database-backup', icon: Database, adminOnly: true },
-      { title: 'Audit Logs', href: '/audit-logs', icon: History, adminOnly: true },
-      { title: 'Error Logs', href: '/error-logs', icon: AlertTriangle, adminOnly: true },
-      { title: 'Settings', href: '/settings', icon: Settings, adminOnly: true },
+      { title: 'Study Management', href: '/app/study-management', icon: GitBranch, adminOrLeadOnly: true },
+      { title: 'TFL Properties', href: '/app/tfl-properties', icon: FileText, adminOrLeadOnly: true },
+      { title: 'User Management', href: '/app/users', icon: Users, adminOnly: true },
+      { title: 'Database Backup', href: '/app/database-backup', icon: Database, adminOnly: true },
+      { title: 'Audit Logs', href: '/app/audit-logs', icon: History, adminOnly: true },
+      { title: 'Error Logs', href: '/app/error-logs', icon: AlertTriangle, adminOnly: true },
+      { title: 'Settings', href: '/app/settings', icon: Settings, adminOnly: true },
     ],
   },
   {
     title: 'Packages',
     items: [
-      { title: 'Packages', href: '/packages', icon: Package, adminOrLeadOnly: true },
-      { title: 'Package Items', href: '/package-items', icon: PackageOpen, adminOrLeadOnly: true },
+      { title: 'Packages', href: '/app/packages', icon: Package, adminOrLeadOnly: true },
+      { title: 'Package Items', href: '/app/package-items', icon: PackageOpen, adminOrLeadOnly: true },
     ],
   },
   {
     title: 'Reporting',
     items: [
-      { title: 'Reporting Effort Items', href: '/reporting-effort-items', icon: ClipboardList, adminOrLeadOnly: true },
-      { title: 'Tracker Management', href: '/tracker-management', icon: ClipboardCheck },
+      { title: 'Reporting Effort Items', href: '/app/reporting-effort-items', icon: ClipboardList, adminOrLeadOnly: true },
+      { title: 'Tracker Management', href: '/app/tracker-management', icon: ClipboardCheck },
     ],
   },
 ]
