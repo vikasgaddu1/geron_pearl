@@ -28,6 +28,7 @@ from app.crud.item_completion_record import item_completion_record
 from app.crud.study_sister_relation import study_sister_relation
 from app.crud.notification import notification
 from app.crud.study_responsible_user import study_responsible_user
+from app.crud.study_default_biostat import study_default_biostat
 
 __all__ = [
     # Multi-tenancy
@@ -58,5 +59,6 @@ __all__ = [
     "item_completion_record",
     "study_sister_relation",
     "notification",
-    "study_responsible_user"
+    "study_responsible_user",
+    "study_default_biostat"
 ]

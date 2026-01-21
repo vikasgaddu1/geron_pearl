@@ -18,7 +18,7 @@ from app.models.package_item_footnote import PackageItemFootnote
 from app.models.package_item_acronym import PackageItemAcronym
 from app.models.user import User, UserDepartment
 from app.models.reporting_effort_item import ReportingEffortItem, SourceType
-from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker, ProductionStatus, QCStatus
+from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker, ProductionStatus, QCStatus, BiostatStatus
 from app.models.reporting_effort_tlf_details import ReportingEffortTlfDetails
 from app.models.reporting_effort_dataset_details import ReportingEffortDatasetDetails
 from app.models.reporting_effort_item_footnote import ReportingEffortItemFootnote
@@ -42,6 +42,7 @@ from app.models.notification import Notification, NotificationType
 from app.models.reporting_effort_lock_history import ReportingEffortLockHistory
 from app.models.enums import LockAction
 from app.models.study_responsible_user import StudyResponsibleUser
+from app.models.study_default_biostat import StudyDefaultBiostat
 
 __all__ = [
     # Multi-tenancy
@@ -73,6 +74,7 @@ __all__ = [
     "ReportingEffortItemTracker",
     "ProductionStatus",
     "QCStatus",
+    "BiostatStatus",
     "ReportingEffortTlfDetails",
     "ReportingEffortDatasetDetails",
     "ReportingEffortItemFootnote",
@@ -105,5 +107,6 @@ __all__ = [
     "NotificationType",
     "ReportingEffortLockHistory",
     "LockAction",
-    "StudyResponsibleUser"
+    "StudyResponsibleUser",
+    "StudyDefaultBiostat"
 ]

@@ -15,14 +15,16 @@ if TYPE_CHECKING:
 
 class StudyRole(str, Enum):
     """Study-specific roles for access control.
-    
+
     - VIEWER: Read-only access (default for all users)
     - EDITOR: Can modify items they're assigned to
     - LEAD: Full admin capabilities within the study
+    - BIOSTAT: Can perform biostat review on TLF items they're assigned to
     """
     VIEWER = "VIEWER"
     EDITOR = "EDITOR"
     LEAD = "LEAD"
+    BIOSTAT = "BIOSTAT"
 
 
 class UserStudyRole(Base, TimestampMixin):

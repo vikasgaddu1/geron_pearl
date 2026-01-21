@@ -27,6 +27,14 @@ class QCStatus(str, Enum):
     COMPLETED = "completed"
     ON_HOLD = "on_hold"
 
+
+class BiostatStatus(str, Enum):
+    """Biostat review status enum - only applicable to TLF items."""
+    NOT_APPLICABLE = "not_applicable"  # Dataset items (SDTM, ADaM)
+    PENDING = "pending"                # Awaiting biostat review (after QC complete)
+    PASSED = "passed"                  # Biostat approved
+    FAILED = "failed"                  # Biostat rejected, needs rework
+
 if TYPE_CHECKING:
     from app.models.reporting_effort_item import ReportingEffortItem
     from app.models.user import User
@@ -63,7 +71,14 @@ class ReportingEffortItemTracker(Base, TimestampMixin):
         nullable=True,
         index=True
     )
-    
+    biostat_reviewer_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=True,
+        index=True,
+        doc="User assigned to perform biostat review (TLF items only)"
+    )
+
     # Status fields
     production_status: Mapped[str] = mapped_column(
         String(50),
@@ -77,7 +92,14 @@ class ReportingEffortItemTracker(Base, TimestampMixin):
         nullable=False,
         doc="QC Status: not_started, in_progress, completed, failed"
     )
-    
+    biostat_status: Mapped[str] = mapped_column(
+        String(50),
+        default="not_applicable",
+        nullable=False,
+        index=True,
+        doc="Biostat review status: not_applicable, pending, passed, failed (TLF items only)"
+    )
+
     # Scheduling fields
     due_date: Mapped[Optional[date]] = mapped_column(
         Date,
@@ -89,7 +111,12 @@ class ReportingEffortItemTracker(Base, TimestampMixin):
         nullable=True,
         doc="Date when QC was completed"
     )
-    
+    biostat_review_date: Mapped[Optional[date]] = mapped_column(
+        Date,
+        nullable=True,
+        doc="Date when biostat review was completed (passed or failed)"
+    )
+
     # Priority and workflow
     priority: Mapped[str] = mapped_column(
         String(50),
@@ -115,7 +142,14 @@ class ReportingEffortItemTracker(Base, TimestampMixin):
         index=True,
         doc="Count of unresolved parent comments (for badge display)"
     )
-    
+    unresolved_biostat_comment_count: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        index=True,
+        doc="Count of unresolved biostat comments (blocks ready_for_qc)"
+    )
+
     # Estimation fields
     complexity: Mapped[int] = mapped_column(
         Integer,
@@ -138,6 +172,11 @@ class ReportingEffortItemTracker(Base, TimestampMixin):
         "User",
         foreign_keys=[qc_programmer_id],
         backref="qc_assignments"
+    )
+    biostat_reviewer: Mapped[Optional["User"]] = relationship(
+        "User",
+        foreign_keys=[biostat_reviewer_id],
+        backref="biostat_assignments"
     )
     comments: Mapped[List["TrackerComment"]] = relationship(
         "TrackerComment",
@@ -164,7 +203,7 @@ class ReportingEffortItemTracker(Base, TimestampMixin):
     
     def __repr__(self) -> str:
         try:
-            return f"<ReportingEffortItemTracker(id={self.id}, item={self.reporting_effort_item_id}, prod_status={self.production_status}, qc_status={self.qc_status})>"
+            return f"<ReportingEffortItemTracker(id={self.id}, item={self.reporting_effort_item_id}, prod_status={self.production_status}, qc_status={self.qc_status}, biostat_status={self.biostat_status})>"
         except Exception:
             # Handle detached instance or other attribute access issues
             return f"<ReportingEffortItemTracker(detached)>"

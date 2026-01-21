@@ -76,6 +76,10 @@ from app.schemas.study_responsible_user import (
     StudyResponsibleUserUpdate, StudyResponsibleUserWithUser, StudyResponsibleUsersResponse,
     AssignResponsibleUserRequest, UpdateResponsibleUserRequest
 )
+from app.schemas.study_default_biostat import (
+    StudyDefaultBiostat, StudyDefaultBiostatCreate, StudyDefaultBiostatInDB,
+    StudyDefaultBiostatUpdate, StudyDefaultBiostatWithUser
+)
 
 __all__ = [
     # Multi-tenancy schemas
@@ -141,5 +145,8 @@ __all__ = [
     # StudyResponsibleUser schemas
     "StudyResponsibleUser", "StudyResponsibleUserCreate", "StudyResponsibleUserInDB",
     "StudyResponsibleUserUpdate", "StudyResponsibleUserWithUser", "StudyResponsibleUsersResponse",
-    "AssignResponsibleUserRequest", "UpdateResponsibleUserRequest"
+    "AssignResponsibleUserRequest", "UpdateResponsibleUserRequest",
+    # StudyDefaultBiostat schemas
+    "StudyDefaultBiostat", "StudyDefaultBiostatCreate", "StudyDefaultBiostatInDB",
+    "StudyDefaultBiostatUpdate", "StudyDefaultBiostatWithUser"
 ]
