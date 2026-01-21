@@ -23,7 +23,7 @@ class TokenPayload(BaseModel):
 
 class LoginRequest(BaseModel):
     """Login request schema."""
-    username: str = Field(..., min_length=1, max_length=100)
+    email: str = Field(..., min_length=1, max_length=255, description="Email address or username")
     password: str = Field(..., min_length=1)
 
 
@@ -98,9 +98,11 @@ class UserResponse(BaseModel):
     department: Optional[str] = None
     auth_provider: Optional[str] = None
     is_active: bool
+    tenant_id: Optional[int] = None
+    tenant_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 

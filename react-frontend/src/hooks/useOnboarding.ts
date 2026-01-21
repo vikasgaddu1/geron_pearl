@@ -1,6 +1,6 @@
 /**
  * Onboarding hook
- * 
+ *
  * Manages onboarding wizard state for new tenant admins.
  */
 
@@ -8,6 +8,26 @@ import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getOnboardingStatus, completeOnboarding } from '@/api/endpoints/tenant-data';
 import { useAuthStore } from '@/stores/authStore';
+
+const LOCAL_STORAGE_KEY = 'pearl-onboarding-completed';
+
+// Helper to check if onboarding was completed locally (as fallback)
+function getLocalOnboardingCompleted(): boolean {
+  try {
+    return localStorage.getItem(LOCAL_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+// Helper to mark onboarding as completed locally
+function setLocalOnboardingCompleted(): void {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_KEY, 'true');
+  } catch {
+    // Ignore localStorage errors
+  }
+}
 
 export function useOnboarding() {
   const queryClient = useQueryClient();
@@ -35,15 +55,21 @@ export function useOnboarding() {
   });
 
   // Show wizard for admins who haven't completed onboarding
+  // Also check localStorage as fallback (in case API call failed previously)
   useEffect(() => {
-    if (status && !status.onboarding_completed && shouldCheckOnboarding) {
-      setShowWizard(true);
+    if (shouldCheckOnboarding && status) {
+      const locallyCompleted = getLocalOnboardingCompleted();
+      if (!status.onboarding_completed && !locallyCompleted) {
+        setShowWizard(true);
+      }
     }
   }, [status, shouldCheckOnboarding]);
 
   const handleComplete = useCallback(() => {
     // Immediately dismiss the wizard for better UX
     setShowWizard(false);
+    // Save to localStorage as backup (in case API fails)
+    setLocalOnboardingCompleted();
     // Then persist to backend (fire-and-forget)
     completeMutation.mutate();
   }, [completeMutation]);
@@ -51,6 +77,8 @@ export function useOnboarding() {
   const handleSkip = useCallback(() => {
     // Immediately dismiss the wizard for better UX
     setShowWizard(false);
+    // Save to localStorage as backup (in case API fails)
+    setLocalOnboardingCompleted();
     // Skip also marks onboarding as complete
     completeMutation.mutate();
   }, [completeMutation]);

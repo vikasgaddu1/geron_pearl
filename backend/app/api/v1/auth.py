@@ -47,40 +47,48 @@ async def login(
     db: AsyncSession = Depends(get_db)
 ) -> Any:
     """
-    Local username/password login.
-    
+    Local email/password login.
+
     Returns JWT access and refresh tokens.
     """
-    # Find user by username
+    from sqlalchemy import or_
+    from sqlalchemy.orm import selectinload
+
+    # Find user by email (primary) or username (fallback for backwards compatibility)
+    # Eagerly load tenant for tenant_name in response
     result = await db.execute(
-        select(User).where(User.username == login_data.username)
+        select(User)
+        .options(selectinload(User.tenant))
+        .where(
+            or_(User.email == login_data.email, User.username == login_data.email)
+        )
     )
     user = result.scalar_one_or_none()
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
+            detail="Incorrect email or password",
         )
-    
+
     # Verify password
     if not user.password_hash or not verify_password(login_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
+            detail="Incorrect email or password",
         )
-    
+
     # Check if user is active
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Inactive user account",
         )
-    
+
     # Update last login
     user.last_login_at = datetime.utcnow()
     await db.commit()
-    
+
     # Create tokens with tenant_id for multi-tenancy
     token_data = {
         "sub": str(user.id),  # JWT sub must be a string
@@ -93,12 +101,27 @@ async def login(
         "sub": str(user.id),
         "tenant_id": user.tenant_id,
     })
-    
+
+    # Build user response with tenant name
+    user_data = {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "is_admin": user.is_admin,
+        "department": user.department,
+        "auth_provider": user.auth_provider,
+        "is_active": user.is_active,
+        "tenant_id": user.tenant_id,
+        "tenant_name": user.tenant.display_name if user.tenant else None,
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+    }
+
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
         "token_type": "bearer",
-        "user": user,
+        "user": user_data,
     }
 
 

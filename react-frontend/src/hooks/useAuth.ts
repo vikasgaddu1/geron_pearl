@@ -4,8 +4,16 @@ import { AxiosError } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
 import { authApi, type LoginRequest } from '@/api/endpoints/auth'
 
+interface ValidationError {
+  type: string
+  loc: string[]
+  msg: string
+  input?: unknown
+  ctx?: Record<string, unknown>
+}
+
 interface ApiErrorResponse {
-  detail?: string
+  detail?: string | ValidationError[]
 }
 
 export function useAuth() {
@@ -64,7 +72,14 @@ export function useAuth() {
       navigate('/app/dashboard')
     } catch (error) {
       const axiosError = error as AxiosError<ApiErrorResponse>
-      const message = axiosError.response?.data?.detail || 'Login failed. Please check your credentials.'
+      const detail = axiosError.response?.data?.detail
+      let message = 'Login failed. Please check your credentials.'
+      if (typeof detail === 'string') {
+        message = detail
+      } else if (Array.isArray(detail) && detail.length > 0) {
+        // Pydantic validation error - extract first message
+        message = detail[0].msg
+      }
       toast.error(message)
       setStudyRolesLoading(false)
       throw error

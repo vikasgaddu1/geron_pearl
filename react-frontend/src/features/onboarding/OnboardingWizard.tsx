@@ -34,19 +34,19 @@ const STEPS = [
   {
     id: 'welcome',
     title: 'Welcome to PEARL!',
-    subtitle: 'Your clinical trials reporting platform',
+    subtitle: 'Track, collaborate, deliver',
     icon: Sparkles,
     content: (
       <div className="text-center space-y-4">
         <p className="text-gray-600">
-          PEARL helps biostatistics teams manage TFL packages, track production status, 
-          and collaborate on reporting efforts in real-time.
+          Your team's command center for SDTM, ADaM, and TFL deliverables. Assign work,
+          track progress, and hit your deadlines — all in one place.
         </p>
         <p className="text-gray-600">
-          Let's take a quick tour of the key features to get you started.
+          Let's take a quick tour to get you started.
         </p>
         <div className="pt-4 flex justify-center">
-          <div className="w-32 h-32 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
+          <div className="w-32 h-32 bg-teal-600 rounded-full flex items-center justify-center">
             <span className="text-5xl text-white font-bold">P</span>
           </div>
         </div>
@@ -65,21 +65,21 @@ const STEPS = [
         </p>
         <div className="bg-gray-50 rounded-lg p-4 space-y-3">
           <div className="flex items-start gap-3">
-            <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm font-medium">1</div>
+            <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-600 flex items-center justify-center text-sm font-medium">1</div>
             <div>
               <p className="font-medium">Create a Study</p>
               <p className="text-sm text-gray-500">Each study has a unique label (e.g., "STUDY-001")</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
-            <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm font-medium">2</div>
+            <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-600 flex items-center justify-center text-sm font-medium">2</div>
             <div>
               <p className="font-medium">Add Database Releases</p>
               <p className="text-sm text-gray-500">Each release represents a data snapshot (interim, final)</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
-            <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm font-medium">3</div>
+            <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-600 flex items-center justify-center text-sm font-medium">3</div>
             <div>
               <p className="font-medium">Create Reporting Efforts</p>
               <p className="text-sm text-gray-500">Group your deliverables by purpose (CSR, FDA submission)</p>
@@ -174,7 +174,7 @@ const STEPS = [
         </p>
         <div className="bg-gray-50 rounded-lg p-4 space-y-3">
           <div className="flex items-start gap-3">
-            <div className="w-16 text-xs font-medium text-indigo-600">ADMIN</div>
+            <div className="w-16 text-xs font-medium text-teal-600">ADMIN</div>
             <p className="text-sm text-gray-600">Full access to all features and settings</p>
           </div>
           <div className="flex items-start gap-3">
@@ -272,7 +272,7 @@ export function OnboardingWizard({ onComplete, onSkip, onDismiss }: OnboardingWi
         {/* Header */}
         <div className="p-4 border-b flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">P</span>
             </div>
             <span className="text-sm text-gray-500">
@@ -292,8 +292,8 @@ export function OnboardingWizard({ onComplete, onSkip, onDismiss }: OnboardingWi
         {/* Content */}
         <CardContent className="p-6">
           <div className="text-center mb-6">
-            <div className="w-12 h-12 mx-auto mb-4 bg-indigo-100 rounded-full flex items-center justify-center">
-              <Icon className="w-6 h-6 text-indigo-600" />
+            <div className="w-12 h-12 mx-auto mb-4 bg-teal-100 rounded-full flex items-center justify-center">
+              <Icon className="w-6 h-6 text-teal-600" />
             </div>
             <h2 className="text-xl font-semibold text-gray-900">{step.title}</h2>
             <p className="text-gray-500">{step.subtitle}</p>

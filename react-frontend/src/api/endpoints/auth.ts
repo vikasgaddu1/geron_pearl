@@ -4,7 +4,7 @@ import type { User, MyStudyRolesResponse } from '@/types'
 const BASE_PATH = '/api/v1/auth'
 
 export interface LoginRequest {
-  username: string
+  email: string
   password: string
 }
 
@@ -64,7 +64,7 @@ export interface ChangePasswordResponse {
 
 export const authApi = {
   /**
-   * Login with username and password
+   * Login with email and password
    */
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
     const response = await apiClient.post(`${BASE_PATH}/login`, credentials)

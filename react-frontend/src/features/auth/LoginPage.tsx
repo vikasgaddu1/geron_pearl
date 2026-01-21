@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Eye, EyeOff, LogIn, Loader2, Gem } from 'lucide-react'
+import { Eye, EyeOff, LogIn, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,17 +10,17 @@ import { useAuth } from '@/hooks/useAuth'
 import { authApi } from '@/api/endpoints/auth'
 
 export function LoginPage() {
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const { login, isLoading } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!username || !password) return
-    
+    if (!email || !password) return
+
     try {
-      await login({ username, password })
+      await login({ email, password })
     } catch {
       // Error handling is done in useAuth hook
     }
@@ -31,17 +31,19 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center gradient-primary-subtle p-4">
-      <Card className="w-full max-w-md shadow-xl">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+      <Card className="w-full max-w-md shadow-xl border-slate-200">
         <CardHeader className="space-y-3 text-center">
           <div className="flex justify-center">
-            <Gem className="h-12 w-12 text-primary" />
+            <div className="w-12 h-12 bg-teal-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-2xl">P</span>
+            </div>
           </div>
           <div>
-            <CardTitle className="text-3xl font-bold gradient-primary-text">
+            <CardTitle className="text-3xl font-bold text-slate-900">
               PEARL
             </CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-sm text-slate-500 mt-1">
               Package, Effort, and Analysis Reporting Library
             </p>
           </div>
@@ -53,16 +55,16 @@ export function LoginPage() {
           {/* Local Login Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username" required>Username</Label>
+              <Label htmlFor="email" required>Email</Label>
               <Input
-                id="username"
-                type="text"
-                placeholder="Enter your username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isLoading}
-                autoComplete="username"
+                autoComplete="email"
               />
             </div>
             
@@ -100,7 +102,7 @@ export function LoginPage() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading || !username || !password}>
+            <Button type="submit" className="w-full" disabled={isLoading || !email || !password}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
