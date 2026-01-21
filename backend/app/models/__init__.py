@@ -43,6 +43,7 @@ from app.models.reporting_effort_lock_history import ReportingEffortLockHistory
 from app.models.enums import LockAction
 from app.models.study_responsible_user import StudyResponsibleUser
 from app.models.study_default_biostat import StudyDefaultBiostat
+from app.models.feature_request import FeatureRequest, FeatureRequestStatus, FeatureRequestCategory
 
 __all__ = [
     # Multi-tenancy
@@ -108,5 +109,8 @@ __all__ = [
     "ReportingEffortLockHistory",
     "LockAction",
     "StudyResponsibleUser",
-    "StudyDefaultBiostat"
+    "StudyDefaultBiostat",
+    "FeatureRequest",
+    "FeatureRequestStatus",
+    "FeatureRequestCategory",
 ]

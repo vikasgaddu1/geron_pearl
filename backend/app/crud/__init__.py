@@ -29,6 +29,7 @@ from app.crud.study_sister_relation import study_sister_relation
 from app.crud.notification import notification
 from app.crud.study_responsible_user import study_responsible_user
 from app.crud.study_default_biostat import study_default_biostat
+from app.crud.feature_request import feature_request
 
 __all__ = [
     # Multi-tenancy
@@ -60,5 +61,6 @@ __all__ = [
     "study_sister_relation",
     "notification",
     "study_responsible_user",
-    "study_default_biostat"
+    "study_default_biostat",
+    "feature_request",
 ]

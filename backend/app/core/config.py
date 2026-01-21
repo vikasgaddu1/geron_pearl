@@ -83,10 +83,14 @@ class Settings(BaseSettings):
     stripe_publishable_key: Optional[str] = Field(default=None, description="Stripe publishable key")
     stripe_webhook_secret: Optional[str] = Field(default=None, description="Stripe webhook secret")
     
-    # Stripe Price IDs for subscription tiers
-    stripe_price_starter: Optional[str] = Field(default=None, description="Stripe price ID for Starter plan")
-    stripe_price_professional: Optional[str] = Field(default=None, description="Stripe price ID for Professional plan")
-    stripe_price_enterprise: Optional[str] = Field(default=None, description="Stripe price ID for Enterprise plan")
+    # Stripe Price IDs for subscription tiers (monthly)
+    stripe_price_starter: Optional[str] = Field(default=None, description="Stripe price ID for Starter plan (monthly)")
+    stripe_price_professional: Optional[str] = Field(default=None, description="Stripe price ID for Professional plan (monthly)")
+    stripe_price_enterprise: Optional[str] = Field(default=None, description="Stripe price ID for Enterprise plan (monthly)")
+
+    # Stripe Price IDs for yearly billing (17% discount - 2 months free)
+    stripe_price_starter_yearly: Optional[str] = Field(default=None, description="Stripe price ID for Starter plan (yearly)")
+    stripe_price_professional_yearly: Optional[str] = Field(default=None, description="Stripe price ID for Professional plan (yearly)")
     
     # Subscription settings
     trial_period_days: int = Field(default=30, description="Trial period in days")

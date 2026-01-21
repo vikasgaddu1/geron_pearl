@@ -32,8 +32,13 @@ const processQueue = (error: Error | null = null) => {
 // Request interceptor for adding auth headers
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // If Authorization header is already set (e.g., by super admin endpoints), don't override it
+    if (config.headers.Authorization) {
+      return config
+    }
+
     const { tokens } = useAuthStore.getState()
-    
+
     // Auth endpoints that should NOT have auth headers (public endpoints)
     const publicAuthEndpoints = [
       '/auth/login',
@@ -46,11 +51,11 @@ apiClient.interceptors.request.use(
     const isPublicAuthEndpoint = publicAuthEndpoints.some(
       (endpoint) => config.url?.includes(endpoint)
     )
-    
+
     if (tokens?.accessToken && !isPublicAuthEndpoint) {
       config.headers.Authorization = `Bearer ${tokens.accessToken}`
     }
-    
+
     return config
   },
   (error) => {

@@ -7,7 +7,7 @@ from app.api.v1 import (
     reporting_effort_items, reporting_effort_tracker, tracker_comments, tracker_tags,
     audit_trail, database_backup, settings, reporting_effort_milestones, ig_versions,
     reporting_effort_usecases, team_assignments, analytics, notifications, error_logs,
-    billing, super_admin, tenant_data, system
+    billing, super_admin, tenant_data, system, feedback
 )
 
 api_router = APIRouter()
@@ -54,6 +54,9 @@ api_router.include_router(analytics.router, prefix="/analytics", tags=["analytic
 
 # User notifications
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
+
+# User feedback (feature requests, bug reports)
+api_router.include_router(feedback.router, prefix="/feedback", tags=["feedback"])
 
 # Super admin portal (platform-level administration)
 api_router.include_router(super_admin.router, prefix="/super-admin", tags=["super-admin"])

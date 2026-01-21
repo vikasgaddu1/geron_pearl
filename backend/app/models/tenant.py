@@ -152,3 +152,8 @@ class Tenant(Base, TimestampMixin):
         if self.grace_period_ends_at is None:
             return False
         return datetime.utcnow() < self.grace_period_ends_at
+
+    @property
+    def is_deleted(self) -> bool:
+        """Check if tenant has been soft deleted."""
+        return self.deleted_at is not None

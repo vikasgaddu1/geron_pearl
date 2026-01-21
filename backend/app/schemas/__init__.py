@@ -80,6 +80,11 @@ from app.schemas.study_default_biostat import (
     StudyDefaultBiostat, StudyDefaultBiostatCreate, StudyDefaultBiostatInDB,
     StudyDefaultBiostatUpdate, StudyDefaultBiostatWithUser
 )
+from app.schemas.feature_request import (
+    FeatureRequest as FeatureRequestSchema, FeatureRequestCreate, FeatureRequestInDB,
+    FeatureRequestUpdate, FeatureRequestWithUser, FeatureRequestListResponse,
+    FeatureRequestStatsResponse
+)
 
 __all__ = [
     # Multi-tenancy schemas
@@ -148,5 +153,9 @@ __all__ = [
     "AssignResponsibleUserRequest", "UpdateResponsibleUserRequest",
     # StudyDefaultBiostat schemas
     "StudyDefaultBiostat", "StudyDefaultBiostatCreate", "StudyDefaultBiostatInDB",
-    "StudyDefaultBiostatUpdate", "StudyDefaultBiostatWithUser"
+    "StudyDefaultBiostatUpdate", "StudyDefaultBiostatWithUser",
+    # FeatureRequest schemas
+    "FeatureRequestSchema", "FeatureRequestCreate", "FeatureRequestInDB",
+    "FeatureRequestUpdate", "FeatureRequestWithUser", "FeatureRequestListResponse",
+    "FeatureRequestStatsResponse",
 ]
