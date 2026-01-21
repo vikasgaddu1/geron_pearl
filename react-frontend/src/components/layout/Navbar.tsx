@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Moon, Sun, Menu, LogOut, User, Gem, Wifi, WifiOff } from 'lucide-react'
+import { Moon, Sun, Menu, LogOut, User, Wifi, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -19,8 +19,8 @@ import { useWebSocketStore } from '@/stores/websocketStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useAuth } from '@/hooks/useAuth'
 import { Badge } from '@/components/ui/badge'
-import { ThemeSelector } from '@/components/layout/ThemeSelector'
 import { NotificationDropdown } from '@/components/layout/NotificationDropdown'
+import { FeedbackDialog } from '@/features/feedback/FeedbackDialog'
 import { useEffect } from 'react'
 
 export function Navbar() {
@@ -51,32 +51,34 @@ export function Navbar() {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Link to="/app/dashboard" className="flex items-center gap-2 font-semibold group">
-              <Gem className="h-6 w-6 text-primary group-hover:scale-110 transition-transform" />
-              <div className="hidden sm:flex flex-col leading-none">
-                <span className="text-lg font-bold tracking-tight gradient-primary-text">
-                  PEARL
-                </span>
-                <span className="text-[10px] text-muted-foreground font-normal tracking-wide">
-                  Clinical Research Management
-                </span>
+            <Link to="/app/dashboard" className="flex items-center gap-3 group">
+              <div className="w-9 h-9 bg-teal-600 rounded-lg flex items-center justify-center group-hover:bg-teal-700 transition-colors">
+                <span className="text-white font-bold text-lg">P</span>
               </div>
+              <span className="hidden sm:inline font-semibold text-xl text-slate-900 dark:text-slate-100 tracking-tight">
+                PEARL
+              </span>
             </Link>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="max-w-xs">
             <p className="font-semibold">Package, Effort, and Analysis Reporting Library</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Comprehensive clinical research data management system
+              Your team's command center for study deliverables
             </p>
           </TooltipContent>
         </Tooltip>
 
+        {/* Tenant Name Display */}
+        {currentUser?.tenant_name && (
+          <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-md bg-muted/50 border">
+            <span className="text-xs text-muted-foreground">Tenant:</span>
+            <span className="text-sm font-medium">{currentUser.tenant_name}</span>
+          </div>
+        )}
+
         <div className="flex-1" />
 
         <div className="flex items-center gap-2">
-          {/* Color Theme Selector */}
-          <ThemeSelector />
-
           {/* Light/Dark Mode Toggle */}
           <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
             {theme === 'dark' ? (
@@ -104,6 +106,9 @@ export function Navbar() {
 
           {/* Notifications */}
           <NotificationDropdown />
+
+          {/* Feedback */}
+          <FeedbackDialog />
 
           {/* User Dropdown */}
           {currentUser && (

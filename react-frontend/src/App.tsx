@@ -29,6 +29,7 @@ const SettingsPage = lazy(() => import('@/features/settings/SettingsPage').then(
 const AuditLogsPage = lazy(() => import('@/features/audit-logs/AuditLogsPage').then(m => ({ default: m.AuditLogsPage })))
 const ErrorLogsPage = lazy(() => import('@/features/error-logs/ErrorLogsPage').then(m => ({ default: m.ErrorLogsPage })))
 const HelpPage = lazy(() => import('@/features/help').then(m => ({ default: m.HelpPage })))
+const BillingPage = lazy(() => import('@/features/billing').then(m => ({ default: m.BillingPage })))
 
 // Auth pages - lazy loaded
 const LoginPage = lazy(() => import('@/features/auth/LoginPage').then(m => ({ default: m.LoginPage })))
@@ -190,7 +191,15 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+          <Route
+            path="billing"
+            element={
+              <ProtectedRoute requireAdmin>
+                <BillingPage />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Help - accessible by all authenticated users */}
           <Route
             path="help"

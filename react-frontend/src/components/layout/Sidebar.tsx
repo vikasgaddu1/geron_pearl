@@ -15,6 +15,7 @@ import {
   History,
   AlertTriangle,
   HelpCircle,
+  CreditCard,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -40,7 +41,7 @@ interface NavGroup {
 const allNavigation: (NavItem | NavGroup)[] = [
   { title: 'Dashboard', href: '/app/dashboard', icon: LayoutDashboard },
   {
-    title: 'Data Management',
+    title: 'Administration',
     items: [
       { title: 'Study Management', href: '/app/study-management', icon: GitBranch, adminOrLeadOnly: true },
       { title: 'TFL Properties', href: '/app/tfl-properties', icon: FileText, adminOrLeadOnly: true },
@@ -49,6 +50,7 @@ const allNavigation: (NavItem | NavGroup)[] = [
       { title: 'Audit Logs', href: '/app/audit-logs', icon: History, adminOnly: true },
       { title: 'Error Logs', href: '/app/error-logs', icon: AlertTriangle, adminOnly: true },
       { title: 'Settings', href: '/app/settings', icon: Settings, adminOnly: true },
+      { title: 'Billing', href: '/app/billing', icon: CreditCard, adminOnly: true },
     ],
   },
   {

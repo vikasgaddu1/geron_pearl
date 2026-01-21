@@ -81,6 +81,8 @@ export interface User {
   department?: string
   auth_provider?: string
   is_active: boolean
+  tenant_id?: number
+  tenant_name?: string
   created_at: string
   updated_at: string
 }
@@ -702,5 +704,55 @@ export interface MilestoneTrackerLinkingTag {
   id: number
   name: string
   color: string
+}
+
+// ==================== Feature Request / Feedback Types ====================
+
+export type FeatureRequestStatus = 'pending' | 'working' | 'done'
+export type FeatureRequestCategory = 'bug' | 'feature'
+
+export interface FeatureRequest {
+  id: number
+  tenant_id: number
+  user_id: number
+  category: FeatureRequestCategory
+  title: string
+  description: string
+  status: FeatureRequestStatus
+  admin_response?: string
+  responded_at?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface FeatureRequestWithUser extends FeatureRequest {
+  user_name?: string
+  user_email?: string
+  tenant_name?: string
+}
+
+export interface FeatureRequestCreate {
+  category: FeatureRequestCategory
+  title: string
+  description: string
+}
+
+export interface FeatureRequestUpdate {
+  status?: FeatureRequestStatus
+  admin_response?: string
+}
+
+export interface FeatureRequestListResponse {
+  items: FeatureRequestWithUser[]
+  total: number
+  skip: number
+  limit: number
+}
+
+export interface FeatureRequestStats {
+  pending: number
+  working: number
+  done: number
+  total: number
 }
 
