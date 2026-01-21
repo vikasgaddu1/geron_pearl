@@ -1,7 +1,7 @@
 /**
  * Signup Page
- * 
- * Collects tenant information before redirecting to Stripe Checkout:
+ *
+ * Clean clinical design - collects tenant information before redirecting to Stripe Checkout:
  * - Organization name
  * - Admin email
  * - Selected plan
@@ -16,6 +16,7 @@ import { Loader2, ArrowLeft, Building2, Mail, CreditCard, CheckCircle } from 'lu
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -24,12 +25,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  getPlans, 
-  initiateSignup, 
-  Plan, 
+import {
+  getPlans,
+  initiateSignup,
+  Plan,
   formatPrice,
-  getBillingStatus 
+  getBillingStatus
 } from '@/api/endpoints/billing';
 
 // Validation schema
@@ -57,9 +58,18 @@ export function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [stripeConfigured, setStripeConfigured] = useState(true);
   const [trialDays, setTrialDays] = useState(30);
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
 
   const preselectedPlan = searchParams.get('plan');
+  const preselectedBilling = searchParams.get('billing') as 'monthly' | 'yearly' | null;
   const welcomeBack = searchParams.get('welcome') === 'true';
+
+  // Set billing period from URL param
+  useEffect(() => {
+    if (preselectedBilling === 'yearly') {
+      setBillingPeriod('yearly');
+    }
+  }, [preselectedBilling]);
 
   const {
     register,
@@ -84,7 +94,6 @@ export function SignupPage() {
           getPlans(),
           getBillingStatus(),
         ]);
-        // Defensive: handle cases where plans might be undefined or not an array
         const fetchedPlans = plansResponse?.plans ?? [];
         setPlans(fetchedPlans);
         setStripeConfigured(statusResponse?.stripe_configured ?? false);
@@ -116,13 +125,14 @@ export function SignupPage() {
         email: data.email,
         plan_id: parseInt(data.plan_id),
         display_name: data.display_name || undefined,
+        billing_period: billingPeriod,
       });
 
       // Redirect to Stripe Checkout
       window.location.href = response.checkout_url;
     } catch (err: any) {
       setError(
-        err.response?.data?.detail || 
+        err.response?.data?.detail ||
         'Failed to start signup. Please try again.'
       );
       setSubmitting(false);
@@ -131,27 +141,27 @@ export function SignupPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 to-white">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+    <div className="min-h-screen bg-slate-50">
       {/* Navigation */}
-      <nav className="border-b bg-white/80 backdrop-blur-sm">
+      <nav className="border-b border-slate-200 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">P</span>
+            <Link to="/" className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-teal-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg">P</span>
               </div>
-              <span className="font-bold text-xl text-gray-900">PEARL</span>
+              <span className="font-semibold text-xl text-slate-900 tracking-tight">PEARL</span>
             </Link>
-            <Link 
-              to="/pricing" 
-              className="text-gray-600 hover:text-gray-900 font-medium flex items-center gap-2"
+            <Link
+              to="/pricing"
+              className="text-slate-600 hover:text-slate-900 font-medium text-sm flex items-center gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Pricing
@@ -161,22 +171,22 @@ export function SignupPage() {
       </nav>
 
       {/* Main Content */}
-      <div className="max-w-xl mx-auto px-4 py-16">
+      <div className="max-w-md mx-auto px-4 py-12">
         {/* Header */}
-        <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold text-gray-900 mb-3">
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">
             Create your account
           </h1>
-          <p className="text-gray-600">
+          <p className="text-slate-600 text-sm">
             Start your {trialDays}-day free trial. No credit card required to start.
           </p>
         </div>
 
         {/* Welcome Back Alert */}
         {welcomeBack && (
-          <Alert className="mb-6 bg-green-50 border-green-200">
-            <CheckCircle className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800">
+          <Alert className="mb-6 bg-teal-50 border-teal-200">
+            <CheckCircle className="h-4 w-4 text-teal-600" />
+            <AlertDescription className="text-teal-800">
               Welcome to PEARL! Check your email for login instructions.
             </AlertDescription>
           </Alert>
@@ -191,7 +201,7 @@ export function SignupPage() {
 
         {/* Stripe Not Configured Warning */}
         {!stripeConfigured && (
-          <Alert className="mb-6">
+          <Alert className="mb-6 border-slate-200">
             <AlertDescription>
               Payment processing is not configured. Please contact support to set up your account.
             </AlertDescription>
@@ -200,7 +210,7 @@ export function SignupPage() {
 
         {/* No Plans Available Warning */}
         {plans.length === 0 && !error && (
-          <Alert className="mb-6">
+          <Alert className="mb-6 border-slate-200">
             <AlertDescription>
               No subscription plans are currently available. Please contact support or try again later.
             </AlertDescription>
@@ -208,140 +218,190 @@ export function SignupPage() {
         )}
 
         {/* Signup Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Organization Name */}
-          <div className="space-y-2">
-            <Label htmlFor="tenant_name" className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-gray-500" />
-              Organization Name
-            </Label>
-            <Input
-              id="tenant_name"
-              placeholder="acme-pharma"
-              {...register('tenant_name')}
-              className={errors.tenant_name ? 'border-red-500' : ''}
-            />
-            {errors.tenant_name && (
-              <p className="text-sm text-red-500">{errors.tenant_name.message}</p>
-            )}
-            <p className="text-xs text-gray-500">
-              This will be used in your workspace URL (e.g., acme-pharma.pearl.app)
-            </p>
-          </div>
-
-          {/* Display Name (Optional) */}
-          <div className="space-y-2">
-            <Label htmlFor="display_name">
-              Display Name <span className="text-gray-400">(optional)</span>
-            </Label>
-            <Input
-              id="display_name"
-              placeholder="ACME Pharma Inc."
-              {...register('display_name')}
-            />
-            <p className="text-xs text-gray-500">
-              How your organization name will appear in the app
-            </p>
-          </div>
-
-          {/* Email */}
-          <div className="space-y-2">
-            <Label htmlFor="email" className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-gray-500" />
-              Admin Email
-            </Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="admin@acme-pharma.com"
-              {...register('email')}
-              className={errors.email ? 'border-red-500' : ''}
-            />
-            {errors.email && (
-              <p className="text-sm text-red-500">{errors.email.message}</p>
-            )}
-            <p className="text-xs text-gray-500">
-              We'll send your login credentials here
-            </p>
-          </div>
-
-          {/* Plan Selection */}
-          <div className="space-y-2">
-            <Label htmlFor="plan_id" className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-gray-500" />
-              Select Plan
-            </Label>
-            <Select
-              value={selectedPlanId}
-              onValueChange={(value) => setValue('plan_id', value)}
-            >
-              <SelectTrigger className={errors.plan_id ? 'border-red-500' : ''}>
-                <SelectValue placeholder="Choose a plan" />
-              </SelectTrigger>
-              <SelectContent>
-                {plans
-                  .filter(p => p.price_monthly > 0) // Exclude enterprise (contact sales)
-                  .map((plan) => (
-                    <SelectItem key={plan.id} value={plan.id.toString()}>
-                      {plan.display_name} - {formatPrice(plan.price_monthly)}/mo
-                      {plan.is_popular && ' ⭐'}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            {errors.plan_id && (
-              <p className="text-sm text-red-500">{errors.plan_id.message}</p>
-            )}
-          </div>
-
-          {/* Selected Plan Summary */}
-          {selectedPlan && (
-            <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-100">
-              <div className="flex justify-between items-center mb-2">
-                <span className="font-medium text-gray-900">{selectedPlan.display_name}</span>
-                <span className="font-bold text-indigo-600">
-                  {formatPrice(selectedPlan.price_monthly)}/month
-                </span>
-              </div>
-              <ul className="text-sm text-gray-600 space-y-1">
-                <li>• {selectedPlan.max_users === -1 ? 'Unlimited' : selectedPlan.max_users} users</li>
-                <li>• {selectedPlan.max_studies === -1 ? 'Unlimited' : selectedPlan.max_studies} studies</li>
-                <li>• {trialDays}-day free trial</li>
-              </ul>
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            {/* Organization Name */}
+            <div className="space-y-1.5">
+              <Label htmlFor="tenant_name" className="flex items-center gap-2 text-sm">
+                <Building2 className="h-4 w-4 text-slate-400" />
+                Organization Name
+              </Label>
+              <Input
+                id="tenant_name"
+                placeholder="acme-pharma"
+                {...register('tenant_name')}
+                className={`${errors.tenant_name ? 'border-red-500' : 'border-slate-200'}`}
+              />
+              {errors.tenant_name && (
+                <p className="text-xs text-red-500">{errors.tenant_name.message}</p>
+              )}
+              <p className="text-xs text-slate-500">
+                This will be used in your workspace URL
+              </p>
             </div>
-          )}
 
-          {/* Submit Button */}
-          <Button
-            type="submit"
-            size="lg"
-            className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
-            disabled={submitting || !stripeConfigured || plans.length === 0}
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Setting up your account...
-              </>
-            ) : (
-              'Continue to Payment'
+            {/* Display Name (Optional) */}
+            <div className="space-y-1.5">
+              <Label htmlFor="display_name" className="text-sm">
+                Display Name <span className="text-slate-400">(optional)</span>
+              </Label>
+              <Input
+                id="display_name"
+                placeholder="ACME Pharma Inc."
+                {...register('display_name')}
+                className="border-slate-200"
+              />
+            </div>
+
+            {/* Email */}
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="flex items-center gap-2 text-sm">
+                <Mail className="h-4 w-4 text-slate-400" />
+                Admin Email
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="admin@acme-pharma.com"
+                {...register('email')}
+                className={`${errors.email ? 'border-red-500' : 'border-slate-200'}`}
+              />
+              {errors.email && (
+                <p className="text-xs text-red-500">{errors.email.message}</p>
+              )}
+              <p className="text-xs text-slate-500">
+                We'll send your login credentials here
+              </p>
+            </div>
+
+            {/* Billing Period Toggle */}
+            <div className="space-y-1.5">
+              <Label className="text-sm">Billing Period</Label>
+              <div className="inline-flex items-center bg-slate-100 rounded-lg p-1 w-full">
+                <button
+                  type="button"
+                  onClick={() => setBillingPeriod('monthly')}
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    billingPeriod === 'monthly'
+                      ? 'bg-white shadow text-slate-900'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Monthly
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBillingPeriod('yearly')}
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                    billingPeriod === 'yearly'
+                      ? 'bg-white shadow text-slate-900'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Yearly
+                  <Badge variant="secondary" className="bg-teal-100 text-teal-700 border-0 text-xs">
+                    Save 17%
+                  </Badge>
+                </button>
+              </div>
+            </div>
+
+            {/* Plan Selection */}
+            <div className="space-y-1.5">
+              <Label htmlFor="plan_id" className="flex items-center gap-2 text-sm">
+                <CreditCard className="h-4 w-4 text-slate-400" />
+                Select Plan
+              </Label>
+              <Select
+                value={selectedPlanId}
+                onValueChange={(value) => setValue('plan_id', value)}
+              >
+                <SelectTrigger className={`${errors.plan_id ? 'border-red-500' : 'border-slate-200'}`}>
+                  <SelectValue placeholder="Choose a plan" />
+                </SelectTrigger>
+                <SelectContent>
+                  {plans
+                    .filter(p => p.price_monthly > 0)
+                    .map((plan) => (
+                      <SelectItem key={plan.id} value={plan.id.toString()}>
+                        {plan.display_name} - {billingPeriod === 'yearly' && plan.price_yearly
+                          ? `$${(plan.price_yearly / 100 / 12).toFixed(0)}/mo`
+                          : formatPrice(plan.price_monthly) + '/mo'}
+                        {plan.is_popular && ' (Popular)'}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              {errors.plan_id && (
+                <p className="text-xs text-red-500">{errors.plan_id.message}</p>
+              )}
+            </div>
+
+            {/* Selected Plan Summary */}
+            {selectedPlan && (
+              <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium text-slate-900 text-sm">{selectedPlan.display_name}</span>
+                  <div className="text-right">
+                    {billingPeriod === 'yearly' && selectedPlan.price_yearly ? (
+                      <>
+                        <span className="font-semibold text-teal-600">
+                          ${(selectedPlan.price_yearly / 100 / 12).toFixed(0)}/month
+                        </span>
+                        <span className="text-xs text-slate-500 block">
+                          billed ${(selectedPlan.price_yearly / 100).toFixed(0)}/year
+                        </span>
+                      </>
+                    ) : (
+                      <span className="font-semibold text-teal-600">
+                        {formatPrice(selectedPlan.price_monthly)}/month
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <ul className="text-xs text-slate-600 space-y-1">
+                  <li>• {selectedPlan.max_users === -1 ? 'Unlimited' : selectedPlan.max_users} users</li>
+                  <li>• {selectedPlan.max_studies === -1 ? 'Unlimited' : selectedPlan.max_studies} studies</li>
+                  <li>• {trialDays}-day free trial</li>
+                  {billingPeriod === 'yearly' && (
+                    <li className="text-teal-600 font-medium">• 2 months free (17% savings)</li>
+                  )}
+                </ul>
+              </div>
             )}
-          </Button>
 
-          {/* Terms */}
-          <p className="text-xs text-center text-gray-500">
-            By signing up, you agree to our{' '}
-            <Link to="/terms" className="text-indigo-600 hover:underline">Terms of Service</Link>
-            {' '}and{' '}
-            <Link to="/privacy" className="text-indigo-600 hover:underline">Privacy Policy</Link>
-          </p>
-        </form>
+            {/* Submit Button */}
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full bg-teal-600 hover:bg-teal-700 text-white font-medium"
+              disabled={submitting || !stripeConfigured || plans.length === 0}
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Setting up your account...
+                </>
+              ) : (
+                'Continue to Payment'
+              )}
+            </Button>
+
+            {/* Terms */}
+            <p className="text-xs text-center text-slate-500">
+              By signing up, you agree to our{' '}
+              <Link to="/terms" className="text-teal-600 hover:underline">Terms of Service</Link>
+              {' '}and{' '}
+              <Link to="/privacy" className="text-teal-600 hover:underline">Privacy Policy</Link>
+            </p>
+          </form>
+        </div>
 
         {/* Already have account */}
-        <div className="mt-8 text-center">
-          <p className="text-gray-600">
+        <div className="mt-6 text-center">
+          <p className="text-slate-600 text-sm">
             Already have an account?{' '}
-            <Link to="/app/login" className="text-indigo-600 font-medium hover:underline">
+            <Link to="/app/login" className="text-teal-600 font-medium hover:underline">
               Sign in
             </Link>
           </p>

@@ -1,7 +1,7 @@
 /**
  * Pricing Page
- * 
- * Displays subscription plans with:
+ *
+ * Clean clinical design with:
  * - Plan tiers with features
  * - Feature comparison table
  * - FAQ section
@@ -9,9 +9,11 @@
 
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Check, X, Loader2, AlertCircle } from 'lucide-react';
+import { Check, X, Loader2, AlertCircle, Calculator, Users, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Accordion,
   AccordionContent,
@@ -22,16 +24,25 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getPlans, Plan, formatPrice } from '@/api/endpoints/billing';
 
 const featureComparison = [
-  { name: 'Users', starter: '5', professional: '25', enterprise: 'Unlimited' },
-  { name: 'Studies', starter: '10', professional: 'Unlimited', enterprise: 'Unlimited' },
-  { name: 'Storage', starter: '1 GB', professional: '10 GB', enterprise: 'Unlimited' },
+  // Limits
+  { name: 'Team Members', starter: '12', professional: '100', enterprise: 'Custom' },
+  { name: 'Studies', starter: '3', professional: '15', enterprise: 'Custom' },
+  { name: 'Tracker Items', starter: '1,000', professional: '10,000', enterprise: 'Unlimited' },
+  // Core Features
+  { name: 'TFL Package Management', starter: true, professional: true, enterprise: true },
+  { name: 'Real-time Collaboration', starter: true, professional: true, enterprise: true },
+  { name: 'Audit Trail', starter: true, professional: true, enterprise: true },
+  { name: 'Role-based Access Control', starter: true, professional: true, enterprise: true },
+  // Support
   { name: 'Email Support', starter: true, professional: true, enterprise: true },
-  { name: 'API Access', starter: false, professional: true, enterprise: true },
   { name: 'Priority Support', starter: false, professional: true, enterprise: true },
+  { name: 'Dedicated Account Manager', starter: false, professional: false, enterprise: true },
+  // Advanced Features
+  { name: 'API Access', starter: false, professional: true, enterprise: true },
   { name: 'Custom Branding', starter: false, professional: true, enterprise: true },
   { name: 'SSO / SAML', starter: false, professional: false, enterprise: true },
-  { name: 'Dedicated Support', starter: false, professional: false, enterprise: true },
   { name: 'Custom Integrations', starter: false, professional: false, enterprise: true },
+  { name: 'SLA Guarantee', starter: false, professional: false, enterprise: true },
 ];
 
 const faqs = [
@@ -65,6 +76,170 @@ const faqs = [
   },
 ];
 
+// Enterprise pricing constants
+const ENTERPRISE_BASE_FEE = 500; // $500/month base
+const ENTERPRISE_PER_USER = 5; // $5 per user above 100
+const ENTERPRISE_PER_STUDY = 50; // $50 per study above 15
+const ENTERPRISE_INCLUDED_USERS = 100;
+const ENTERPRISE_INCLUDED_STUDIES = 15;
+
+function EnterpriseCalculator() {
+  const [users, setUsers] = useState(150);
+  const [studies, setStudies] = useState(25);
+
+  // Calculate monthly price
+  const extraUsers = Math.max(0, users - ENTERPRISE_INCLUDED_USERS);
+  const extraStudies = Math.max(0, studies - ENTERPRISE_INCLUDED_STUDIES);
+  const monthlyPrice = ENTERPRISE_BASE_FEE + (extraUsers * ENTERPRISE_PER_USER) + (extraStudies * ENTERPRISE_PER_STUDY);
+  const yearlyPrice = monthlyPrice * 10; // 2 months free (17% discount)
+  const monthlySavings = (monthlyPrice * 12) - yearlyPrice;
+
+  return (
+    <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-50">
+      <div className="max-w-3xl mx-auto">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 bg-slate-200 text-slate-700 px-3 py-1.5 rounded-full text-sm font-medium mb-4">
+            <Calculator className="h-4 w-4" />
+            Enterprise Pricing Estimator
+          </div>
+          <h2 className="text-3xl font-bold text-slate-900 mb-4">
+            Estimate your enterprise cost
+          </h2>
+          <p className="text-slate-600">
+            Get an instant estimate for your organization. Final pricing confirmed during sales consultation.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 p-8">
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* Inputs */}
+            <div className="space-y-6">
+              {/* Users Input */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-sm font-medium">
+                  <Users className="h-4 w-4 text-slate-400" />
+                  Team Members
+                </Label>
+                <Input
+                  type="number"
+                  value={users}
+                  onChange={(e) => setUsers(Math.max(100, parseInt(e.target.value) || 100))}
+                  min={100}
+                  className="h-11 text-lg"
+                />
+                <p className="text-xs text-slate-500">
+                  First 100 users included, then ${ENTERPRISE_PER_USER}/user
+                </p>
+              </div>
+
+              {/* Studies Input */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-sm font-medium">
+                  <FolderOpen className="h-4 w-4 text-slate-400" />
+                  Active Studies
+                </Label>
+                <Input
+                  type="number"
+                  value={studies}
+                  onChange={(e) => setStudies(Math.max(15, parseInt(e.target.value) || 15))}
+                  min={15}
+                  className="h-11 text-lg"
+                />
+                <p className="text-xs text-slate-500">
+                  First 15 studies included, then ${ENTERPRISE_PER_STUDY}/study
+                </p>
+              </div>
+
+              {/* Quick presets */}
+              <div className="pt-4 border-t border-slate-100">
+                <p className="text-xs text-slate-500 mb-2">Quick presets:</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { users: 150, studies: 20, label: 'Small' },
+                    { users: 250, studies: 40, label: 'Medium' },
+                    { users: 500, studies: 75, label: 'Large' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => { setUsers(preset.users); setStudies(preset.studies); }}
+                      className="px-3 py-1.5 text-xs font-medium rounded-md border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+                    >
+                      {preset.label} ({preset.users} users, {preset.studies} studies)
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Price Display */}
+            <div className="bg-slate-50 rounded-lg p-6 border border-slate-200">
+              <div className="text-center">
+                <p className="text-sm text-slate-500 mb-1">Estimated Annual Price</p>
+                <div className="text-4xl font-bold text-slate-900 mb-1">
+                  ${yearlyPrice.toLocaleString()}
+                  <span className="text-lg font-normal text-slate-500">/year</span>
+                </div>
+                <p className="text-sm text-teal-600 font-medium mb-6">
+                  Save ${monthlySavings.toLocaleString()} vs monthly
+                </p>
+
+                {/* Breakdown */}
+                <div className="text-left space-y-2 pt-4 border-t border-slate-200">
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
+                    Monthly Breakdown
+                  </p>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Base fee</span>
+                    <span className="text-slate-900">${ENTERPRISE_BASE_FEE}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">{extraUsers} extra users × ${ENTERPRISE_PER_USER}</span>
+                    <span className="text-slate-900">${extraUsers * ENTERPRISE_PER_USER}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">{extraStudies} extra studies × ${ENTERPRISE_PER_STUDY}</span>
+                    <span className="text-slate-900">${extraStudies * ENTERPRISE_PER_STUDY}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-medium pt-2 border-t border-slate-200">
+                    <span className="text-slate-900">Monthly equivalent</span>
+                    <span className="text-slate-900">${monthlyPrice.toLocaleString()}/mo</span>
+                  </div>
+                </div>
+
+                <a
+                  href={`mailto:sales@pearl.app?subject=Enterprise%20Inquiry&body=Hi,%0A%0AI'm%20interested%20in%20PEARL%20Enterprise%20for%20approximately%20${users}%20users%20and%20${studies}%20studies.%0A%0AEstimated%20annual%20cost:%20$${yearlyPrice.toLocaleString()}%0A%0APlease%20contact%20me%20to%20discuss.`}
+                  className="block mt-6"
+                >
+                  <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white">
+                    Contact Sales
+                  </Button>
+                </a>
+                <p className="text-xs text-slate-500 mt-3">
+                  Enterprise plans are billed annually
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Included Features */}
+          <div className="mt-8 pt-6 border-t border-slate-200">
+            <p className="text-sm font-medium text-slate-900 mb-3">All Enterprise plans include:</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {['SSO / SAML', 'Dedicated Support', 'Custom Integrations', 'SLA Guarantee'].map((feature) => (
+                <div key={feature} className="flex items-center gap-2 text-sm text-slate-600">
+                  <Check className="h-4 w-4 text-teal-600 flex-shrink-0" />
+                  {feature}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function PricingPage() {
   const [searchParams] = useSearchParams();
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -78,7 +253,6 @@ export function PricingPage() {
     const fetchPlans = async () => {
       try {
         const response = await getPlans();
-        // Defensive: handle cases where plans might be undefined or not an array
         setPlans(response?.plans ?? []);
       } catch (err) {
         console.error('Failed to fetch plans:', err);
@@ -99,23 +273,23 @@ export function PricingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+    <div className="min-h-screen bg-white">
       {/* Navigation */}
-      <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+      <nav className="border-b border-slate-200 bg-white sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">P</span>
+            <Link to="/" className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-teal-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg">P</span>
               </div>
-              <span className="font-bold text-xl text-gray-900">PEARL</span>
+              <span className="font-semibold text-xl text-slate-900 tracking-tight">PEARL</span>
             </Link>
-            <div className="flex items-center gap-4">
-              <Link to="/app/login" className="text-gray-600 hover:text-gray-900 font-medium">
-                Login
+            <div className="flex items-center gap-6">
+              <Link to="/app/login" className="text-slate-600 hover:text-slate-900 font-medium text-sm">
+                Sign in
               </Link>
               <Link to="/signup">
-                <Button className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700">
+                <Button className="bg-teal-600 hover:bg-teal-700 text-white font-medium">
                   Start Free Trial
                 </Button>
               </Link>
@@ -127,7 +301,7 @@ export function PricingPage() {
       {/* Canceled Alert */}
       {canceled && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-          <Alert>
+          <Alert className="border-slate-200">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
               Your signup was canceled. Feel free to try again when you're ready.
@@ -137,36 +311,36 @@ export function PricingPage() {
       )}
 
       {/* Header */}
-      <section className="pt-20 pb-12 px-4 sm:px-6 lg:px-8 text-center">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">
+      <section className="pt-16 pb-12 px-4 sm:px-6 lg:px-8 text-center bg-slate-50">
+        <h1 className="text-4xl font-bold text-slate-900 mb-4">
           Simple, transparent pricing
         </h1>
-        <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-8">
+        <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-8">
           Choose the plan that fits your team. All plans include a 30-day free trial.
         </p>
 
         {/* Billing Period Toggle */}
-        <div className="inline-flex items-center bg-gray-100 rounded-lg p-1">
+        <div className="inline-flex items-center bg-slate-200 rounded-lg p-1">
           <button
             onClick={() => setBillingPeriod('monthly')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
               billingPeriod === 'monthly'
-                ? 'bg-white shadow text-gray-900'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'bg-white shadow text-slate-900'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             Monthly
           </button>
           <button
             onClick={() => setBillingPeriod('yearly')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
               billingPeriod === 'yearly'
-                ? 'bg-white shadow text-gray-900'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'bg-white shadow text-slate-900'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             Yearly
-            <Badge variant="secondary" className="ml-2 bg-green-100 text-green-700">
+            <Badge variant="secondary" className="bg-teal-100 text-teal-700 border-0">
               Save 17%
             </Badge>
           </button>
@@ -174,100 +348,98 @@ export function PricingPage() {
       </section>
 
       {/* Pricing Cards */}
-      <section className="pb-24 px-4 sm:px-6 lg:px-8">
+      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-slate-50">
         <div className="max-w-7xl mx-auto">
           {loading ? (
             <div className="flex justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+              <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
             </div>
           ) : error ? (
             <div className="text-center py-12 text-red-600">{error}</div>
           ) : plans.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-600 mb-4">No pricing plans are currently available.</p>
-              <p className="text-sm text-gray-500">Please contact us for custom pricing options.</p>
+              <p className="text-slate-600 mb-4">No pricing plans are currently available.</p>
+              <p className="text-sm text-slate-500">Please contact us for custom pricing options.</p>
               <a href="mailto:sales@pearl.app" className="inline-block mt-4">
-                <Button variant="outline">Contact Sales</Button>
+                <Button variant="outline" className="border-slate-300">Contact Sales</Button>
               </a>
             </div>
           ) : (
-            <div className="grid md:grid-cols-3 gap-8">
+            <div className="grid md:grid-cols-3 gap-6">
               {plans.map((plan) => (
                 <div
                   key={plan.id}
-                  className={`relative bg-white rounded-2xl border-2 p-8 ${
+                  className={`relative bg-white rounded-xl border-2 p-8 ${
                     plan.is_popular
-                      ? 'border-indigo-500 shadow-xl'
-                      : 'border-gray-200'
+                      ? 'border-teal-500 shadow-lg'
+                      : 'border-slate-200'
                   }`}
                 >
                   {plan.is_popular && (
-                    <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                      <Badge className="bg-indigo-500 text-white px-4 py-1">
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <Badge className="bg-teal-600 text-white px-3 py-1 text-xs font-medium">
                         Most Popular
                       </Badge>
                     </div>
                   )}
                   <div className="text-center mb-8">
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">
+                    <h3 className="text-xl font-semibold text-slate-900 mb-2">
                       {plan.display_name}
                     </h3>
-                    <p className="text-gray-600 text-sm h-12">
+                    <p className="text-slate-600 text-sm h-12">
                       {plan.description}
                     </p>
                     <div className="mt-6">
-                      <span className="text-4xl font-bold text-gray-900">
+                      <span className="text-4xl font-bold text-slate-900">
                         {getPrice(plan)}
                       </span>
                       {plan.price_monthly > 0 && (
-                        <span className="text-gray-600">/month</span>
+                        <span className="text-slate-500">/month</span>
                       )}
                     </div>
-                    {billingPeriod === 'yearly' && plan.price_yearly && (
-                      <p className="text-sm text-gray-500 mt-1">
+                    {billingPeriod === 'yearly' && plan.price_yearly > 0 && (
+                      <p className="text-sm text-slate-500 mt-1">
                         billed annually
                       </p>
                     )}
                   </div>
 
                   <ul className="space-y-3 mb-8">
-                    <li className="flex items-center gap-3 text-gray-600">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <li className="flex items-center gap-3 text-slate-600 text-sm">
+                      <Check className="h-4 w-4 text-teal-600 flex-shrink-0" />
                       <span>
                         {plan.max_users === -1 ? 'Unlimited' : plan.max_users} users
                       </span>
                     </li>
-                    <li className="flex items-center gap-3 text-gray-600">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <li className="flex items-center gap-3 text-slate-600 text-sm">
+                      <Check className="h-4 w-4 text-teal-600 flex-shrink-0" />
                       <span>
                         {plan.max_studies === -1 ? 'Unlimited' : plan.max_studies} studies
                       </span>
                     </li>
-                    <li className="flex items-center gap-3 text-gray-600">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <li className="flex items-center gap-3 text-slate-600 text-sm">
+                      <Check className="h-4 w-4 text-teal-600 flex-shrink-0" />
                       <span>
-                        {plan.max_storage_mb === -1
-                          ? 'Unlimited storage'
-                          : `${plan.max_storage_mb >= 1024 
-                              ? `${plan.max_storage_mb / 1024} GB` 
-                              : `${plan.max_storage_mb} MB`} storage`}
+                        {plan.max_tracker_items === -1
+                          ? 'Unlimited tracker items'
+                          : `${plan.max_tracker_items.toLocaleString()} tracker items`}
                       </span>
                     </li>
                     {plan.features?.api_access && (
-                      <li className="flex items-center gap-3 text-gray-600">
-                        <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+                      <li className="flex items-center gap-3 text-slate-600 text-sm">
+                        <Check className="h-4 w-4 text-teal-600 flex-shrink-0" />
                         <span>API access</span>
                       </li>
                     )}
                     {plan.features?.priority_support && (
-                      <li className="flex items-center gap-3 text-gray-600">
-                        <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+                      <li className="flex items-center gap-3 text-slate-600 text-sm">
+                        <Check className="h-4 w-4 text-teal-600 flex-shrink-0" />
                         <span>Priority support</span>
                       </li>
                     )}
                     {plan.features?.sso && (
-                      <li className="flex items-center gap-3 text-gray-600">
-                        <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+                      <li className="flex items-center gap-3 text-slate-600 text-sm">
+                        <Check className="h-4 w-4 text-teal-600 flex-shrink-0" />
                         <span>SSO / SAML</span>
                       </li>
                     )}
@@ -275,19 +447,18 @@ export function PricingPage() {
 
                   {plan.price_monthly === 0 ? (
                     <a href="mailto:sales@pearl.app?subject=Enterprise%20Plan%20Inquiry" className="block">
-                      <Button variant="outline" size="lg" className="w-full">
+                      <Button variant="outline" size="lg" className="w-full border-slate-300 text-slate-700 hover:bg-slate-50">
                         Contact Sales
                       </Button>
                     </a>
                   ) : (
-                    <Link to={`/signup?plan=${plan.id}`} className="block">
+                    <Link to={`/signup?plan=${plan.id}&billing=${billingPeriod}`} className="block">
                       <Button
                         className={`w-full ${
                           plan.is_popular
-                            ? 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700'
-                            : ''
+                            ? 'bg-teal-600 hover:bg-teal-700 text-white'
+                            : 'bg-slate-900 hover:bg-slate-800 text-white'
                         }`}
-                        variant={plan.is_popular ? 'default' : 'outline'}
                         size="lg"
                       >
                         Start Free Trial
@@ -302,58 +473,60 @@ export function PricingPage() {
       </section>
 
       {/* Feature Comparison */}
-      <section className="py-24 bg-gray-50 px-4 sm:px-6 lg:px-8">
+      <section className="py-20 bg-white px-4 sm:px-6 lg:px-8">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">
+          <h2 className="text-3xl font-bold text-slate-900 text-center mb-12">
             Compare plans
           </h2>
-          <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
             <table className="w-full">
               <thead>
-                <tr className="border-b bg-gray-50">
-                  <th className="text-left p-4 font-semibold text-gray-900">Feature</th>
-                  <th className="text-center p-4 font-semibold text-gray-900">Starter</th>
-                  <th className="text-center p-4 font-semibold text-gray-900 bg-indigo-50">
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="text-left p-4 font-semibold text-slate-900 text-sm">Feature</th>
+                  <th className="text-center p-4 font-semibold text-slate-900 text-sm bg-teal-50">
+                    Starter
+                  </th>
+                  <th className="text-center p-4 font-semibold text-slate-900 text-sm">
                     Professional
                   </th>
-                  <th className="text-center p-4 font-semibold text-gray-900">Enterprise</th>
+                  <th className="text-center p-4 font-semibold text-slate-900 text-sm">Enterprise</th>
                 </tr>
               </thead>
               <tbody>
                 {featureComparison.map((feature, index) => (
-                  <tr key={feature.name} className={index % 2 === 0 ? 'bg-gray-50/50' : ''}>
-                    <td className="p-4 text-gray-600">{feature.name}</td>
-                    <td className="p-4 text-center">
+                  <tr key={feature.name} className={index % 2 === 0 ? '' : 'bg-slate-50/50'}>
+                    <td className="p-4 text-slate-600 text-sm">{feature.name}</td>
+                    <td className="p-4 text-center bg-teal-50/50">
                       {typeof feature.starter === 'boolean' ? (
                         feature.starter ? (
-                          <Check className="h-5 w-5 text-green-500 mx-auto" />
+                          <Check className="h-4 w-4 text-teal-600 mx-auto" />
                         ) : (
-                          <X className="h-5 w-5 text-gray-300 mx-auto" />
+                          <X className="h-4 w-4 text-slate-300 mx-auto" />
                         )
                       ) : (
-                        <span className="text-gray-900">{feature.starter}</span>
+                        <span className="text-slate-900 font-medium text-sm">{feature.starter}</span>
                       )}
                     </td>
-                    <td className="p-4 text-center bg-indigo-50/50">
+                    <td className="p-4 text-center">
                       {typeof feature.professional === 'boolean' ? (
                         feature.professional ? (
-                          <Check className="h-5 w-5 text-green-500 mx-auto" />
+                          <Check className="h-4 w-4 text-teal-600 mx-auto" />
                         ) : (
-                          <X className="h-5 w-5 text-gray-300 mx-auto" />
+                          <X className="h-4 w-4 text-slate-300 mx-auto" />
                         )
                       ) : (
-                        <span className="text-gray-900 font-medium">{feature.professional}</span>
+                        <span className="text-slate-900 text-sm">{feature.professional}</span>
                       )}
                     </td>
                     <td className="p-4 text-center">
                       {typeof feature.enterprise === 'boolean' ? (
                         feature.enterprise ? (
-                          <Check className="h-5 w-5 text-green-500 mx-auto" />
+                          <Check className="h-4 w-4 text-teal-600 mx-auto" />
                         ) : (
-                          <X className="h-5 w-5 text-gray-300 mx-auto" />
+                          <X className="h-4 w-4 text-slate-300 mx-auto" />
                         )
                       ) : (
-                        <span className="text-gray-900">{feature.enterprise}</span>
+                        <span className="text-slate-900 text-sm">{feature.enterprise}</span>
                       )}
                     </td>
                   </tr>
@@ -364,23 +537,26 @@ export function PricingPage() {
         </div>
       </section>
 
+      {/* Enterprise Calculator */}
+      <EnterpriseCalculator />
+
       {/* FAQ Section */}
-      <section className="py-24 px-4 sm:px-6 lg:px-8">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-50">
         <div className="max-w-3xl mx-auto">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">
+          <h2 className="text-3xl font-bold text-slate-900 text-center mb-12">
             Frequently asked questions
           </h2>
-          <Accordion type="single" collapsible className="space-y-4">
+          <Accordion type="single" collapsible className="space-y-3">
             {faqs.map((faq, index) => (
-              <AccordionItem 
-                key={index} 
+              <AccordionItem
+                key={index}
                 value={`item-${index}`}
-                className="bg-white rounded-lg border px-6"
+                className="bg-white rounded-lg border border-slate-200 px-6"
               >
-                <AccordionTrigger className="text-left font-medium text-gray-900 hover:no-underline">
+                <AccordionTrigger className="text-left font-medium text-slate-900 hover:no-underline text-sm">
                   {faq.question}
                 </AccordionTrigger>
-                <AccordionContent className="text-gray-600">
+                <AccordionContent className="text-slate-600 text-sm">
                   {faq.answer}
                 </AccordionContent>
               </AccordionItem>
@@ -390,13 +566,13 @@ export function PricingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 py-12 px-4 sm:px-6 lg:px-8">
+      <footer className="bg-slate-900 text-slate-400 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">P</span>
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="w-9 h-9 bg-teal-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-lg">P</span>
             </div>
-            <span className="font-bold text-xl text-white">PEARL</span>
+            <span className="font-semibold text-xl text-white">PEARL</span>
           </div>
           <p className="text-sm mb-4">
             Package, Effort and Analysis Reporting Library
