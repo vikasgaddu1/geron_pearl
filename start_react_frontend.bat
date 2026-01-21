@@ -1,6 +1,6 @@
 @echo off
 REM PEARL React Frontend Starter - Vite Dev Server
-REM Starts the React frontend on port 5173
+REM Starts the React frontend on port 3000
 
 echo ========================================
 echo   PEARL React Frontend (Vite)
@@ -16,7 +16,7 @@ if not exist "node_modules\" (
     echo.
 )
 
-echo Starting React frontend on http://localhost:5173 ...
+echo Starting React frontend on http://localhost:3000 ...
 echo Make sure the backend is running on http://localhost:8000
 echo Press Ctrl+C to stop the server
 echo.

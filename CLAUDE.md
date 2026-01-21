@@ -170,7 +170,7 @@ Study (1) ↔ (N) DatabaseRelease (1) ↔ (N) ReportingEffort (1) ↔ (N) Report
 Package (1) ↔ (N) PackageItem (TLF/Dataset)                    ReportingEffortItemTracker
                       ↓                                            (with TrackerComment)
               TextElement (title, footnote, population_set, acronyms_set, ich_category)
-User (admin, analyst, viewer roles) | AuditLog (change tracking) | Notification (user alerts)
+User (LEAD, BIOSTAT, EDITOR, VIEWER study roles) | AuditLog (change tracking) | Notification (user alerts)
 Tenant (multi-tenant) | Subscription (billing) | SuperAdmin (platform admin)
 ```
 
@@ -205,6 +205,17 @@ Registered in [main.py](backend/app/main.py) - executes in reverse order of regi
 - **Data Tables**: TanStack Table with filtering, sorting, pagination
 - **Real-time Updates**: WebSocket manager with auto-reconnect
 - **Date Formatting**: Use `formatDateTime()` from `@/lib/utils` - handles UTC timestamps from backend
+
+**Zustand Stores** (in `src/stores/`):
+| Store | Purpose |
+|-------|---------|
+| `authStore` | User authentication, roles, `isResponsibleForStudy(studyId)` helper |
+| `websocketStore` | WebSocket connection, reconnect logic |
+| `notificationStore` | User notifications and unread badge count |
+| `packageSelectionStore` | Package multi-select state |
+| `reportingSelectionStore` | Reporting effort selection |
+| `accessRequestStore` | Study access request workflow |
+| `uiStore` | UI preferences (sidebar collapsed, etc.) |
 
 ### Database Migrations
 **⚠️ MANDATORY**: Always use Alembic migrations when adding or deleting columns in existing tables. This ensures Railway deployment automatically picks up schema changes.
@@ -243,6 +254,7 @@ All routers registered in [api/v1/__init__.py](backend/app/api/v1/__init__.py):
 | `/super-admin` | super_admin | Platform administration (MFA, impersonation) |
 | `/tenant` | tenant_data | Tenant data management, sample data |
 | `/system` | system | Health, version, tenant info |
+| `/error-logs` | error_logs | Error log viewing (admin-only) |
 | `/ws` | websocket | WebSocket connections |
 
 ## Adding a New Entity
