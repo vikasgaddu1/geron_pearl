@@ -28,7 +28,7 @@ from app.models.tenant import Tenant
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # JWT settings for super admin (SEPARATE from tenant users)
-SUPER_ADMIN_JWT_SECRET = settings.jwt_secret_key + "_superadmin"
+SUPER_ADMIN_JWT_SECRET = settings.super_admin_jwt_secret
 SUPER_ADMIN_JWT_ALGORITHM = "HS256"
 SUPER_ADMIN_TOKEN_EXPIRE_MINUTES = 60  # Shorter than regular tokens
 SUPER_ADMIN_ISSUER = "pearl-superadmin"

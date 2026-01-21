@@ -100,24 +100,26 @@ async def check_user_limit(
 ) -> None:
     """
     Check if tenant can add more users based on their plan.
-    
+
     Use this dependency before creating new users.
     """
     from app.models.subscription_plan import SubscriptionPlan
     from sqlalchemy import func
-    
+
+    # If no plan is assigned, allow access (no limits)
+    if not tenant.plan_id:
+        return
+
     # Get plan limits
     result = await db.execute(
         select(SubscriptionPlan).where(SubscriptionPlan.id == tenant.plan_id)
     )
     plan = result.scalar_one_or_none()
-    
+
+    # If plan not found, allow access (no limits)
     if not plan:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Subscription plan not found",
-        )
-    
+        return
+
     # Check if unlimited
     if plan.max_users == -1:
         return
@@ -142,25 +144,27 @@ async def check_study_limit(
 ) -> None:
     """
     Check if tenant can add more studies based on their plan.
-    
+
     Use this dependency before creating new studies.
     """
     from app.models.subscription_plan import SubscriptionPlan
     from app.models.study import Study
     from sqlalchemy import func
-    
+
+    # If no plan is assigned, allow access (no limits)
+    if not tenant.plan_id:
+        return
+
     # Get plan limits
     result = await db.execute(
         select(SubscriptionPlan).where(SubscriptionPlan.id == tenant.plan_id)
     )
     plan = result.scalar_one_or_none()
-    
+
+    # If plan not found, allow access (no limits)
     if not plan:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Subscription plan not found",
-        )
-    
+        return
+
     # Check if unlimited
     if plan.max_studies == -1:
         return

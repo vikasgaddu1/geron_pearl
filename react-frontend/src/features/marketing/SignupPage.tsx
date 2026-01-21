@@ -84,17 +84,20 @@ export function SignupPage() {
           getPlans(),
           getBillingStatus(),
         ]);
-        setPlans(plansResponse.plans);
-        setStripeConfigured(statusResponse.stripe_configured);
-        setTrialDays(statusResponse.trial_days);
+        // Defensive: handle cases where plans might be undefined or not an array
+        const fetchedPlans = plansResponse?.plans ?? [];
+        setPlans(fetchedPlans);
+        setStripeConfigured(statusResponse?.stripe_configured ?? false);
+        setTrialDays(statusResponse?.trial_days ?? 30);
 
         // Set default plan if not preselected
-        if (!preselectedPlan && plansResponse.plans.length > 0) {
-          const popularPlan = plansResponse.plans.find(p => p.is_popular);
-          const defaultPlan = popularPlan || plansResponse.plans[0];
+        if (!preselectedPlan && fetchedPlans.length > 0) {
+          const popularPlan = fetchedPlans.find(p => p.is_popular);
+          const defaultPlan = popularPlan || fetchedPlans[0];
           setValue('plan_id', defaultPlan.id.toString());
         }
       } catch (err) {
+        console.error('Failed to fetch signup data:', err);
         setError('Failed to load plans. Please try again.');
       } finally {
         setLoading(false);
@@ -191,6 +194,15 @@ export function SignupPage() {
           <Alert className="mb-6">
             <AlertDescription>
               Payment processing is not configured. Please contact support to set up your account.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* No Plans Available Warning */}
+        {plans.length === 0 && !error && (
+          <Alert className="mb-6">
+            <AlertDescription>
+              No subscription plans are currently available. Please contact support or try again later.
             </AlertDescription>
           </Alert>
         )}
@@ -304,7 +316,7 @@ export function SignupPage() {
             type="submit"
             size="lg"
             className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
-            disabled={submitting || !stripeConfigured}
+            disabled={submitting || !stripeConfigured || plans.length === 0}
           >
             {submitting ? (
               <>

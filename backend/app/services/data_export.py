@@ -20,7 +20,7 @@ from app.models.study import Study
 from app.models.database_release import DatabaseRelease
 from app.models.reporting_effort import ReportingEffort
 from app.models.reporting_effort_item import ReportingEffortItem
-from app.models.reporting_effort_tracker import ReportingEffortTracker
+from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker
 from app.models.package import Package
 from app.models.package_item import PackageItem
 from app.models.text_element import TextElement

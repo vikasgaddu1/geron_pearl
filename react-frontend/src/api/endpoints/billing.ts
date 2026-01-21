@@ -2,7 +2,7 @@
  * Billing API endpoints for subscription management
  */
 
-import api from '../index';
+import { apiClient } from '../client';
 
 // Types
 export interface Plan {
@@ -80,7 +80,7 @@ export interface BillingStatus {
  * Get list of available subscription plans (public)
  */
 export const getPlans = async (): Promise<PlansResponse> => {
-  const response = await api.get<PlansResponse>('/billing/plans');
+  const response = await apiClient.get<PlansResponse>('/billing/plans');
   return response.data;
 };
 
@@ -88,7 +88,7 @@ export const getPlans = async (): Promise<PlansResponse> => {
  * Initiate signup - creates Stripe Checkout session (public)
  */
 export const initiateSignup = async (data: SignupInitiateRequest): Promise<SignupInitiateResponse> => {
-  const response = await api.post<SignupInitiateResponse>('/billing/signup/initiate', data);
+  const response = await apiClient.post<SignupInitiateResponse>('/billing/signup/initiate', data);
   return response.data;
 };
 
@@ -96,7 +96,7 @@ export const initiateSignup = async (data: SignupInitiateRequest): Promise<Signu
  * Get billing overview for current tenant (authenticated)
  */
 export const getBillingOverview = async (): Promise<BillingOverview> => {
-  const response = await api.get<BillingOverview>('/billing/overview');
+  const response = await apiClient.get<BillingOverview>('/billing/overview');
   return response.data;
 };
 
@@ -104,7 +104,7 @@ export const getBillingOverview = async (): Promise<BillingOverview> => {
  * Create Stripe Billing Portal session (admin only)
  */
 export const createBillingPortal = async (): Promise<BillingPortalResponse> => {
-  const response = await api.post<BillingPortalResponse>('/billing/portal');
+  const response = await apiClient.post<BillingPortalResponse>('/billing/portal');
   return response.data;
 };
 
@@ -112,7 +112,7 @@ export const createBillingPortal = async (): Promise<BillingPortalResponse> => {
  * Check if Stripe is configured (public)
  */
 export const getBillingStatus = async (): Promise<BillingStatus> => {
-  const response = await api.get<BillingStatus>('/billing/status');
+  const response = await apiClient.get<BillingStatus>('/billing/status');
   return response.data;
 };
 

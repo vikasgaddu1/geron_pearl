@@ -55,7 +55,7 @@ async def create_study(
                 detail="Study with this label already exists"
             )
 
-        created_study = await study.create(db, obj_in=study_in)
+        created_study = await study.create(db, obj_in=study_in, tenant_id=current_user.tenant_id)
 
         # Log audit trail
         try:
@@ -94,9 +94,11 @@ async def read_studies(
     db: AsyncSession = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
+    current_user: UserModel = Depends(get_current_user),
 ) -> List[Study]:
     """
     Retrieve studies with pagination.
+    Requires authentication.
     """
     try:
         return await study.get_multi(db, skip=skip, limit=limit)
@@ -112,9 +114,11 @@ async def read_study(
     *,
     db: AsyncSession = Depends(get_db),
     study_id: int,
+    current_user: UserModel = Depends(get_current_user),
 ) -> Study:
     """
     Get a specific study by ID.
+    Requires authentication.
     """
     try:
         db_study = await study.get(db, id=study_id)
@@ -303,7 +307,7 @@ async def bulk_upload_hierarchy(
                 study_obj = existing_study
                 skipped_duplicates += 1
             else:
-                study_obj = await study.create(db, obj_in=StudyCreate(study_label=study_label))
+                study_obj = await study.create(db, obj_in=StudyCreate(study_label=study_label), tenant_id=current_user.tenant_id)
                 created_studies += 1
 
             # Database release (scoped to study)

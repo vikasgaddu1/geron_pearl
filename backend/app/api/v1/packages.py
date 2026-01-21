@@ -50,7 +50,7 @@ async def create_package(
                 detail="Package with this name already exists"
             )
 
-        created_package = await package.create(db, obj_in=package_in)
+        created_package = await package.create(db, obj_in=package_in, tenant_id=current_user.tenant_id)
 
         # Log audit trail
         try:
@@ -89,9 +89,11 @@ async def read_packages(
     db: AsyncSession = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
+    current_user: User = Depends(get_current_user),
 ) -> List[Package]:
     """
     Retrieve packages with pagination.
+    Requires authentication.
     """
     try:
         return await package.get_multi(db, skip=skip, limit=limit)
@@ -107,9 +109,11 @@ async def read_package(
     *,
     db: AsyncSession = Depends(get_db),
     package_id: int,
+    current_user: User = Depends(get_current_user),
 ) -> PackageWithItems:
     """
     Get a specific package by ID with its items.
+    Requires authentication.
     """
     try:
         db_package = await package.get(db, id=package_id)
@@ -351,9 +355,11 @@ async def read_package_items(
     *,
     db: AsyncSession = Depends(get_db),
     package_id: int,
+    current_user: User = Depends(get_current_user),
 ) -> List[PackageItem]:
     """
     Get all items for a specific package.
+    Requires authentication.
     """
     try:
         # Verify package exists
@@ -379,9 +385,11 @@ async def read_package_item(
     *,
     db: AsyncSession = Depends(get_db),
     item_id: int,
+    current_user: User = Depends(get_current_user),
 ) -> PackageItem:
     """
     Get a specific package item by ID.
+    Requires authentication.
     """
     try:
         db_item = await package_item.get(db, id=item_id)

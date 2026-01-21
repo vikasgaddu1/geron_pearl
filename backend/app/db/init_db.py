@@ -56,13 +56,65 @@ async def create_database_if_not_exists() -> None:
         await temp_engine.dispose()
 
 
-async def create_default_admin_user() -> None:
+async def create_default_tenant() -> int:
+    """
+    Create default tenant if it doesn't exist.
+    Returns the tenant ID.
+    """
+    from app.models.tenant import Tenant, SubscriptionStatus
+    from app.models.tenant_settings import TenantSettings
+
+    async with AsyncSessionLocal() as session:
+        try:
+            # Check if default tenant exists
+            result = await session.execute(
+                select(Tenant).where(Tenant.id == 1)
+            )
+            existing_tenant = result.scalar_one_or_none()
+
+            if existing_tenant:
+                logger.info("Default tenant already exists")
+                return existing_tenant.id
+
+            # Create default tenant
+            default_tenant = Tenant(
+                id=1,
+                name="default",
+                display_name="Default Tenant",
+                subscription_status=SubscriptionStatus.active,
+                is_active=True,
+                onboarding_completed=True,
+                sample_data_seeded=False
+            )
+            session.add(default_tenant)
+            await session.flush()  # Get the ID
+
+            # Create tenant settings
+            tenant_settings = TenantSettings(
+                tenant_id=default_tenant.id,
+                timezone="UTC",
+                date_format="YYYY-MM-DD",
+                time_format="HH:mm"
+            )
+            session.add(tenant_settings)
+            await session.commit()
+
+            logger.info(f"Created default tenant: {default_tenant.name}")
+            return default_tenant.id
+
+        except Exception as e:
+            logger.error(f"Error creating default tenant: {e}")
+            await session.rollback()
+            raise
+
+
+async def create_default_admin_user(tenant_id: int = 1) -> None:
     """
     Create default admin user if it doesn't exist.
     This ensures there's always at least one admin account to log in with.
     """
     from app.core.security import get_password_hash
-    
+
     async with AsyncSessionLocal() as session:
         try:
             # Check if admin user already exists
@@ -70,13 +122,14 @@ async def create_default_admin_user() -> None:
                 select(User).where(User.username == DEFAULT_ADMIN_USERNAME)
             )
             existing_user = result.scalar_one_or_none()
-            
+
             if existing_user:
                 logger.info(f"Default admin user '{DEFAULT_ADMIN_USERNAME}' already exists")
                 return
-            
-            # Create admin user
+
+            # Create admin user with tenant_id
             admin_user = User(
+                tenant_id=tenant_id,
                 username=DEFAULT_ADMIN_USERNAME,
                 email="admin@pearl.local",
                 password_hash=get_password_hash(DEFAULT_ADMIN_PASSWORD),
@@ -87,11 +140,11 @@ async def create_default_admin_user() -> None:
             )
             session.add(admin_user)
             await session.commit()
-            
+
             logger.info(f"Created default admin user: {DEFAULT_ADMIN_USERNAME}")
             logger.info(f"Default admin password: {DEFAULT_ADMIN_PASSWORD}")
             logger.info("⚠️  IMPORTANT: Change the default admin password after first login!")
-            
+
         except Exception as e:
             logger.error(f"Error creating default admin user: {e}")
             await session.rollback()
@@ -105,15 +158,18 @@ async def init_db(engine: AsyncEngine) -> None:
     """
     # First ensure the database exists
     await create_database_if_not_exists()
-    
+
     # Then create all tables
     async with engine.begin() as conn:
         # Create all tables
         await conn.run_sync(Base.metadata.create_all)
         logger.info("Database tables created successfully")
-    
+
+    # Create default tenant (required for multi-tenant setup)
+    tenant_id = await create_default_tenant()
+
     # Create default admin user
-    await create_default_admin_user()
+    await create_default_admin_user(tenant_id)
 
 
 async def drop_db(engine: AsyncEngine) -> None:

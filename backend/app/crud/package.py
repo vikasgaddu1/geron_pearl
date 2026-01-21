@@ -12,9 +12,12 @@ from app.schemas.package import PackageCreate, PackageUpdate
 class PackageCRUD:
     """CRUD operations for Package model."""
     
-    async def create(self, db: AsyncSession, *, obj_in: PackageCreate) -> Package:
+    async def create(self, db: AsyncSession, *, obj_in: PackageCreate, tenant_id: int = None) -> Package:
         """Create a new package."""
-        db_obj = Package(package_name=obj_in.package_name)
+        # Use provided tenant_id or default to 1
+        package_tenant_id = tenant_id if tenant_id is not None else 1
+
+        db_obj = Package(tenant_id=package_tenant_id, package_name=obj_in.package_name)
         db.add(db_obj)
         await db.commit()
         await db.refresh(db_obj)

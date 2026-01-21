@@ -28,7 +28,7 @@ async def get_audit_logs(
     action: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    current_user: UserModel = Depends(require_admin)
+    current_user: UserModel = Depends(require_admin())
 ) -> List[AuditLogWithDetails]:
     """
     Get audit logs with filtering options (admin only).
@@ -109,7 +109,7 @@ async def get_audit_summary(
     db: AsyncSession = Depends(get_db),
     request: Request,
     days: int = Query(7, ge=1, le=365),
-    current_user: UserModel = Depends(require_admin)
+    current_user: UserModel = Depends(require_admin())
 ) -> Dict[str, Any]:
     """
     Get audit log summary for the last N days (admin only).
@@ -189,7 +189,7 @@ async def get_record_history(
     request: Request,
     table_name: str,
     record_id: int,
-    current_user: UserModel = Depends(require_admin)
+    current_user: UserModel = Depends(require_admin())
 ) -> List[AuditLogWithDetails]:
     """
     Get complete audit history for a specific record (admin only).
@@ -245,7 +245,7 @@ async def cleanup_old_logs(
     db: AsyncSession = Depends(get_db),
     request: Request,
     days_to_keep: int = Query(90, ge=30, le=365),
-    current_user: UserModel = Depends(require_admin)
+    current_user: UserModel = Depends(require_admin())
 ) -> Dict[str, Any]:
     """
     Delete audit logs older than specified days (admin only).

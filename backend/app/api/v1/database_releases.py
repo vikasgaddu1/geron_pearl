@@ -93,9 +93,11 @@ async def read_database_releases(
     study_id: int = Query(None, description="Filter by study ID"),
     skip: int = 0,
     limit: int = 100,
+    current_user: User = Depends(get_current_user),
 ) -> List[DatabaseRelease]:
     """
     Retrieve database releases with pagination.
+    Requires authentication.
     Optionally filter by study_id.
     """
     try:
@@ -115,9 +117,11 @@ async def read_database_release(
     *,
     db: AsyncSession = Depends(get_db),
     database_release_id: int,
+    current_user: User = Depends(get_current_user),
 ) -> DatabaseRelease:
     """
     Get a specific database release by ID.
+    Requires authentication.
     """
     try:
         db_release = await database_release.get(db, id=database_release_id)

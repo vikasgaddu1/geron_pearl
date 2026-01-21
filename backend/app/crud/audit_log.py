@@ -37,11 +37,12 @@ class AuditLogCRUD:
         user_id: Optional[int] = None,
         changes: Optional[Dict[str, Any]] = None,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
+        tenant_id: int = None
     ) -> AuditLog:
         """
         Helper method to log an action.
-        
+
         Args:
             db: Database session
             table_name: Name of the table being modified
@@ -51,13 +52,18 @@ class AuditLogCRUD:
             changes: Dictionary of changes made
             ip_address: IP address of the user
             user_agent: User agent string
-        
+            tenant_id: Tenant ID (defaults to 1 if not provided)
+
         Returns:
             Created audit log entry
         """
         changes_json = json.dumps(changes) if changes else None
-        
+
+        # Use provided tenant_id or default to 1
+        log_tenant_id = tenant_id if tenant_id is not None else 1
+
         audit_data = AuditLogCreate(
+            tenant_id=log_tenant_id,
             table_name=table_name,
             record_id=record_id,
             action=action,
@@ -66,7 +72,7 @@ class AuditLogCRUD:
             ip_address=ip_address,
             user_agent=user_agent
         )
-        
+
         return await self.create(db, obj_in=audit_data)
     
     async def get(

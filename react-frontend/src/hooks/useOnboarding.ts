@@ -42,10 +42,15 @@ export function useOnboarding() {
   }, [status, shouldCheckOnboarding]);
 
   const handleComplete = useCallback(() => {
+    // Immediately dismiss the wizard for better UX
+    setShowWizard(false);
+    // Then persist to backend (fire-and-forget)
     completeMutation.mutate();
   }, [completeMutation]);
 
   const handleSkip = useCallback(() => {
+    // Immediately dismiss the wizard for better UX
+    setShowWizard(false);
     // Skip also marks onboarding as complete
     completeMutation.mutate();
   }, [completeMutation]);

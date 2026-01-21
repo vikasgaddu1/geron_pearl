@@ -8,6 +8,7 @@ PEARL (Package, Effort and Analysis Reporting Library) is a **full-stack researc
 - **Backend**: FastAPI + async PostgreSQL + WebSocket broadcasting
 - **Frontend**: React 18 + TypeScript + Tailwind CSS + shadcn/ui
 - **Real-time**: Live data synchronization across multiple users and browsers
+- **Multi-Tenant SaaS**: Tenant isolation, subscription billing, super admin portal
 
 ## Quick Start
 
@@ -142,11 +143,15 @@ PEARL/
 ├── backend/
 │   ├── app/
 │   │   ├── api/v1/       # REST endpoints + WebSocket broadcasting
+│   │   ├── core/         # Config, security, tenant context, rate limiting, Stripe integration
 │   │   ├── crud/         # Business logic (never bypass this layer)
 │   │   ├── models/       # SQLAlchemy ORM models
 │   │   ├── schemas/      # Pydantic validation schemas
+│   │   ├── middleware/   # Error logging, impersonation enforcement
+│   │   ├── services/     # Business services (backup, export, analytics)
 │   │   └── db/           # Database config and session management
-│   └── tests/scripts/    # Curl-based functional test scripts
+│   ├── tests/scripts/    # Curl-based functional test scripts
+│   └── cron_worker.py    # Background jobs (subscription checks, data retention)
 ├── react-frontend/
 │   └── src/
 │       ├── api/          # API client (axios) and endpoint functions
@@ -154,6 +159,8 @@ PEARL/
 │       ├── features/     # Feature modules (dashboard, packages, reporting, audit-logs, etc.)
 │       ├── stores/       # Zustand state management
 │       └── types/        # TypeScript type definitions
+├── docker-compose.yml    # Local multi-container deployment
+└── docs/                 # Extended documentation
 ```
 
 ### Database Schema
@@ -164,7 +171,15 @@ Package (1) ↔ (N) PackageItem (TLF/Dataset)                    ReportingEffort
                       ↓                                            (with TrackerComment)
               TextElement (title, footnote, population_set, acronyms_set, ich_category)
 User (admin, analyst, viewer roles) | AuditLog (change tracking) | Notification (user alerts)
+Tenant (multi-tenant) | Subscription (billing) | SuperAdmin (platform admin)
 ```
+
+### Middleware Stack (order matters)
+Registered in [main.py](backend/app/main.py) - executes in reverse order of registration:
+1. `RateLimitMiddleware` - Per-tenant rate limiting (100 req/min default)
+2. `TenantContextMiddleware` - Extracts `tenant_id` from JWT for RLS
+3. `ImpersonationReadOnlyMiddleware` - Blocks mutations during super admin impersonation
+4. `ErrorLoggingMiddleware` - Logs errors to database with correlation IDs
 
 **TextElement Field Meanings** (TFL Properties):
 | Type | `label` = | `content` = |
@@ -202,6 +217,33 @@ uv run python tests/validator/run_model_validation.py
 ```
 
 **Never** modify model columns without creating a migration - the deployed database won't update otherwise.
+
+### API Router Overview
+All routers registered in [api/v1/__init__.py](backend/app/api/v1/__init__.py):
+
+| Prefix | Module | Description |
+|--------|--------|-------------|
+| `/auth` | auth | Login, logout, token refresh, OAuth2, password reset |
+| `/studies` | studies | Study CRUD with study-scoped access |
+| `/database-releases` | database_releases | Database release management |
+| `/reporting-efforts` | reporting_efforts | Effort tracking with lock system |
+| `/reporting-effort-items` | reporting_effort_items | Items within efforts |
+| `/reporting-effort-tracker` | reporting_effort_tracker | Tracker assignments/status |
+| `/tracker-comments` | tracker_comments | Comments with threading |
+| `/tracker-tags` | tracker_tags | Tag management for trackers |
+| `/milestones` | reporting_effort_milestones | Phases and milestones |
+| `/use-cases` | reporting_effort_usecases | Use case assignments |
+| `/packages` | packages | Package and PackageItem CRUD |
+| `/text-elements` | text_elements | TFL properties (titles, footnotes, etc.) |
+| `/users` | users | User CRUD (admin-only) |
+| `/notifications` | notifications | User notification management |
+| `/audit-trail` | audit_trail | Audit log queries (admin-only) |
+| `/analytics` | analytics | Director dashboard metrics |
+| `/billing` | billing | Subscription management, Stripe webhooks |
+| `/super-admin` | super_admin | Platform administration (MFA, impersonation) |
+| `/tenant` | tenant_data | Tenant data management, sample data |
+| `/system` | system | Health, version, tenant info |
+| `/ws` | websocket | WebSocket connections |
 
 ## Adding a New Entity
 
@@ -328,6 +370,8 @@ For comprehensive human testing, see:
 - **Frontend**: [react-frontend/CLAUDE.md](react-frontend/CLAUDE.md) - React patterns, TanStack Query, forms
 - **Testing**: [backend/tests/README.md](backend/tests/README.md) - Curl-based test philosophy
 - **Manual Testing**: [docs/MANUAL_TESTING_GUIDE.md](docs/MANUAL_TESTING_GUIDE.md) - Human tester guide
+- **Docker Deployment**: [docs/DOCKER_DEPLOYMENT_GUIDE.md](docs/DOCKER_DEPLOYMENT_GUIDE.md) - Local containers
+- **Railway Multi-Tenant**: [docs/RAILWAY_MULTI_TENANT_DEPLOYMENT.md](docs/RAILWAY_MULTI_TENANT_DEPLOYMENT.md) - Production SaaS
 
 ## Railway Deployment
 
@@ -411,6 +455,62 @@ proxy_set_header Host your-backend-name.up.railway.app;
 | nixpacks "context canceled" | Railway infrastructure issue | Use Dockerfile instead of nixpacks |
 | 502 on API proxy | Can't resolve backend hostname | Add `resolver 8.8.8.8 8.8.4.4` to nginx |
 | 502 on HTTPS proxy | SNI not enabled | Add `proxy_ssl_server_name on` |
+
+## Multi-Tenant SaaS Configuration
+
+### Additional Environment Variables (from [config.py](backend/app/core/config.py))
+
+**Stripe Integration** (for subscription billing):
+| Variable | Description |
+|----------|-------------|
+| `STRIPE_SECRET_KEY` | Stripe API secret key |
+| `STRIPE_PUBLISHABLE_KEY` | Stripe publishable key (frontend) |
+| `STRIPE_WEBHOOK_SECRET` | Webhook signature verification |
+| `STRIPE_PRICE_STARTER` | Price ID for Starter plan |
+| `STRIPE_PRICE_PROFESSIONAL` | Price ID for Professional plan |
+| `STRIPE_PRICE_ENTERPRISE` | Price ID for Enterprise plan |
+
+**Super Admin** (platform-level administration):
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SUPER_ADMIN_JWT_SECRET` | `super-admin-dev-secret...` | Separate JWT secret for super admin tokens |
+| `SUPER_ADMIN_TOKEN_EXPIRE_HOURS` | `4` | Super admin session duration |
+| `SUPER_ADMIN_EMAIL` | `superadmin@pearl.local` | Default super admin email |
+
+**Email & Subscriptions**:
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `EMAIL_PROVIDER` | `smtp` | Email provider: `smtp`, `sendgrid`, `ses` |
+| `SENDGRID_API_KEY` | - | SendGrid API key (if using SendGrid) |
+| `TRIAL_PERIOD_DAYS` | `30` | Free trial duration |
+| `SUBSCRIPTION_GRACE_PERIOD_DAYS` | `7` | Grace period for past_due subscriptions |
+| `RATE_LIMIT_PER_MINUTE` | `100` | Per-tenant API rate limit |
+
+**OAuth2 Providers** (optional SSO):
+| Provider | Variables |
+|----------|-----------|
+| Google | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` |
+| Microsoft | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID`, `MICROSOFT_REDIRECT_URI` |
+| GitHub | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_REDIRECT_URI` |
+
+### Super Admin Portal
+The super admin system uses separate authentication from tenant users:
+- Separate JWT secret (`SUPER_ADMIN_JWT_SECRET`)
+- MFA support (TOTP) with backup codes
+- Tenant impersonation with read-only mode enforcement
+- Platform-wide analytics and user management
+
+See [super_admin_security.py](backend/app/core/super_admin_security.py) for implementation.
+
+### Docker Deployment
+For local multi-container deployment, use `docker-compose.yml`:
+```bash
+docker-compose up -d
+```
+
+For detailed deployment guides, see:
+- [docs/DOCKER_DEPLOYMENT_GUIDE.md](docs/DOCKER_DEPLOYMENT_GUIDE.md)
+- [docs/RAILWAY_MULTI_TENANT_DEPLOYMENT.md](docs/RAILWAY_MULTI_TENANT_DEPLOYMENT.md)
 
 ## Authentication & Authorization
 
@@ -546,5 +646,16 @@ All WebSocket messages follow the format `{type}_created`, `{type}_updated`, or 
 | User | `user_created` | `user_updated` | `user_deleted` |
 | Notification | `notification_created` | - | - |
 | Lock History | `lock_history_created` | - | - |
+| Subscription | `subscription_updated` | - | - |
 
 Frontend components use `useWebSocketRefresh(['entity_prefix'], refetchCallback)` to listen for these events.
+
+## Cron Worker (Background Jobs)
+
+The [cron_worker.py](backend/cron_worker.py) runs as a separate container for scheduled tasks:
+- Subscription expiry checks
+- Trial period expiration notifications
+- Data retention enforcement after subscription cancellation
+- Usage analytics aggregation
+
+Deploy separately using `Dockerfile.cron` for production environments.

@@ -16,6 +16,8 @@ from app.schemas.tracker_tag import (
     TrackerItemTag, TrackerItemTagCreate,
     BulkTagAssignment, BulkTagRemoval, BulkOperationResult, TagSummary
 )
+from app.core.security import get_current_user, require_admin_or_lead
+from app.models.user import User
 
 router = APIRouter()
 
@@ -28,7 +30,8 @@ router = APIRouter()
 async def create_tag(
     *,
     db: AsyncSession = Depends(get_db),
-    tag_in: TrackerTagCreate
+    tag_in: TrackerTagCreate,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> TrackerTag:
     """
     Create a new tag.
@@ -51,7 +54,8 @@ async def create_tag(
 @router.get("/", response_model=List[TrackerTagWithCount])
 async def get_all_tags(
     *,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ) -> List[Dict[str, Any]]:
     """
     Get all tags with usage counts.
@@ -65,7 +69,8 @@ async def get_all_tags(
 async def get_tag(
     *,
     db: AsyncSession = Depends(get_db),
-    tag_id: int
+    tag_id: int,
+    current_user: User = Depends(get_current_user)
 ) -> TrackerTag:
     """
     Get a specific tag by ID.
@@ -84,7 +89,8 @@ async def update_tag(
     *,
     db: AsyncSession = Depends(get_db),
     tag_id: int,
-    tag_in: TrackerTagUpdate
+    tag_in: TrackerTagUpdate,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> TrackerTag:
     """
     Update an existing tag.
@@ -114,7 +120,8 @@ async def update_tag(
 async def delete_tag(
     *,
     db: AsyncSession = Depends(get_db),
-    tag_id: int
+    tag_id: int,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> None:
     """
     Delete a tag.
@@ -137,7 +144,8 @@ async def delete_tag(
 async def assign_tag_to_tracker(
     *,
     db: AsyncSession = Depends(get_db),
-    assignment: TrackerItemTagCreate
+    assignment: TrackerItemTagCreate,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> TrackerItemTag:
     """
     Assign a tag to a tracker item.
@@ -165,7 +173,8 @@ async def remove_tag_from_tracker(
     *,
     db: AsyncSession = Depends(get_db),
     tracker_id: int,
-    tag_id: int
+    tag_id: int,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> None:
     """
     Remove a tag from a tracker item.
@@ -186,7 +195,8 @@ async def remove_tag_from_tracker(
 async def get_tracker_tags(
     *,
     db: AsyncSession = Depends(get_db),
-    tracker_id: int
+    tracker_id: int,
+    current_user: User = Depends(get_current_user)
 ) -> List[TagSummary]:
     """
     Get all tags assigned to a specific tracker.
@@ -199,7 +209,8 @@ async def get_tracker_tags(
 async def get_trackers_by_tag(
     *,
     db: AsyncSession = Depends(get_db),
-    tag_id: int
+    tag_id: int,
+    current_user: User = Depends(get_current_user)
 ) -> List[int]:
     """
     Get all tracker IDs that have a specific tag assigned.
@@ -225,7 +236,8 @@ async def get_trackers_by_tag(
 async def bulk_assign_tag(
     *,
     db: AsyncSession = Depends(get_db),
-    data: BulkTagAssignment
+    data: BulkTagAssignment,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> BulkOperationResult:
     """
     Assign a tag to multiple trackers at once.
@@ -252,7 +264,8 @@ async def bulk_assign_tag(
 async def bulk_remove_tag(
     *,
     db: AsyncSession = Depends(get_db),
-    data: BulkTagRemoval
+    data: BulkTagRemoval,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> BulkOperationResult:
     """
     Remove a tag from multiple trackers at once.
@@ -271,7 +284,8 @@ async def bulk_remove_tag(
 async def get_tags_for_trackers_bulk(
     *,
     db: AsyncSession = Depends(get_db),
-    tracker_ids: List[int]
+    tracker_ids: List[int],
+    current_user: User = Depends(get_current_user)
 ) -> Dict[int, List[Dict[str, Any]]]:
     """
     Get tags for multiple trackers at once (optimized bulk loading).

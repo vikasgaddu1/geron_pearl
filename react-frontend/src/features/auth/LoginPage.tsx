@@ -53,7 +53,7 @@ export function LoginPage() {
           {/* Local Login Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username" required>Username</Label>
               <Input
                 id="username"
                 type="text"
@@ -68,7 +68,7 @@ export function LoginPage() {
             
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password" required>Password</Label>
                 <Link
                   to="/app/forgot-password"
                   className="text-sm text-primary hover:underline"
@@ -93,6 +93,7 @@ export function LoginPage() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   tabIndex={-1}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>

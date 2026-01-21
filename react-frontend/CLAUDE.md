@@ -24,13 +24,22 @@ src/
 │   ├── layout/             # Layout components (Navbar, Sidebar, NotificationDropdown)
 │   └── common/             # Shared components (DataTable, filters)
 ├── features/               # Feature modules
+│   ├── access-requests/    # Study access request workflow
+│   ├── audit-logs/         # Audit trail viewer (admin)
+│   ├── auth/               # Login, registration, password reset
 │   ├── dashboard/          # Programmer and Tracker dashboards
-│   ├── study-management/   # Study tree hierarchy
+│   ├── database-backup/    # Backup operations
+│   ├── error-logs/         # Error log viewer (admin)
+│   ├── help/               # Help documentation
+│   ├── marketing/          # Landing pages, pricing
+│   ├── onboarding/         # New tenant onboarding wizard
 │   ├── packages/           # Package and PackageItem management
 │   ├── reporting/          # ReportingEffort, Items, Tracker
-│   ├── users/              # User management
+│   ├── settings/           # Application settings
+│   ├── study-management/   # Study tree hierarchy
+│   ├── super-admin/        # Platform administration portal
 │   ├── tfl-properties/     # TextElement management
-│   └── database-backup/    # Backup operations
+│   └── users/              # User management
 ├── hooks/                  # Custom React hooks
 ├── stores/                 # Zustand stores for global state
 ├── types/                  # TypeScript type definitions
@@ -75,7 +84,14 @@ const form = useForm({
 
 ### State Management
 - **Server state**: TanStack Query (caching, refetching, mutations)
-- **Global client state**: Zustand stores in `src/stores/` (authStore, notificationStore)
+- **Global client state**: Zustand stores in `src/stores/`:
+  - `authStore` - User authentication, roles, permissions
+  - `notificationStore` - User notifications and badge count
+  - `websocketStore` - WebSocket connection management
+  - `accessRequestStore` - Study access request state
+  - `packageSelectionStore` - Package multi-select state
+  - `reportingSelectionStore` - Reporting effort selection
+  - `uiStore` - UI preferences (sidebar state, etc.)
 - **Local component state**: `useState`/`useReducer`
 
 ### WebSocket Integration
@@ -284,5 +300,23 @@ Use `@/` alias for clean imports:
 ```typescript
 import { Button } from '@/components/ui/button';
 import { studiesApi } from '@/api';
-import { useAuthStore } from '@/stores/auth';
+import { useAuthStore } from '@/stores/authStore';
 ```
+
+## Multi-Tenant Features
+
+### Access Request Workflow
+Users can request access to studies they don't have permissions for:
+1. User submits access request with desired role
+2. Study LEADs or admins see pending requests in dropdown
+3. Approve/deny with optional message
+4. User automatically granted role on approval
+
+### Super Admin Portal
+Platform-level administration (separate from tenant admin):
+- Tenant management and impersonation
+- Platform-wide analytics
+- Subscription management
+- MFA enforcement
+
+Access via `/super-admin` routes (requires super admin authentication).

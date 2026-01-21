@@ -146,7 +146,8 @@ async def create_comment(
 @router.get("/tracker/{tracker_id}", response_model=List[CommentWithUserInfo])
 async def get_comments_for_tracker(
     tracker_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ) -> List[CommentWithUserInfo]:
     """
     Get all comments for a tracker with username information
@@ -238,7 +239,8 @@ async def resolve_comment(
 @router.get("/tracker/{tracker_id}/unresolved-count", response_model=int)
 async def get_unresolved_count(
     tracker_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ) -> int:
     """
     Get count of unresolved parent comments for a tracker
@@ -263,7 +265,8 @@ async def get_unresolved_count(
 @router.get("/tracker/{tracker_id}/summary", response_model=TrackerCommentSummary)
 async def get_comment_summary(
     tracker_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ) -> TrackerCommentSummary:
     """
     Get comment summary for a tracker
@@ -290,7 +293,8 @@ async def get_comment_summary(
 @router.get("/tracker/{tracker_id}/threaded", response_model=List[Dict[str, Any]])
 async def get_threaded_comments(
     tracker_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ) -> List[Dict[str, Any]]:
     """
     Get comments in threaded format for blog-style display

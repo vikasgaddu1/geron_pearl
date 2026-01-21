@@ -10,7 +10,7 @@ from app.db.session import get_db
 from app.models.text_element import TextElementType
 from app.schemas.text_element import TextElement, TextElementCreate, TextElementUpdate, TextElementWithUsage
 from app.api.v1.websocket import broadcast_text_element_created, broadcast_text_element_updated, broadcast_text_element_deleted
-from app.core.security import require_admin_or_lead
+from app.core.security import require_admin_or_lead, get_current_user
 from app.models.user import User
 
 router = APIRouter()
@@ -40,7 +40,7 @@ async def create_text_element(
                 detail=f"A {text_element_in.type.value} with this label and content already exists. Duplicate entries are not allowed."
             )
 
-        created_text_element = await text_element.create(db, obj_in=text_element_in)
+        created_text_element = await text_element.create(db, obj_in=text_element_in, tenant_id=current_user.tenant_id)
 
         # Log audit trail
         try:
@@ -79,10 +79,12 @@ async def read_text_elements(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
     type: Optional[TextElementType] = Query(None, description="Filter by text element type"),
-    include_usage: bool = Query(True, description="Include usage count information")
+    include_usage: bool = Query(True, description="Include usage count information"),
+    current_user: User = Depends(get_current_user),
 ) -> List[TextElementWithUsage]:
     """
     Retrieve text elements with optional filtering by type.
+    Requires authentication.
     Includes usage_count and is_used fields to indicate if the element is being used.
     """
     try:
@@ -124,10 +126,12 @@ async def search_text_elements(
     db: AsyncSession = Depends(get_db),
     q: str = Query(..., min_length=1, description="Search term"),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
-    limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return")
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
+    current_user: User = Depends(get_current_user),
 ) -> List[TextElement]:
     """
     Search text elements by label content.
+    Requires authentication.
     """
     try:
         text_elements = await text_element.search_by_label(db, search_term=q, skip=skip, limit=limit)
@@ -144,9 +148,11 @@ async def read_text_element(
     *,
     db: AsyncSession = Depends(get_db),
     text_element_id: int,
+    current_user: User = Depends(get_current_user),
 ) -> TextElement:
     """
     Get a specific text element by ID.
+    Requires authentication.
     """
     try:
         db_text_element = await text_element.get(db, id=text_element_id)

@@ -32,8 +32,8 @@ class UserCRUD:
         result = await db.execute(select(User).filter(User.email == email))
         return result.scalar_one_or_none()
 
-    async def create(self, db: AsyncSession, *, obj_in: UserCreate) -> User:
-        # Check if username already exists
+    async def create(self, db: AsyncSession, *, obj_in: UserCreate, tenant_id: int = None) -> User:
+        # Check if username already exists (within the same tenant)
         existing = await self.get_by_username(db, username=obj_in.username)
         if existing:
             raise IntegrityError(
@@ -41,7 +41,7 @@ class UserCRUD:
                 orig=Exception(f"Username '{obj_in.username}' already exists"),
                 statement=None
             )
-        
+
         # Check if email already exists
         existing_email = await self.get_by_email(db, email=obj_in.email)
         if existing_email:
@@ -50,11 +50,15 @@ class UserCRUD:
                 orig=Exception(f"Email '{obj_in.email}' already exists"),
                 statement=None
             )
-        
+
         # Hash password
         password_hash = get_password_hash(obj_in.password)
-        
+
+        # Use provided tenant_id or default to 1
+        user_tenant_id = tenant_id if tenant_id is not None else 1
+
         db_obj = User(
+            tenant_id=user_tenant_id,
             username=obj_in.username,
             email=obj_in.email,
             password_hash=password_hash,

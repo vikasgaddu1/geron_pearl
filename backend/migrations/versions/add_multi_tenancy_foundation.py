@@ -25,177 +25,257 @@ branch_labels = None
 depends_on = None
 
 
+def table_exists(table_name):
+    """Check if a table exists in the database."""
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    return table_name in inspector.get_table_names()
+
+def column_exists(table_name, column_name):
+    """Check if a column exists in a table."""
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if not table_exists(table_name):
+        return False
+    columns = [c['name'] for c in inspector.get_columns(table_name)]
+    return column_name in columns
+
+def index_exists(table_name, index_name):
+    """Check if an index exists on a table."""
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if not table_exists(table_name):
+        return False
+    indexes = [idx['name'] for idx in inspector.get_indexes(table_name)]
+    return index_name in indexes
+
+def constraint_exists(table_name, constraint_name):
+    """Check if a constraint exists on a table."""
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if not table_exists(table_name):
+        return False
+    # Check unique constraints
+    unique_constraints = [uc['name'] for uc in inspector.get_unique_constraints(table_name)]
+    # Check foreign keys
+    foreign_keys = [fk['name'] for fk in inspector.get_foreign_keys(table_name)]
+    return constraint_name in unique_constraints or constraint_name in foreign_keys
+
 def upgrade() -> None:
     # ==========================================
     # Step 1: Create subscription_plans table
     # ==========================================
-    op.create_table(
-        'subscription_plans',
-        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('name', sa.String(length=50), nullable=False),
-        sa.Column('display_name', sa.String(length=100), nullable=False),
-        sa.Column('description', sa.String(length=500), nullable=True),
-        sa.Column('stripe_price_id', sa.String(length=255), nullable=True),
-        sa.Column('stripe_price_id_yearly', sa.String(length=255), nullable=True),
-        sa.Column('price_monthly', sa.Integer(), nullable=False, server_default='0'),
-        sa.Column('price_yearly', sa.Integer(), nullable=True),
-        sa.Column('max_users', sa.Integer(), nullable=False, server_default='5'),
-        sa.Column('max_studies', sa.Integer(), nullable=False, server_default='10'),
-        sa.Column('max_storage_mb', sa.Integer(), nullable=False, server_default='1024'),
-        sa.Column('features', sa.JSON(), nullable=True),
-        sa.Column('sort_order', sa.Integer(), nullable=False, server_default='0'),
-        sa.Column('is_active', sa.Integer(), nullable=False, server_default='1'),
-        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('name')
-    )
-    
-    # Seed default plans
-    op.execute("""
-        INSERT INTO subscription_plans (name, display_name, description, price_monthly, price_yearly, max_users, max_studies, max_storage_mb, features, sort_order, is_active)
-        VALUES 
-        ('starter', 'Starter', 'Perfect for small teams getting started', 9900, 99000, 5, 10, 1024, '{"email_support": true, "api_access": false, "priority_support": false, "sso": false}', 1, 1),
-        ('professional', 'Professional', 'For growing teams with advanced needs', 24900, 249000, 25, -1, 10240, '{"email_support": true, "api_access": true, "priority_support": true, "sso": false, "custom_branding": true}', 2, 1),
-        ('enterprise', 'Enterprise', 'For large organizations with custom requirements', 0, 0, -1, -1, -1, '{"email_support": true, "api_access": true, "priority_support": true, "sso": true, "custom_branding": true, "dedicated_support": true, "custom_integrations": true}', 3, 1)
-    """)
+    if not table_exists('subscription_plans'):
+        op.create_table(
+            'subscription_plans',
+            sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+            sa.Column('name', sa.String(length=50), nullable=False),
+            sa.Column('display_name', sa.String(length=100), nullable=False),
+            sa.Column('description', sa.String(length=500), nullable=True),
+            sa.Column('stripe_price_id', sa.String(length=255), nullable=True),
+            sa.Column('stripe_price_id_yearly', sa.String(length=255), nullable=True),
+            sa.Column('price_monthly', sa.Integer(), nullable=False, server_default='0'),
+            sa.Column('price_yearly', sa.Integer(), nullable=True),
+            sa.Column('max_users', sa.Integer(), nullable=False, server_default='5'),
+            sa.Column('max_studies', sa.Integer(), nullable=False, server_default='10'),
+            sa.Column('max_storage_mb', sa.Integer(), nullable=False, server_default='1024'),
+            sa.Column('features', sa.JSON(), nullable=True),
+            sa.Column('sort_order', sa.Integer(), nullable=False, server_default='0'),
+            sa.Column('is_active', sa.Integer(), nullable=False, server_default='1'),
+            sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('name')
+        )
+
+        # Seed default plans only if table was just created
+        op.execute("""
+            INSERT INTO subscription_plans (name, display_name, description, price_monthly, price_yearly, max_users, max_studies, max_storage_mb, features, sort_order, is_active)
+            VALUES
+            ('starter', 'Starter', 'Perfect for small teams getting started', 9900, 99000, 5, 10, 1024, '{"email_support": true, "api_access": false, "priority_support": false, "sso": false}', 1, 1),
+            ('professional', 'Professional', 'For growing teams with advanced needs', 24900, 249000, 25, -1, 10240, '{"email_support": true, "api_access": true, "priority_support": true, "sso": false, "custom_branding": true}', 2, 1),
+            ('enterprise', 'Enterprise', 'For large organizations with custom requirements', 0, 0, -1, -1, -1, '{"email_support": true, "api_access": true, "priority_support": true, "sso": true, "custom_branding": true, "dedicated_support": true, "custom_integrations": true}', 3, 1)
+        """)
     
     # ==========================================
     # Step 2: Create tenants table
     # ==========================================
-    op.create_table(
-        'tenants',
-        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('name', sa.String(length=255), nullable=False),
-        sa.Column('display_name', sa.String(length=255), nullable=False),
-        sa.Column('stripe_customer_id', sa.String(length=255), nullable=True),
-        sa.Column('stripe_subscription_id', sa.String(length=255), nullable=True),
-        sa.Column('subscription_status', sa.Enum('trialing', 'active', 'past_due', 'canceled', 'unpaid', name='subscriptionstatus'), nullable=False, server_default='active'),
-        sa.Column('trial_ends_at', sa.DateTime(), nullable=True),
-        sa.Column('grace_period_ends_at', sa.DateTime(), nullable=True),
-        sa.Column('plan_id', sa.Integer(), sa.ForeignKey('subscription_plans.id'), nullable=True),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1'),
-        sa.Column('deleted_at', sa.DateTime(), nullable=True),
-        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('name'),
-        sa.UniqueConstraint('stripe_customer_id')
-    )
-    op.create_index('ix_tenants_name', 'tenants', ['name'])
-    
-    # Create default tenant for existing data
+    if not table_exists('tenants'):
+        op.create_table(
+            'tenants',
+            sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+            sa.Column('name', sa.String(length=255), nullable=False),
+            sa.Column('display_name', sa.String(length=255), nullable=False),
+            sa.Column('stripe_customer_id', sa.String(length=255), nullable=True),
+            sa.Column('stripe_subscription_id', sa.String(length=255), nullable=True),
+            sa.Column('subscription_status', sa.Enum('trialing', 'active', 'past_due', 'canceled', 'unpaid', name='subscriptionstatus'), nullable=False, server_default='active'),
+            sa.Column('trial_ends_at', sa.DateTime(), nullable=True),
+            sa.Column('grace_period_ends_at', sa.DateTime(), nullable=True),
+            sa.Column('plan_id', sa.Integer(), sa.ForeignKey('subscription_plans.id'), nullable=True),
+            sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1'),
+            sa.Column('deleted_at', sa.DateTime(), nullable=True),
+            sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('name'),
+            sa.UniqueConstraint('stripe_customer_id')
+        )
+        if not index_exists('tenants', 'ix_tenants_name'):
+            op.create_index('ix_tenants_name', 'tenants', ['name'])
+
+    # Always ensure default tenant exists (even if table already existed)
     op.execute("""
         INSERT INTO tenants (id, name, display_name, subscription_status, is_active)
-        VALUES (1, 'default', 'Default Tenant', 'active', 1)
+        SELECT 1, 'default', 'Default Tenant', 'active', true
+        WHERE NOT EXISTS (SELECT 1 FROM tenants WHERE id = 1)
     """)
     
     # ==========================================
     # Step 3: Create tenant_settings table
     # ==========================================
-    op.create_table(
-        'tenant_settings',
-        sa.Column('tenant_id', sa.Integer(), sa.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('timezone', sa.String(length=50), nullable=False, server_default='UTC'),
-        sa.Column('date_format', sa.String(length=20), nullable=False, server_default='YYYY-MM-DD'),
-        sa.Column('time_format', sa.String(length=20), nullable=False, server_default='HH:mm'),
-        sa.Column('logo_url', sa.String(length=500), nullable=True),
-        sa.Column('primary_color', sa.String(length=7), nullable=True),
-        sa.Column('notification_email', sa.String(length=255), nullable=True),
-        sa.Column('onboarding_completed', sa.Integer(), nullable=False, server_default='0'),
-        sa.Column('sample_data_active', sa.Integer(), nullable=False, server_default='1'),
-        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.PrimaryKeyConstraint('tenant_id')
-    )
-    
-    # Create settings for default tenant
+    if not table_exists('tenant_settings'):
+        op.create_table(
+            'tenant_settings',
+            sa.Column('tenant_id', sa.Integer(), sa.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False),
+            sa.Column('timezone', sa.String(length=50), nullable=False, server_default='UTC'),
+            sa.Column('date_format', sa.String(length=20), nullable=False, server_default='YYYY-MM-DD'),
+            sa.Column('time_format', sa.String(length=20), nullable=False, server_default='HH:mm'),
+            sa.Column('logo_url', sa.String(length=500), nullable=True),
+            sa.Column('primary_color', sa.String(length=7), nullable=True),
+            sa.Column('notification_email', sa.String(length=255), nullable=True),
+            sa.Column('onboarding_completed', sa.Integer(), nullable=False, server_default='0'),
+            sa.Column('sample_data_active', sa.Integer(), nullable=False, server_default='1'),
+            sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.PrimaryKeyConstraint('tenant_id')
+        )
+
+    # Always ensure settings for default tenant exist
     op.execute("""
         INSERT INTO tenant_settings (tenant_id, timezone, date_format, time_format, onboarding_completed, sample_data_active)
-        VALUES (1, 'UTC', 'YYYY-MM-DD', 'HH:mm', 1, 0)
+        SELECT 1, 'UTC', 'YYYY-MM-DD', 'HH:mm', 1, 0
+        WHERE NOT EXISTS (SELECT 1 FROM tenant_settings WHERE tenant_id = 1)
     """)
     
     # ==========================================
     # Step 4: Create super_admins table
     # ==========================================
-    op.create_table(
-        'super_admins',
-        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('email', sa.String(length=255), nullable=False),
-        sa.Column('password_hash', sa.String(length=255), nullable=False),
-        sa.Column('mfa_secret', sa.String(length=255), nullable=True),
-        sa.Column('mfa_enabled', sa.Boolean(), nullable=False, server_default='0'),
-        sa.Column('mfa_backup_codes', sa.String(length=1000), nullable=True),
-        sa.Column('name', sa.String(length=255), nullable=False),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1'),
-        sa.Column('last_login_at', sa.DateTime(), nullable=True),
-        sa.Column('last_login_ip', sa.String(length=45), nullable=True),
-        sa.Column('failed_login_attempts', sa.Integer(), nullable=False, server_default='0'),
-        sa.Column('locked_until', sa.DateTime(), nullable=True),
-        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('email')
-    )
-    op.create_index('ix_super_admins_email', 'super_admins', ['email'])
+    if not table_exists('super_admins'):
+        op.create_table(
+            'super_admins',
+            sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+            sa.Column('email', sa.String(length=255), nullable=False),
+            sa.Column('password_hash', sa.String(length=255), nullable=False),
+            sa.Column('mfa_secret', sa.String(length=255), nullable=True),
+            sa.Column('mfa_enabled', sa.Boolean(), nullable=False, server_default='0'),
+            sa.Column('mfa_backup_codes', sa.String(length=1000), nullable=True),
+            sa.Column('name', sa.String(length=255), nullable=False),
+            sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1'),
+            sa.Column('last_login_at', sa.DateTime(), nullable=True),
+            sa.Column('last_login_ip', sa.String(length=45), nullable=True),
+            sa.Column('failed_login_attempts', sa.Integer(), nullable=False, server_default='0'),
+            sa.Column('locked_until', sa.DateTime(), nullable=True),
+            sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('email')
+        )
+        if not index_exists('super_admins', 'ix_super_admins_email'):
+            op.create_index('ix_super_admins_email', 'super_admins', ['email'])
     
     # ==========================================
     # Step 5: Add tenant_id to existing tables
     # ==========================================
-    
+
     # Users table
-    op.add_column('users', sa.Column('tenant_id', sa.Integer(), nullable=True))
-    op.execute("UPDATE users SET tenant_id = 1 WHERE tenant_id IS NULL")
-    op.alter_column('users', 'tenant_id', nullable=False)
-    op.create_foreign_key('fk_users_tenant', 'users', 'tenants', ['tenant_id'], ['id'], ondelete='CASCADE')
-    op.create_index('ix_users_tenant_id', 'users', ['tenant_id'])
-    op.create_index('ix_users_tenant_email', 'users', ['tenant_id', 'email'])
-    op.create_index('ix_users_tenant_active', 'users', ['tenant_id', 'is_active'])
-    
+    if not column_exists('users', 'tenant_id'):
+        op.add_column('users', sa.Column('tenant_id', sa.Integer(), nullable=True))
+        op.execute("UPDATE users SET tenant_id = 1 WHERE tenant_id IS NULL")
+        op.alter_column('users', 'tenant_id', nullable=False)
+        if not constraint_exists('users', 'fk_users_tenant'):
+            op.create_foreign_key('fk_users_tenant', 'users', 'tenants', ['tenant_id'], ['id'], ondelete='CASCADE')
+        if not index_exists('users', 'ix_users_tenant_id'):
+            op.create_index('ix_users_tenant_id', 'users', ['tenant_id'])
+        if not index_exists('users', 'ix_users_tenant_email'):
+            op.create_index('ix_users_tenant_email', 'users', ['tenant_id', 'email'])
+        if not index_exists('users', 'ix_users_tenant_active'):
+            op.create_index('ix_users_tenant_active', 'users', ['tenant_id', 'is_active'])
+
     # Studies table
-    op.add_column('studies', sa.Column('tenant_id', sa.Integer(), nullable=True))
-    op.execute("UPDATE studies SET tenant_id = 1 WHERE tenant_id IS NULL")
-    op.alter_column('studies', 'tenant_id', nullable=False)
-    op.create_foreign_key('fk_studies_tenant', 'studies', 'tenants', ['tenant_id'], ['id'], ondelete='CASCADE')
-    op.create_index('ix_studies_tenant_id', 'studies', ['tenant_id'])
-    op.create_index('ix_studies_tenant_created', 'studies', ['tenant_id', 'created_at'])
-    # Drop global unique constraint on study_label and add tenant-scoped unique constraint
-    op.drop_constraint('studies_study_label_key', 'studies', type_='unique')
-    op.create_unique_constraint('uq_studies_tenant_label', 'studies', ['tenant_id', 'study_label'])
-    
+    if not column_exists('studies', 'tenant_id'):
+        op.add_column('studies', sa.Column('tenant_id', sa.Integer(), nullable=True))
+        op.execute("UPDATE studies SET tenant_id = 1 WHERE tenant_id IS NULL")
+        op.alter_column('studies', 'tenant_id', nullable=False)
+        if not constraint_exists('studies', 'fk_studies_tenant'):
+            op.create_foreign_key('fk_studies_tenant', 'studies', 'tenants', ['tenant_id'], ['id'], ondelete='CASCADE')
+        if not index_exists('studies', 'ix_studies_tenant_id'):
+            op.create_index('ix_studies_tenant_id', 'studies', ['tenant_id'])
+        if not index_exists('studies', 'ix_studies_tenant_created'):
+            op.create_index('ix_studies_tenant_created', 'studies', ['tenant_id', 'created_at'])
+        # Drop global unique constraint on study_label and add tenant-scoped unique constraint
+        try:
+            op.drop_constraint('studies_study_label_key', 'studies', type_='unique')
+        except Exception:
+            pass  # Constraint may not exist
+        if not constraint_exists('studies', 'uq_studies_tenant_label'):
+            op.create_unique_constraint('uq_studies_tenant_label', 'studies', ['tenant_id', 'study_label'])
+
     # Packages table
-    op.add_column('packages', sa.Column('tenant_id', sa.Integer(), nullable=True))
-    op.execute("UPDATE packages SET tenant_id = 1 WHERE tenant_id IS NULL")
-    op.alter_column('packages', 'tenant_id', nullable=False)
-    op.create_foreign_key('fk_packages_tenant', 'packages', 'tenants', ['tenant_id'], ['id'], ondelete='CASCADE')
-    op.create_index('ix_packages_tenant_id', 'packages', ['tenant_id'])
-    op.create_index('ix_packages_tenant_created', 'packages', ['tenant_id', 'created_at'])
-    op.create_unique_constraint('uq_packages_tenant_name', 'packages', ['tenant_id', 'package_name'])
-    
+    if not column_exists('packages', 'tenant_id'):
+        op.add_column('packages', sa.Column('tenant_id', sa.Integer(), nullable=True))
+        op.execute("UPDATE packages SET tenant_id = 1 WHERE tenant_id IS NULL")
+        op.alter_column('packages', 'tenant_id', nullable=False)
+        if not constraint_exists('packages', 'fk_packages_tenant'):
+            op.create_foreign_key('fk_packages_tenant', 'packages', 'tenants', ['tenant_id'], ['id'], ondelete='CASCADE')
+        if not index_exists('packages', 'ix_packages_tenant_id'):
+            op.create_index('ix_packages_tenant_id', 'packages', ['tenant_id'])
+        if not index_exists('packages', 'ix_packages_tenant_created'):
+            op.create_index('ix_packages_tenant_created', 'packages', ['tenant_id', 'created_at'])
+        if not constraint_exists('packages', 'uq_packages_tenant_name'):
+            op.create_unique_constraint('uq_packages_tenant_name', 'packages', ['tenant_id', 'package_name'])
+
     # Text elements table
-    op.add_column('text_elements', sa.Column('tenant_id', sa.Integer(), nullable=True))
-    op.execute("UPDATE text_elements SET tenant_id = 1 WHERE tenant_id IS NULL")
-    op.alter_column('text_elements', 'tenant_id', nullable=False)
-    op.create_foreign_key('fk_text_elements_tenant', 'text_elements', 'tenants', ['tenant_id'], ['id'], ondelete='CASCADE')
-    op.create_index('ix_text_elements_tenant_id', 'text_elements', ['tenant_id'])
-    op.create_index('ix_text_elements_tenant_type', 'text_elements', ['tenant_id', 'type'])
-    
+    if not column_exists('text_elements', 'tenant_id'):
+        op.add_column('text_elements', sa.Column('tenant_id', sa.Integer(), nullable=True))
+        op.execute("UPDATE text_elements SET tenant_id = 1 WHERE tenant_id IS NULL")
+        op.alter_column('text_elements', 'tenant_id', nullable=False)
+        if not constraint_exists('text_elements', 'fk_text_elements_tenant'):
+            op.create_foreign_key('fk_text_elements_tenant', 'text_elements', 'tenants', ['tenant_id'], ['id'], ondelete='CASCADE')
+        if not index_exists('text_elements', 'ix_text_elements_tenant_id'):
+            op.create_index('ix_text_elements_tenant_id', 'text_elements', ['tenant_id'])
+        if not index_exists('text_elements', 'ix_text_elements_tenant_type'):
+            op.create_index('ix_text_elements_tenant_type', 'text_elements', ['tenant_id', 'type'])
+
     # Audit log table
-    op.add_column('audit_log', sa.Column('tenant_id', sa.Integer(), nullable=True))
-    op.execute("UPDATE audit_log SET tenant_id = 1 WHERE tenant_id IS NULL")
-    op.alter_column('audit_log', 'tenant_id', nullable=False)
-    op.create_foreign_key('fk_audit_log_tenant', 'audit_log', 'tenants', ['tenant_id'], ['id'], ondelete='CASCADE')
-    op.create_index('ix_audit_log_tenant_id', 'audit_log', ['tenant_id'])
-    op.create_index('ix_audit_log_tenant_created', 'audit_log', ['tenant_id', 'created_at'])
-    op.create_index('ix_audit_log_tenant_table', 'audit_log', ['tenant_id', 'table_name'])
-    
+    if not column_exists('audit_log', 'tenant_id'):
+        op.add_column('audit_log', sa.Column('tenant_id', sa.Integer(), nullable=True))
+        op.execute("UPDATE audit_log SET tenant_id = 1 WHERE tenant_id IS NULL")
+        op.alter_column('audit_log', 'tenant_id', nullable=False)
+        if not constraint_exists('audit_log', 'fk_audit_log_tenant'):
+            op.create_foreign_key('fk_audit_log_tenant', 'audit_log', 'tenants', ['tenant_id'], ['id'], ondelete='CASCADE')
+        if not index_exists('audit_log', 'ix_audit_log_tenant_id'):
+            op.create_index('ix_audit_log_tenant_id', 'audit_log', ['tenant_id'])
+        if not index_exists('audit_log', 'ix_audit_log_tenant_created'):
+            op.create_index('ix_audit_log_tenant_created', 'audit_log', ['tenant_id', 'created_at'])
+        if not index_exists('audit_log', 'ix_audit_log_tenant_table'):
+            op.create_index('ix_audit_log_tenant_table', 'audit_log', ['tenant_id', 'table_name'])
+
     # Error log table (nullable tenant_id for unauthenticated errors)
-    op.add_column('error_log', sa.Column('tenant_id', sa.Integer(), nullable=True))
-    # Don't force update - error_log can have null tenant_id for unauthenticated errors
-    op.create_foreign_key('fk_error_log_tenant', 'error_log', 'tenants', ['tenant_id'], ['id'], ondelete='CASCADE')
-    op.create_index('ix_error_log_tenant_id', 'error_log', ['tenant_id'])
-    op.create_index('ix_error_log_tenant_created', 'error_log', ['tenant_id', 'created_at'])
-    op.create_index('ix_error_log_tenant_severity', 'error_log', ['tenant_id', 'severity'])
+    if not column_exists('error_log', 'tenant_id'):
+        op.add_column('error_log', sa.Column('tenant_id', sa.Integer(), nullable=True))
+        # Don't force update - error_log can have null tenant_id for unauthenticated errors
+        if not constraint_exists('error_log', 'fk_error_log_tenant'):
+            op.create_foreign_key('fk_error_log_tenant', 'error_log', 'tenants', ['tenant_id'], ['id'], ondelete='CASCADE')
+        if not index_exists('error_log', 'ix_error_log_tenant_id'):
+            op.create_index('ix_error_log_tenant_id', 'error_log', ['tenant_id'])
+        if not index_exists('error_log', 'ix_error_log_tenant_created'):
+            op.create_index('ix_error_log_tenant_created', 'error_log', ['tenant_id', 'created_at'])
+        if not index_exists('error_log', 'ix_error_log_tenant_severity'):
+            op.create_index('ix_error_log_tenant_severity', 'error_log', ['tenant_id', 'severity'])
 
 
 def downgrade() -> None:

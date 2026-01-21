@@ -305,9 +305,11 @@ async def read_reporting_effort_items(
     db: AsyncSession = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
+    current_user: UserModel = Depends(get_current_user),
 ) -> dict:
     """
     Retrieve reporting effort items with pagination.
+    Requires authentication.
     """
     try:
         items = await reporting_effort_item.get_multi(db, skip=skip, limit=limit)
@@ -351,9 +353,10 @@ async def read_reporting_effort_items(
 @router.get("/count")
 async def get_items_count(
     *,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
 ):
-    """Get count of reporting effort items."""
+    """Get count of reporting effort items. Requires authentication."""
     try:
         from sqlalchemy import select, func
         result = await db.execute(select(func.count(ReportingEffortItemModel.id)))
@@ -367,9 +370,11 @@ async def read_reporting_effort_item(
     *,
     db: AsyncSession = Depends(get_db),
     item_id: int,
+    current_user: UserModel = Depends(get_current_user),
 ) -> dict:
     """
     Get a specific reporting effort item by ID with all details.
+    Requires authentication.
     """
     try:
         db_item = await reporting_effort_item.get_with_details(db, id=item_id)
@@ -405,9 +410,11 @@ async def read_items_by_reporting_effort(
     *,
     db: AsyncSession = Depends(get_db),
     reporting_effort_id: int,
+    current_user: UserModel = Depends(get_current_user),
 ) -> List[dict]:
     """
     Get all items for a specific reporting effort.
+    Requires authentication.
     """
     try:
         # Verify reporting effort exists

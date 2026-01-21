@@ -80,24 +80,39 @@ TextElement (standalone: title, footnote, population_set, acronyms_set, ich_cate
 User (admin, analyst, viewer roles)
 Notification (user_id, tracker_id, type: assignment_prod/assignment_qc/comment_added)
 AuditLog (tracks all entity changes)
+
+# Multi-tenant entities
+Tenant (organization isolation)
+Subscription (billing, Stripe integration)
+SuperAdmin (platform-level administration)
 ```
 
 ### API Endpoints
 
 | Prefix | Entity | Notes |
 |--------|--------|-------|
+| `/api/v1/auth` | Authentication | Login, logout, OAuth2, password reset |
 | `/api/v1/studies` | Studies | Root entity, deletion protected |
 | `/api/v1/database-releases` | Database Releases | Linked to studies |
-| `/api/v1/reporting-efforts` | Reporting Efforts | Linked to database releases |
+| `/api/v1/reporting-efforts` | Reporting Efforts | Linked to database releases, lock system |
 | `/api/v1/reporting-effort-items` | Reporting Effort Items | TLFs/Datasets in efforts |
 | `/api/v1/reporting-effort-tracker` | Tracker Assignments | Production/QC tracking |
 | `/api/v1/tracker-comments` | Comments | Thread support, resolution status |
+| `/api/v1/tracker-tags` | Tracker Tags | Tag management for trackers |
+| `/api/v1/milestones` | Milestones | Phases and milestones for efforts |
+| `/api/v1/use-cases` | Use Cases | Use case assignments |
 | `/api/v1/packages` | Packages | TLF/Dataset organization |
 | `/api/v1/text-elements` | Text Elements | Titles, footnotes, populations, acronyms |
 | `/api/v1/users` | Users | Role-based access |
 | `/api/v1/notifications` | Notifications | User alerts for assignments/comments |
+| `/api/v1/audit-trail` | Audit Logs | Change tracking (admin-only) |
+| `/api/v1/analytics` | Analytics | Director dashboard metrics |
+| `/api/v1/billing` | Billing | Subscription management, Stripe webhooks |
+| `/api/v1/super-admin` | Super Admin | Platform admin (MFA, impersonation) |
+| `/api/v1/tenant` | Tenant Data | Tenant management, sample data |
+| `/api/v1/system` | System | Health, version, tenant info |
+| `/api/v1/error-logs` | Error Logs | Error log viewing (admin-only) |
 | `/api/v1/ws` | WebSocket | Real-time updates |
-| `/api/v1/audit-trail` | Audit Logs | Change tracking |
 
 ## Mandatory Patterns
 
@@ -186,7 +201,11 @@ async def create_package(
 | `/database-releases/*` | `require_study_lead_access()` |
 | `/reporting-efforts/*` | `require_study_lead_access()` |
 | `/reporting-effort-items/*` | `require_study_lead_access()` |
-| `/reporting-effort-tracker/*` | `require_study_lead_access()` or role check |
+| `/reporting-effort-tracker/*` | `get_current_user` (read), study role check (write) |
+| `/tracker-comments/*` | `get_current_user` (all endpoints require auth) |
+| `/tracker-tags/*` | `get_current_user` (read), `require_admin_or_lead()` (write) |
+| `/use-cases/*` | `get_current_user` (read), `require_admin_or_lead()` (write) |
+| `/milestones/*` | `get_current_user` (read), `require_admin_or_lead()` (write) |
 | `/packages/*` | `require_admin_or_lead()` |
 | `/text-elements/*` | `require_admin_or_lead()` |
 | `/settings/*` | `require_admin()` |

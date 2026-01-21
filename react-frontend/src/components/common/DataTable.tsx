@@ -10,7 +10,7 @@ import {
   ColumnFiltersState,
   ColumnDef as TanStackColumnDef,
 } from '@tanstack/react-table'
-import { ArrowUpDown, ArrowUp, ArrowDown, X, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { ArrowUpDown, ArrowUp, ArrowDown, X, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Inbox, Search } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -56,6 +56,8 @@ interface DataTableProps<T> {
   defaultPageSize?: number
   pageSizeOptions?: number[]
   className?: string
+  emptyTitle?: string
+  emptyDescription?: string
 }
 
 const DEFAULT_PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
@@ -67,6 +69,8 @@ export function DataTable<T>({
   defaultPageSize = 10,
   pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
   className,
+  emptyTitle,
+  emptyDescription,
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -435,9 +439,37 @@ export function DataTable<T>({
                 <TableRow>
                   <TableCell
                     colSpan={columns.length}
-                    className="h-24 text-center"
+                    className="h-32"
                   >
-                    No results found.
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                      {activeFilters.length > 0 ? (
+                        <>
+                          <Search className="h-10 w-10 text-muted-foreground/50 mb-3" />
+                          <p className="text-sm font-medium text-muted-foreground">No matching results</p>
+                          <p className="text-xs text-muted-foreground/70 mt-1">
+                            Try adjusting your filters or search criteria
+                          </p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={clearAllFilters}
+                            className="mt-3"
+                          >
+                            Clear all filters
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Inbox className="h-10 w-10 text-muted-foreground/50 mb-3" />
+                          <p className="text-sm font-medium text-muted-foreground">
+                            {emptyTitle || 'No data available'}
+                          </p>
+                          <p className="text-xs text-muted-foreground/70 mt-1">
+                            {emptyDescription || 'Data will appear here once items are created'}
+                          </p>
+                        </>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               )}

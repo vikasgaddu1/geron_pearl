@@ -18,7 +18,8 @@ class AuditLogBase(BaseModel):
 
 class AuditLogCreate(AuditLogBase):
     """Schema for creating an AuditLog entry."""
-    
+
+    tenant_id: int = Field(..., description="Tenant this audit log belongs to")
     user_id: Optional[int] = Field(None, description="User who performed the action")
 
 

@@ -78,8 +78,10 @@ export function PricingPage() {
     const fetchPlans = async () => {
       try {
         const response = await getPlans();
-        setPlans(response.plans);
+        // Defensive: handle cases where plans might be undefined or not an array
+        setPlans(response?.plans ?? []);
       } catch (err) {
+        console.error('Failed to fetch plans:', err);
         setError('Failed to load pricing plans. Please try again.');
       } finally {
         setLoading(false);
@@ -180,6 +182,14 @@ export function PricingPage() {
             </div>
           ) : error ? (
             <div className="text-center py-12 text-red-600">{error}</div>
+          ) : plans.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-600 mb-4">No pricing plans are currently available.</p>
+              <p className="text-sm text-gray-500">Please contact us for custom pricing options.</p>
+              <a href="mailto:sales@pearl.app" className="inline-block mt-4">
+                <Button variant="outline">Contact Sales</Button>
+              </a>
+            </div>
           ) : (
             <div className="grid md:grid-cols-3 gap-8">
               {plans.map((plan) => (

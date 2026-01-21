@@ -26,7 +26,7 @@ async def get_settings(
     Any authenticated user can view settings.
     """
     try:
-        settings = await app_settings.get(db)
+        settings = await app_settings.get(db, tenant_id=current_user.tenant_id)
 
         # Build response with username if available
         return AppSettings(
@@ -60,7 +60,8 @@ async def update_settings(
         settings = await app_settings.update(
             db,
             obj_in=settings_in,
-            updated_by_user_id=current_user.id
+            updated_by_user_id=current_user.id,
+            tenant_id=current_user.tenant_id
         )
 
         # Build response with username

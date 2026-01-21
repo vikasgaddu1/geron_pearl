@@ -17,6 +17,8 @@ from app.crud.reporting_effort_phase import reporting_effort_phase
 from app.crud.reporting_effort_milestone import reporting_effort_milestone
 from app.crud.milestone_tracker_assignment import milestone_tracker_assignment
 from app.crud.tracker_tag import tracker_tag
+from app.core.security import get_current_user, require_admin_or_lead
+from app.models.user import User
 from app.schemas.reporting_effort_phase import (
     ReportingEffortPhase,
     ReportingEffortPhaseCreate,
@@ -49,7 +51,8 @@ router = APIRouter()
 async def get_phases_for_effort(
     *,
     db: AsyncSession = Depends(get_db),
-    effort_id: int
+    effort_id: int,
+    current_user: User = Depends(get_current_user)
 ) -> List[ReportingEffortPhaseWithMilestones]:
     """
     Get all phases with their milestones for a reporting effort.
@@ -80,7 +83,8 @@ async def create_phase(
     *,
     db: AsyncSession = Depends(get_db),
     effort_id: int,
-    phase_in: ReportingEffortPhaseCreate
+    phase_in: ReportingEffortPhaseCreate,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> ReportingEffortPhase:
     """
     Create a new phase for a reporting effort.
@@ -120,7 +124,8 @@ async def create_phase(
 async def get_phase(
     *,
     db: AsyncSession = Depends(get_db),
-    phase_id: int
+    phase_id: int,
+    current_user: User = Depends(get_current_user)
 ) -> ReportingEffortPhaseWithMilestones:
     """Get a specific phase with its milestones."""
     phase = await reporting_effort_phase.get_with_milestones(db, phase_id=phase_id)
@@ -140,7 +145,8 @@ async def update_phase(
     *,
     db: AsyncSession = Depends(get_db),
     phase_id: int,
-    phase_in: ReportingEffortPhaseUpdate
+    phase_in: ReportingEffortPhaseUpdate,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> ReportingEffortPhase:
     """Update a phase's name or display order."""
     db_phase = await reporting_effort_phase.get(db, id=phase_id)
@@ -160,7 +166,8 @@ async def update_phase(
 async def delete_phase(
     *,
     db: AsyncSession = Depends(get_db),
-    phase_id: int
+    phase_id: int,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> None:
     """
     Delete a phase and all its milestones.
@@ -183,7 +190,8 @@ async def reorder_phases(
     *,
     db: AsyncSession = Depends(get_db),
     effort_id: int,
-    phase_ids: List[int]
+    phase_ids: List[int],
+    current_user: User = Depends(require_admin_or_lead())
 ) -> List[ReportingEffortPhase]:
     """
     Reorder phases by providing the desired order of phase IDs.
@@ -220,7 +228,8 @@ async def get_milestones_for_dashboard(
     reporting_effort_id: Optional[int] = Query(None, description="Filter by reporting effort ID"),
     include_completed: bool = Query(True, description="Include completed milestones"),
     start_date: Optional[date] = Query(None, description="Filter milestones from this date"),
-    end_date: Optional[date] = Query(None, description="Filter milestones until this date")
+    end_date: Optional[date] = Query(None, description="Filter milestones until this date"),
+    current_user: User = Depends(get_current_user)
 ) -> List[ReportingEffortMilestoneWithPhase]:
     """
     Get all milestones with full context for dashboard display.
@@ -246,7 +255,8 @@ async def get_upcoming_milestones(
     *,
     db: AsyncSession = Depends(get_db),
     days_ahead: int = Query(14, ge=1, le=365, description="Number of days to look ahead"),
-    limit: int = Query(10, ge=1, le=100, description="Maximum number of milestones to return")
+    limit: int = Query(10, ge=1, le=100, description="Maximum number of milestones to return"),
+    current_user: User = Depends(get_current_user)
 ) -> List[ReportingEffortMilestoneWithPhase]:
     """
     Get upcoming milestones for the next N days.
@@ -273,7 +283,8 @@ async def create_milestone(
     *,
     db: AsyncSession = Depends(get_db),
     phase_id: int,
-    milestone_in: ReportingEffortMilestoneCreate
+    milestone_in: ReportingEffortMilestoneCreate,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> ReportingEffortMilestone:
     """
     Create a new milestone within a phase.
@@ -315,7 +326,8 @@ async def create_milestone(
 async def get_milestone(
     *,
     db: AsyncSession = Depends(get_db),
-    milestone_id: int
+    milestone_id: int,
+    current_user: User = Depends(get_current_user)
 ) -> ReportingEffortMilestone:
     """Get a specific milestone."""
     milestone = await reporting_effort_milestone.get(db, id=milestone_id)
@@ -335,7 +347,8 @@ async def update_milestone(
     *,
     db: AsyncSession = Depends(get_db),
     milestone_id: int,
-    milestone_in: ReportingEffortMilestoneUpdate
+    milestone_in: ReportingEffortMilestoneUpdate,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> ReportingEffortMilestone:
     """Update a milestone."""
     db_milestone = await reporting_effort_milestone.get(db, id=milestone_id)
@@ -359,7 +372,8 @@ async def update_milestone(
 async def delete_milestone(
     *,
     db: AsyncSession = Depends(get_db),
-    milestone_id: int
+    milestone_id: int,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> None:
     """Delete a milestone."""
     result = await reporting_effort_milestone.delete(db, id=milestone_id)
@@ -378,7 +392,8 @@ async def mark_milestone_complete(
     *,
     db: AsyncSession = Depends(get_db),
     milestone_id: int,
-    completion_date: Optional[date] = None
+    completion_date: Optional[date] = None,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> ReportingEffortMilestone:
     """Mark a milestone as completed."""
     milestone = await reporting_effort_milestone.mark_completed(
@@ -401,7 +416,8 @@ async def mark_milestone_complete(
 async def mark_milestone_incomplete(
     *,
     db: AsyncSession = Depends(get_db),
-    milestone_id: int
+    milestone_id: int,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> ReportingEffortMilestone:
     """Mark a milestone as incomplete (not completed)."""
     milestone = await reporting_effort_milestone.mark_incomplete(
@@ -424,7 +440,8 @@ async def reorder_milestones(
     *,
     db: AsyncSession = Depends(get_db),
     phase_id: int,
-    milestone_ids: List[int]
+    milestone_ids: List[int],
+    current_user: User = Depends(require_admin_or_lead())
 ) -> List[ReportingEffortMilestone]:
     """
     Reorder milestones within a phase.
@@ -457,7 +474,8 @@ async def reorder_milestones(
 async def get_milestone_with_trackers(
     *,
     db: AsyncSession = Depends(get_db),
-    milestone_id: int
+    milestone_id: int,
+    current_user: User = Depends(get_current_user)
 ) -> dict:
     """
     Get a milestone with linked tracker information.
@@ -485,7 +503,8 @@ async def get_milestone_with_trackers(
 async def get_linked_trackers(
     *,
     db: AsyncSession = Depends(get_db),
-    milestone_id: int
+    milestone_id: int,
+    current_user: User = Depends(get_current_user)
 ) -> List[dict]:
     """
     Get all trackers linked to a milestone.
@@ -518,7 +537,8 @@ async def get_linked_trackers(
 async def get_available_trackers(
     *,
     db: AsyncSession = Depends(get_db),
-    milestone_id: int
+    milestone_id: int,
+    current_user: User = Depends(get_current_user)
 ) -> List[dict]:
     """
     Get trackers that can be manually linked to this milestone.
@@ -548,7 +568,8 @@ async def link_trackers_to_milestone(
     *,
     db: AsyncSession = Depends(get_db),
     milestone_id: int,
-    tracker_ids: List[int] = Query(..., description="List of tracker IDs to link")
+    tracker_ids: List[int] = Query(..., description="List of tracker IDs to link"),
+    current_user: User = Depends(require_admin_or_lead())
 ) -> BulkOperationResult:
     """
     Manually link trackers to a milestone.
@@ -581,7 +602,8 @@ async def unlink_trackers_from_milestone(
     *,
     db: AsyncSession = Depends(get_db),
     milestone_id: int,
-    tracker_ids: List[int] = Query(..., description="List of tracker IDs to unlink")
+    tracker_ids: List[int] = Query(..., description="List of tracker IDs to unlink"),
+    current_user: User = Depends(require_admin_or_lead())
 ) -> BulkOperationResult:
     """
     Remove manual links between trackers and a milestone.
@@ -611,7 +633,8 @@ async def unlink_trackers_from_milestone(
 )
 async def get_tags_for_linking(
     *,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ) -> List[dict]:
     """
     Get all available tags for milestone linking.
@@ -644,7 +667,8 @@ async def copy_milestones_from_effort(
     db: AsyncSession = Depends(get_db),
     effort_id: int,
     source_effort_id: int,
-    date_offset_days: Optional[int] = Query(None, description="Days to offset all due dates (positive = future)")
+    date_offset_days: Optional[int] = Query(None, description="Days to offset all due dates (positive = future)"),
+    current_user: User = Depends(require_admin_or_lead())
 ) -> List[ReportingEffortPhaseWithMilestones]:
     """
     Copy all phases and milestones from another reporting effort.
@@ -736,7 +760,8 @@ async def copy_milestones_from_effort(
 async def get_available_source_efforts(
     *,
     db: AsyncSession = Depends(get_db),
-    exclude_effort_id: Optional[int] = Query(None, description="Effort ID to exclude from results")
+    exclude_effort_id: Optional[int] = Query(None, description="Effort ID to exclude from results"),
+    current_user: User = Depends(get_current_user)
 ) -> List[dict]:
     """
     Get list of reporting efforts that have milestones (can be used as copy sources).

@@ -28,7 +28,7 @@ async def create_user(
     Create new user with email and password.
     """
     try:
-        user = await crud.user.create(db, obj_in=user_in)
+        user = await crud.user.create(db, obj_in=user_in, tenant_id=current_user.tenant_id)
 
         # Log audit trail
         try:

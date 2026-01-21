@@ -135,9 +135,11 @@ async def read_reporting_efforts(
     limit: int = 100,
     study_id: int = Query(None, description="Filter by study ID"),
     database_release_id: int = Query(None, description="Filter by database release ID"),
+    current_user: User = Depends(get_current_user),
 ) -> List[Dict[str, Any]]:
     """
     Retrieve reporting efforts with optional filtering and pagination.
+    Requires authentication.
     Returns expanded data with study and database release labels.
     """
     try:
@@ -173,9 +175,11 @@ async def read_reporting_effort(
     *,
     db: AsyncSession = Depends(get_db),
     reporting_effort_id: int,
+    current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
     Get a specific reporting effort by ID with expanded details.
+    Requires authentication.
     """
     try:
         db_reporting_effort = await reporting_effort.get(db, id=reporting_effort_id)

@@ -45,7 +45,7 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-14 items-center px-4 gap-4">
-        <Button variant="ghost" size="icon" className="md:hidden" onClick={toggleSidebar}>
+        <Button variant="ghost" size="icon" className="md:hidden" onClick={toggleSidebar} aria-label="Toggle navigation menu">
           <Menu className="h-5 w-5" />
         </Button>
 
@@ -78,7 +78,7 @@ export function Navbar() {
           <ThemeSelector />
 
           {/* Light/Dark Mode Toggle */}
-          <Button variant="ghost" size="icon" onClick={toggleTheme}>
+          <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
             {theme === 'dark' ? (
               <Sun className="h-5 w-5" />
             ) : (

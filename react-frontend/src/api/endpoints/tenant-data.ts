@@ -2,7 +2,7 @@
  * Tenant Data Management API endpoints
  */
 
-import api from '../index';
+import { apiClient } from '../client';
 
 // Types
 export interface SampleDataStatus {
@@ -34,7 +34,7 @@ export interface SeedResponse {
  * Check if tenant has sample data seeded
  */
 export const getSampleDataStatus = async (): Promise<SampleDataStatus> => {
-  const response = await api.get<SampleDataStatus>('/tenant/sample-data/status');
+  const response = await apiClient.get<SampleDataStatus>('/tenant/sample-data/status');
   return response.data;
 };
 
@@ -42,7 +42,7 @@ export const getSampleDataStatus = async (): Promise<SampleDataStatus> => {
  * Seed sample data for the tenant
  */
 export const seedSampleData = async (): Promise<SeedResponse> => {
-  const response = await api.post<SeedResponse>('/tenant/sample-data/seed');
+  const response = await apiClient.post<SeedResponse>('/tenant/sample-data/seed');
   return response.data;
 };
 
@@ -50,7 +50,7 @@ export const seedSampleData = async (): Promise<SeedResponse> => {
  * Reset tenant data to sample state
  */
 export const resetToSampleData = async (): Promise<ResetResponse> => {
-  const response = await api.post<ResetResponse>('/tenant/reset-to-sample');
+  const response = await apiClient.post<ResetResponse>('/tenant/reset-to-sample');
   return response.data;
 };
 
@@ -58,7 +58,7 @@ export const resetToSampleData = async (): Promise<ResetResponse> => {
  * Clear all tenant data (except users)
  */
 export const clearAllData = async (): Promise<DataCounts> => {
-  const response = await api.delete<DataCounts>('/tenant/clear-all');
+  const response = await apiClient.delete<DataCounts>('/tenant/clear-all');
   return response.data;
 };
 
@@ -76,7 +76,7 @@ export interface OnboardingStatus {
  * Get onboarding status for the tenant
  */
 export const getOnboardingStatus = async (): Promise<OnboardingStatus> => {
-  const response = await api.get<OnboardingStatus>('/tenant/onboarding/status');
+  const response = await apiClient.get<OnboardingStatus>('/tenant/onboarding/status');
   return response.data;
 };
 
@@ -84,7 +84,7 @@ export const getOnboardingStatus = async (): Promise<OnboardingStatus> => {
  * Mark onboarding as complete
  */
 export const completeOnboarding = async (): Promise<{ message: string; tenant_id: number }> => {
-  const response = await api.post('/tenant/onboarding/complete');
+  const response = await apiClient.post('/tenant/onboarding/complete');
   return response.data;
 };
 
@@ -96,7 +96,7 @@ export const completeOnboarding = async (): Promise<{ message: string; tenant_id
  * Export all tenant data as JSON (GDPR compliance)
  */
 export const exportDataJson = async (): Promise<Blob> => {
-  const response = await api.get('/tenant/export-data', { responseType: 'blob' });
+  const response = await apiClient.get('/tenant/export-data', { responseType: 'blob' });
   return response.data;
 };
 
@@ -104,7 +104,7 @@ export const exportDataJson = async (): Promise<Blob> => {
  * Export all tenant data as ZIP (GDPR compliance)
  */
 export const exportDataZip = async (): Promise<Blob> => {
-  const response = await api.get('/tenant/export-data/zip', { responseType: 'blob' });
+  const response = await apiClient.get('/tenant/export-data/zip', { responseType: 'blob' });
   return response.data;
 };
 
@@ -139,7 +139,7 @@ export interface BackupStats {
  * Download backup as JSON
  */
 export const downloadBackup = async (): Promise<Blob> => {
-  const response = await api.get('/tenant/backup', { responseType: 'blob' });
+  const response = await apiClient.get('/tenant/backup', { responseType: 'blob' });
   return response.data;
 };
 
@@ -147,7 +147,7 @@ export const downloadBackup = async (): Promise<Blob> => {
  * Download backup as ZIP
  */
 export const downloadBackupZip = async (): Promise<Blob> => {
-  const response = await api.get('/tenant/backup/zip', { responseType: 'blob' });
+  const response = await apiClient.get('/tenant/backup/zip', { responseType: 'blob' });
   return response.data;
 };
 
@@ -160,7 +160,7 @@ export const restoreFromBackup = async (
 ): Promise<BackupStats> => {
   const formData = new FormData();
   formData.append('file', file);
-  const response = await api.post<BackupStats>(
+  const response = await apiClient.post<BackupStats>(
     `/tenant/restore?clear_existing=${clearExisting}`,
     formData,
     { headers: { 'Content-Type': 'multipart/form-data' } }
@@ -196,6 +196,6 @@ export interface UsageResponse {
  * Get current API usage statistics and rate limits
  */
 export const getUsageStats = async (): Promise<UsageResponse> => {
-  const response = await api.get<UsageResponse>('/tenant/usage');
+  const response = await apiClient.get<UsageResponse>('/tenant/usage');
   return response.data;
 };

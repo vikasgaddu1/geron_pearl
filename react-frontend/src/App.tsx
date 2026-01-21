@@ -1,32 +1,58 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { Suspense, lazy } from 'react'
 import { Toaster } from 'sonner'
+import { Loader2 } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
-import { Dashboard } from '@/features/dashboard/Dashboard'
-import { StudyManagement } from '@/features/study-management/StudyManagement'
-import { UserManagement } from '@/features/users/UserManagement'
-import { TFLProperties } from '@/features/tfl-properties/TFLProperties'
-import { DatabaseBackup } from '@/features/database-backup/DatabaseBackup'
-import { PackagesList } from '@/features/packages/PackagesList'
-import { PackageItems } from '@/features/packages/PackageItems'
-import { ReportingEffortItems } from '@/features/reporting/ReportingEffortItems'
-import { TrackerManagement } from '@/features/reporting/TrackerManagement'
-import { LoginPage } from '@/features/auth/LoginPage'
-import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage'
-import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
-import { SettingsPage } from '@/features/settings/SettingsPage'
-import { AuditLogsPage } from '@/features/audit-logs/AuditLogsPage'
-import { ErrorLogsPage } from '@/features/error-logs/ErrorLogsPage'
-import { LandingPage, PricingPage, SignupPage, TermsPage, PrivacyPage } from '@/features/marketing'
-import { SuperAdminLoginPage, SuperAdminDashboard, SuperAdminProtectedRoute } from '@/features/super-admin'
 import { ImpersonationBanner } from '@/components/layout/ImpersonationBanner'
-import { HelpPage } from '@/features/help'
+
+// Loading fallback component
+function PageLoader() {
+  return (
+    <div className="flex h-[50vh] w-full items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  )
+}
+
+// Lazy load feature components for code splitting
+const Dashboard = lazy(() => import('@/features/dashboard/Dashboard').then(m => ({ default: m.Dashboard })))
+const StudyManagement = lazy(() => import('@/features/study-management/StudyManagement').then(m => ({ default: m.StudyManagement })))
+const UserManagement = lazy(() => import('@/features/users/UserManagement').then(m => ({ default: m.UserManagement })))
+const TFLProperties = lazy(() => import('@/features/tfl-properties/TFLProperties').then(m => ({ default: m.TFLProperties })))
+const DatabaseBackup = lazy(() => import('@/features/database-backup/DatabaseBackup').then(m => ({ default: m.DatabaseBackup })))
+const PackagesList = lazy(() => import('@/features/packages/PackagesList').then(m => ({ default: m.PackagesList })))
+const PackageItems = lazy(() => import('@/features/packages/PackageItems').then(m => ({ default: m.PackageItems })))
+const ReportingEffortItems = lazy(() => import('@/features/reporting/ReportingEffortItems').then(m => ({ default: m.ReportingEffortItems })))
+const TrackerManagement = lazy(() => import('@/features/reporting/TrackerManagement').then(m => ({ default: m.TrackerManagement })))
+const SettingsPage = lazy(() => import('@/features/settings/SettingsPage').then(m => ({ default: m.SettingsPage })))
+const AuditLogsPage = lazy(() => import('@/features/audit-logs/AuditLogsPage').then(m => ({ default: m.AuditLogsPage })))
+const ErrorLogsPage = lazy(() => import('@/features/error-logs/ErrorLogsPage').then(m => ({ default: m.ErrorLogsPage })))
+const HelpPage = lazy(() => import('@/features/help').then(m => ({ default: m.HelpPage })))
+
+// Auth pages - lazy loaded
+const LoginPage = lazy(() => import('@/features/auth/LoginPage').then(m => ({ default: m.LoginPage })))
+const ForgotPasswordPage = lazy(() => import('@/features/auth/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })))
+const ResetPasswordPage = lazy(() => import('@/features/auth/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })))
+
+// Marketing pages - lazy loaded
+const LandingPage = lazy(() => import('@/features/marketing').then(m => ({ default: m.LandingPage })))
+const PricingPage = lazy(() => import('@/features/marketing').then(m => ({ default: m.PricingPage })))
+const SignupPage = lazy(() => import('@/features/marketing').then(m => ({ default: m.SignupPage })))
+const TermsPage = lazy(() => import('@/features/marketing').then(m => ({ default: m.TermsPage })))
+const PrivacyPage = lazy(() => import('@/features/marketing').then(m => ({ default: m.PrivacyPage })))
+
+// Super admin pages - lazy loaded (except protected route which must be synchronous)
+import { SuperAdminProtectedRoute } from '@/features/super-admin'
+const SuperAdminLoginPage = lazy(() => import('@/features/super-admin').then(m => ({ default: m.SuperAdminLoginPage })))
+const SuperAdminDashboard = lazy(() => import('@/features/super-admin').then(m => ({ default: m.SuperAdminDashboard })))
 
 function App() {
   return (
     <>
       <ImpersonationBanner />
       <Toaster position="top-right" richColors closeButton />
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* ============================================================
             PUBLIC MARKETING ROUTES (/)
@@ -200,6 +226,7 @@ function App() {
         <Route path="/audit-logs" element={<Navigate to="/app/audit-logs" replace />} />
         <Route path="/help" element={<Navigate to="/app/help" replace />} />
       </Routes>
+      </Suspense>
     </>
   )
 }

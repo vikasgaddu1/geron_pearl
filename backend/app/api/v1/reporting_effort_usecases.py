@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.crud.reporting_effort_usecase import reporting_effort_usecase, reporting_effort_usecase_assignment
 from app.crud.reporting_effort import reporting_effort
+from app.core.security import get_current_user, require_admin_or_lead
+from app.models.user import User
 from app.schemas.reporting_effort_usecase import (
     ReportingEffortUseCase,
     ReportingEffortUseCaseCreate,
@@ -33,7 +35,8 @@ router = APIRouter()
 async def create_use_case(
     *,
     db: AsyncSession = Depends(get_db),
-    use_case_in: ReportingEffortUseCaseCreate
+    use_case_in: ReportingEffortUseCaseCreate,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> ReportingEffortUseCase:
     """Create a new use case."""
     # Check for duplicate name
@@ -51,7 +54,8 @@ async def create_use_case(
 @router.get("/", response_model=List[ReportingEffortUseCaseWithCount])
 async def get_all_use_cases(
     *,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ) -> List[ReportingEffortUseCaseWithCount]:
     """Get all use cases with usage counts."""
     use_cases = await reporting_effort_usecase.get_all_with_counts(db)
@@ -62,7 +66,8 @@ async def get_all_use_cases(
 async def get_use_case(
     *,
     db: AsyncSession = Depends(get_db),
-    use_case_id: int
+    use_case_id: int,
+    current_user: User = Depends(get_current_user)
 ) -> ReportingEffortUseCase:
     """Get a single use case by ID."""
     db_use_case = await reporting_effort_usecase.get(db, id=use_case_id)
@@ -79,7 +84,8 @@ async def update_use_case(
     *,
     db: AsyncSession = Depends(get_db),
     use_case_id: int,
-    use_case_in: ReportingEffortUseCaseUpdate
+    use_case_in: ReportingEffortUseCaseUpdate,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> ReportingEffortUseCase:
     """Update a use case."""
     db_use_case = await reporting_effort_usecase.get(db, id=use_case_id)
@@ -106,7 +112,8 @@ async def update_use_case(
 async def delete_use_case(
     *,
     db: AsyncSession = Depends(get_db),
-    use_case_id: int
+    use_case_id: int,
+    current_user: User = Depends(require_admin_or_lead())
 ):
     """Delete a use case. Assignments will be cascade deleted."""
     db_use_case = await reporting_effort_usecase.get(db, id=use_case_id)
@@ -127,7 +134,8 @@ async def delete_use_case(
 async def assign_use_case(
     *,
     db: AsyncSession = Depends(get_db),
-    assignment: UseCaseAssignmentCreate
+    assignment: UseCaseAssignmentCreate,
+    current_user: User = Depends(require_admin_or_lead())
 ):
     """Assign a use case to a reporting effort."""
     # Verify use case exists
@@ -159,7 +167,8 @@ async def remove_use_case_assignment(
     *,
     db: AsyncSession = Depends(get_db),
     reporting_effort_id: int,
-    use_case_id: int
+    use_case_id: int,
+    current_user: User = Depends(require_admin_or_lead())
 ):
     """Remove a use case assignment from a reporting effort."""
     removed = await reporting_effort_usecase_assignment.remove(
@@ -178,7 +187,8 @@ async def remove_use_case_assignment(
 async def get_use_cases_for_effort(
     *,
     db: AsyncSession = Depends(get_db),
-    reporting_effort_id: int
+    reporting_effort_id: int,
+    current_user: User = Depends(get_current_user)
 ) -> List[UseCaseSummary]:
     """Get all use cases assigned to a reporting effort."""
     # Verify effort exists
@@ -200,7 +210,8 @@ async def get_use_cases_for_effort(
 async def get_efforts_by_use_case(
     *,
     db: AsyncSession = Depends(get_db),
-    use_case_id: int
+    use_case_id: int,
+    current_user: User = Depends(get_current_user)
 ) -> List[int]:
     """Get all reporting effort IDs that have a specific use case."""
     # Verify use case exists
@@ -226,7 +237,8 @@ async def get_efforts_by_use_case(
 async def bulk_assign_use_case(
     *,
     db: AsyncSession = Depends(get_db),
-    bulk_request: BulkUseCaseAssignment
+    bulk_request: BulkUseCaseAssignment,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> BulkOperationResult:
     """Assign a use case to multiple reporting efforts."""
     # Verify use case exists
@@ -249,7 +261,8 @@ async def bulk_assign_use_case(
 async def bulk_remove_use_case(
     *,
     db: AsyncSession = Depends(get_db),
-    bulk_request: BulkUseCaseRemoval
+    bulk_request: BulkUseCaseRemoval,
+    current_user: User = Depends(require_admin_or_lead())
 ) -> BulkOperationResult:
     """Remove a use case from multiple reporting efforts."""
     result = await reporting_effort_usecase_assignment.bulk_remove(
@@ -264,7 +277,8 @@ async def bulk_remove_use_case(
 async def bulk_get_use_cases(
     *,
     db: AsyncSession = Depends(get_db),
-    reporting_effort_ids: List[int]
+    reporting_effort_ids: List[int],
+    current_user: User = Depends(get_current_user)
 ):
     """Get use cases for multiple reporting efforts in one request."""
     result = await reporting_effort_usecase_assignment.get_use_cases_for_efforts_bulk(

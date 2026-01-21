@@ -12,9 +12,11 @@ from app.schemas.study import StudyCreate, StudyUpdate
 class StudyCRUD:
     """CRUD operations for Study model."""
     
-    async def create(self, db: AsyncSession, *, obj_in: StudyCreate) -> Study:
+    async def create(self, db: AsyncSession, *, obj_in: StudyCreate, tenant_id: int = None) -> Study:
         """Create a new study."""
-        db_obj = Study(study_label=obj_in.study_label)
+        # Use provided tenant_id or default to 1
+        study_tenant_id = tenant_id if tenant_id is not None else 1
+        db_obj = Study(tenant_id=study_tenant_id, study_label=obj_in.study_label)
         db.add(db_obj)
         await db.commit()
         await db.refresh(db_obj)

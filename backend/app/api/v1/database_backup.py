@@ -41,7 +41,7 @@ async def create_backup(
     request: Request,
     background_tasks: BackgroundTasks,
     description: Optional[str] = None,
-    current_user: UserModel = Depends(require_admin)
+    current_user: UserModel = Depends(require_admin())
 ) -> Dict[str, Any]:
     """
     Create a new database backup (admin only).
@@ -133,7 +133,7 @@ async def perform_backup(db_url: str, backup_path: Path, metadata_path: Path, me
 async def list_backups(
     *,
     request: Request,
-    current_user: UserModel = Depends(require_admin)
+    current_user: UserModel = Depends(require_admin())
 ) -> List[Dict[str, Any]]:
     """
     List all available backups (admin only).
@@ -175,7 +175,7 @@ async def download_backup(
     *,
     request: Request,
     filename: str,
-    current_user: UserModel = Depends(require_admin)
+    current_user: UserModel = Depends(require_admin())
 ):
     """
     Download a specific backup file (admin only).
@@ -216,7 +216,7 @@ async def delete_backup(
     *,
     request: Request,
     filename: str,
-    current_user: UserModel = Depends(require_admin)
+    current_user: UserModel = Depends(require_admin())
 ) -> Dict[str, str]:
     """
     Delete a specific backup file (admin only).
@@ -253,7 +253,7 @@ async def restore_backup(
     request: Request,
     background_tasks: BackgroundTasks,
     filename: str,
-    current_user: UserModel = Depends(require_admin)
+    current_user: UserModel = Depends(require_admin())
 ) -> Dict[str, Any]:
     """
     Restore database from a backup file (admin only).
@@ -337,7 +337,7 @@ async def perform_restore(db_url: str, backup_path: Path):
 async def get_backup_status(
     *,
     request: Request,
-    current_user: UserModel = Depends(require_admin)
+    current_user: UserModel = Depends(require_admin())
 ) -> Dict[str, Any]:
     """
     Get backup system status and statistics (admin only).

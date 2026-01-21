@@ -16,9 +16,13 @@ from app.schemas.text_element import TextElementCreate, TextElementUpdate
 class TextElementCRUD:
     """CRUD operations for TextElement model."""
     
-    async def create(self, db: AsyncSession, *, obj_in: TextElementCreate) -> TextElement:
+    async def create(self, db: AsyncSession, *, obj_in: TextElementCreate, tenant_id: int = None) -> TextElement:
         """Create a new text element."""
+        # Use provided tenant_id or default to 1
+        element_tenant_id = tenant_id if tenant_id is not None else 1
+
         db_obj = TextElement(
+            tenant_id=element_tenant_id,
             type=obj_in.type,
             label=obj_in.label,
             content=obj_in.content

@@ -210,6 +210,7 @@ async def read_trackers(
     limit: int = 1000,
     production_status: Optional[ProductionStatus] = Query(None, description="Filter by production status"),
     qc_status: Optional[QCStatus] = Query(None, description="Filter by QC status"),
+    current_user: UserModel = Depends(get_current_user),
 ) -> List[Dict[str, Any]]:
     """
     Retrieve trackers with optional filtering and pagination.
@@ -271,6 +272,7 @@ async def read_tracker(
     *,
     db: AsyncSession = Depends(get_db),
     tracker_id: int,
+    current_user: UserModel = Depends(get_current_user),
 ) -> ReportingEffortItemTracker:
     """
     Get a specific tracker by ID.
@@ -296,6 +298,7 @@ async def read_tracker_by_item(
     *,
     db: AsyncSession = Depends(get_db),
     item_id: int,
+    current_user: UserModel = Depends(get_current_user),
 ) -> dict:
     """
     Get tracker for a specific reporting effort item.
@@ -339,6 +342,7 @@ async def read_trackers_by_programmer(
     db: AsyncSession = Depends(get_db),
     programmer_id: int,
     role: str = Query("production", description="Role type: 'production' or 'qc'"),
+    current_user: UserModel = Depends(get_current_user),
 ) -> List[ReportingEffortItemTracker]:
     """
     Get all trackers assigned to a specific programmer.
@@ -1486,6 +1490,7 @@ async def get_workload_summary(
     *,
     db: AsyncSession = Depends(get_db),
     user_id: Optional[int] = Query(None, description="Filter by specific user ID"),
+    current_user: UserModel = Depends(get_current_user),
 ) -> WorkloadSummary:
     """
     Get workload summary for programmers.
@@ -1508,6 +1513,7 @@ async def get_programmer_workload(
     *,
     db: AsyncSession = Depends(get_db),
     programmer_id: int,
+    current_user: UserModel = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
     Get detailed workload information for a specific programmer.
@@ -1913,6 +1919,7 @@ async def get_trackers_bulk(
     *,
     db: AsyncSession = Depends(get_db),
     reporting_effort_id: int,
+    current_user: UserModel = Depends(get_current_user),
 ) -> List[Dict[str, Any]]:
     """
     Get all trackers for a reporting effort with optimized bulk loading.
@@ -2136,6 +2143,7 @@ async def get_status_history(
     db: AsyncSession = Depends(get_db),
     tracker_id: int,
     status_field: Optional[str] = Query(None, description="Filter by 'production' or 'qc'"),
+    current_user: UserModel = Depends(get_current_user),
 ) -> List[StatusHistoryResponse]:
     """
     Get status change history for a tracker.

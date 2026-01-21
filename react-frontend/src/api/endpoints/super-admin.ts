@@ -2,7 +2,7 @@
  * Super Admin API endpoints
  */
 
-import api from '../index';
+import { apiClient } from '../client';
 
 // Types
 export interface SuperAdmin {
@@ -113,7 +113,7 @@ const getSuperAdminAuthHeader = () => {
  * Super admin login
  */
 export const superAdminLogin = async (data: SuperAdminLoginRequest): Promise<SuperAdminLoginResponse> => {
-  const response = await api.post<SuperAdminLoginResponse>('/super-admin/login', data);
+  const response = await apiClient.post<SuperAdminLoginResponse>('/super-admin/login', data);
   if (response.data.access_token && !response.data.requires_mfa) {
     setSuperAdminToken(response.data.access_token);
   }
@@ -124,7 +124,7 @@ export const superAdminLogin = async (data: SuperAdminLoginRequest): Promise<Sup
  * Get current super admin profile
  */
 export const getSuperAdminMe = async (): Promise<SuperAdmin> => {
-  const response = await api.get<SuperAdmin>('/super-admin/me', {
+  const response = await apiClient.get<SuperAdmin>('/super-admin/me', {
     headers: getSuperAdminAuthHeader(),
   });
   return response.data;
@@ -134,7 +134,7 @@ export const getSuperAdminMe = async (): Promise<SuperAdmin> => {
  * Setup MFA for super admin
  */
 export const setupMFA = async (): Promise<MFASetupResponse> => {
-  const response = await api.post<MFASetupResponse>('/super-admin/mfa/setup', {}, {
+  const response = await apiClient.post<MFASetupResponse>('/super-admin/mfa/setup', {}, {
     headers: getSuperAdminAuthHeader(),
   });
   return response.data;
@@ -144,7 +144,7 @@ export const setupMFA = async (): Promise<MFASetupResponse> => {
  * Verify MFA setup
  */
 export const verifyMFA = async (token: string): Promise<{ message: string }> => {
-  const response = await api.post('/super-admin/mfa/verify', { token }, {
+  const response = await apiClient.post('/super-admin/mfa/verify', { token }, {
     headers: getSuperAdminAuthHeader(),
   });
   return response.data;
@@ -154,7 +154,7 @@ export const verifyMFA = async (token: string): Promise<{ message: string }> => 
  * Get dashboard statistics
  */
 export const getDashboardStats = async (): Promise<DashboardStats> => {
-  const response = await api.get<DashboardStats>('/super-admin/dashboard/stats', {
+  const response = await apiClient.get<DashboardStats>('/super-admin/dashboard/stats', {
     headers: getSuperAdminAuthHeader(),
   });
   return response.data;
@@ -169,7 +169,7 @@ export const getTenants = async (params?: {
   status_filter?: string;
   search?: string;
 }): Promise<TenantListResponse> => {
-  const response = await api.get<TenantListResponse>('/super-admin/tenants', {
+  const response = await apiClient.get<TenantListResponse>('/super-admin/tenants', {
     params,
     headers: getSuperAdminAuthHeader(),
   });
@@ -180,7 +180,7 @@ export const getTenants = async (params?: {
  * Get a specific tenant
  */
 export const getTenant = async (tenantId: number): Promise<TenantSummary> => {
-  const response = await api.get<TenantSummary>(`/super-admin/tenants/${tenantId}`, {
+  const response = await apiClient.get<TenantSummary>(`/super-admin/tenants/${tenantId}`, {
     headers: getSuperAdminAuthHeader(),
   });
   return response.data;
@@ -190,7 +190,7 @@ export const getTenant = async (tenantId: number): Promise<TenantSummary> => {
  * Start impersonation session
  */
 export const startImpersonation = async (data: ImpersonationRequest): Promise<ImpersonationResponse> => {
-  const response = await api.post<ImpersonationResponse>('/super-admin/impersonate', data, {
+  const response = await apiClient.post<ImpersonationResponse>('/super-admin/impersonate', data, {
     headers: getSuperAdminAuthHeader(),
   });
   return response.data;
@@ -200,7 +200,7 @@ export const startImpersonation = async (data: ImpersonationRequest): Promise<Im
  * End impersonation session (for audit logging)
  */
 export const endImpersonation = async (tenantId?: number): Promise<{ message: string }> => {
-  const response = await api.post('/super-admin/impersonate/end', 
+  const response = await apiClient.post('/super-admin/impersonate/end', 
     tenantId ? { tenant_id: tenantId } : {},
     { headers: getSuperAdminAuthHeader() }
   );

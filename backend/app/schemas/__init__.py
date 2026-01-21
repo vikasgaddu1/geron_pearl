@@ -7,9 +7,10 @@ from app.schemas.tenant import (
     TenantSettingsBase, TenantSettingsUpdate, TenantSettingsResponse
 )
 from app.schemas.super_admin import (
-    SuperAdminBase, SuperAdminCreate, SuperAdminUpdate, SuperAdminResponse,
+    SuperAdminCreate, SuperAdminUpdate, SuperAdminRead, SuperAdminList,
     SuperAdminLogin, SuperAdminLoginResponse, MFASetupResponse, MFAVerifyRequest,
-    ImpersonationRequest, ImpersonationResponse
+    ImpersonationRequest, ImpersonationResponse, TenantSummary, TenantListResponse,
+    DashboardStats
 )
 
 from app.schemas.study import Study, StudyCreate, StudyInDB, StudyUpdate
@@ -82,9 +83,10 @@ __all__ = [
     "SubscriptionPlanBase", "SubscriptionPlanCreate", "SubscriptionPlanResponse",
     "TenantSettingsBase", "TenantSettingsUpdate", "TenantSettingsResponse",
     # SuperAdmin schemas
-    "SuperAdminBase", "SuperAdminCreate", "SuperAdminUpdate", "SuperAdminResponse",
+    "SuperAdminCreate", "SuperAdminUpdate", "SuperAdminRead", "SuperAdminList",
     "SuperAdminLogin", "SuperAdminLoginResponse", "MFASetupResponse", "MFAVerifyRequest",
-    "ImpersonationRequest", "ImpersonationResponse",
+    "ImpersonationRequest", "ImpersonationResponse", "TenantSummary", "TenantListResponse",
+    "DashboardStats",
     # Study schemas
     "Study", "StudyCreate", "StudyInDB", "StudyUpdate",
     # DatabaseRelease schemas  
