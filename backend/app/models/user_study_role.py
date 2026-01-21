@@ -16,24 +16,26 @@ if TYPE_CHECKING:
 class StudyRole(str, Enum):
     """Study-specific roles for access control.
 
-    - VIEWER: Read-only access (default for all users)
     - EDITOR: Can modify items they're assigned to
-    - LEAD: Full admin capabilities within the study
     - BIOSTAT: Can perform biostat review on TLF items they're assigned to
+
+    Note: VIEWER and LEAD roles have been removed.
+    - All users have implicit viewer access to studies they're members of
+    - Responsible users (study_responsible_users table) replace LEAD role
     """
-    VIEWER = "VIEWER"
     EDITOR = "EDITOR"
-    LEAD = "LEAD"
     BIOSTAT = "BIOSTAT"
 
 
 class UserStudyRole(Base, TimestampMixin):
     """Maps users to studies with specific roles.
-    
+
     This enables study-scoped permissions where:
     - A user can have different roles in different studies
-    - LEAD = admin capabilities within that study only
-    - Global ADMIN users bypass this (have LEAD access everywhere)
+    - EDITOR = can modify items they're assigned to
+    - BIOSTAT = can perform biostat review on TLF items
+    - Responsible users (separate table) have admin capabilities
+    - Global ADMIN users bypass this (have full access everywhere)
     """
     
     __tablename__ = "user_study_roles"
@@ -54,7 +56,7 @@ class UserStudyRole(Base, TimestampMixin):
     role: Mapped[StudyRole] = mapped_column(
         SQLEnum(StudyRole),
         nullable=False,
-        default=StudyRole.VIEWER,
+        default=StudyRole.EDITOR,
         doc="User's role within this specific study"
     )
     

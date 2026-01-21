@@ -87,7 +87,7 @@ export interface User {
 
 // ==================== Study-Scoped Access Control Types ====================
 
-export type StudyRole = 'VIEWER' | 'EDITOR'
+export type StudyRole = 'EDITOR' | 'BIOSTAT'
 
 export interface UserStudyRole {
   id: number
@@ -171,6 +171,26 @@ export interface UpdateResponsibleUserRequest {
 export interface AssignStudyRoleRequest {
   user_id: number
   role: StudyRole
+}
+
+// ==================== Study Default Biostat Types ====================
+
+export interface StudyDefaultBiostat {
+  id: number
+  study_id: number
+  user_id: number
+  is_active: boolean
+  created_at: string
+  updated_at?: string
+  user_name?: string
+  user_email?: string
+}
+
+export interface StudyBiostatUser {
+  user_id: number
+  username: string
+  full_name?: string
+  email?: string
 }
 
 // ==================== Text Element Types ====================
@@ -332,8 +352,10 @@ export interface IGVersion {
 
 // Production statuses: not_started → in_progress → ready_for_qc → completed (auto)
 // QC statuses: not_started → in_progress → failed/completed
+// Biostat statuses: not_applicable (default) → pending → passed/failed (TLF items only)
 export type ProductionStatus = 'not_started' | 'in_progress' | 'ready_for_qc' | 'completed' | 'on_hold'
 export type QCStatus = 'not_started' | 'in_progress' | 'failed' | 'completed' | 'on_hold'
+export type BiostatStatus = 'not_applicable' | 'pending' | 'passed' | 'failed'
 export type TrackerStatus = ProductionStatus | QCStatus  // Union type for backward compatibility
 export type Priority = 'critical' | 'high' | 'medium' | 'low'
 
@@ -377,6 +399,12 @@ export interface ReportingEffortItemTracker {
   in_production_flag?: boolean
   created_at: string
   updated_at: string
+  // Biostat review fields (TLF items only)
+  biostat_status?: BiostatStatus
+  biostat_reviewer_id?: number
+  biostat_reviewer?: User
+  biostat_review_date?: string
+  unresolved_biostat_comment_count?: number
   // Expanded fields
   item_code?: string
   item_title?: string  // Consolidated: TLF title, dataset label, or item description
@@ -411,6 +439,7 @@ export interface TrackerStatusHistory {
 export interface TrackerPermissions {
   production_status: boolean
   qc_status: boolean
+  biostat_status: boolean
   in_production_flag: boolean
 }
 

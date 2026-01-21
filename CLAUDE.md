@@ -525,6 +525,7 @@ For detailed deployment guides, see:
 
 **Study-scoped roles** (user_study_roles table):
 - `LEAD`: Near-admin for assigned studies - can manage releases, efforts, members, packages, TFL properties
+- `BIOSTAT`: Can review and pass/fail TLF items assigned as biostat reviewer
 - `EDITOR`: Can edit tracker data within assigned studies
 - `VIEWER`: Read-only access to assigned studies
 
@@ -555,6 +556,9 @@ current_user: User = Depends(require_admin_or_lead())
 | `POST /api/v1/reporting-effort-tracker/bulk-status-update` | Bulk status update |
 | `POST /api/v1/reporting-effort-tracker/bulk-assign-status` | Bulk assign and status |
 | `POST /api/v1/reporting-effort-tracker/import/{id}` | Import trackers |
+| `POST /api/v1/reporting-effort-tracker/{id}/biostat-pass` | Biostat pass (TLF only) |
+| `POST /api/v1/reporting-effort-tracker/{id}/biostat-fail` | Biostat fail with comment (TLF only) |
+| `POST /api/v1/reporting-effort-tracker/{id}/assign-biostat` | Assign biostat reviewer |
 
 ### Current Validation Rules
 
@@ -563,6 +567,10 @@ current_user: User = Depends(require_admin_or_lead())
 3. **Programmer Required for Status**: Cannot change production/QC status without assigned programmer (except `not_started`)
 4. **QC Completion Requires No Unresolved Comments**: Cannot mark QC as completed if there are unresolved comments
 5. **Production Completed Auto-Set**: Production status is auto-set to `completed` when QC marks it as completed
+6. **Biostat Pending Auto-Set (TLF only)**: When QC marks a TLF item as completed, biostat_status auto-transitions to `pending`
+7. **Biostat Pass Requires No Unresolved Biostat Comments**: Cannot pass biostat review if there are unresolved biostat comments
+8. **In-Production Flag Requires Biostat Pass (TLF only)**: TLF items require `biostat_status = passed` before setting `in_production_flag`
+9. **Biostat Fail Resets Workflow**: When biostat fails an item, production resets to `in_progress` and QC to `not_started`
 
 ### Adding New Validation Rules
 
@@ -621,7 +629,9 @@ Real-time notifications for user assignments and comments:
 **Notification Types:**
 - `assignment_prod` - Assigned as production programmer
 - `assignment_qc` - Assigned as QC programmer
+- `assignment_biostat` - Assigned as biostat reviewer (TLF items only)
 - `comment_added` - New comment on items user is assigned to
+- `biostat_failed` - Biostat reviewer failed an item (sent to production/QC programmers)
 
 **States:**
 - `is_read` - User has seen the notification
@@ -630,6 +640,53 @@ Real-time notifications for user assignments and comments:
 **WebSocket Events:**
 - `notification_created` - New notification for a user
 - `notification_count_updated` - Updated unread count for a user
+
+## Biostat Review Workflow
+
+Additional review stage for TLF items (Tables, Listings, Figures) only. After QC completes review, TLF items require biostat approval before marking as "In Production".
+
+**Workflow Diagram (TLF Items):**
+```
+Production: not_started → in_progress → ready_for_qc → completed (auto-set by QC)
+                ↑               ↑                           ↓
+                │               │                      QC completed
+                │               │                           ↓
+                │               └── biostat failed ←── pending (auto)
+                │                                           ↓
+                └───────────────────────────────────── passed ✓
+```
+
+**BiostatStatus Values:**
+- `not_applicable` - Non-TLF items (datasets)
+- `pending` - Awaiting biostat review (auto-set when QC completes TLF item)
+- `passed` - Biostat approved
+- `failed` - Rejected, needs rework (resets production to `in_progress`, QC to `not_started`)
+
+**Study Default Biostat:**
+- Each study can have a default biostat reviewer
+- When QC completes a TLF item, the study's default biostat is auto-assigned
+- Managed via Study Settings UI or API endpoints
+
+**BIOSTAT Role:**
+- New study-scoped role: `VIEWER`, `EDITOR`, `LEAD`, `BIOSTAT`
+- Users with BIOSTAT role can be assigned as biostat reviewers
+- BIOSTAT users can pass/fail items assigned to them
+
+**Biostat API Endpoints:**
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/v1/reporting-effort-tracker/{id}/biostat-pass` | Pass biostat review |
+| `POST /api/v1/reporting-effort-tracker/{id}/biostat-fail` | Fail with required comment |
+| `POST /api/v1/reporting-effort-tracker/{id}/assign-biostat` | Assign biostat reviewer |
+| `GET /api/v1/studies/{id}/default-biostat` | Get study's default biostat |
+| `PUT /api/v1/studies/{id}/default-biostat` | Set study's default biostat |
+| `DELETE /api/v1/studies/{id}/default-biostat` | Remove default biostat |
+| `GET /api/v1/studies/{id}/biostat-users` | Get users with BIOSTAT role |
+
+**Frontend Views:**
+- "Biostat Kanban" tab in TrackerManagement - shows TLF items with pending/passed status
+- Biostat status badge on tracker cards
+- Default biostat management in Study Members dialog
 
 ## WebSocket Message Types
 

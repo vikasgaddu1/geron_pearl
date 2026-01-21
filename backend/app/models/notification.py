@@ -14,7 +14,9 @@ class NotificationType(str, Enum):
     """Notification type enum."""
     ASSIGNMENT_PROD = "assignment_prod"  # Assigned as production programmer
     ASSIGNMENT_QC = "assignment_qc"      # Assigned as QC programmer
+    ASSIGNMENT_BIOSTAT = "assignment_biostat"  # Assigned as biostat reviewer
     COMMENT_ADDED = "comment_added"      # New comment on item user is assigned to
+    BIOSTAT_FAILED = "biostat_failed"    # Biostat reviewer failed the item
 
 
 if TYPE_CHECKING:

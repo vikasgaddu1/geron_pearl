@@ -43,7 +43,7 @@ import { TooltipWrapper } from '@/components/common/TooltipWrapper'
 import { HelpIcon } from '@/components/common/HelpIcon'
 import { useWebSocketRefresh } from '@/hooks/useWebSocket'
 import { formatDate, formatDateTime, getErrorMessage } from '@/lib/utils'
-import type { ReportingEffortItemTracker, TrackerStatus, TrackerComment, CommentType, Priority, TrackerTag, ProductionStatus, QCStatus } from '@/types'
+import type { ReportingEffortItemTracker, TrackerStatus, TrackerComment, CommentType, Priority, TrackerTag, ProductionStatus, QCStatus, BiostatStatus } from '@/types'
 
 // Extended type to handle flat username field from API
 interface CommentWithFlatUsername extends TrackerComment {
@@ -55,7 +55,7 @@ interface TrackerStatusUpdate {
   production_status?: ProductionStatus
   qc_status?: QCStatus
 }
-import { KanbanBoard, QCFailureCommentDialog } from '@/components/tracker'
+import { KanbanBoard, QCFailureCommentDialog, BiostatKanbanBoard } from '@/components/tracker'
 import { useAuthStore } from '@/stores/authStore'
 import { MilestoneEditor } from './MilestoneEditor'
 import {
@@ -152,7 +152,7 @@ export function TrackerManagement() {
   const [itemCodeFilter, setItemCodeFilter] = useState<string | null>(null)
   
   // View and filter mode states
-  const [viewMode, setViewMode] = useState<'list' | 'kanban-prod' | 'kanban-qc'>('list')
+  const [viewMode, setViewMode] = useState<'list' | 'kanban-prod' | 'kanban-qc' | 'kanban-biostat'>('list')
   const [taskFilter, setTaskFilter] = useState<'all' | 'my-tasks'>('all')
   
   // Tag management state
@@ -1050,6 +1050,20 @@ export function TrackerManagement() {
         cell: (value) => <StatusBadge status={value as TrackerStatus} />,
       },
       {
+        id: 'biostat_status',
+        header: 'Biostat Status',
+        accessorKey: 'biostat_status',
+        filterType: 'select',
+        filterOptions: ['not_applicable', 'pending', 'passed', 'failed'],
+        helpText: 'Biostat review status (TLF items only).',
+        cell: (value, tracker) => {
+          if (!value || value === 'not_applicable') {
+            return tracker.item_type === 'TLF' ? <span className="text-muted-foreground">-</span> : <span className="text-muted-foreground">N/A</span>
+          }
+          return <StatusBadge status={value as string} />
+        },
+      },
+      {
         id: 'due_date',
         header: 'Due Date',
         accessorKey: 'due_date',
@@ -1514,6 +1528,14 @@ export function TrackerManagement() {
                     <Kanban className="h-4 w-4 mr-1" />
                     QC Kanban
                   </Button>
+                  <Button
+                    variant={viewMode === 'kanban-biostat' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('kanban-biostat')}
+                  >
+                    <UserCheck className="h-4 w-4 mr-1" />
+                    Biostat Kanban
+                  </Button>
                 </div>
               </div>
 
@@ -1654,6 +1676,72 @@ export function TrackerManagement() {
                         id: trackerId,
                         data: { qc_status: newStatus as QCStatus }
                       })
+                    }}
+                    onProductionFlagToggle={handleProductionFlagToggle}
+                  />
+                </div>
+              )}
+
+              {viewMode === 'kanban-biostat' && (
+                <div className="mb-4">
+                  <h3 className="text-lg font-medium mb-2">Biostat Review Kanban</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    TLF items awaiting biostat review. Items appear here after QC marks them as completed.
+                  </p>
+                  <BiostatKanbanBoard
+                    trackers={filteredTrackers}
+                    onCardClick={(tracker) => {
+                      // Lock check
+                      if (isEffortLocked) {
+                        toast.error('Reporting effort is locked. Cannot view/edit comments.')
+                        return
+                      }
+                      // Permission check: Only biostat reviewer, admin, or study lead can interact in Biostat Kanban
+                      const isAdmin = currentUser?.is_admin
+                      const isBiostatReviewer = currentUser && tracker.biostat_reviewer_id === currentUser.id
+                      if (!isAdmin && !isStudyLead && !isBiostatReviewer) {
+                        toast.error('Only the assigned biostat reviewer or study lead can view/edit this task in Biostat Kanban')
+                        return
+                      }
+                      setSelectedTracker(tracker)
+                      setCommentDialogContext('list')
+                      setCommentDialogOpen(true)
+                    }}
+                    onBiostatStatusChange={async (trackerId, newStatus) => {
+                      // Lock check
+                      if (isEffortLocked) {
+                        toast.error('Reporting effort is locked. Cannot change status.')
+                        return
+                      }
+                      // Find the tracker to validate the update
+                      const tracker = trackers.find(t => t.id === trackerId)
+                      if (!tracker) return
+
+                      // Permission check: Only biostat reviewer, admin, or study lead can change biostat status
+                      const isAdmin = currentUser?.is_admin
+                      const isBiostatReviewer = currentUser && tracker.biostat_reviewer_id === currentUser.id
+                      if (!isAdmin && !isStudyLead && !isBiostatReviewer) {
+                        toast.error('Only the assigned biostat reviewer or study lead can change biostat status')
+                        return
+                      }
+
+                      // Validate: Cannot pass if there are unresolved biostat comments
+                      if (newStatus === 'passed' && (tracker.unresolved_biostat_comment_count || 0) > 0) {
+                        toast.error(`Cannot pass item: ${tracker.unresolved_biostat_comment_count} unresolved biostat comment(s) must be addressed first`)
+                        return
+                      }
+
+                      // Call the biostat pass API
+                      if (newStatus === 'passed') {
+                        try {
+                          await trackerApi.biostatPass(trackerId)
+                          toast.success('Item passed biostat review')
+                          queryClient.invalidateQueries({ queryKey: ['trackers-bulk', selectedEffortId] })
+                        } catch (error) {
+                          toast.error(getErrorMessage(error))
+                        }
+                      }
+                      // Note: Failed status requires a comment, handled through detail dialog
                     }}
                     onProductionFlagToggle={handleProductionFlagToggle}
                   />

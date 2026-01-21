@@ -281,9 +281,9 @@ class TrackerWorkflowService:
             if study_role == RESPONSIBLE_ROLE:
                 return True, ""
 
-            # Study Viewer cannot modify
-            if study_role == StudyRole.VIEWER:
-                return False, "Viewers do not have permission to change status"
+            # No explicit role (None) = read-only access, cannot modify
+            if study_role is None:
+                return False, "You do not have permission to change status in this study"
 
             # Study Biostat can only change biostat status for tasks assigned to them
             if study_role == StudyRole.BIOSTAT:
@@ -365,8 +365,8 @@ class TrackerWorkflowService:
                     "in_production_flag": True,
                 }
 
-            # Study Viewer has no access
-            if study_role == StudyRole.VIEWER:
+            # No explicit role (None) = read-only access
+            if study_role is None:
                 return {
                     "production_status": False,
                     "qc_status": False,

@@ -13,6 +13,8 @@ import type {
   StudyResponsibleUsersResponse,
   AssignResponsibleUserRequest,
   UpdateResponsibleUserRequest,
+  StudyDefaultBiostat,
+  StudyBiostatUser,
 } from '@/types'
 
 const BASE_PATH = '/api/v1/studies'
@@ -84,10 +86,19 @@ export const studiesApi = {
   },
 
   /**
-   * Remove a user's explicit role from a study (reverts to default viewer)
+   * Remove a user's explicit role from a study
    */
   removeMember: async (studyId: number, userId: number): Promise<void> => {
     await apiClient.delete(`${BASE_PATH}/${studyId}/members/${userId}`)
+  },
+
+  /**
+   * Get users available for study role assignment (requires responsible user or ADMIN)
+   * Returns non-admin, active users from the same tenant
+   */
+  getAvailableUsers: async (studyId: number): Promise<{ id: number; username: string; email?: string; is_admin: boolean; is_active: boolean }[]> => {
+    const response = await apiClient.get(`${BASE_PATH}/${studyId}/available-users`)
+    return response.data
   },
 
   // ==================== Study Responsible Users Management ====================
@@ -121,6 +132,39 @@ export const studiesApi = {
    */
   removeResponsibleUser: async (studyId: number, userId: number): Promise<void> => {
     await apiClient.delete(`${BASE_PATH}/${studyId}/responsible-users/${userId}`)
+  },
+
+  // ==================== Study Default Biostat Management ====================
+
+  /**
+   * Get the default biostat reviewer for a study
+   */
+  getDefaultBiostat: async (studyId: number): Promise<StudyDefaultBiostat | null> => {
+    const response = await apiClient.get(`${BASE_PATH}/${studyId}/default-biostat`)
+    return response.data
+  },
+
+  /**
+   * Set the default biostat reviewer for a study
+   */
+  setDefaultBiostat: async (studyId: number, userId: number): Promise<StudyDefaultBiostat> => {
+    const response = await apiClient.put(`${BASE_PATH}/${studyId}/default-biostat?user_id=${userId}`)
+    return response.data
+  },
+
+  /**
+   * Remove the default biostat reviewer from a study
+   */
+  removeDefaultBiostat: async (studyId: number): Promise<void> => {
+    await apiClient.delete(`${BASE_PATH}/${studyId}/default-biostat`)
+  },
+
+  /**
+   * Get all users with BIOSTAT role for a study
+   */
+  getBiostatUsers: async (studyId: number): Promise<StudyBiostatUser[]> => {
+    const response = await apiClient.get(`${BASE_PATH}/${studyId}/biostat-users`)
+    return response.data
   },
 }
 

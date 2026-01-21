@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Users, UserPlus, Pencil, X, Crown, Eye, Search, Star, StarOff } from 'lucide-react'
+import { Users, UserPlus, Pencil, X, Crown, Search, Star, StarOff, UserCheck } from 'lucide-react'
 import { toast } from 'sonner'
-import { studiesApi, usersApi } from '@/api'
+import { studiesApi } from '@/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,10 +32,10 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { PageLoader } from '@/components/common/LoadingSpinner'
-import type { Study, StudyMember, StudyRole, StudyResponsibleUser } from '@/types'
+import type { Study, StudyMember, StudyRole, StudyResponsibleUser, StudyDefaultBiostat } from '@/types'
 import { getErrorMessage, cn } from '@/lib/utils'
 
-const STUDY_ROLES: StudyRole[] = ['VIEWER', 'EDITOR']
+const STUDY_ROLES: StudyRole[] = ['EDITOR', 'BIOSTAT']
 
 interface StudyMembersDialogProps {
   study: Study | null
@@ -46,10 +46,10 @@ interface StudyMembersDialogProps {
 function StudyRoleBadge({ role, isExplicit }: { role: StudyRole; isExplicit: boolean }) {
   const config: Record<StudyRole, { icon: typeof Pencil; className: string; label: string }> = {
     EDITOR: { icon: Pencil, className: 'bg-blue-500/15 text-blue-600 border-blue-500/30', label: 'Editor' },
-    VIEWER: { icon: Eye, className: 'bg-slate-500/15 text-slate-600 border-slate-500/30', label: 'Viewer' },
+    BIOSTAT: { icon: UserCheck, className: 'bg-teal-500/15 text-teal-600 border-teal-500/30', label: 'Biostat' },
   }
 
-  const { icon: Icon, className, label } = config[role]
+  const { icon: Icon, className, label } = config[role] || { icon: Pencil, className: 'bg-blue-500/15 text-blue-600 border-blue-500/30', label: role }
 
   return (
     <Badge variant="outline" className={cn('gap-1', className, !isExplicit && 'opacity-60')}>
@@ -84,6 +84,8 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
   const [selectedResponsibleUserId, setSelectedResponsibleUserId] = useState<number | null>(null)
   const [removeResponsibleDialogOpen, setRemoveResponsibleDialogOpen] = useState(false)
   const [responsibleToRemove, setResponsibleToRemove] = useState<StudyResponsibleUser | null>(null)
+  // Default biostat state
+  const [selectedDefaultBiostatUserId, setSelectedDefaultBiostatUserId] = useState<number | null>(null)
 
   // Fetch study members
   const { data: membersData, isLoading: membersLoading } = useQuery({
@@ -99,11 +101,25 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
     enabled: !!study && open,
   })
 
-  // Fetch all users for the dropdown
+  // Fetch default biostat
+  const { data: defaultBiostat, isLoading: defaultBiostatLoading } = useQuery({
+    queryKey: ['study-default-biostat', study?.id],
+    queryFn: () => studiesApi.getDefaultBiostat(study!.id),
+    enabled: !!study && open,
+  })
+
+  // Fetch biostat users (users with BIOSTAT role for this study)
+  const { data: biostatUsers = [] } = useQuery({
+    queryKey: ['study-biostat-users', study?.id],
+    queryFn: () => studiesApi.getBiostatUsers(study!.id),
+    enabled: !!study && open,
+  })
+
+  // Fetch available users for the dropdown (non-admin, active users from the same tenant)
   const { data: allUsers = [] } = useQuery({
-    queryKey: ['users'],
-    queryFn: usersApi.getAll,
-    enabled: open,
+    queryKey: ['study-available-users', study?.id],
+    queryFn: () => studiesApi.getAvailableUsers(study!.id),
+    enabled: !!study && open,
   })
 
   // Mutations for members
@@ -178,6 +194,28 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
     onError: (error) => toast.error(`Failed to remove responsible user: ${getErrorMessage(error)}`),
   })
 
+  // Mutations for default biostat
+  const setDefaultBiostat = useMutation({
+    mutationFn: ({ studyId, userId }: { studyId: number; userId: number }) =>
+      studiesApi.setDefaultBiostat(studyId, userId),
+    onSuccess: () => {
+      toast.success('Default biostat updated')
+      queryClient.invalidateQueries({ queryKey: ['study-default-biostat', study?.id] })
+      setSelectedDefaultBiostatUserId(null)
+    },
+    onError: (error) => toast.error(`Failed to set default biostat: ${getErrorMessage(error)}`),
+  })
+
+  const removeDefaultBiostat = useMutation({
+    mutationFn: ({ studyId }: { studyId: number }) =>
+      studiesApi.removeDefaultBiostat(studyId),
+    onSuccess: () => {
+      toast.success('Default biostat removed')
+      queryClient.invalidateQueries({ queryKey: ['study-default-biostat', study?.id] })
+    },
+    onError: (error) => toast.error(`Failed to remove default biostat: ${getErrorMessage(error)}`),
+  })
+
   // Filter members by search term
   const members = membersData?.members || []
   const filteredMembers = members.filter(
@@ -192,19 +230,14 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
   // Get users that don't have an explicit role yet (for adding)
   const explicitMemberIds = new Set(members.filter(m => m.is_explicit_assignment).map(m => m.id))
   const responsibleUserIds = new Set(responsibleUsers.map(r => r.user_id))
+  // Filter out users who already have explicit roles (API already filters out admins and inactive users)
   const availableUsers = allUsers.filter(
-    (u) =>
-      !explicitMemberIds.has(u.id) &&
-      !u.is_admin && // Can't assign study roles to global admins
-      u.is_active
+    (u) => !explicitMemberIds.has(u.id)
   )
 
-  // Users available for responsible assignment (exclude admins and already-assigned)
+  // Users available for responsible assignment (API already filters out admins and inactive users)
   const availableResponsibleUsers = allUsers.filter(
-    (u) =>
-      !responsibleUserIds.has(u.id) &&
-      !u.is_admin && // Admins already have full access
-      u.is_active
+    (u) => !responsibleUserIds.has(u.id)
   )
 
   const handleAssign = () => {
@@ -248,6 +281,17 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
   const handleRemoveResponsibleConfirm = () => {
     if (!study || !responsibleToRemove) return
     removeResponsibleUser.mutate({ studyId: study.id, userId: responsibleToRemove.user_id })
+  }
+
+  // Default biostat handlers
+  const handleSetDefaultBiostat = () => {
+    if (!study || !selectedDefaultBiostatUserId) return
+    setDefaultBiostat.mutate({ studyId: study.id, userId: selectedDefaultBiostatUserId })
+  }
+
+  const handleRemoveDefaultBiostat = () => {
+    if (!study) return
+    removeDefaultBiostat.mutate({ studyId: study.id })
   }
 
   if (!study) return null
@@ -326,7 +370,7 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
                   <SelectContent>
                     {availableResponsibleUsers.length === 0 ? (
                       <div className="p-2 text-sm text-muted-foreground text-center max-w-xs">
-                        No users available. Global admins already have full access.
+                        No users available to assign as responsible. All users are either already responsible or are admins.
                       </div>
                     ) : (
                       availableResponsibleUsers.map((user) => (
@@ -354,6 +398,83 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
               </div>
             </div>
 
+            {/* Default Biostat Section */}
+            <div className="border rounded-lg p-4 bg-teal-500/5 border-teal-500/20">
+              <div className="flex items-center gap-2 mb-3">
+                <UserCheck className="h-4 w-4 text-teal-600" />
+                <Label className="text-sm font-medium">Default Biostat Reviewer</Label>
+                <span className="text-xs text-muted-foreground">(Auto-assigned to TLF items after QC completion)</span>
+              </div>
+
+              {/* Current default biostat */}
+              {defaultBiostatLoading ? (
+                <div className="text-sm text-muted-foreground">Loading...</div>
+              ) : defaultBiostat ? (
+                <div className="flex items-center gap-2 mb-3">
+                  <Badge
+                    variant="outline"
+                    className="gap-1.5 py-1 px-2 bg-teal-500/15 text-teal-700 border-teal-500/30"
+                  >
+                    <UserCheck className="h-3 w-3" />
+                    {defaultBiostat.user_name || `User #${defaultBiostat.user_id}`}
+                    {defaultBiostat.user_email && (
+                      <span className="text-xs opacity-70">({defaultBiostat.user_email})</span>
+                    )}
+                    <button
+                      onClick={handleRemoveDefaultBiostat}
+                      className="hover:text-destructive p-0.5 ml-1"
+                      title="Remove default biostat"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground mb-3">
+                  No default biostat assigned. Assign users the BIOSTAT role below, then select one as default.
+                </div>
+              )}
+
+              {/* Set default biostat */}
+              <div className="flex gap-2">
+                <Select
+                  value={selectedDefaultBiostatUserId?.toString() || ''}
+                  onValueChange={(value) => setSelectedDefaultBiostatUserId(parseInt(value))}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Select a biostat reviewer..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {biostatUsers.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground text-center max-w-xs">
+                        No users with BIOSTAT role. Add users with the BIOSTAT role below first.
+                      </div>
+                    ) : (
+                      biostatUsers.map((user) => (
+                        <SelectItem key={user.user_id} value={user.user_id.toString()}>
+                          <div className="flex items-center gap-2">
+                            <span>{user.username}</span>
+                            {user.email && (
+                              <span className="text-xs text-muted-foreground">({user.email})</span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                <Button
+                  onClick={handleSetDefaultBiostat}
+                  disabled={!selectedDefaultBiostatUserId || setDefaultBiostat.isPending}
+                  variant="outline"
+                  className="border-teal-500/30 hover:bg-teal-500/10"
+                >
+                  <UserCheck className="h-4 w-4 mr-1" />
+                  Set
+                </Button>
+              </div>
+            </div>
+
             {/* Add Member Section */}
             <div className="border rounded-lg p-4 bg-muted/30">
               <Label className="text-sm font-medium mb-2 block">Add Study Member</Label>
@@ -368,7 +489,7 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
                   <SelectContent>
                     {availableUsers.length === 0 ? (
                       <div className="p-2 text-sm text-muted-foreground text-center max-w-xs">
-                        No users available. Global admins already have full access. Create non-admin users to assign study roles.
+                        No users available. All users already have roles assigned, or create non-admin users to assign study roles.
                       </div>
                     ) : (
                       availableUsers.map((user) => (
@@ -519,18 +640,18 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
             </ScrollArea>
 
             {/* Legend */}
-            <div className="flex gap-4 text-xs text-muted-foreground border-t pt-3">
+            <div className="flex flex-wrap gap-4 text-xs text-muted-foreground border-t pt-3">
               <div className="flex items-center gap-1">
                 <Crown className="h-3 w-3 text-amber-600" />
-                <span><strong>Responsible:</strong> Full admin access within this study</span>
+                <span><strong>Responsible:</strong> Full admin access</span>
               </div>
               <div className="flex items-center gap-1">
                 <Pencil className="h-3 w-3 text-blue-600" />
-                <span><strong>Editor:</strong> Can modify assigned items</span>
+                <span><strong>Editor:</strong> Can modify items</span>
               </div>
               <div className="flex items-center gap-1">
-                <Eye className="h-3 w-3 text-slate-600" />
-                <span><strong>Viewer:</strong> Read-only access</span>
+                <UserCheck className="h-3 w-3 text-teal-600" />
+                <span><strong>Biostat:</strong> Biostat reviewer</span>
               </div>
             </div>
           </div>
@@ -542,7 +663,7 @@ export function StudyMembersDialog({ study, open, onOpenChange }: StudyMembersDi
         open={removeDialogOpen}
         onOpenChange={setRemoveDialogOpen}
         title="Remove Member Role?"
-        description={`Remove "${memberToRemove?.username}"'s explicit role from this study? They will revert to default viewer access.`}
+        description={`Remove "${memberToRemove?.username}"'s role from this study?`}
         confirmLabel="Remove"
         variant="destructive"
         onConfirm={handleRemoveConfirm}

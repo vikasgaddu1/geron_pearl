@@ -215,6 +215,36 @@ export const trackerApi = {
     const response = await apiClient.put(`${BASE_PATH}/${trackerId}/milestones${params}`)
     return response.data
   },
+
+  // ===== Biostat Review Endpoints =====
+
+  /**
+   * Mark a TLF item as passed by biostat reviewer.
+   * Only the assigned biostat reviewer, study lead, or admin can perform this.
+   */
+  biostatPass: async (trackerId: number): Promise<ReportingEffortItemTracker> => {
+    const response = await apiClient.post(`${BASE_PATH}/${trackerId}/biostat-pass`)
+    return response.data
+  },
+
+  /**
+   * Mark a TLF item as failed by biostat reviewer.
+   * Requires a comment explaining the failure reason.
+   * Resets production status to in_progress and QC status to not_started.
+   */
+  biostatFail: async (trackerId: number, comment: string): Promise<ReportingEffortItemTracker> => {
+    const response = await apiClient.post(`${BASE_PATH}/${trackerId}/biostat-fail`, { comment })
+    return response.data
+  },
+
+  /**
+   * Assign a biostat reviewer to a tracker.
+   * Only admin or study lead can assign biostat reviewers.
+   */
+  assignBiostat: async (trackerId: number, userId: number): Promise<ReportingEffortItemTracker> => {
+    const response = await apiClient.post(`${BASE_PATH}/${trackerId}/assign-biostat`, { user_id: userId })
+    return response.data
+  },
 }
 
 

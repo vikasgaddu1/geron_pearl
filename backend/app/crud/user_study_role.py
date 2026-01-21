@@ -112,11 +112,9 @@ class UserStudyRoleCRUD(BaseCRUD[UserStudyRole, UserStudyRoleCreate, UserStudyRo
             
             for user in other_users:
                 # Admins have full access everywhere (shown as Global Admin in UI)
-                if user.is_admin:
-                    effective_role = StudyRole.EDITOR  # Just a placeholder, UI shows "Global Admin"
-                else:
-                    effective_role = StudyRole.VIEWER
-                
+                # Non-admins without explicit roles have implicit read-only access
+                effective_role = "RESPONSIBLE" if user.is_admin else None
+
                 members.append({
                     "id": user.id,
                     "username": user.username,

@@ -7,13 +7,13 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ArrowRight, 
-  ArrowLeft, 
-  Check, 
-  BookOpen, 
-  Users, 
-  Package, 
+import {
+  ArrowRight,
+  ArrowLeft,
+  Check,
+  BookOpen,
+  Users,
+  Package,
   BarChart3,
   Sparkles,
   X,
@@ -21,10 +21,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 
 interface OnboardingWizardProps {
   onComplete: () => void;
   onSkip?: () => void;
+  onDismiss?: () => void;
 }
 
 const STEPS = [
@@ -216,9 +219,10 @@ const STEPS = [
   },
 ];
 
-export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) {
+export function OnboardingWizard({ onComplete, onSkip, onDismiss }: OnboardingWizardProps) {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
+  const [dontShowAgain, setDontShowAgain] = useState(true);
 
   const step = STEPS[currentStep];
   const progress = ((currentStep + 1) / STEPS.length) * 100;
@@ -244,11 +248,20 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
   };
 
   const handleSkip = () => {
-    if (onSkip) {
-      onSkip();
+    if (dontShowAgain) {
+      // Mark as complete so it won't show again
+      if (onSkip) {
+        onSkip();
+      } else {
+        onComplete();
+      }
     } else {
-      handleComplete();
+      // Just dismiss temporarily (will show again next login)
+      if (onDismiss) {
+        onDismiss();
+      }
     }
+    navigate('/app/dashboard');
   };
 
   const Icon = step.icon;
@@ -292,35 +305,54 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
         </CardContent>
 
         {/* Footer */}
-        <div className="p-4 border-t flex justify-between">
-          <Button
-            variant="outline"
-            onClick={handlePrevious}
-            disabled={isFirstStep}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-          
-          <div className="flex gap-2">
-            {!isLastStep && (
-              <Button variant="ghost" onClick={handleSkip}>
-                Skip Tour
-              </Button>
-            )}
-            <Button onClick={handleNext}>
-              {isLastStep ? (
-                <>
-                  Get Started
-                  <Check className="h-4 w-4 ml-2" />
-                </>
-              ) : (
-                <>
-                  Next
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </>
-              )}
+        <div className="p-4 border-t space-y-3">
+          {/* Don't show again checkbox - only show when not on last step */}
+          {!isLastStep && (
+            <div className="flex items-center justify-center gap-2">
+              <Checkbox
+                id="dont-show-again"
+                checked={dontShowAgain}
+                onCheckedChange={(checked) => setDontShowAgain(checked === true)}
+              />
+              <Label
+                htmlFor="dont-show-again"
+                className="text-sm text-gray-500 cursor-pointer"
+              >
+                Don't show this again
+              </Label>
+            </div>
+          )}
+
+          <div className="flex justify-between">
+            <Button
+              variant="outline"
+              onClick={handlePrevious}
+              disabled={isFirstStep}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
             </Button>
+
+            <div className="flex gap-2">
+              {!isLastStep && (
+                <Button variant="ghost" onClick={handleSkip}>
+                  Skip Tour
+                </Button>
+              )}
+              <Button onClick={handleNext}>
+                {isLastStep ? (
+                  <>
+                    Get Started
+                    <Check className="h-4 w-4 ml-2" />
+                  </>
+                ) : (
+                  <>
+                    Next
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </Card>

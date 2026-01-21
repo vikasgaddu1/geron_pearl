@@ -13,15 +13,16 @@ interface OnboardingProviderProps {
 }
 
 export function OnboardingProvider({ children }: OnboardingProviderProps) {
-  const { showWizard, handleComplete, handleSkip } = useOnboarding();
+  const { showWizard, handleComplete, handleSkip, dismissWizard } = useOnboarding();
 
   return (
     <>
       {children}
       {showWizard && (
-        <OnboardingWizard 
-          onComplete={handleComplete} 
+        <OnboardingWizard
+          onComplete={handleComplete}
           onSkip={handleSkip}
+          onDismiss={dismissWizard}
         />
       )}
     </>

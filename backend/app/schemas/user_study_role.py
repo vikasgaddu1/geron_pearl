@@ -11,7 +11,7 @@ class UserStudyRoleBase(BaseModel):
     """Base schema for UserStudyRole."""
     user_id: int = Field(..., description="User ID")
     study_id: int = Field(..., description="Study ID")
-    role: StudyRole = Field(default=StudyRole.VIEWER, description="User's role in the study")
+    role: StudyRole = Field(default=StudyRole.EDITOR, description="User's role in the study")
 
 
 class UserStudyRoleCreate(UserStudyRoleBase):
@@ -78,7 +78,7 @@ class StudyMember(BaseModel):
     id: int = Field(..., description="User ID")
     username: str = Field(..., description="Username")
     email: Optional[str] = Field(None, description="User email")
-    role: StudyRole = Field(..., description="User's role in the study")
+    role: Optional[str] = Field(None, description="User's role in the study (EDITOR, BIOSTAT, RESPONSIBLE, or None for implicit read access)")
     is_admin: bool = Field(..., description="Whether user is a global administrator")
     is_explicit_assignment: bool = Field(..., description="Whether this is an explicit assignment or default access")
     assigned_at: Optional[datetime] = Field(None, description="When the role was assigned")
@@ -104,12 +104,12 @@ class UserStudyRolesResponse(BaseModel):
 
 class StudyPermissions(BaseModel):
     """Schema for current user's permissions in a study.
-    
-    Note: role is a string to accommodate both StudyRole enum values (VIEWER, EDITOR)
-    and the special "RESPONSIBLE" role for study responsible users.
+
+    Note: role is a string to accommodate StudyRole enum values (EDITOR, BIOSTAT),
+    the special "RESPONSIBLE" role for study responsible users, or None for implicit read access.
     """
     study_id: int
-    role: str  # Can be "VIEWER", "EDITOR", or "RESPONSIBLE"
+    role: Optional[str] = Field(None, description="Can be EDITOR, BIOSTAT, RESPONSIBLE, or None")
     can_view: bool
     can_edit: bool
     can_bulk_assign: bool
@@ -126,5 +126,5 @@ class MyStudyRolesResponse(BaseModel):
     """Response schema for current user's study roles."""
     is_admin: bool = Field(..., description="Whether user is a global administrator")
     responsible_study_ids: List[int] = Field(..., description="List of study IDs where user is a responsible user")
-    study_roles: dict = Field(..., description="Dict mapping study_id to role name (EDITOR or VIEWER)")
+    study_roles: dict = Field(..., description="Dict mapping study_id to role name (EDITOR or BIOSTAT)")
 

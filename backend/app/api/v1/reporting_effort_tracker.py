@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
-from app.crud import reporting_effort_item_tracker, reporting_effort_item, reporting_effort, user, audit_log, app_settings, milestone_tracker_assignment
+from app.crud import reporting_effort_item_tracker, reporting_effort_item, reporting_effort, user, audit_log, app_settings, milestone_tracker_assignment, study_default_biostat
 from app.db.session import get_db
 from app.core.security import get_current_user
 from app.core.study_permissions import (
@@ -27,7 +27,7 @@ from app.schemas.reporting_effort_item_tracker import (
     ReportingEffortItemTrackerUpdate,
     ReportingEffortItemTrackerWithDetails
 )
-from app.models.reporting_effort_item_tracker import ProductionStatus, QCStatus
+from app.models.reporting_effort_item_tracker import ProductionStatus, QCStatus, BiostatStatus
 from app.models.user import User as UserModel
 from app.models.tracker_status_history import TrackerStatusHistory
 from app.services.tracker_workflow import TrackerWorkflowService
@@ -119,6 +119,16 @@ class StatusHistoryResponse(BaseModel):
     exited_at: Optional[datetime]
     duration_seconds: Optional[float]
     changed_by_username: Optional[str]
+
+
+class BiostatFailRequest(BaseModel):
+    """Schema for biostat fail action - requires a comment explaining the failure."""
+    comment: str = Field(..., min_length=1, description="Required comment explaining the failure reason")
+
+
+class BiostatAssignRequest(BaseModel):
+    """Schema for assigning a biostat reviewer to a tracker."""
+    user_id: int = Field(..., description="ID of the user to assign as biostat reviewer")
 
 # CRUD Endpoints
 @router.post("/", response_model=ReportingEffortItemTracker, status_code=status.HTTP_201_CREATED)
@@ -2408,6 +2418,418 @@ async def get_tracker_milestones(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get tracker milestones: {str(e)}"
+        )
+
+
+# ========================================================================
+# BIOSTAT REVIEW ENDPOINTS
+# ========================================================================
+
+@router.post("/{tracker_id}/biostat-pass", response_model=ReportingEffortItemTracker)
+async def biostat_pass(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    tracker_id: int,
+    current_user: UserModel = Depends(get_current_user),
+) -> ReportingEffortItemTracker:
+    """
+    Mark a TLF item as passed by biostat reviewer.
+
+    Only the assigned biostat reviewer, study LEAD, or admin can perform this action.
+    Requires all biostat comments to be resolved.
+    """
+    try:
+        # Get tracker
+        db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
+        if not db_tracker:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tracker not found"
+            )
+
+        # Check if item is locked (via reporting effort)
+        if db_tracker.item and db_tracker.item.reporting_effort:
+            if db_tracker.item.reporting_effort.is_locked:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cannot modify tracker: Reporting effort is locked"
+                )
+
+        # Verify this is a TLF item
+        if db_tracker.item and db_tracker.item.item_type != "TLF":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Biostat review only applies to TLF items"
+            )
+
+        # Permission check: biostat reviewer, study lead, or admin
+        is_admin = current_user.is_admin
+        is_biostat_reviewer = db_tracker.biostat_reviewer_id == current_user.id
+        study_role = await get_user_study_role_for_tracker(db, current_user, tracker_id)
+        is_study_lead = is_study_admin(study_role)
+
+        if not is_admin and not is_biostat_reviewer and not is_study_lead:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the assigned biostat reviewer, study lead, or admin can pass items"
+            )
+
+        # Validate current status is pending
+        if db_tracker.biostat_status != BiostatStatus.PENDING.value:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Can only pass items in 'pending' status, current status: {db_tracker.biostat_status}"
+            )
+
+        # Validate no unresolved biostat comments
+        if db_tracker.unresolved_biostat_comment_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot pass: {db_tracker.unresolved_biostat_comment_count} unresolved biostat comment(s)"
+            )
+
+        # Store original data for audit
+        original_data = sqlalchemy_to_dict(db_tracker)
+
+        # Apply the pass transition
+        from datetime import date
+        update_data = {
+            "biostat_status": BiostatStatus.PASSED.value,
+            "biostat_review_date": date.today()
+        }
+        tracker_update = ReportingEffortItemTrackerUpdate(**update_data)
+        updated_tracker = await reporting_effort_item_tracker.update(
+            db, db_obj=db_tracker, obj_in=tracker_update
+        )
+
+        # Log audit trail
+        try:
+            changes = {
+                "action": "BIOSTAT_PASS",
+                "before": original_data,
+                "after": sqlalchemy_to_dict(updated_tracker)
+            }
+            await audit_log.log_action(
+                db,
+                table_name="reporting_effort_item_tracker",
+                record_id=updated_tracker.id,
+                action="BIOSTAT_PASS",
+                user_id=getattr(request.state, 'user_id', None),
+                changes=changes,
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception:
+            pass  # Audit logging is best-effort
+
+        # Broadcast update
+        try:
+            await broadcast_tracker_updated(updated_tracker)
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
+
+        return updated_tracker
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in biostat-pass: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to pass biostat review: {str(e)}"
+        )
+
+
+@router.post("/{tracker_id}/biostat-fail", response_model=ReportingEffortItemTracker)
+async def biostat_fail(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    tracker_id: int,
+    fail_data: BiostatFailRequest,
+    current_user: UserModel = Depends(get_current_user),
+) -> ReportingEffortItemTracker:
+    """
+    Mark a TLF item as failed by biostat reviewer.
+
+    Requires a comment explaining the failure reason.
+    Resets production status to in_progress and QC status to not_started.
+    Only the assigned biostat reviewer, study LEAD, or admin can perform this action.
+    """
+    try:
+        # Get tracker
+        db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
+        if not db_tracker:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tracker not found"
+            )
+
+        # Check if item is locked
+        if db_tracker.item and db_tracker.item.reporting_effort:
+            if db_tracker.item.reporting_effort.is_locked:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cannot modify tracker: Reporting effort is locked"
+                )
+
+        # Verify this is a TLF item
+        if db_tracker.item and db_tracker.item.item_type != "TLF":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Biostat review only applies to TLF items"
+            )
+
+        # Permission check
+        is_admin = current_user.is_admin
+        is_biostat_reviewer = db_tracker.biostat_reviewer_id == current_user.id
+        study_role = await get_user_study_role_for_tracker(db, current_user, tracker_id)
+        is_study_lead = is_study_admin(study_role)
+
+        if not is_admin and not is_biostat_reviewer and not is_study_lead:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the assigned biostat reviewer, study lead, or admin can fail items"
+            )
+
+        # Validate current status is pending
+        if db_tracker.biostat_status != BiostatStatus.PENDING.value:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Can only fail items in 'pending' status, current status: {db_tracker.biostat_status}"
+            )
+
+        # Store original data for audit
+        original_data = sqlalchemy_to_dict(db_tracker)
+
+        # Apply the fail transition - reset workflow
+        from datetime import date
+        update_data = {
+            "biostat_status": BiostatStatus.FAILED.value,
+            "biostat_review_date": date.today(),
+            "production_status": ProductionStatus.IN_PROGRESS.value,
+            "qc_status": QCStatus.NOT_STARTED.value,
+            "in_production_flag": False
+        }
+        tracker_update = ReportingEffortItemTrackerUpdate(**update_data)
+        updated_tracker = await reporting_effort_item_tracker.update(
+            db, db_obj=db_tracker, obj_in=tracker_update
+        )
+
+        # Create biostat comment with the failure reason
+        try:
+            from app.crud import tracker_comment
+            from app.schemas.tracker_comment import TrackerCommentCreate
+
+            comment_data = TrackerCommentCreate(
+                tracker_id=tracker_id,
+                comment_text=fail_data.comment,
+                comment_type="biostat",
+                parent_comment_id=None
+            )
+            new_comment = await tracker_comment.create(
+                db,
+                obj_in=comment_data,
+                user_id=current_user.id
+            )
+
+            # Increment unresolved biostat comment count
+            updated_tracker.unresolved_biostat_comment_count = (updated_tracker.unresolved_biostat_comment_count or 0) + 1
+            db.add(updated_tracker)
+            await db.flush()
+            await db.refresh(updated_tracker)
+        except Exception as ce:
+            logger.error(f"Error creating biostat comment: {ce}")
+            # Continue even if comment creation fails
+
+        # Log audit trail
+        try:
+            changes = {
+                "action": "BIOSTAT_FAIL",
+                "fail_comment": fail_data.comment,
+                "before": original_data,
+                "after": sqlalchemy_to_dict(updated_tracker)
+            }
+            await audit_log.log_action(
+                db,
+                table_name="reporting_effort_item_tracker",
+                record_id=updated_tracker.id,
+                action="BIOSTAT_FAIL",
+                user_id=getattr(request.state, 'user_id', None),
+                changes=changes,
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception:
+            pass  # Audit logging is best-effort
+
+        # Create notification for production programmer
+        try:
+            if db_tracker.production_programmer_id:
+                item_code = None
+                study_label = None
+                if db_tracker.item:
+                    item_code = db_tracker.item.item_code
+                    if db_tracker.item.reporting_effort and db_tracker.item.reporting_effort.study:
+                        study_label = db_tracker.item.reporting_effort.study.study_label
+
+                from app.services.notification_service import create_biostat_failure_notification
+                await create_biostat_failure_notification(
+                    db,
+                    production_programmer_id=db_tracker.production_programmer_id,
+                    item_code=item_code or f"Tracker #{tracker_id}",
+                    study_label=study_label,
+                    tracker_id=tracker_id,
+                    biostat_username=current_user.username
+                )
+        except Exception:
+            pass  # Notification is best-effort
+
+        # Broadcast update
+        try:
+            await broadcast_tracker_updated(updated_tracker)
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
+
+        return updated_tracker
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in biostat-fail: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fail biostat review: {str(e)}"
+        )
+
+
+@router.post("/{tracker_id}/assign-biostat", response_model=ReportingEffortItemTracker)
+async def assign_biostat_reviewer(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    tracker_id: int,
+    assignment: BiostatAssignRequest,
+    current_user: UserModel = Depends(get_current_user),
+) -> ReportingEffortItemTracker:
+    """
+    Assign a biostat reviewer to a tracker.
+
+    Only admin or study lead can assign biostat reviewers.
+    The assigned user should have BIOSTAT role for the study.
+    """
+    try:
+        # Get tracker
+        db_tracker = await reporting_effort_item_tracker.get(db, id=tracker_id)
+        if not db_tracker:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tracker not found"
+            )
+
+        # Check if item is locked
+        if db_tracker.item and db_tracker.item.reporting_effort:
+            if db_tracker.item.reporting_effort.is_locked:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cannot modify tracker: Reporting effort is locked"
+                )
+
+        # Verify this is a TLF item
+        if db_tracker.item and db_tracker.item.item_type != "TLF":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Biostat reviewer assignment only applies to TLF items"
+            )
+
+        # Permission check: Only admin or study lead can assign biostat
+        is_admin = current_user.is_admin
+        study_role = await get_user_study_role_for_tracker(db, current_user, tracker_id)
+        is_study_lead = is_study_admin(study_role)
+
+        if not is_admin and not is_study_lead:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only administrators or study leads can assign biostat reviewers"
+            )
+
+        # Verify user exists
+        db_user = await user.get(db, id=assignment.user_id)
+        if not db_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        # Store original data for audit
+        original_data = sqlalchemy_to_dict(db_tracker)
+
+        # Update the biostat reviewer
+        update_data = {"biostat_reviewer_id": assignment.user_id}
+        tracker_update = ReportingEffortItemTrackerUpdate(**update_data)
+        updated_tracker = await reporting_effort_item_tracker.update(
+            db, db_obj=db_tracker, obj_in=tracker_update
+        )
+
+        # Log audit trail
+        try:
+            changes = {
+                "action": "ASSIGN_BIOSTAT",
+                "biostat_reviewer_id": assignment.user_id,
+                "biostat_reviewer_username": db_user.username,
+                "before": original_data,
+                "after": sqlalchemy_to_dict(updated_tracker)
+            }
+            await audit_log.log_action(
+                db,
+                table_name="reporting_effort_item_tracker",
+                record_id=updated_tracker.id,
+                action="ASSIGN_BIOSTAT",
+                user_id=getattr(request.state, 'user_id', None),
+                changes=changes,
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception:
+            pass  # Audit logging is best-effort
+
+        # Create notification for assigned biostat reviewer
+        try:
+            item_code = None
+            study_label = None
+            if db_tracker.item:
+                item_code = db_tracker.item.item_code
+                if db_tracker.item.reporting_effort and db_tracker.item.reporting_effort.study:
+                    study_label = db_tracker.item.reporting_effort.study.study_label
+
+            from app.services.notification_service import create_biostat_assignment_notification
+            await create_biostat_assignment_notification(
+                db,
+                assigned_user_id=assignment.user_id,
+                item_code=item_code or f"Tracker #{tracker_id}",
+                study_label=study_label,
+                tracker_id=tracker_id,
+                assigned_by_username=current_user.username
+            )
+        except Exception:
+            pass  # Notification is best-effort
+
+        # Broadcast update
+        try:
+            await broadcast_tracker_updated(updated_tracker)
+        except Exception:
+            pass  # WebSocket broadcast is best-effort
+
+        return updated_tracker
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error assigning biostat reviewer: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to assign biostat reviewer: {str(e)}"
         )
 
 

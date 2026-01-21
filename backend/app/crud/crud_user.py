@@ -194,5 +194,29 @@ class UserCRUD:
             messages.append(f"has {references['study_roles']} study role assignment(s)")
         return f"Cannot delete user: {'; '.join(messages)}. Remove these assignments first."
 
+    async def get_available_for_assignment(
+        self, db: AsyncSession, *, tenant_id: int
+    ) -> List[User]:
+        """
+        Get all non-admin, active users from a tenant that can be assigned study roles.
+
+        Args:
+            db: Database session
+            tenant_id: Tenant ID to filter users by
+
+        Returns:
+            List of users available for study role assignment
+        """
+        result = await db.execute(
+            select(User)
+            .where(
+                User.tenant_id == tenant_id,
+                User.is_active == True,
+                User.is_admin == False,
+            )
+            .order_by(User.username)
+        )
+        return list(result.scalars().all())
+
 
 user = UserCRUD()

@@ -5,7 +5,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud import study, user_study_role, user, audit_log, study_responsible_user
+from app.crud import study, user_study_role, user, audit_log, study_responsible_user, study_default_biostat
 from app.crud import database_release, reporting_effort
 from app.db.session import get_db
 from app.schemas.study import Study, StudyCreate, StudyUpdate, BulkHierarchyRow, BulkHierarchyResponse
@@ -18,6 +18,9 @@ from app.schemas.user_study_role import (
 from app.schemas.study_responsible_user import (
     AssignResponsibleUserRequest, UpdateResponsibleUserRequest,
     StudyResponsibleUserWithUser, StudyResponsibleUsersResponse
+)
+from app.schemas.study_default_biostat import (
+    StudyDefaultBiostat, StudyDefaultBiostatWithUser
 )
 from app.models.user_study_role import StudyRole
 from app.models.user import User as UserModel
@@ -449,6 +452,60 @@ async def get_study_members(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get study members"
+        )
+
+
+@router.get("/{study_id}/available-users")
+async def get_available_users_for_study(
+    *,
+    db: AsyncSession = Depends(get_db),
+    study_id: int,
+    current_user: UserModel = Depends(get_current_user),
+):
+    """
+    Get all users that can be assigned to a study.
+
+    Returns non-admin, active users from the same tenant.
+    Only responsible users (or global ADMIN) can access this endpoint.
+    """
+    try:
+        # Check if study exists
+        db_study = await study.get(db, id=study_id)
+        if not db_study:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Study not found"
+            )
+
+        # Check permissions - responsible user or ADMIN can view available users
+        user_role = await get_user_study_role(db, current_user, study_id)
+        if not is_study_admin(user_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only study responsible users can view available users"
+            )
+
+        # Get all non-admin, active users from the same tenant
+        users_list = await user.get_available_for_assignment(
+            db, tenant_id=current_user.tenant_id
+        )
+
+        return [
+            {
+                "id": u.id,
+                "username": u.username,
+                "email": u.email,
+                "is_admin": u.is_admin,
+                "is_active": u.is_active,
+            }
+            for u in users_list
+        ]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get available users: {str(e)}"
         )
 
 
@@ -998,4 +1055,260 @@ async def remove_responsible_user(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to remove responsible user"
+        )
+
+
+# ========================================================================
+# DEFAULT BIOSTAT ENDPOINTS
+# ========================================================================
+
+@router.get("/{study_id}/default-biostat", response_model=StudyDefaultBiostatWithUser | None)
+async def get_study_default_biostat(
+    *,
+    db: AsyncSession = Depends(get_db),
+    study_id: int,
+    current_user: UserModel = Depends(get_current_user),
+) -> StudyDefaultBiostatWithUser | None:
+    """
+    Get the default biostat reviewer for a study.
+
+    Returns the active default biostat with user details, or None if not set.
+    """
+    try:
+        # Check if study exists
+        db_study = await study.get(db, id=study_id)
+        if not db_study:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Study not found"
+            )
+
+        # Get the default biostat
+        default = await study_default_biostat.get_by_study_with_user(db, study_id=study_id)
+        if not default:
+            return None
+
+        # Build response with user details
+        return StudyDefaultBiostatWithUser(
+            id=default.id,
+            study_id=default.study_id,
+            user_id=default.user_id,
+            is_active=default.is_active,
+            created_at=default.created_at,
+            updated_at=default.updated_at,
+            user_name=default.user.full_name if default.user else None,
+            user_email=default.user.email if default.user else None
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get default biostat: {str(e)}"
+        )
+
+
+@router.put("/{study_id}/default-biostat", response_model=StudyDefaultBiostatWithUser)
+async def set_study_default_biostat(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    study_id: int,
+    user_id: int,
+    current_user: UserModel = Depends(get_current_user),
+) -> StudyDefaultBiostatWithUser:
+    """
+    Set the default biostat reviewer for a study.
+
+    Only admins or study leads can set the default biostat.
+    The user should have BIOSTAT role for the study.
+    """
+    try:
+        # Check if study exists
+        db_study = await study.get(db, id=study_id)
+        if not db_study:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Study not found"
+            )
+
+        # Check permissions - admin or study lead
+        user_role = await get_user_study_role(db, current_user, study_id)
+        if not is_study_admin(user_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only administrators or study leads can set the default biostat"
+            )
+
+        # Check if target user exists
+        target_user = await user.get(db, id=user_id)
+        if not target_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        # Verify user has BIOSTAT role for this study (optional validation)
+        target_user_role = await user_study_role.get_user_role(db, user_id=user_id, study_id=study_id)
+        if target_user_role != StudyRole.BIOSTAT:
+            # Log warning but allow assignment anyway (admin may want flexibility)
+            pass
+
+        # Set the default biostat
+        default = await study_default_biostat.set_default_biostat(
+            db, study_id=study_id, user_id=user_id
+        )
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="study_default_biostats",
+                record_id=default.id,
+                action="SET_DEFAULT_BIOSTAT",
+                user_id=current_user.id,
+                changes={
+                    "study_id": study_id,
+                    "user_id": user_id,
+                    "username": target_user.username
+                },
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception:
+            pass  # Audit logging is best-effort
+
+        # Build response with user details
+        return StudyDefaultBiostatWithUser(
+            id=default.id,
+            study_id=default.study_id,
+            user_id=default.user_id,
+            is_active=default.is_active,
+            created_at=default.created_at,
+            updated_at=default.updated_at,
+            user_name=target_user.full_name,
+            user_email=target_user.email
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to set default biostat: {str(e)}"
+        )
+
+
+@router.delete("/{study_id}/default-biostat")
+async def remove_study_default_biostat(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request: Request,
+    study_id: int,
+    current_user: UserModel = Depends(get_current_user),
+):
+    """
+    Remove the default biostat reviewer for a study.
+
+    Only admins or study leads can remove the default biostat.
+    """
+    try:
+        # Check if study exists
+        db_study = await study.get(db, id=study_id)
+        if not db_study:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Study not found"
+            )
+
+        # Check permissions - admin or study lead
+        user_role = await get_user_study_role(db, current_user, study_id)
+        if not is_study_admin(user_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only administrators or study leads can remove the default biostat"
+            )
+
+        # Remove the default biostat
+        removed = await study_default_biostat.remove_default_biostat(db, study_id=study_id)
+
+        if not removed:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No active default biostat found for this study"
+            )
+
+        # Log audit trail
+        try:
+            await audit_log.log_action(
+                db,
+                table_name="study_default_biostats",
+                record_id=study_id,
+                action="REMOVE_DEFAULT_BIOSTAT",
+                user_id=current_user.id,
+                changes={"study_id": study_id},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+        except Exception:
+            pass  # Audit logging is best-effort
+
+        return {"status": "success", "message": "Default biostat removed"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to remove default biostat: {str(e)}"
+        )
+
+
+@router.get("/{study_id}/biostat-users", response_model=list)
+async def get_study_biostat_users(
+    *,
+    db: AsyncSession = Depends(get_db),
+    study_id: int,
+    current_user: UserModel = Depends(get_current_user),
+):
+    """
+    Get all users with BIOSTAT role for a study.
+
+    Returns a list of users who can be assigned as biostat reviewers.
+    """
+    try:
+        # Check if study exists
+        db_study = await study.get(db, id=study_id)
+        if not db_study:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Study not found"
+            )
+
+        # Get users with BIOSTAT role
+        biostat_roles = await user_study_role.get_users_with_role(
+            db, study_id=study_id, role=StudyRole.BIOSTAT
+        )
+
+        # Build response with user details
+        result = []
+        for role in biostat_roles:
+            role_user = await user.get(db, id=role.user_id)
+            if role_user:
+                result.append({
+                    "user_id": role_user.id,
+                    "username": role_user.username,
+                    "full_name": role_user.full_name,
+                    "email": role_user.email
+                })
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get biostat users: {str(e)}"
         )

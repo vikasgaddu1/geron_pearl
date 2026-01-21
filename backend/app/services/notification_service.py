@@ -159,3 +159,117 @@ async def create_comment_notification(
             "triggered_by_username": commenter_username
         }
         await broadcast_new_notification(user_id, notif_data)
+
+
+async def create_biostat_assignment_notification(
+    db: AsyncSession,
+    *,
+    assigned_user_id: int,
+    item_code: str,
+    study_label: Optional[str] = None,
+    tracker_id: int,
+    assigned_by_username: Optional[str] = None
+) -> None:
+    """
+    Create a notification when a user is assigned as biostat reviewer.
+
+    Args:
+        db: Database session
+        assigned_user_id: The user being assigned as biostat reviewer
+        item_code: The item code for reference
+        study_label: The study label for context
+        tracker_id: The tracker ID
+        assigned_by_username: Username of who made the assignment
+    """
+    title = "New Biostat Review Assignment"
+    by_text = f" by {assigned_by_username}" if assigned_by_username else ""
+    study_text = f" ({study_label})" if study_label else ""
+    message = f"You have been assigned as Biostat Reviewer for item {item_code}{study_text}{by_text}"
+
+    # Create the notification
+    notif = await notification.create_notification(
+        db,
+        user_id=assigned_user_id,
+        notification_type=NotificationType.ASSIGNMENT_BIOSTAT.value,
+        title=title,
+        message=message,
+        tracker_id=tracker_id,
+        triggered_by_user_id=None,
+        item_code=item_code,
+        study_label=study_label
+    )
+
+    # Broadcast via WebSocket
+    notif_data = {
+        "id": notif.id,
+        "user_id": notif.user_id,
+        "tracker_id": notif.tracker_id,
+        "triggered_by_user_id": notif.triggered_by_user_id,
+        "notification_type": notif.notification_type,
+        "title": notif.title,
+        "message": notif.message,
+        "item_code": notif.item_code,
+        "study_label": notif.study_label,
+        "is_read": notif.is_read,
+        "is_acknowledged": notif.is_acknowledged,
+        "created_at": notif.created_at.isoformat(),
+        "triggered_by_username": assigned_by_username
+    }
+    await broadcast_new_notification(assigned_user_id, notif_data)
+
+
+async def create_biostat_failure_notification(
+    db: AsyncSession,
+    *,
+    production_programmer_id: int,
+    item_code: str,
+    study_label: Optional[str] = None,
+    tracker_id: int,
+    biostat_username: str
+) -> None:
+    """
+    Create a notification when a biostat reviewer fails an item.
+    Notifies the production programmer that rework is needed.
+
+    Args:
+        db: Database session
+        production_programmer_id: The production programmer to notify
+        item_code: The item code for reference
+        study_label: The study label for context
+        tracker_id: The tracker ID
+        biostat_username: Username of the biostat reviewer who failed the item
+    """
+    title = "Biostat Review Failed - Rework Required"
+    study_text = f" ({study_label})" if study_label else ""
+    message = f"Item {item_code}{study_text} failed biostat review by {biostat_username}. Please address the issues and resubmit."
+
+    # Create the notification
+    notif = await notification.create_notification(
+        db,
+        user_id=production_programmer_id,
+        notification_type=NotificationType.BIOSTAT_FAILED.value,
+        title=title,
+        message=message,
+        tracker_id=tracker_id,
+        triggered_by_user_id=None,
+        item_code=item_code,
+        study_label=study_label
+    )
+
+    # Broadcast via WebSocket
+    notif_data = {
+        "id": notif.id,
+        "user_id": notif.user_id,
+        "tracker_id": notif.tracker_id,
+        "triggered_by_user_id": notif.triggered_by_user_id,
+        "notification_type": notif.notification_type,
+        "title": notif.title,
+        "message": notif.message,
+        "item_code": notif.item_code,
+        "study_label": notif.study_label,
+        "is_read": notif.is_read,
+        "is_acknowledged": notif.is_acknowledged,
+        "created_at": notif.created_at.isoformat(),
+        "triggered_by_username": biostat_username
+    }
+    await broadcast_new_notification(production_programmer_id, notif_data)

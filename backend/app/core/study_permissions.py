@@ -6,7 +6,8 @@ The permission hierarchy is:
 1. Global ADMIN (super admin) - Has full access in all studies
 2. Study Responsible User - Admin capabilities within that specific study
 3. Study EDITOR - Can modify items they're assigned to
-4. Study VIEWER - Read-only access (default for all users)
+4. Study BIOSTAT - Can perform biostat review on TLF items they're assigned to
+5. No explicit role (None) - Read-only access (implicit for all authenticated users)
 """
 
 from typing import Optional, Dict, Any, Union
@@ -26,7 +27,7 @@ async def get_user_study_role(
     db: AsyncSession,
     user: User,
     study_id: int
-) -> Union[StudyRole, str]:
+) -> Optional[Union[StudyRole, str]]:
     """
     Get user's effective role for a specific study.
 
@@ -36,13 +37,13 @@ async def get_user_study_role(
         study_id: The study ID
 
     Returns:
-        StudyRole or "RESPONSIBLE" string - The user's effective role in the study
+        StudyRole, "RESPONSIBLE" string, or None - The user's effective role in the study
 
     Permission Resolution:
         1. Global ADMIN → returns "RESPONSIBLE" (full access everywhere)
         2. Is responsible user for study → returns "RESPONSIBLE"
-        3. Has explicit study role (EDITOR/VIEWER) → returns that role
-        4. No explicit role → returns VIEWER (default access)
+        3. Has explicit study role (EDITOR/BIOSTAT) → returns that role
+        4. No explicit role → returns None (implicit read-only access)
     """
     # Super admin has full access everywhere
     if user.is_admin:
@@ -56,7 +57,7 @@ async def get_user_study_role(
     if is_responsible:
         return RESPONSIBLE_ROLE
 
-    # Check for explicit study role assignment (EDITOR or VIEWER)
+    # Check for explicit study role assignment (EDITOR or BIOSTAT)
     result = await db.execute(
         select(UserStudyRole).where(
             UserStudyRole.user_id == user.id,
@@ -68,15 +69,15 @@ async def get_user_study_role(
     if study_role:
         return study_role.role
 
-    # Default: all users have viewer access
-    return StudyRole.VIEWER
+    # Default: no explicit role (implicit read-only access)
+    return None
 
 
 async def get_user_study_role_for_reporting_effort(
     db: AsyncSession,
     user: User,
     reporting_effort_id: int
-) -> Union[StudyRole, str]:
+) -> Optional[Union[StudyRole, str]]:
     """
     Get user's role for the study that owns a reporting effort.
 
@@ -86,7 +87,7 @@ async def get_user_study_role_for_reporting_effort(
         reporting_effort_id: The reporting effort ID
 
     Returns:
-        StudyRole or "RESPONSIBLE" - The user's effective role
+        StudyRole, "RESPONSIBLE", or None - The user's effective role
     """
     from app.models.reporting_effort import ReportingEffort
 
@@ -99,7 +100,7 @@ async def get_user_study_role_for_reporting_effort(
     study_id = result.scalar_one_or_none()
 
     if study_id is None:
-        return StudyRole.VIEWER
+        return None
 
     return await get_user_study_role(db, user, study_id)
 
@@ -108,7 +109,7 @@ async def get_user_study_role_for_tracker(
     db: AsyncSession,
     user: User,
     tracker_id: int
-) -> Union[StudyRole, str]:
+) -> Optional[Union[StudyRole, str]]:
     """
     Get user's role for the study that owns a tracker.
 
@@ -120,7 +121,7 @@ async def get_user_study_role_for_tracker(
         tracker_id: The tracker ID
 
     Returns:
-        StudyRole or "RESPONSIBLE" - The user's effective role
+        StudyRole, "RESPONSIBLE", or None - The user's effective role
     """
     from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker
     from app.models.reporting_effort_item import ReportingEffortItem
@@ -137,21 +138,22 @@ async def get_user_study_role_for_tracker(
     study_id = result.scalar_one_or_none()
 
     if study_id is None:
-        return StudyRole.VIEWER
+        return None
 
     return await get_user_study_role(db, user, study_id)
 
 
-def can_modify_in_study(role: Union[StudyRole, str]) -> bool:
+def can_modify_in_study(role: Optional[Union[StudyRole, str]]) -> bool:
     """
     Check if the role allows modifications within a study.
 
-    EDITOR and RESPONSIBLE can modify (subject to additional assignment checks for EDITOR).
+    EDITOR, BIOSTAT and RESPONSIBLE can modify (subject to additional assignment checks).
+    None (no explicit role) = read-only access.
     """
-    return role in (StudyRole.EDITOR, RESPONSIBLE_ROLE)
+    return role in (StudyRole.EDITOR, StudyRole.BIOSTAT, RESPONSIBLE_ROLE)
 
 
-def is_study_admin(role: Union[StudyRole, str]) -> bool:
+def is_study_admin(role: Optional[Union[StudyRole, str]]) -> bool:
     """
     Check if the role has admin capabilities within a study.
 
@@ -160,7 +162,7 @@ def is_study_admin(role: Union[StudyRole, str]) -> bool:
     return role == RESPONSIBLE_ROLE
 
 
-def get_study_permissions(role: Union[StudyRole, str]) -> Dict[str, bool]:
+def get_study_permissions(role: Optional[Union[StudyRole, str]]) -> Dict[str, bool]:
     """
     Get detailed permission flags for a study role.
 
@@ -193,7 +195,20 @@ def get_study_permissions(role: Union[StudyRole, str]) -> Dict[str, bool]:
             "can_manage_packages": False,
             "can_manage_tfl_properties": False,
         }
-    else:  # VIEWER
+    elif role == StudyRole.BIOSTAT:
+        return {
+            "can_view": True,
+            "can_edit": True,  # Only items they're assigned as biostat reviewer (checked separately)
+            "can_bulk_assign": False,
+            "can_bulk_status_update": False,
+            "can_delete_items": False,
+            "can_manage_members": False,
+            "can_manage_responsible_users": False,
+            "can_bulk_copy": False,
+            "can_manage_packages": False,
+            "can_manage_tfl_properties": False,
+        }
+    else:  # None (no explicit role) = read-only access
         return {
             "can_view": True,
             "can_edit": False,
@@ -215,7 +230,7 @@ async def get_user_studies_with_roles(
     """
     Get all studies the user has explicit roles in.
 
-    Note: This doesn't include studies where user has default VIEWER access.
+    Note: This doesn't include studies where user has no explicit role (implicit read access).
     Global ADMINs get an empty dict (they have full access everywhere).
 
     Returns:
@@ -229,7 +244,7 @@ async def get_user_studies_with_roles(
     responsible_assignments = await study_responsible_user.get_by_user(db, user_id=user.id)
     responsible_study_ids = {ra.study_id for ra in responsible_assignments}
 
-    # Get explicit role assignments (EDITOR or VIEWER)
+    # Get explicit role assignments (EDITOR or BIOSTAT)
     result = await db.execute(
         select(UserStudyRole).where(UserStudyRole.user_id == user.id)
     )
