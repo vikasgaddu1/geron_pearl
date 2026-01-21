@@ -10,15 +10,19 @@ from app.models.tenant import SubscriptionStatus
 class SignupInitiate(BaseModel):
     """Schema for initiating signup before Stripe checkout."""
     tenant_name: str = Field(
-        ..., 
-        min_length=3, 
-        max_length=50, 
+        ...,
+        min_length=3,
+        max_length=50,
         pattern=r'^[a-z0-9][a-z0-9-]*[a-z0-9]$',
         description="URL-safe tenant slug (lowercase letters, numbers, hyphens)"
     )
     email: EmailStr = Field(..., description="Admin email for the tenant")
     plan_id: int = Field(..., description="Subscription plan ID")
     display_name: Optional[str] = Field(None, max_length=255, description="Human-readable tenant name")
+    billing_period: str = Field(
+        default="monthly",
+        description="Billing period: 'monthly' or 'yearly'"
+    )
 
 
 class SignupInitiateResponse(BaseModel):
@@ -60,9 +64,9 @@ class UsageInfo(BaseModel):
     studies_count: int
     studies_limit: int
     studies_remaining: int
-    storage_used_mb: int
-    storage_limit_mb: int
-    storage_remaining_mb: int
+    tracker_items_count: int
+    tracker_items_limit: int
+    tracker_items_remaining: int
 
 
 class BillingOverview(BaseModel):
@@ -72,6 +76,10 @@ class BillingOverview(BaseModel):
     can_add_users: bool
     can_add_studies: bool
     upgrade_available: bool
+    has_billing_account: bool = Field(
+        False,
+        description="Whether tenant has a Stripe billing account (customer ID and subscription)"
+    )
 
 
 class PlanInfo(BaseModel):
@@ -84,10 +92,10 @@ class PlanInfo(BaseModel):
     price_yearly: Optional[int] = Field(None, description="Yearly price in cents (if available)")
     max_users: int
     max_studies: int
-    max_storage_mb: int
+    max_tracker_items: int
     features: Optional[dict] = None
     is_popular: bool = False
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -104,3 +112,18 @@ class WebhookEvent(BaseModel):
     tenant_id: Optional[int] = None
     success: bool
     error_message: Optional[str] = None
+
+
+class AutoRenewToggle(BaseModel):
+    """Request to toggle auto-renewal for subscription."""
+    cancel_auto_renew: bool = Field(
+        ...,
+        description="True to cancel auto-renewal (subscription ends at period end), False to resume auto-renewal"
+    )
+
+
+class AutoRenewResponse(BaseModel):
+    """Response after toggling auto-renewal."""
+    cancel_at_period_end: bool = Field(..., description="Whether subscription will cancel at period end")
+    current_period_end: Optional[datetime] = Field(None, description="End date of current billing period")
+    message: str = Field(..., description="Human-readable status message")

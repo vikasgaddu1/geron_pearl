@@ -128,7 +128,7 @@ async def cancel_subscription(
 ) -> Optional[stripe.Subscription]:
     """
     Cancel a subscription.
-    
+
     By default, cancels at period end to allow access until paid period expires.
     """
     def _cancel():
@@ -142,8 +142,28 @@ async def cancel_subscription(
                 return stripe.Subscription.delete(subscription_id)
         except stripe.error.StripeError:
             return None
-    
+
     return await asyncio.to_thread(_cancel)
+
+
+async def resume_subscription(
+    subscription_id: str,
+) -> Optional[stripe.Subscription]:
+    """
+    Resume a subscription that was set to cancel at period end.
+
+    This unsets cancel_at_period_end, allowing the subscription to continue.
+    """
+    def _resume():
+        try:
+            return stripe.Subscription.modify(
+                subscription_id,
+                cancel_at_period_end=False,
+            )
+        except stripe.error.StripeError:
+            return None
+
+    return await asyncio.to_thread(_resume)
 
 
 async def update_subscription_plan(
@@ -194,13 +214,28 @@ def construct_webhook_event(
     )
 
 
-def get_price_id_for_plan(plan_name: str) -> Optional[str]:
-    """Get the Stripe price ID for a plan name."""
-    price_map = {
-        "starter": settings.stripe_price_starter,
-        "professional": settings.stripe_price_professional,
-        "enterprise": settings.stripe_price_enterprise,
-    }
+def get_price_id_for_plan(plan_name: str, yearly: bool = False) -> Optional[str]:
+    """Get the Stripe price ID for a plan name.
+
+    Args:
+        plan_name: The plan name (starter, professional, enterprise)
+        yearly: If True, return yearly price ID; otherwise monthly
+
+    Returns:
+        Stripe price ID or None if not configured
+    """
+    if yearly:
+        price_map = {
+            "starter": settings.stripe_price_starter_yearly,
+            "professional": settings.stripe_price_professional_yearly,
+            "enterprise": None,  # Enterprise is custom-quoted
+        }
+    else:
+        price_map = {
+            "starter": settings.stripe_price_starter,
+            "professional": settings.stripe_price_professional,
+            "enterprise": settings.stripe_price_enterprise,
+        }
     return price_map.get(plan_name.lower())
 
 
@@ -215,3 +250,72 @@ def is_stripe_configured() -> bool:
             or settings.stripe_price_enterprise
         )
     )
+
+
+# =============================================================================
+# Super Admin Billing Management Functions
+# =============================================================================
+
+
+async def get_customer_invoices(
+    customer_id: str,
+    limit: int = 10,
+) -> list:
+    """
+    Get recent invoices for a customer.
+
+    Returns a list of invoice objects from Stripe.
+    """
+    def _get():
+        try:
+            return stripe.Invoice.list(
+                customer=customer_id,
+                limit=limit,
+            ).data
+        except stripe.error.StripeError:
+            return []
+
+    return await asyncio.to_thread(_get)
+
+
+async def get_subscription_details(
+    subscription_id: str,
+) -> Optional[Dict[str, Any]]:
+    """
+    Get detailed subscription info including billing period.
+
+    Returns a dict with subscription details or None if not found.
+    """
+    def _get():
+        try:
+            sub = stripe.Subscription.retrieve(subscription_id)
+            return {
+                "id": sub.id,
+                "status": sub.status,
+                "current_period_start": sub.current_period_start,
+                "current_period_end": sub.current_period_end,
+                "cancel_at_period_end": sub.cancel_at_period_end,
+                "canceled_at": sub.canceled_at,
+                "trial_start": sub.trial_start,
+                "trial_end": sub.trial_end,
+                "created": sub.created,
+            }
+        except stripe.error.StripeError:
+            return None
+
+    return await asyncio.to_thread(_get)
+
+
+def get_stripe_dashboard_url(customer_id: str) -> str:
+    """
+    Get direct link to Stripe dashboard for a customer.
+
+    Automatically detects test vs live mode based on API key.
+    """
+    # Detect test mode from API key
+    is_test = "test" in (settings.stripe_secret_key or "").lower()
+    mode = "test" if is_test else ""
+
+    if mode:
+        return f"https://dashboard.stripe.com/{mode}/customers/{customer_id}"
+    return f"https://dashboard.stripe.com/customers/{customer_id}"

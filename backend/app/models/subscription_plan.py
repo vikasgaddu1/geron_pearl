@@ -80,10 +80,16 @@ class SubscriptionPlan(Base, TimestampMixin):
         doc="Maximum studies allowed (-1 = unlimited)"
     )
     max_storage_mb: Mapped[int] = mapped_column(
-        Integer, 
-        nullable=False, 
+        Integer,
+        nullable=False,
         default=1024,
-        doc="Maximum storage in MB (-1 = unlimited)"
+        doc="Maximum storage in MB (-1 = unlimited) - DEPRECATED, use max_tracker_items"
+    )
+    max_tracker_items: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1000,
+        doc="Maximum tracker items allowed (-1 = unlimited)"
     )
     
     # Feature flags (JSON for flexibility)
@@ -138,7 +144,7 @@ class SubscriptionPlan(Base, TimestampMixin):
         limit_map = {
             "users": self.max_users,
             "studies": self.max_studies,
-            "storage_mb": self.max_storage_mb,
+            "tracker_items": self.max_tracker_items,
         }
         limit = limit_map.get(resource)
         if limit is None:
@@ -149,61 +155,75 @@ class SubscriptionPlan(Base, TimestampMixin):
 
 
 # Default plans to seed
+# Option B: Mid-Market Pricing ($99/$249 monthly)
+# Yearly = 10 months (17% discount, 2 months free)
 DEFAULT_PLANS = [
     {
         "name": "starter",
         "display_name": "Starter",
-        "description": "Perfect for small teams getting started",
+        "description": "Perfect for small teams getting started with clinical reporting",
         "price_monthly": 9900,  # $99/month
-        "price_yearly": 99000,  # $990/year (2 months free)
-        "max_users": 5,
-        "max_studies": 10,
-        "max_storage_mb": 1024,
+        "price_yearly": 99000,  # $990/year (2 months free, 17% savings)
+        "max_users": 12,
+        "max_studies": 3,
+        "max_storage_mb": 1024,  # DEPRECATED - kept for backward compatibility
+        "max_tracker_items": 1000,  # ~333 items per study
         "features": {
             "email_support": True,
             "api_access": False,
             "priority_support": False,
+            "custom_branding": False,
             "sso": False,
+            "dedicated_support": False,
+            "custom_integrations": False,
         },
         "sort_order": 1,
+        "is_popular": True,  # Highlight as recommended plan
     },
     {
         "name": "professional",
         "display_name": "Professional",
-        "description": "For growing teams with advanced needs",
+        "description": "For growing teams with advanced reporting needs",
         "price_monthly": 24900,  # $249/month
-        "price_yearly": 249000,  # $2490/year
-        "max_users": 25,
-        "max_studies": -1,  # Unlimited
-        "max_storage_mb": 10240,  # 10GB
+        "price_yearly": 249000,  # $2,490/year (2 months free, 17% savings)
+        "max_users": 100,
+        "max_studies": 15,
+        "max_storage_mb": 10240,  # DEPRECATED - kept for backward compatibility
+        "max_tracker_items": 10000,  # ~667 items per study
         "features": {
             "email_support": True,
             "api_access": True,
             "priority_support": True,
-            "sso": False,
             "custom_branding": True,
+            "sso": False,
+            "dedicated_support": False,
+            "custom_integrations": False,
         },
         "sort_order": 2,
-        "is_popular": True,  # Highlight this plan
+        "is_popular": False,
     },
     {
         "name": "enterprise",
         "display_name": "Enterprise",
         "description": "For large organizations with custom requirements",
-        "price_monthly": 0,  # Custom pricing
+        "price_monthly": 0,  # Custom pricing - contact sales
         "price_yearly": 0,
         "max_users": -1,  # Unlimited
-        "max_studies": -1,
-        "max_storage_mb": -1,
+        "max_studies": -1,  # Unlimited
+        "max_storage_mb": -1,  # DEPRECATED - kept for backward compatibility
+        "max_tracker_items": -1,  # Unlimited
         "features": {
             "email_support": True,
             "api_access": True,
             "priority_support": True,
-            "sso": True,
             "custom_branding": True,
+            "sso": True,
             "dedicated_support": True,
             "custom_integrations": True,
+            "onboarding_assistance": True,
+            "sla_guarantee": True,
         },
         "sort_order": 3,
+        "is_popular": False,
     },
 ]

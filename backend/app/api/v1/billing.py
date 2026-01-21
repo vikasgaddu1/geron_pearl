@@ -17,6 +17,9 @@ from app.core.stripe import (
     construct_webhook_event,
     map_stripe_status,
     is_stripe_configured,
+    get_subscription,
+    cancel_subscription,
+    resume_subscription,
 )
 from app.core.email import (
     send_welcome_email,
@@ -39,6 +42,8 @@ from app.schemas.billing import (
     UsageInfo,
     PlanInfo,
     PlanListResponse,
+    AutoRenewToggle,
+    AutoRenewResponse,
 )
 from app.schemas.tenant import TenantCreate
 
@@ -94,11 +99,11 @@ async def list_plans(
             price_yearly=plan.price_yearly,
             max_users=plan.max_users,
             max_studies=plan.max_studies,
-            max_storage_mb=plan.max_storage_mb,
+            max_tracker_items=getattr(plan, 'max_tracker_items', 1000),  # Fallback for pre-migration
             features=plan.features,
-            is_popular=plan.is_popular,  # Use database column
+            is_popular=plan.is_popular,
         ))
-    
+
     return PlanListResponse(plans=plan_list)
 
 
@@ -149,17 +154,21 @@ async def initiate_signup(
             detail="Invalid plan selected",
         )
     
-    if not plan.stripe_price_id:
+    # Determine which price ID to use based on billing period
+    is_yearly = signup_data.billing_period == "yearly"
+    price_id = plan.stripe_price_id_yearly if is_yearly else plan.stripe_price_id
+
+    if not price_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This plan is not available for self-service signup. Please contact sales.",
         )
-    
+
     # Create Stripe Checkout session
     display_name = signup_data.display_name or signup_data.tenant_name.replace("-", " ").title()
-    
+
     session = await create_checkout_session(
-        price_id=plan.stripe_price_id,
+        price_id=price_id,
         tenant_name=signup_data.tenant_name,
         email=signup_data.email,
         plan_id=plan.id,
@@ -450,31 +459,56 @@ async def get_billing_overview(
     
     # Get usage counts
     from app.models.study import Study
-    
+    from app.models.reporting_effort_item_tracker import ReportingEffortItemTracker
+    from app.models.reporting_effort_item import ReportingEffortItem
+    from app.models.reporting_effort import ReportingEffort
+
     users_count = await db.scalar(
         select(func.count(User.id)).where(User.tenant_id == tenant.id)
     ) or 0
-    
+
     studies_count = await db.scalar(
         select(func.count(Study.id)).where(Study.tenant_id == tenant.id)
     ) or 0
-    
-    # Calculate limits
+
+    # Tracker items don't have tenant_id directly - join through the hierarchy:
+    # Tracker -> Item -> ReportingEffort -> Study (has tenant_id)
+    tracker_items_count = await db.scalar(
+        select(func.count(ReportingEffortItemTracker.id))
+        .join(ReportingEffortItem, ReportingEffortItemTracker.reporting_effort_item_id == ReportingEffortItem.id)
+        .join(ReportingEffort, ReportingEffortItem.reporting_effort_id == ReportingEffort.id)
+        .join(Study, ReportingEffort.study_id == Study.id)
+        .where(Study.tenant_id == tenant.id)
+    ) or 0
+
+    # Calculate limits (use getattr for max_tracker_items for backward compatibility)
     max_users = plan.max_users if plan else 5
     max_studies = plan.max_studies if plan else 10
-    max_storage = plan.max_storage_mb if plan else 1024
-    
+    max_tracker_items = getattr(plan, 'max_tracker_items', 1000) if plan else 1000
+
     # Check if unlimited (-1)
     users_remaining = -1 if max_users == -1 else max(0, max_users - users_count)
     studies_remaining = -1 if max_studies == -1 else max(0, max_studies - studies_count)
-    
+    tracker_items_remaining = -1 if max_tracker_items == -1 else max(0, max_tracker_items - tracker_items_count)
+
+    # Get subscription details from Stripe if available
+    cancel_at_period_end = False
+    current_period_end = None
+    if tenant.stripe_subscription_id:
+        stripe_sub = await get_subscription(tenant.stripe_subscription_id)
+        if stripe_sub:
+            cancel_at_period_end = stripe_sub.cancel_at_period_end
+            if stripe_sub.current_period_end:
+                current_period_end = datetime.fromtimestamp(stripe_sub.current_period_end)
+
     subscription_info = SubscriptionInfo(
         status=tenant.subscription_status,
         plan_name=plan_name,
         plan_id=plan_id,
+        current_period_end=current_period_end,
         trial_ends_at=tenant.trial_ends_at,
         grace_period_ends_at=tenant.grace_period_ends_at,
-        cancel_at_period_end=False,  # TODO: Get from Stripe
+        cancel_at_period_end=cancel_at_period_end,
     )
     
     usage_info = UsageInfo(
@@ -484,17 +518,21 @@ async def get_billing_overview(
         studies_count=studies_count,
         studies_limit=max_studies,
         studies_remaining=studies_remaining,
-        storage_used_mb=0,  # TODO: Calculate actual storage
-        storage_limit_mb=max_storage,
-        storage_remaining_mb=max_storage,  # TODO: Calculate actual remaining
+        tracker_items_count=tracker_items_count,
+        tracker_items_limit=max_tracker_items,
+        tracker_items_remaining=tracker_items_remaining,
     )
     
+    # Check if tenant has Stripe billing configured
+    has_billing_account = bool(tenant.stripe_customer_id and tenant.stripe_subscription_id)
+
     return BillingOverview(
         subscription=subscription_info,
         usage=usage_info,
         can_add_users=(max_users == -1 or users_count < max_users),
         can_add_studies=(max_studies == -1 or studies_count < max_studies),
         upgrade_available=(plan and plan.name != "enterprise"),
+        has_billing_account=has_billing_account,
     )
 
 
@@ -531,6 +569,63 @@ async def create_portal_session(
     )
     
     return BillingPortalResponse(url=session.url)
+
+
+@router.post("/auto-renew", response_model=AutoRenewResponse)
+async def toggle_auto_renew(
+    data: AutoRenewToggle,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    Toggle auto-renewal for subscription.
+
+    When cancel_auto_renew is True, the subscription will be canceled at the end
+    of the current billing period. When False, auto-renewal is resumed.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only tenant admins can manage billing",
+        )
+
+    tenant = await tenant_crud.get(db, id=current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant not found",
+        )
+
+    if not tenant.stripe_subscription_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active subscription found. Please contact support.",
+        )
+
+    # Toggle auto-renewal via Stripe
+    if data.cancel_auto_renew:
+        result = await cancel_subscription(tenant.stripe_subscription_id, at_period_end=True)
+        message = "Auto-renewal has been disabled. Your subscription will end at the current billing period."
+    else:
+        result = await resume_subscription(tenant.stripe_subscription_id)
+        message = "Auto-renewal has been re-enabled. Your subscription will continue automatically."
+
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update subscription. Please try again or contact support.",
+        )
+
+    # Get current period end from result
+    current_period_end = None
+    if result.current_period_end:
+        current_period_end = datetime.fromtimestamp(result.current_period_end)
+
+    return AutoRenewResponse(
+        cancel_at_period_end=result.cancel_at_period_end,
+        current_period_end=current_period_end,
+        message=message,
+    )
 
 
 @router.get("/status")
