@@ -12,7 +12,7 @@ from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 class SuperAdminLogin(BaseModel):
     """Login request for super admin."""
-    email: EmailStr
+    email: str = Field(..., min_length=1, max_length=255, description="Super admin email address")
     password: str = Field(..., min_length=8)
     mfa_token: Optional[str] = Field(None, description="MFA token if MFA is enabled")
 
@@ -142,6 +142,84 @@ class DashboardStats(BaseModel):
     total_users: int
     total_studies: int
     revenue_mrr: int  # Monthly recurring revenue in cents
+
+
+# =============================================================================
+# Billing Management Schemas (for Super Admin)
+# =============================================================================
+
+class TenantBillingDetails(BaseModel):
+    """Extended billing details for a tenant."""
+    model_config = ConfigDict(from_attributes=True)
+
+    # Basic tenant info
+    id: int
+    name: str
+    display_name: str
+    created_at: datetime
+
+    # Stripe identifiers
+    stripe_customer_id: Optional[str] = None
+    stripe_subscription_id: Optional[str] = None
+    stripe_dashboard_url: Optional[str] = None
+
+    # Subscription details
+    subscription_status: str
+    plan_name: Optional[str] = None
+    plan_id: Optional[int] = None
+
+    # Billing period (from Stripe)
+    current_period_start: Optional[datetime] = None
+    current_period_end: Optional[datetime] = None
+    cancel_at_period_end: bool = False
+
+    # Trial/Grace
+    trial_ends_at: Optional[datetime] = None
+    grace_period_ends_at: Optional[datetime] = None
+
+    # Usage
+    users_count: int
+    users_limit: int  # -1 = unlimited
+    studies_count: int
+    studies_limit: int  # -1 = unlimited
+
+
+class InvoiceSummary(BaseModel):
+    """Summary of a Stripe invoice."""
+    id: str
+    number: Optional[str] = None
+    status: str  # draft, open, paid, void, uncollectible
+    amount_due: int  # in cents
+    amount_paid: int  # in cents
+    currency: str
+    created: datetime
+    due_date: Optional[datetime] = None
+    paid_at: Optional[datetime] = None
+    invoice_pdf: Optional[str] = None
+    hosted_invoice_url: Optional[str] = None
+
+
+class TenantBillingResponse(BaseModel):
+    """Full billing response for a tenant."""
+    tenant: TenantBillingDetails
+    invoices: List[InvoiceSummary]
+
+
+class RevenueByPlan(BaseModel):
+    """Revenue breakdown by plan."""
+    plan_name: str
+    plan_id: int
+    tenant_count: int
+    mrr: int  # Monthly recurring revenue in cents
+
+
+class RevenueStats(BaseModel):
+    """Extended revenue statistics for platform."""
+    total_mrr: int
+    by_plan: List[RevenueByPlan]
+    trial_count: int
+    trial_conversion_rate: Optional[float] = None  # percentage (0-100)
+    churned_last_30_days: int
 
 
 # Forward references

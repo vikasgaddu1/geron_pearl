@@ -49,7 +49,20 @@ from app.schemas.super_admin import (
     TenantSummary,
     TenantListResponse,
     DashboardStats,
+    TenantBillingDetails,
+    TenantBillingResponse,
+    InvoiceSummary,
+    RevenueByPlan,
+    RevenueStats,
 )
+from app.schemas.feature_request import (
+    FeatureRequestUpdate,
+    FeatureRequestWithUser,
+    FeatureRequestListResponse,
+    FeatureRequestStatsResponse,
+)
+from app.crud.feature_request import feature_request as feature_request_crud
+from app.models.feature_request import FeatureRequestStatus, FeatureRequestCategory
 
 logger = logging.getLogger(__name__)
 
@@ -249,7 +262,7 @@ async def impersonate_tenant(
     - Cannot impersonate in production without MFA
     """
     # In production, require MFA
-    if settings.environment == "production" and not super_admin.mfa_enabled:
+    if settings.env == "production" and not super_admin.mfa_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="MFA must be enabled for impersonation in production",
@@ -560,3 +573,309 @@ async def get_tenant(
         trial_ends_at=tenant.trial_ends_at,
         is_deleted=tenant.is_deleted,
     )
+
+
+# =============================================================================
+# Billing Management Endpoints
+# =============================================================================
+
+@router.get("/tenants/{tenant_id}/billing", response_model=TenantBillingResponse)
+async def get_tenant_billing(
+    tenant_id: int,
+    super_admin: SuperAdmin = Depends(require_mfa),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    Get detailed billing information for a tenant.
+
+    Includes Stripe subscription details and recent invoices.
+    Requires MFA in production.
+    """
+    from app.core.stripe import (
+        get_subscription_details,
+        get_customer_invoices,
+        get_stripe_dashboard_url,
+        is_stripe_configured,
+    )
+    from app.schemas.super_admin import (
+        TenantBillingDetails,
+        InvoiceSummary,
+        TenantBillingResponse,
+    )
+
+    tenant = await tenant_crud.get(db, id=tenant_id)
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant not found",
+        )
+
+    # Get user/study counts
+    users_count = await db.scalar(
+        select(func.count(User.id)).where(User.tenant_id == tenant.id)
+    ) or 0
+    studies_count = await db.scalar(
+        select(func.count(Study.id)).where(Study.tenant_id == tenant.id)
+    ) or 0
+
+    # Get plan info
+    plan_name = None
+    users_limit = 5  # Default starter limits
+    studies_limit = 10
+    if tenant.plan_id:
+        plan_result = await db.execute(
+            select(SubscriptionPlan).where(SubscriptionPlan.id == tenant.plan_id)
+        )
+        plan = plan_result.scalar_one_or_none()
+        if plan:
+            plan_name = plan.display_name
+            users_limit = plan.max_users
+            studies_limit = plan.max_studies
+
+    # Get Stripe details
+    stripe_dashboard_url = None
+    current_period_start = None
+    current_period_end = None
+    cancel_at_period_end = False
+    invoices = []
+
+    if is_stripe_configured() and tenant.stripe_customer_id:
+        stripe_dashboard_url = get_stripe_dashboard_url(tenant.stripe_customer_id)
+
+        if tenant.stripe_subscription_id:
+            sub_details = await get_subscription_details(tenant.stripe_subscription_id)
+            if sub_details:
+                current_period_start = datetime.fromtimestamp(sub_details["current_period_start"])
+                current_period_end = datetime.fromtimestamp(sub_details["current_period_end"])
+                cancel_at_period_end = sub_details.get("cancel_at_period_end", False)
+
+        # Get invoices
+        raw_invoices = await get_customer_invoices(tenant.stripe_customer_id, limit=10)
+        for inv in raw_invoices:
+            paid_at = None
+            if hasattr(inv, 'status_transitions') and inv.status_transitions:
+                if hasattr(inv.status_transitions, 'paid_at') and inv.status_transitions.paid_at:
+                    paid_at = datetime.fromtimestamp(inv.status_transitions.paid_at)
+
+            invoices.append(InvoiceSummary(
+                id=inv.id,
+                number=inv.number,
+                status=inv.status,
+                amount_due=inv.amount_due,
+                amount_paid=inv.amount_paid,
+                currency=inv.currency,
+                created=datetime.fromtimestamp(inv.created),
+                due_date=datetime.fromtimestamp(inv.due_date) if inv.due_date else None,
+                paid_at=paid_at,
+                invoice_pdf=inv.invoice_pdf,
+                hosted_invoice_url=inv.hosted_invoice_url,
+            ))
+
+    return TenantBillingResponse(
+        tenant=TenantBillingDetails(
+            id=tenant.id,
+            name=tenant.name,
+            display_name=tenant.display_name,
+            created_at=tenant.created_at,
+            stripe_customer_id=tenant.stripe_customer_id,
+            stripe_subscription_id=tenant.stripe_subscription_id,
+            stripe_dashboard_url=stripe_dashboard_url,
+            subscription_status=tenant.subscription_status.value,
+            plan_name=plan_name,
+            plan_id=tenant.plan_id,
+            current_period_start=current_period_start,
+            current_period_end=current_period_end,
+            cancel_at_period_end=cancel_at_period_end,
+            trial_ends_at=tenant.trial_ends_at,
+            grace_period_ends_at=tenant.grace_period_ends_at,
+            users_count=users_count,
+            users_limit=users_limit,
+            studies_count=studies_count,
+            studies_limit=studies_limit,
+        ),
+        invoices=invoices,
+    )
+
+
+@router.get("/revenue/breakdown", response_model=RevenueStats)
+async def get_revenue_breakdown(
+    super_admin: SuperAdmin = Depends(require_mfa),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    Get revenue breakdown by plan and conversion metrics.
+
+    Requires MFA in production.
+    """
+    from app.schemas.super_admin import RevenueByPlan, RevenueStats
+
+    # Get MRR by plan for active tenants
+    result = await db.execute(
+        select(
+            SubscriptionPlan.id,
+            SubscriptionPlan.display_name,
+            SubscriptionPlan.price_monthly,
+            func.count(Tenant.id).label("tenant_count")
+        )
+        .join(Tenant, Tenant.plan_id == SubscriptionPlan.id)
+        .where(Tenant.subscription_status == SubscriptionStatus.active)
+        .group_by(SubscriptionPlan.id, SubscriptionPlan.display_name, SubscriptionPlan.price_monthly)
+    )
+
+    by_plan = []
+    total_mrr = 0
+    for row in result:
+        mrr = row.price_monthly * row.tenant_count
+        total_mrr += mrr
+        by_plan.append(RevenueByPlan(
+            plan_name=row.display_name,
+            plan_id=row.id,
+            tenant_count=row.tenant_count,
+            mrr=mrr,
+        ))
+
+    # Trial count
+    trial_count = await db.scalar(
+        select(func.count(Tenant.id)).where(
+            Tenant.subscription_status == SubscriptionStatus.trialing
+        )
+    ) or 0
+
+    # Churned in last 30 days (count canceled tenants updated in last 30 days)
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    churned_count = await db.scalar(
+        select(func.count(Tenant.id)).where(
+            Tenant.subscription_status == SubscriptionStatus.canceled,
+            Tenant.updated_at >= thirty_days_ago
+        )
+    ) or 0
+
+    return RevenueStats(
+        total_mrr=total_mrr,
+        by_plan=by_plan,
+        trial_count=trial_count,
+        trial_conversion_rate=None,  # Would need historical data to calculate
+        churned_last_30_days=churned_count,
+    )
+
+
+# =============================================================================
+# Feature Request Management Endpoints
+# =============================================================================
+
+@router.get("/feature-requests", response_model=FeatureRequestListResponse)
+async def list_feature_requests(
+    skip: int = 0,
+    limit: int = 100,
+    status_filter: Optional[str] = None,
+    category_filter: Optional[str] = None,
+    super_admin: SuperAdmin = Depends(require_mfa),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    List all feature requests across all tenants.
+
+    Supports filtering by status (pending, working, done) and category (bug, feature).
+    Requires MFA in production.
+    """
+    # Parse filters
+    req_status = None
+    if status_filter:
+        try:
+            req_status = FeatureRequestStatus(status_filter)
+        except ValueError:
+            pass
+
+    category = None
+    if category_filter:
+        try:
+            category = FeatureRequestCategory(category_filter)
+        except ValueError:
+            pass
+
+    items = await feature_request_crud.get_all_requests(
+        db,
+        status=req_status,
+        category=category,
+        skip=skip,
+        limit=limit
+    )
+
+    total = await feature_request_crud.get_total_count(
+        db,
+        status=req_status,
+        category=category
+    )
+
+    return FeatureRequestListResponse(
+        items=items,
+        total=total,
+        skip=skip,
+        limit=limit
+    )
+
+
+@router.get("/feature-requests/stats", response_model=FeatureRequestStatsResponse)
+async def get_feature_request_stats(
+    super_admin: SuperAdmin = Depends(require_mfa),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    Get counts of feature requests by status.
+
+    Returns counts for pending, working, and done statuses.
+    Requires MFA in production.
+    """
+    return await feature_request_crud.get_stats(db)
+
+
+@router.get("/feature-requests/{request_id}", response_model=FeatureRequestWithUser)
+async def get_feature_request_detail(
+    request_id: int,
+    super_admin: SuperAdmin = Depends(require_mfa),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    Get detailed information about a specific feature request.
+
+    Includes user and tenant information.
+    Requires MFA in production.
+    """
+    result = await feature_request_crud.get_request_with_user(db, request_id=request_id)
+
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Feature request not found",
+        )
+
+    return result
+
+
+@router.put("/feature-requests/{request_id}", response_model=FeatureRequestWithUser)
+async def update_feature_request(
+    request_id: int,
+    update_data: FeatureRequestUpdate,
+    super_admin: SuperAdmin = Depends(require_mfa),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    Update a feature request status and/or admin response.
+
+    Used for Kanban board drag-and-drop status changes and adding responses.
+    Requires MFA in production.
+    """
+    result = await feature_request_crud.update_request(
+        db,
+        request_id=request_id,
+        obj_in=update_data
+    )
+
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Feature request not found",
+        )
+
+    # Get full details with user info
+    return await feature_request_crud.get_request_with_user(db, request_id=request_id)

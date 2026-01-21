@@ -223,7 +223,7 @@ async def require_mfa(
     
     For production security, super admins must have MFA enabled.
     """
-    if settings.environment == "production" and not super_admin.mfa_enabled:
+    if settings.env == "production" and not super_admin.mfa_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="MFA must be enabled for super admin access in production",

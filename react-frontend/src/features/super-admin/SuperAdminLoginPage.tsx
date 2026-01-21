@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, LogIn, Loader2, Shield } from 'lucide-react';
+import { Eye, EyeOff, LogIn, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,24 +53,24 @@ export function SuperAdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 p-4">
-      <Card className="w-full max-w-md shadow-2xl border-slate-700 bg-slate-800/50 backdrop-blur">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+      <Card className="w-full max-w-md shadow-xl border-slate-200">
         <CardHeader className="space-y-3 text-center">
           <div className="flex justify-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center">
-              <Shield className="h-8 w-8 text-white" />
+            <div className="w-14 h-14 bg-teal-600 rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold text-2xl">P</span>
             </div>
           </div>
           <div>
-            <CardTitle className="text-2xl font-bold text-white">
+            <CardTitle className="text-2xl font-bold text-slate-900">
               Super Admin Portal
             </CardTitle>
-            <p className="text-sm text-amber-500 mt-1">
+            <p className="text-sm text-teal-600 mt-1">
               PEARL Platform Administration
             </p>
           </div>
-          <CardDescription className="text-slate-400">
-            {requiresMfa 
+          <CardDescription>
+            {requiresMfa
               ? 'Enter your MFA code to continue'
               : 'Sign in with your super admin credentials'
             }
@@ -81,7 +81,7 @@ export function SuperAdminLoginPage() {
             {!requiresMfa ? (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-slate-300">Email</Label>
+                  <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
                     type="email"
@@ -91,12 +91,11 @@ export function SuperAdminLoginPage() {
                     required
                     disabled={isLoading}
                     autoComplete="email"
-                    className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500"
                   />
                 </div>
-                
+
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-slate-300">Password</Label>
+                  <Label htmlFor="password">Password</Label>
                   <div className="relative">
                     <Input
                       id="password"
@@ -107,12 +106,12 @@ export function SuperAdminLoginPage() {
                       required
                       disabled={isLoading}
                       autoComplete="current-password"
-                      className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500 pr-10"
+                      className="pr-10"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       tabIndex={-1}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -122,7 +121,7 @@ export function SuperAdminLoginPage() {
               </>
             ) : (
               <div className="space-y-2">
-                <Label htmlFor="mfa" className="text-slate-300">MFA Code</Label>
+                <Label htmlFor="mfa">MFA Code</Label>
                 <Input
                   id="mfa"
                   type="text"
@@ -133,12 +132,12 @@ export function SuperAdminLoginPage() {
                   disabled={isLoading}
                   autoComplete="one-time-code"
                   maxLength={6}
-                  className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500 text-center text-2xl tracking-widest"
+                  className="text-center text-2xl tracking-widest"
                 />
                 <Button
                   type="button"
                   variant="link"
-                  className="text-slate-400 hover:text-white p-0 h-auto"
+                  className="p-0 h-auto"
                   onClick={() => {
                     setRequiresMfa(false);
                     setMfaToken('');
@@ -149,9 +148,9 @@ export function SuperAdminLoginPage() {
               </div>
             )}
 
-            <Button 
-              type="submit" 
-              className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white"
+            <Button
+              type="submit"
+              className="w-full bg-teal-600 hover:bg-teal-700 text-white"
               disabled={isLoading || !email || !password || (requiresMfa && mfaToken.length !== 6)}
             >
               {isLoading ? (
