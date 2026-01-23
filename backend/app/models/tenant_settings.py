@@ -68,6 +68,15 @@ class TenantSettings(Base, TimestampMixin):
         doc="Email for system notifications (defaults to admin email)"
     )
     
+    # Signature & Locking Settings
+    signature_locks_effort: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        doc="When True, signing automatically locks the effort and manual lock/unlock is hidden. "
+            "When False, lock/unlock is manual and independent of signing."
+    )
+    
     # Note: onboarding_completed and sample_data_seeded are on the Tenant model,
     # not here, to avoid duplication and ensure single source of truth.
     
@@ -86,4 +95,5 @@ DEFAULT_TENANT_SETTINGS = {
     "timezone": "UTC",
     "date_format": "YYYY-MM-DD",
     "time_format": "HH:mm",
+    "signature_locks_effort": True,  # By default, signing automatically locks
 }

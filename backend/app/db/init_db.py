@@ -109,8 +109,7 @@ async def create_default_tenant() -> int:
                 subscription_status=SubscriptionStatus.active,
                 plan_id=plan.id if plan else None,
                 is_active=True,
-                onboarding_completed=True,
-                sample_data_seeded=False
+                onboarding_completed=True
             )
             session.add(default_tenant)
             await session.flush()  # Get the ID

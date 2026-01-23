@@ -722,6 +722,111 @@ class ReportingEffortItemTrackerCRUD:
         )
         return result.scalar() or 0
 
+    # =========================================================================
+    # Electronic Signature Methods
+    # =========================================================================
+
+    async def are_all_items_in_production(
+        self,
+        db: AsyncSession,
+        *,
+        reporting_effort_id: int
+    ) -> tuple:
+        """
+        Check if ALL items in a reporting effort have in_production_flag=True.
+
+        Args:
+            db: Database session
+            reporting_effort_id: ID of the reporting effort
+
+        Returns:
+            Tuple of (all_in_production: bool, total_items: int, items_in_production: int)
+        """
+        from app.models.reporting_effort_item import ReportingEffortItem
+
+        # Count total items
+        total_result = await db.execute(
+            select(func.count(ReportingEffortItem.id))
+            .where(ReportingEffortItem.reporting_effort_id == reporting_effort_id)
+        )
+        total_items = total_result.scalar() or 0
+
+        if total_items == 0:
+            return False, 0, 0  # Cannot sign empty effort
+
+        # Count items in production
+        in_prod_result = await db.execute(
+            select(func.count(ReportingEffortItemTracker.id))
+            .select_from(ReportingEffortItemTracker)
+            .join(
+                ReportingEffortItem,
+                ReportingEffortItemTracker.reporting_effort_item_id == ReportingEffortItem.id
+            )
+            .where(
+                ReportingEffortItem.reporting_effort_id == reporting_effort_id,
+                ReportingEffortItemTracker.in_production_flag == True
+            )
+        )
+        in_production = in_prod_result.scalar() or 0
+
+        return (total_items == in_production), total_items, in_production
+
+    async def get_items_snapshot(
+        self,
+        db: AsyncSession,
+        *,
+        reporting_effort_id: int
+    ) -> str:
+        """
+        Get a deterministic JSON snapshot of all items for signature hash.
+
+        The snapshot includes key fields from each item at the time of signing,
+        sorted by item ID for consistent hashing.
+
+        Args:
+            db: Database session
+            reporting_effort_id: ID of the reporting effort
+
+        Returns:
+            JSON string of items snapshot (sorted, deterministic)
+        """
+        import json
+        from app.models.reporting_effort_item import ReportingEffortItem
+
+        result = await db.execute(
+            select(
+                ReportingEffortItem.id,
+                ReportingEffortItem.item_code,
+                ReportingEffortItem.item_type,
+                ReportingEffortItemTracker.production_status,
+                ReportingEffortItemTracker.qc_status,
+                ReportingEffortItemTracker.biostat_status,
+                ReportingEffortItemTracker.in_production_flag,
+            )
+            .select_from(ReportingEffortItemTracker)
+            .join(
+                ReportingEffortItem,
+                ReportingEffortItemTracker.reporting_effort_item_id == ReportingEffortItem.id
+            )
+            .where(ReportingEffortItem.reporting_effort_id == reporting_effort_id)
+            .order_by(ReportingEffortItem.id)
+        )
+
+        items = []
+        for row in result.all():
+            items.append({
+                "id": row.id,
+                "code": row.item_code,
+                "type": row.item_type.value if hasattr(row.item_type, 'value') else str(row.item_type),
+                "prod": row.production_status,
+                "qc": row.qc_status,
+                "biostat": row.biostat_status,
+                "in_prod": row.in_production_flag,
+            })
+
+        # sort_keys=True ensures consistent ordering
+        return json.dumps(items, sort_keys=True)
+
 
 # Create singleton instance
 reporting_effort_item_tracker = ReportingEffortItemTrackerCRUD()

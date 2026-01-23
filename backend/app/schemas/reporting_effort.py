@@ -51,6 +51,12 @@ class ReportingEffort(ReportingEffortInDB):
     locked_by_id: Optional[int] = Field(None, description="User ID who locked/unlocked")
     locked_by_username: Optional[str] = Field(None, description="Username of user who locked/unlocked")
     lock_reason: Optional[str] = Field(None, description="Reason for the lock/unlock")
+    # Signature status fields (permanent, unlike lock)
+    is_signed: bool = Field(False, description="Whether the reporting effort has been signed")
+    signed_at: Optional[datetime] = Field(None, description="When the reporting effort was signed")
+    signed_by_id: Optional[int] = Field(None, description="User ID who signed")
+    signed_by_username: Optional[str] = Field(None, description="Username of signer")
+    signature_reason: Optional[str] = Field(None, description="Reason provided for signing")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -73,3 +79,63 @@ class ReportingEffortLockHistoryEntry(BaseModel):
     created_at: datetime = Field(..., description="When the action was performed")
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ==================== Electronic Signature Schemas ====================
+
+
+class ReportingEffortSignRequest(BaseModel):
+    """Schema for signing a reporting effort."""
+    totp_token: str = Field(
+        ...,
+        min_length=6,
+        max_length=6,
+        pattern=r"^\d{6}$",
+        description="6-digit TOTP code from authenticator app"
+    )
+    reason: str = Field(
+        ...,
+        min_length=10,
+        max_length=1000,
+        description="Required reason/intent for signing (min 10 chars)"
+    )
+
+
+class ReportingEffortSignatureHistoryEntry(BaseModel):
+    """Schema for a single signature history entry."""
+    id: int = Field(..., description="Unique identifier for the history entry")
+    signed_by_id: Optional[int] = Field(None, description="User ID who signed")
+    signed_by_username: str = Field(..., description="Username of signer (preserved)")
+    signature_hash: str = Field(..., description="SHA256 hash for verification")
+    reason: str = Field(..., description="Reason provided for signing")
+    items_count: int = Field(..., description="Number of items at signing time")
+    created_at: datetime = Field(..., description="When the signature was created")
+    ip_address: Optional[str] = Field(None, description="IP address of signer")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SignatureReadinessResponse(BaseModel):
+    """Response for signature readiness check."""
+    can_sign: bool = Field(..., description="Whether signing is possible")
+    is_signed: bool = Field(False, description="Whether already signed")
+    has_totp_setup: bool = Field(False, description="Whether user has TOTP configured")
+    is_responsible: bool = Field(False, description="Whether user is admin or study LEAD")
+    all_items_in_production: bool = Field(False, description="Whether all items are in production")
+    total_items: int = Field(0, description="Total items in effort")
+    items_in_production: int = Field(0, description="Items with in_production_flag=True")
+    is_locked_out: bool = Field(False, description="Whether user is locked out from signing")
+    lockout_remaining_minutes: int = Field(0, description="Minutes until lockout expires")
+    blockers: List[str] = Field(default_factory=list, description="List of reasons preventing signing")
+    signed_by_username: Optional[str] = Field(None, description="Username of signer (if signed)")
+    signed_at: Optional[datetime] = Field(None, description="When signed (if signed)")
+
+
+class SignatureVerificationResponse(BaseModel):
+    """Response from signature verification."""
+    is_valid: bool = Field(..., description="Whether signature hash is valid")
+    signed_at: Optional[datetime] = Field(None, description="When signed")
+    signed_by_username: Optional[str] = Field(None, description="Username of signer")
+    items_match: bool = Field(False, description="Whether current items match signed snapshot")
+    items_at_signing: int = Field(0, description="Number of items when signed")
+    items_current: int = Field(0, description="Current number of items")

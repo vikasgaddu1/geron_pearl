@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from app.models.reporting_effort_phase import ReportingEffortPhase
     from app.models.reporting_effort_usecase import ReportingEffortUseCaseAssignment
     from app.models.user import User
+    from app.models.reporting_effort_signature_history import ReportingEffortSignatureHistory
 
 
 class ReportingEffort(Base, TimestampMixin):
@@ -39,6 +40,21 @@ class ReportingEffort(Base, TimestampMixin):
     locked_by_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     lock_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # Electronic signature fields (permanent, unlike lock which can be reversed)
+    is_signed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    signed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, doc="UTC timestamp when signed"
+    )
+    signed_by_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    signature_hash: Mapped[Optional[str]] = mapped_column(
+        String(512), nullable=True, doc="SHA256:hexdigest for verification"
+    )
+    signature_reason: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True, doc="Required reason/intent for signing"
+    )
+
     # Relationships
     study: Mapped["Study"] = relationship("Study", back_populates="reporting_efforts")
     database_release: Mapped["DatabaseRelease"] = relationship("DatabaseRelease", back_populates="reporting_efforts")
@@ -59,6 +75,13 @@ class ReportingEffort(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
     locked_by: Mapped[Optional["User"]] = relationship("User", foreign_keys=[locked_by_id])
+    signed_by: Mapped[Optional["User"]] = relationship("User", foreign_keys=[signed_by_id])
+    signature_history: Mapped[List["ReportingEffortSignatureHistory"]] = relationship(
+        "ReportingEffortSignatureHistory",
+        back_populates="reporting_effort",
+        cascade="all, delete-orphan",
+        order_by="desc(ReportingEffortSignatureHistory.created_at)"
+    )
 
     # Unique constraint to prevent duplicate reporting efforts for same database release with same label
     __table_args__ = (

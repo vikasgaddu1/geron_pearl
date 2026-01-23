@@ -1,4 +1,5 @@
-from typing import List, Optional, Dict, Any
+from datetime import datetime, timezone
+from typing import List, Optional, Dict, Any, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, func, or_
 from sqlalchemy.exc import IntegrityError
@@ -217,6 +218,222 @@ class UserCRUD:
             .order_by(User.username)
         )
         return list(result.scalars().all())
+
+    # =========================================================================
+    # Electronic Signature TOTP Methods
+    # =========================================================================
+
+    async def setup_signature_totp(
+        self, db: AsyncSession, *, user_id: int
+    ) -> Dict[str, Any]:
+        """
+        Generate TOTP secret and backup codes for electronic signatures.
+
+        Returns:
+            Dict with 'secret' (plaintext) and 'backup_codes' (list) - display once to user
+        """
+        from app.core.signature_security import (
+            generate_signature_secret,
+            generate_backup_codes,
+            encrypt_secret,
+        )
+
+        user = await self.get(db, id=user_id)
+        if not user:
+            raise ValueError(f"User with id {user_id} not found")
+
+        # Generate new secret and backup codes
+        secret = generate_signature_secret()
+        backup_codes = generate_backup_codes(10)
+
+        # Store encrypted
+        user.signature_secret_encrypted = encrypt_secret(secret)
+        user.signature_backup_codes_encrypted = encrypt_secret(",".join(backup_codes))
+        user.signature_setup_completed = False
+        user.signature_failed_attempts = 0
+        user.signature_locked_until = None
+
+        await db.commit()
+        await db.refresh(user)
+
+        # Return plaintext for one-time display to user
+        return {"secret": secret, "backup_codes": backup_codes}
+
+    async def complete_signature_setup(
+        self, db: AsyncSession, *, user_id: int, totp_code: str
+    ) -> bool:
+        """
+        Verify TOTP token and mark signature setup as complete.
+
+        Returns:
+            True if verification succeeded, False otherwise
+        """
+        from app.core.signature_security import decrypt_secret, verify_totp
+
+        user = await self.get(db, id=user_id)
+        if not user or not user.signature_secret_encrypted:
+            return False
+
+        try:
+            secret = decrypt_secret(user.signature_secret_encrypted)
+            if verify_totp(secret, totp_code):
+                user.signature_setup_completed = True
+                user.signature_failed_attempts = 0
+                user.signature_locked_until = None
+                await db.commit()
+                return True
+        except Exception as e:
+            print(f"TOTP verification error: {e}")  # Debug logging
+
+        return False
+
+    async def verify_signature_token(
+        self, db: AsyncSession, *, user_id: int, token: str
+    ) -> Tuple[bool, str]:
+        """
+        Verify TOTP token for signing with rate limiting.
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        from app.core.signature_security import (
+            decrypt_secret,
+            verify_totp,
+            is_user_locked_out,
+            get_lockout_expiry,
+            get_lockout_remaining_minutes,
+            MAX_FAILED_ATTEMPTS,
+        )
+
+        user = await self.get(db, id=user_id)
+        if not user:
+            return False, "User not found"
+
+        if not user.signature_secret_encrypted or not user.signature_setup_completed:
+            return False, "Signature authentication not configured"
+
+        # Check lockout
+        if is_user_locked_out(user.signature_locked_until):
+            remaining = get_lockout_remaining_minutes(user.signature_locked_until)
+            return False, f"Account locked. Try again in {remaining} minute(s)."
+
+        try:
+            secret = decrypt_secret(user.signature_secret_encrypted)
+            if verify_totp(secret, token):
+                # Reset failed attempts on success
+                user.signature_failed_attempts = 0
+                user.signature_locked_until = None
+                await db.commit()
+                return True, ""
+        except Exception:
+            pass
+
+        # Handle failed attempt
+        user.signature_failed_attempts += 1
+        if user.signature_failed_attempts >= MAX_FAILED_ATTEMPTS:
+            user.signature_locked_until = get_lockout_expiry()
+            await db.commit()
+            return False, f"Too many failed attempts. Account locked for 15 minutes."
+
+        await db.commit()
+        remaining = MAX_FAILED_ATTEMPTS - user.signature_failed_attempts
+        return False, f"Invalid code. {remaining} attempt(s) remaining."
+
+    async def use_backup_code(
+        self, db: AsyncSession, *, user_id: int, code: str
+    ) -> Tuple[bool, str]:
+        """
+        Use a one-time backup code (removes it after use).
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        from app.core.signature_security import (
+            decrypt_secret,
+            encrypt_secret,
+            verify_backup_code,
+            is_user_locked_out,
+        )
+
+        user = await self.get(db, id=user_id)
+        if not user:
+            return False, "User not found"
+
+        if not user.signature_backup_codes_encrypted:
+            return False, "No backup codes available"
+
+        # Backup codes bypass lockout
+        try:
+            stored_codes = decrypt_secret(user.signature_backup_codes_encrypted)
+            is_valid, remaining_codes = verify_backup_code(stored_codes, code)
+
+            if is_valid:
+                # Update remaining codes
+                if remaining_codes:
+                    user.signature_backup_codes_encrypted = encrypt_secret(remaining_codes)
+                else:
+                    user.signature_backup_codes_encrypted = None
+                # Reset lockout
+                user.signature_failed_attempts = 0
+                user.signature_locked_until = None
+                await db.commit()
+                return True, ""
+        except Exception:
+            pass
+
+        return False, "Invalid backup code"
+
+    async def reset_signature_totp(
+        self, db: AsyncSession, *, user_id: int
+    ) -> bool:
+        """
+        Reset/revoke signature TOTP (clears all signature auth data).
+
+        Returns:
+            True if reset succeeded
+        """
+        user = await self.get(db, id=user_id)
+        if not user:
+            return False
+
+        user.signature_secret_encrypted = None
+        user.signature_backup_codes_encrypted = None
+        user.signature_setup_completed = False
+        user.signature_failed_attempts = 0
+        user.signature_locked_until = None
+
+        await db.commit()
+        return True
+
+    async def get_signature_status(
+        self, db: AsyncSession, *, user_id: int
+    ) -> Dict[str, Any]:
+        """
+        Get signature setup status for a user.
+
+        Returns:
+            Dictionary with setup status info matching SignatureStatusResponse schema
+        """
+        from app.core.signature_security import (
+            is_user_locked_out,
+            get_lockout_remaining_minutes,
+        )
+
+        user = await self.get(db, id=user_id)
+        if not user:
+            return {
+                "is_setup_completed": False,
+                "is_locked_out": False,
+                "lockout_remaining_minutes": 0,
+                "failed_attempts": 0,
+            }
+
+        return {
+            "is_setup_completed": user.signature_setup_completed or False,
+            "is_locked_out": is_user_locked_out(user.signature_locked_until),
+            "lockout_remaining_minutes": get_lockout_remaining_minutes(user.signature_locked_until),
+            "failed_attempts": user.signature_failed_attempts or 0,
+        }
 
 
 user = UserCRUD()

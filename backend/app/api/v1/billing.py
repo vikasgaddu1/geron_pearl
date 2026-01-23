@@ -18,6 +18,7 @@ from app.core.stripe import (
     map_stripe_status,
     is_stripe_configured,
     get_subscription,
+    get_subscription_period_end,
     cancel_subscription,
     resume_subscription,
 )
@@ -284,16 +285,7 @@ async def stripe_webhook(
             logger.info(f"Sent welcome email to {email} for tenant {tenant.name}")
         except Exception as e:
             logger.error(f"Failed to send welcome email: {e}")
-        
-        # Seed sample data for the new tenant
-        try:
-            from app.services.sample_data import seed_sample_data
-            await seed_sample_data(db, tenant.id)
-            logger.info(f"Sample data seeded for tenant {tenant.id}")
-        except Exception as e:
-            # Don't fail the webhook if sample data seeding fails
-            logger.error(f"Failed to seed sample data for tenant {tenant.id}: {e}")
-        
+
         return {"status": "success", "tenant_id": tenant.id}
     
     # =========================================================================
@@ -497,9 +489,11 @@ async def get_billing_overview(
     if tenant.stripe_subscription_id:
         stripe_sub = await get_subscription(tenant.stripe_subscription_id)
         if stripe_sub:
-            cancel_at_period_end = stripe_sub.cancel_at_period_end
-            if stripe_sub.current_period_end:
-                current_period_end = datetime.fromtimestamp(stripe_sub.current_period_end)
+            # Use safe attribute access (Stripe SDK structure varies by version)
+            cancel_at_period_end = stripe_sub.get('cancel_at_period_end', False)
+            period_end = get_subscription_period_end(stripe_sub)
+            if period_end:
+                current_period_end = datetime.fromtimestamp(period_end)
 
     subscription_info = SubscriptionInfo(
         status=tenant.subscription_status,
@@ -565,7 +559,7 @@ async def create_portal_session(
     
     session = await create_billing_portal_session(
         customer_id=tenant.stripe_customer_id,
-        return_url=f"{settings.frontend_url}/app/settings",
+        return_url=f"{settings.frontend_url}/app/billing",
     )
     
     return BillingPortalResponse(url=session.url)
@@ -616,13 +610,12 @@ async def toggle_auto_renew(
             detail="Failed to update subscription. Please try again or contact support.",
         )
 
-    # Get current period end from result
-    current_period_end = None
-    if result.current_period_end:
-        current_period_end = datetime.fromtimestamp(result.current_period_end)
+    # Get current period end from result (using helper for Stripe API compatibility)
+    period_end = get_subscription_period_end(result)
+    current_period_end = datetime.fromtimestamp(period_end) if period_end else None
 
     return AutoRenewResponse(
-        cancel_at_period_end=result.cancel_at_period_end,
+        cancel_at_period_end=result.get('cancel_at_period_end', False),
         current_period_end=current_period_end,
         message=message,
     )

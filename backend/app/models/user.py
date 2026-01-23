@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from sqlalchemy import Column, Integer, String, Enum as SQLEnum, Boolean, DateTime, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.orm import relationship, Mapped, mapped_column
@@ -67,6 +68,24 @@ class User(Base, TimestampMixin):
     # Password reset fields
     reset_token = Column(String, nullable=True)  # Hashed reset token
     reset_token_expires = Column(DateTime, nullable=True)
+
+    # Electronic signature TOTP fields
+    # Secrets are Fernet-encrypted, not stored in plaintext
+    signature_secret_encrypted: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True, doc="Fernet-encrypted TOTP secret for e-signatures"
+    )
+    signature_backup_codes_encrypted: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True, doc="Fernet-encrypted backup codes (comma-separated)"
+    )
+    signature_setup_completed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, doc="Whether TOTP setup is verified"
+    )
+    signature_failed_attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, doc="Failed TOTP attempts for rate limiting"
+    )
+    signature_locked_until: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True, doc="Lockout expiry after failed attempts"
+    )
     
     # Comment relationships
     comments = relationship(

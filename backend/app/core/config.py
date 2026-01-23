@@ -113,6 +113,15 @@ class Settings(BaseSettings):
     
     # Rate Limiting
     rate_limit_per_minute: int = Field(default=100, description="Rate limit per tenant per minute")
+
+    # Electronic Signature
+    # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    signature_encryption_key: str = Field(
+        default="dev-signature-key-change-in-production-32b",
+        description="Fernet encryption key for TOTP secrets (32 url-safe base64-encoded bytes)"
+    )
+    signature_max_failed_attempts: int = Field(default=5, description="Max failed TOTP attempts before lockout")
+    signature_lockout_minutes: int = Field(default=15, description="Lockout duration after failed attempts")
     
     # Application version
     app_version: str = Field(default="1.0.0", description="Application version")

@@ -1,6 +1,6 @@
 """CRUD operations for ReportingEffort model."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from sqlalchemy import select, func
@@ -10,6 +10,7 @@ from sqlalchemy.orm import joinedload
 from app.models.reporting_effort import ReportingEffort
 from app.models.reporting_effort_item import ReportingEffortItem
 from app.models.reporting_effort_lock_history import ReportingEffortLockHistory
+from app.models.reporting_effort_signature_history import ReportingEffortSignatureHistory
 from app.models.enums import LockAction
 from app.schemas.reporting_effort import ReportingEffortCreate, ReportingEffortUpdate
 
@@ -36,7 +37,8 @@ class ReportingEffortCRUD:
             .options(
                 joinedload(ReportingEffort.study),
                 joinedload(ReportingEffort.database_release),
-                joinedload(ReportingEffort.locked_by)
+                joinedload(ReportingEffort.locked_by),
+                joinedload(ReportingEffort.signed_by)
             )
             .where(ReportingEffort.id == id)
         )
@@ -278,6 +280,113 @@ class ReportingEffortCRUD:
         if row is None:
             return False, None
         return row[0], row[1] if row[0] else None
+
+    # =========================================================================
+    # Electronic Signature Methods
+    # =========================================================================
+
+    async def sign(
+        self,
+        db: AsyncSession,
+        *,
+        id: int,
+        user_id: int,
+        username: str,
+        reason: str,
+        items_snapshot: str,
+        items_count: int,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        auto_lock: bool = True
+    ) -> ReportingEffort:
+        """
+        Electronically sign a reporting effort.
+
+        This action is PERMANENT and cannot be reversed.
+
+        Args:
+            id: Reporting effort ID
+            user_id: ID of the signing user
+            username: Username of the signing user (preserved in history)
+            reason: Required reason/intent for signing
+            items_snapshot: JSON snapshot of all items for hash generation
+            items_count: Number of items at signing time
+            ip_address: Optional IP address for audit
+            user_agent: Optional user agent for audit
+            auto_lock: Whether to automatically lock the effort (based on tenant setting)
+
+        Returns:
+            The signed ReportingEffort
+
+        Raises:
+            ValueError: If effort not found or already signed
+        """
+        from app.core.signature_security import generate_signature_hash
+
+        db_obj = await self.get(db, id=id)
+        if not db_obj:
+            raise ValueError(f"Reporting effort with id {id} not found")
+
+        if db_obj.is_signed:
+            raise ValueError("Reporting effort is already signed")
+
+        # Generate timestamp and hash
+        signed_at = datetime.now(timezone.utc)
+        signature_hash = generate_signature_hash(id, user_id, signed_at, items_snapshot)
+
+        # Update the reporting effort
+        db_obj.is_signed = True
+        db_obj.signed_at = signed_at
+        db_obj.signed_by_id = user_id
+        db_obj.signature_hash = signature_hash
+        db_obj.signature_reason = reason
+
+        # Auto-lock the reporting effort if tenant setting requires it
+        if auto_lock and not db_obj.is_locked:
+            db_obj.is_locked = True
+            db_obj.locked_at = signed_at
+            db_obj.locked_by_id = user_id
+            db_obj.lock_reason = f"Signed electronically: {reason}"
+
+        # Create signature history entry
+        history_entry = ReportingEffortSignatureHistory(
+            reporting_effort_id=id,
+            signed_by_id=user_id,
+            signed_by_username=username,
+            signature_hash=signature_hash,
+            reason=reason,
+            items_snapshot=items_snapshot,
+            items_count=items_count,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        db.add(history_entry)
+
+        db.add(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
+        return db_obj
+
+    async def get_signature_history(
+        self, db: AsyncSession, *, id: int
+    ) -> List[ReportingEffortSignatureHistory]:
+        """Get the signature history for a reporting effort."""
+        result = await db.execute(
+            select(ReportingEffortSignatureHistory)
+            .options(joinedload(ReportingEffortSignatureHistory.signed_by))
+            .where(ReportingEffortSignatureHistory.reporting_effort_id == id)
+            .order_by(ReportingEffortSignatureHistory.created_at.desc())
+        )
+        return list(result.unique().scalars().all())
+
+    async def is_signed(self, db: AsyncSession, *, id: int) -> bool:
+        """Quick check if a reporting effort is signed."""
+        result = await db.execute(
+            select(ReportingEffort.is_signed)
+            .where(ReportingEffort.id == id)
+        )
+        is_signed = result.scalar_one_or_none()
+        return is_signed if is_signed is not None else False
 
 
 # Create a global instance

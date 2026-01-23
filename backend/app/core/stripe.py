@@ -107,8 +107,30 @@ async def get_subscription(subscription_id: str) -> Optional[stripe.Subscription
             return stripe.Subscription.retrieve(subscription_id)
         except stripe.error.StripeError:
             return None
-    
+
     return await asyncio.to_thread(_get)
+
+
+def get_subscription_period_end(subscription: stripe.Subscription) -> Optional[int]:
+    """
+    Extract current_period_end from a Stripe subscription.
+
+    In newer Stripe API versions, period info is nested under items.data[0].
+    This helper handles both old and new formats.
+    """
+    # Try direct attribute first (older API versions)
+    period_end = subscription.get('current_period_end')
+    if period_end:
+        return period_end
+
+    # Try items.data[0] (newer API versions with flexible billing)
+    items = subscription.get('items')
+    if items and items.get('data'):
+        first_item = items['data'][0] if items['data'] else None
+        if first_item:
+            return first_item.get('current_period_end')
+
+    return None
 
 
 async def get_customer(customer_id: str) -> Optional[stripe.Customer]:

@@ -40,6 +40,7 @@ from app.models.item_completion_record import ItemCompletionRecord
 from app.models.study_sister_relation import StudySisterRelation, CODE_ADAPTATION_FACTOR
 from app.models.notification import Notification, NotificationType
 from app.models.reporting_effort_lock_history import ReportingEffortLockHistory
+from app.models.reporting_effort_signature_history import ReportingEffortSignatureHistory
 from app.models.enums import LockAction
 from app.models.study_responsible_user import StudyResponsibleUser
 from app.models.study_default_biostat import StudyDefaultBiostat
@@ -107,6 +108,7 @@ __all__ = [
     "Notification",
     "NotificationType",
     "ReportingEffortLockHistory",
+    "ReportingEffortSignatureHistory",
     "LockAction",
     "StudyResponsibleUser",
     "StudyDefaultBiostat",

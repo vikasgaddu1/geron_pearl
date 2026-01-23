@@ -102,6 +102,7 @@ class TenantSettingsBase(BaseModel):
     timezone: str = "UTC"
     date_format: str = "YYYY-MM-DD"
     time_format: str = "HH:mm"
+    signature_locks_effort: bool = True  # Default: signing auto-locks
 
 
 class TenantSettingsUpdate(BaseModel):
@@ -113,7 +114,7 @@ class TenantSettingsUpdate(BaseModel):
     primary_color: Optional[str] = None
     notification_email: Optional[str] = None
     onboarding_completed: Optional[bool] = None
-    sample_data_active: Optional[bool] = None
+    signature_locks_effort: Optional[bool] = None
 
 
 class TenantSettingsResponse(TenantSettingsBase):
@@ -123,8 +124,7 @@ class TenantSettingsResponse(TenantSettingsBase):
     primary_color: Optional[str] = None
     notification_email: Optional[str] = None
     onboarding_completed: bool
-    sample_data_active: bool
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)

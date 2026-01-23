@@ -7,8 +7,9 @@ from app import crud, schemas
 from app.crud import audit_log
 from app.db.session import get_db
 from app.api.v1.websocket import broadcast_user_created, broadcast_user_updated, broadcast_user_deleted
-from app.core.security import require_admin
+from app.core.security import require_admin, get_current_user
 from app.core.subscription import require_active_subscription, check_user_limit
+from app.core.signature_security import get_signature_uri
 from app.models.user import User as UserModel
 
 router = APIRouter()
@@ -216,3 +217,154 @@ async def delete_user(
 
     await broadcast_user_deleted(user)
     return user
+
+
+# ==================== Electronic Signature TOTP Endpoints ====================
+
+
+@router.post("/me/signature/setup", response_model=schemas.SignatureSetupResponse)
+async def setup_signature_totp(
+    *,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+) -> Any:
+    """
+    Start TOTP setup for electronic signatures.
+
+    Returns a provisioning URI (for QR code) and 10 backup codes.
+    The setup is NOT complete until verify-setup is called with a valid TOTP code.
+
+    If already set up, this will generate a NEW secret (requiring re-verification).
+    """
+    result = await crud.user.setup_signature_totp(db, user_id=current_user.id)
+
+    # Generate provisioning URI for QR code
+    provisioning_uri = get_signature_uri(
+        email=current_user.email or current_user.username,
+        secret=result["secret"]
+    )
+
+    return schemas.SignatureSetupResponse(
+        provisioning_uri=provisioning_uri,
+        backup_codes=result["backup_codes"],
+        message="Scan the QR code with your authenticator app, then verify with a 6-digit code"
+    )
+
+
+@router.post("/me/signature/verify-setup", response_model=schemas.SignatureVerifySetupResponse)
+async def verify_signature_setup(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request_body: schemas.SignatureVerifySetupRequest,
+    current_user: UserModel = Depends(get_current_user),
+) -> Any:
+    """
+    Complete TOTP setup by verifying a code from the authenticator app.
+
+    This must be called after setup to confirm the user has correctly
+    configured their authenticator app.
+    """
+    success = await crud.user.complete_signature_setup(
+        db,
+        user_id=current_user.id,
+        totp_code=request_body.totp_code
+    )
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid TOTP code. Please check your authenticator app and try again."
+        )
+
+    return schemas.SignatureVerifySetupResponse(
+        success=True,
+        message="Signature authentication setup complete"
+    )
+
+
+@router.get("/me/signature/status", response_model=schemas.SignatureStatusResponse)
+async def get_signature_status(
+    *,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+) -> Any:
+    """
+    Get the current status of signature TOTP setup.
+
+    Returns whether setup is complete, lockout status, and failed attempt count.
+    """
+    status_info = await crud.user.get_signature_status(db, user_id=current_user.id)
+
+    return schemas.SignatureStatusResponse(
+        is_setup_completed=status_info["is_setup_completed"],
+        is_locked_out=status_info["is_locked_out"],
+        lockout_remaining_minutes=status_info["lockout_remaining_minutes"],
+        failed_attempts=status_info["failed_attempts"]
+    )
+
+
+@router.post("/me/signature/reset", response_model=schemas.SignatureSetupResponse)
+async def reset_signature_totp(
+    *,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+) -> Any:
+    """
+    Reset/revoke TOTP and generate a new secret.
+
+    This invalidates the old authenticator setup and requires the user
+    to set up their authenticator app again.
+
+    Returns new provisioning URI and backup codes.
+    """
+    # Reset first (clears lockout and failed attempts too)
+    await crud.user.reset_signature_totp(db, user_id=current_user.id)
+
+    # Then set up fresh
+    result = await crud.user.setup_signature_totp(db, user_id=current_user.id)
+
+    # Generate provisioning URI for QR code
+    provisioning_uri = get_signature_uri(
+        email=current_user.email or current_user.username,
+        secret=result["secret"]
+    )
+
+    return schemas.SignatureSetupResponse(
+        provisioning_uri=provisioning_uri,
+        backup_codes=result["backup_codes"],
+        message="Previous authenticator revoked. Scan the new QR code with your authenticator app."
+    )
+
+
+@router.post("/me/signature/use-backup-code", response_model=schemas.SignatureUseBackupCodeResponse)
+async def use_signature_backup_code(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request_body: schemas.SignatureUseBackupCodeRequest,
+    current_user: UserModel = Depends(get_current_user),
+) -> Any:
+    """
+    Use a one-time backup code for signing.
+
+    Backup codes are used when the user doesn't have access to their
+    authenticator app. Each code can only be used once.
+
+    Returns success status and number of remaining codes.
+    """
+    result = await crud.user.use_backup_code(
+        db,
+        user_id=current_user.id,
+        backup_code=request_body.backup_code
+    )
+
+    if not result["success"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or already used backup code"
+        )
+
+    return schemas.SignatureUseBackupCodeResponse(
+        success=True,
+        remaining_codes=result["remaining_codes"],
+        message=f"Backup code accepted. {result['remaining_codes']} codes remaining."
+    )

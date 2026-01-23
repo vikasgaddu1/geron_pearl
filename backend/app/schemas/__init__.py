@@ -17,7 +17,9 @@ from app.schemas.study import Study, StudyCreate, StudyInDB, StudyUpdate
 from app.schemas.database_release import DatabaseRelease, DatabaseReleaseCreate, DatabaseReleaseInDB, DatabaseReleaseUpdate
 from app.schemas.reporting_effort import (
     ReportingEffort, ReportingEffortCreate, ReportingEffortInDB, ReportingEffortUpdate,
-    ReportingEffortLockRequest, ReportingEffortLockHistoryEntry
+    ReportingEffortLockRequest, ReportingEffortLockHistoryEntry,
+    ReportingEffortSignRequest, ReportingEffortSignatureHistoryEntry,
+    SignatureReadinessResponse, SignatureVerificationResponse
 )
 from app.schemas.text_element import TextElement, TextElementCreate, TextElementInDB, TextElementUpdate
 from app.schemas.package import Package, PackageCreate, PackageInDB, PackageUpdate, PackageWithItems
@@ -28,7 +30,11 @@ from app.schemas.package_item import (
     PackageDatasetDetailsCreate, PackageDatasetDetailsInDB,
     PackageItemFootnoteCreate, PackageItemAcronymCreate
 )
-from app.schemas.user import User, UserCreate, UserInDB, UserUpdate
+from app.schemas.user import (
+    User, UserCreate, UserInDB, UserUpdate,
+    SignatureSetupResponse, SignatureVerifySetupRequest, SignatureVerifySetupResponse,
+    SignatureStatusResponse, SignatureUseBackupCodeRequest, SignatureUseBackupCodeResponse
+)
 from app.schemas.reporting_effort_item import (
     ReportingEffortItem, ReportingEffortItemCreate, ReportingEffortItemInDB, 
     ReportingEffortItemUpdate, ReportingEffortItemWithDetails
@@ -103,6 +109,8 @@ __all__ = [
     # ReportingEffort schemas
     "ReportingEffort", "ReportingEffortCreate", "ReportingEffortInDB", "ReportingEffortUpdate",
     "ReportingEffortLockRequest", "ReportingEffortLockHistoryEntry",
+    "ReportingEffortSignRequest", "ReportingEffortSignatureHistoryEntry",
+    "SignatureReadinessResponse", "SignatureVerificationResponse",
     # TextElement schemas
     "TextElement", "TextElementCreate", "TextElementInDB", "TextElementUpdate",
     # Package schemas
@@ -115,6 +123,8 @@ __all__ = [
     "PackageItemFootnoteCreate", "PackageItemAcronymCreate",
     # User schemas
     "User", "UserCreate", "UserInDB", "UserUpdate",
+    "SignatureSetupResponse", "SignatureVerifySetupRequest", "SignatureVerifySetupResponse",
+    "SignatureStatusResponse", "SignatureUseBackupCodeRequest", "SignatureUseBackupCodeResponse",
     # ReportingEffortItem schemas
     "ReportingEffortItem", "ReportingEffortItemCreate", "ReportingEffortItemInDB",
     "ReportingEffortItemUpdate", "ReportingEffortItemWithDetails",
