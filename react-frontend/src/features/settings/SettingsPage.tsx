@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Settings, Save, RefreshCw, User, Clock, Plus, Edit, Trash2, BookOpen, Tag } from 'lucide-react'
+import { Settings, Save, RefreshCw, User, Clock, Plus, Edit, Trash2, BookOpen, Tag, Shield, Check, AlertTriangle, Lock, FileSignature } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   useAppSettings,
@@ -9,8 +9,11 @@ import {
   useCreateIGVersion,
   useUpdateIGVersion,
   useDeleteIGVersion,
-  useCasesApi
+  useCasesApi,
+  usersApi,
+  tenantDataApi
 } from '@/api'
+import { SignatureSetupDialog } from './SignatureSetupDialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -45,8 +48,8 @@ import { HelpIcon } from '@/components/common/HelpIcon'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { Textarea } from '@/components/ui/textarea'
 import { getErrorMessage, formatDateTime } from '@/lib/utils'
+import { useAuthStore } from '@/stores/authStore'
 import type { IGVersion, UseCase } from '@/types'
-import { SampleDataSettings } from './SampleDataSettings'
 
 type StandardType = 'SDTM' | 'ADaM'
 
@@ -138,6 +141,32 @@ export function SettingsPage() {
   const [useCaseDeleteDialogOpen, setUseCaseDeleteDialogOpen] = useState(false)
   const [editingUseCase, setEditingUseCase] = useState<UseCase | null>(null)
   const [useCaseFormData, setUseCaseFormData] = useState<UseCaseFormData>(defaultUseCaseFormData)
+
+  // Signature setup dialog state
+  const [signatureSetupOpen, setSignatureSetupOpen] = useState(false)
+
+  // Signature status query
+  const { data: signatureStatus, refetch: refetchSignatureStatus } = useQuery({
+    queryKey: ['signature-status'],
+    queryFn: usersApi.getSignatureStatus,
+  })
+
+  // Signature lock setting query (admin only)
+  const { currentUser } = useAuthStore()
+  const isAdmin = currentUser?.is_admin === true
+
+  const { data: signatureLockSetting, refetch: refetchSignatureLockSetting } = useQuery({
+    queryKey: ['tenant-signature-lock-setting'],
+    queryFn: tenantDataApi.getSignatureLockSetting,
+    enabled: isAdmin,
+  })
+
+  const updateSignatureLockSetting = useMutation({
+    mutationFn: (value: boolean) => tenantDataApi.updateSignatureLockSetting(value),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tenant-signature-lock-setting'] })
+    },
+  })
 
   // Sync local state with fetched settings
   useEffect(() => {
@@ -552,6 +581,148 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Signature Authentication Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary" />
+            Signature Authentication
+          </CardTitle>
+          <CardDescription>
+            Set up two-factor authentication for electronic signatures on reporting efforts
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+            <div className="flex items-center gap-3">
+              {signatureStatus?.is_setup_completed ? (
+                <>
+                  <div className="h-10 w-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                    <Check className="h-5 w-5 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-green-600 dark:text-green-400">
+                      Authentication Set Up
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      You can sign reporting efforts using your authenticator app
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="h-10 w-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                    <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-amber-600 dark:text-amber-400">
+                      Not Set Up
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Set up authentication to sign reporting efforts
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+            <Button
+              variant={signatureStatus?.is_setup_completed ? 'outline' : 'default'}
+              onClick={() => setSignatureSetupOpen(true)}
+            >
+              {signatureStatus?.is_setup_completed ? 'Manage' : 'Set Up'}
+            </Button>
+          </div>
+
+          <div className="text-sm text-muted-foreground space-y-2">
+            <p><strong>What is this?</strong></p>
+            <p>
+              Electronic signatures provide a regulatory-grade sign-off for reporting efforts.
+              Once all items in a reporting effort are marked "In Production", authorized users
+              (Admin or Study LEAD) can sign the effort to permanently lock it.
+            </p>
+            <p>
+              Signing requires a 6-digit code from an authenticator app (like Google Authenticator
+              or Authy) that changes every 30 seconds.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Lock Behavior Settings Card - Admin only */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-primary" />
+              Lock Behavior Settings
+            </CardTitle>
+            <CardDescription>
+              Configure how reporting effort locking works for your organization
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+                  signatureLockSetting?.signature_locks_effort
+                    ? 'bg-blue-500/20'
+                    : 'bg-amber-500/20'
+                }`}>
+                  {signatureLockSetting?.signature_locks_effort ? (
+                    <FileSignature className="h-5 w-5 text-blue-500" />
+                  ) : (
+                    <Lock className="h-5 w-5 text-amber-500" />
+                  )}
+                </div>
+                <div>
+                  <p className="font-medium">
+                    {signatureLockSetting?.signature_locks_effort
+                      ? 'Signing Locks Automatically'
+                      : 'Manual Lock/Unlock Enabled'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {signatureLockSetting?.signature_locks_effort
+                      ? 'Signing a reporting effort automatically locks it. No separate lock/unlock controls.'
+                      : 'Lock/unlock is manual and independent of signing. No phone/authenticator required for locking.'}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={signatureLockSetting?.signature_locks_effort ?? true}
+                onCheckedChange={async (checked) => {
+                  try {
+                    await updateSignatureLockSetting.mutateAsync(checked)
+                    toast.success(checked
+                      ? 'Signing will now automatically lock reporting efforts'
+                      : 'Manual lock/unlock is now enabled'
+                    )
+                  } catch (error) {
+                    toast.error(`Failed to update setting: ${getErrorMessage(error)}`)
+                  }
+                }}
+                disabled={updateSignatureLockSetting.isPending}
+              />
+            </div>
+
+            <div className="text-sm text-muted-foreground space-y-2 border-t pt-4">
+              <p><strong>Options explained:</strong></p>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li>
+                  <strong>On (Default):</strong> Signing automatically locks the reporting effort.
+                  Manual lock/unlock buttons are hidden. This is the recommended setting for
+                  regulatory compliance workflows.
+                </li>
+                <li>
+                  <strong>Off:</strong> Lock/unlock is a separate action from signing.
+                  Manual lock/unlock buttons are shown. Use this if you need flexibility
+                  during QC review cycles or don't want phone dependency for locking.
+                </li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Use Cases Card */}
       <Card>
         <CardHeader>
@@ -632,8 +803,6 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Sample Data Management */}
-      <SampleDataSettings />
 
       {/* Add/Edit IG Version Dialog */}
       <Dialog open={igDialogOpen} onOpenChange={setIgDialogOpen}>
@@ -818,6 +987,17 @@ export function SettingsPage() {
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={confirmDeleteUseCase}
+      />
+
+      {/* Signature Setup Dialog */}
+      <SignatureSetupDialog
+        open={signatureSetupOpen}
+        onOpenChange={(open) => {
+          setSignatureSetupOpen(open)
+          if (!open) {
+            refetchSignatureStatus()
+          }
+        }}
       />
     </div>
   )

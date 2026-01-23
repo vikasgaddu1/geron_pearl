@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { GitBranch, Plus, Edit, Trash2, RefreshCw, ChevronRight, ChevronDown, Folder, FolderOpen, FileText, Users, Upload, Tag, X, Lock, Unlock, History } from 'lucide-react'
+import { GitBranch, Plus, Edit, Trash2, RefreshCw, ChevronRight, ChevronDown, Folder, FolderOpen, FileText, Users, Upload, Tag, X, Lock, Unlock, History, FileSignature, Shield } from 'lucide-react'
 import { toast } from 'sonner'
-import { studiesApi, databaseReleasesApi, reportingEffortsApi, useCasesApi } from '@/api'
+import { studiesApi, databaseReleasesApi, reportingEffortsApi, useCasesApi, tenantDataApi } from '@/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -25,6 +25,8 @@ import { useAuthStore } from '@/stores/authStore'
 import { StudyMembersDialog } from './StudyMembersDialog'
 import { LockReportingEffortDialog } from './LockReportingEffortDialog'
 import { LockHistoryDialog } from './LockHistoryDialog'
+import { SignReportingEffortDialog } from './SignReportingEffortDialog'
+import { SignatureSetupDialog } from '../settings/SignatureSetupDialog'
 import type { Study, DatabaseRelease, ReportingEffort, BulkHierarchyRow, UseCase, UseCaseSummary } from '@/types'
 import { cn, getErrorMessage } from '@/lib/utils'
 
@@ -52,6 +54,8 @@ export function StudyManagement() {
   const [useCasesDialogOpen, setUseCasesDialogOpen] = useState(false)
   const [lockDialogOpen, setLockDialogOpen] = useState(false)
   const [lockHistoryDialogOpen, setLockHistoryDialogOpen] = useState(false)
+  const [signDialogOpen, setSignDialogOpen] = useState(false)
+  const [signatureSetupDialogOpen, setSignatureSetupDialogOpen] = useState(false)
   const [formData, setFormData] = useState({ label: '', date: '' })
 
   const formatDateForInput = (value?: string) => (value ? value.slice(0, 10) : '')
@@ -85,6 +89,15 @@ export function StudyManagement() {
     queryFn: () => studiesApi.getMyPermissions(selectedStudyId!),
     enabled: !!selectedStudyId && !!currentUser,
   })
+
+  // Query for tenant signature lock setting
+  // When true: signing auto-locks (hide manual lock toggle)
+  // When false: manual lock/unlock is available
+  const { data: signatureLockSetting } = useQuery({
+    queryKey: ['tenant-signature-lock-setting'],
+    queryFn: tenantDataApi.getSignatureLockSetting,
+  })
+  const showManualLockToggle = signatureLockSetting?.signature_locks_effort === false
 
   // Check if current user can manage members (LEAD or global ADMIN)
   const canManageMembers = currentUser?.is_admin || studyPermissions?.can_manage_members
@@ -412,8 +425,11 @@ export function StudyManagement() {
           <Icon className="h-4 w-4" />
           <span className="text-sm flex-1 flex items-center gap-1.5">
             {node.label}
-            {node.type === 'effort' && (node.data as ReportingEffort).is_locked && (
-              <Lock className="h-3.5 w-3.5 text-amber-500" />
+            {node.type === 'effort' && (node.data as ReportingEffort).is_signed && (
+              <Shield className="h-3.5 w-3.5 text-green-500" title="Signed" />
+            )}
+            {node.type === 'effort' && (node.data as ReportingEffort).is_locked && !(node.data as ReportingEffort).is_signed && (
+              <Lock className="h-3.5 w-3.5 text-amber-500" title="Locked" />
             )}
           </span>
           
@@ -569,47 +585,68 @@ export function StudyManagement() {
                         <Tag className="h-4 w-4 mr-2" />
                         Manage Use Cases
                       </Button>
-                      {/* Lock Toggle Switch */}
-                      <TooltipWrapper
-                        content={(selectedNode.data as ReportingEffort).is_locked 
-                          ? 'Currently Locked - Click to unlock' 
-                          : 'Currently Unlocked - Click to lock'}
-                        side="bottom"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setLockDialogOpen(true)}
-                          className="flex items-center gap-2 px-3 py-1.5 rounded-md border hover:bg-accent transition-colors"
+                      {/* Lock Toggle Switch - Only show if manual lock/unlock is enabled */}
+                      {showManualLockToggle && (
+                        <TooltipWrapper
+                          content={(selectedNode.data as ReportingEffort).is_locked 
+                            ? 'Currently Locked - Click to unlock' 
+                            : 'Currently Unlocked - Click to lock'}
+                          side="bottom"
                         >
-                          <span className="text-sm font-medium text-muted-foreground">
-                            {(selectedNode.data as ReportingEffort).is_locked ? 'Locked' : 'Unlocked'}
-                          </span>
-                          <div className="relative">
-                            <div
-                              className={`block h-5 w-9 rounded-full transition-colors ${
-                                (selectedNode.data as ReportingEffort).is_locked 
-                                  ? 'bg-amber-500' 
-                                  : 'bg-gray-300 dark:bg-gray-600'
-                              }`}
-                            />
-                            <div
-                              className={`absolute left-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white shadow transition-transform ${
-                                (selectedNode.data as ReportingEffort).is_locked ? 'translate-x-4' : ''
-                              }`}
-                            >
-                              {(selectedNode.data as ReportingEffort).is_locked ? (
-                                <Lock className="h-2.5 w-2.5 text-amber-500" />
-                              ) : (
-                                <Unlock className="h-2.5 w-2.5 text-gray-400" />
-                              )}
+                          <button
+                            type="button"
+                            onClick={() => setLockDialogOpen(true)}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-md border hover:bg-accent transition-colors"
+                          >
+                            <span className="text-sm font-medium text-muted-foreground">
+                              {(selectedNode.data as ReportingEffort).is_locked ? 'Locked' : 'Unlocked'}
+                            </span>
+                            <div className="relative">
+                              <div
+                                className={`block h-5 w-9 rounded-full transition-colors ${
+                                  (selectedNode.data as ReportingEffort).is_locked 
+                                    ? 'bg-amber-500' 
+                                    : 'bg-gray-300 dark:bg-gray-600'
+                                }`}
+                              />
+                              <div
+                                className={`absolute left-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white shadow transition-transform ${
+                                  (selectedNode.data as ReportingEffort).is_locked ? 'translate-x-4' : ''
+                                }`}
+                              >
+                                {(selectedNode.data as ReportingEffort).is_locked ? (
+                                  <Lock className="h-2.5 w-2.5 text-amber-500" />
+                                ) : (
+                                  <Unlock className="h-2.5 w-2.5 text-gray-400" />
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        </button>
-                      </TooltipWrapper>
+                          </button>
+                        </TooltipWrapper>
+                      )}
+                      {/* Lock Status Indicator - Show when auto-lock is enabled and effort is locked */}
+                      {!showManualLockToggle && (selectedNode.data as ReportingEffort).is_locked && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                          <Lock className="h-4 w-4 text-amber-500" />
+                          <span className="text-sm font-medium text-amber-700 dark:text-amber-400">Locked</span>
+                        </div>
+                      )}
                       <Button size="sm" variant="ghost" onClick={() => setLockHistoryDialogOpen(true)}>
                         <History className="h-4 w-4 mr-2" />
                         Lock History
                       </Button>
+                      {/* Sign Button - Only show if not already signed */}
+                      {!(selectedNode.data as ReportingEffort).is_signed && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSignDialogOpen(true)}
+                          className="border-blue-500/50 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+                        >
+                          <FileSignature className="h-4 w-4 mr-2" />
+                          Sign
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>
@@ -619,7 +656,35 @@ export function StudyManagement() {
                   Use "Manage Members" to add team members and assign roles (Lead, Editor, Viewer) for this study.
                 </p>
               )}
-              {selectedNode.type === 'effort' && (selectedNode.data as ReportingEffort).is_locked && (
+              {/* Signature Status Banner */}
+              {selectedNode.type === 'effort' && (selectedNode.data as ReportingEffort).is_signed && (
+                <div className="mt-3 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <Shield className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm">
+                      <p className="font-medium text-green-700 dark:text-green-400">
+                        Electronically Signed
+                        {(selectedNode.data as ReportingEffort).signed_by_username && (
+                          <span className="font-normal text-green-600 dark:text-green-500">
+                            {' '}by {(selectedNode.data as ReportingEffort).signed_by_username}
+                          </span>
+                        )}
+                        {(selectedNode.data as ReportingEffort).signed_at && (
+                          <span className="font-normal text-green-600 dark:text-green-500">
+                            {' '}on {new Date((selectedNode.data as ReportingEffort).signed_at!).toLocaleDateString()}
+                          </span>
+                        )}
+                      </p>
+                      {(selectedNode.data as ReportingEffort).signature_reason && (
+                        <p className="text-green-600 dark:text-green-400 mt-1">
+                          Reason: {(selectedNode.data as ReportingEffort).signature_reason}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {selectedNode.type === 'effort' && (selectedNode.data as ReportingEffort).is_locked && !(selectedNode.data as ReportingEffort).is_signed && (
                 <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
                   <div className="flex items-start gap-2">
                     <Lock className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
@@ -875,6 +940,32 @@ export function StudyManagement() {
         reportingEffort={selectedNode?.type === 'effort' ? (selectedNode.data as ReportingEffort) : null}
         open={lockHistoryDialogOpen}
         onOpenChange={setLockHistoryDialogOpen}
+      />
+
+      {/* Sign Reporting Effort Dialog */}
+      <SignReportingEffortDialog
+        reportingEffort={selectedNode?.type === 'effort' ? (selectedNode.data as ReportingEffort) : null}
+        open={signDialogOpen}
+        onOpenChange={setSignDialogOpen}
+        onSignComplete={(updatedEffort) => {
+          // Update the selectedNode with fresh signature data
+          if (selectedNode?.type === 'effort' && selectedNode.id === updatedEffort.id) {
+            setSelectedNode({
+              ...selectedNode,
+              data: updatedEffort,
+            })
+          }
+        }}
+        onSetupSignature={() => {
+          setSignDialogOpen(false)
+          setSignatureSetupDialogOpen(true)
+        }}
+      />
+
+      {/* Signature Setup Dialog */}
+      <SignatureSetupDialog
+        open={signatureSetupDialogOpen}
+        onOpenChange={setSignatureSetupDialogOpen}
       />
     </div>
   )

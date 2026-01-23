@@ -4,71 +4,12 @@
 
 import { apiClient } from '../client';
 
-// Types
-export interface SampleDataStatus {
-  has_sample_data: boolean;
-  tenant_id: number;
-}
-
-export interface DataCounts {
-  studies: number;
-  database_releases: number;
-  packages: number;
-  package_items: number;
-  text_elements: number;
-  users: number;
-}
-
-export interface ResetResponse {
-  message: string;
-  cleared: DataCounts;
-  seeded: DataCounts;
-}
-
-export interface SeedResponse {
-  message: string;
-  counts: DataCounts;
-}
-
-/**
- * Check if tenant has sample data seeded
- */
-export const getSampleDataStatus = async (): Promise<SampleDataStatus> => {
-  const response = await apiClient.get<SampleDataStatus>('/tenant/sample-data/status');
-  return response.data;
-};
-
-/**
- * Seed sample data for the tenant
- */
-export const seedSampleData = async (): Promise<SeedResponse> => {
-  const response = await apiClient.post<SeedResponse>('/tenant/sample-data/seed');
-  return response.data;
-};
-
-/**
- * Reset tenant data to sample state
- */
-export const resetToSampleData = async (): Promise<ResetResponse> => {
-  const response = await apiClient.post<ResetResponse>('/tenant/reset-to-sample');
-  return response.data;
-};
-
-/**
- * Clear all tenant data (except users)
- */
-export const clearAllData = async (): Promise<DataCounts> => {
-  const response = await apiClient.delete<DataCounts>('/tenant/clear-all');
-  return response.data;
-};
-
 // =============================================================================
 // Onboarding endpoints
 // =============================================================================
 
 export interface OnboardingStatus {
   onboarding_completed: boolean;
-  sample_data_seeded: boolean;
   tenant_id: number;
 }
 
@@ -197,5 +138,36 @@ export interface UsageResponse {
  */
 export const getUsageStats = async (): Promise<UsageResponse> => {
   const response = await apiClient.get<UsageResponse>('/tenant/usage');
+  return response.data;
+};
+
+// =============================================================================
+// Tenant Settings endpoints
+// =============================================================================
+
+export interface SignatureLockSetting {
+  signature_locks_effort: boolean;
+}
+
+/**
+ * Get the signature lock setting for the tenant.
+ * When true: Signing automatically locks, manual lock/unlock is hidden.
+ * When false: Lock/unlock is manual and independent of signing.
+ */
+export const getSignatureLockSetting = async (): Promise<SignatureLockSetting> => {
+  const response = await apiClient.get<SignatureLockSetting>('/tenant/settings/signature-locks-effort');
+  return response.data;
+};
+
+/**
+ * Update the signature lock setting for the tenant (admin only).
+ */
+export const updateSignatureLockSetting = async (
+  signatureLocksEffort: boolean
+): Promise<SignatureLockSetting> => {
+  const response = await apiClient.put<SignatureLockSetting>(
+    '/tenant/settings/signature-locks-effort',
+    { signature_locks_effort: signatureLocksEffort }
+  );
   return response.data;
 };

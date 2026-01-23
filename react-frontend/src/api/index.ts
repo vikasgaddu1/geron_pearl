@@ -23,3 +23,4 @@ export {
 } from './endpoints/ig-versions'
 export * as useCasesApi from './endpoints/use-cases'
 export { auditLogsApi } from './endpoints/audit-logs'
+export * as tenantDataApi from './endpoints/tenant-data'

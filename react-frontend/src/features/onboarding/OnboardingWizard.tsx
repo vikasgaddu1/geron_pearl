@@ -86,9 +86,6 @@ const STEPS = [
             </div>
           </div>
         </div>
-        <p className="text-sm text-gray-500 italic">
-          We've added sample studies (DEMO-001, DEMO-002) to help you explore.
-        </p>
       </div>
     ),
   },
@@ -125,9 +122,6 @@ const STEPS = [
             </div>
           </div>
         </div>
-        <p className="text-sm text-gray-500 italic">
-          Sample packages (PKG-SAFETY, PKG-EFFICACY, PKG-DEMOGRAPHICS) are ready to explore.
-        </p>
       </div>
     ),
   },
@@ -207,12 +201,11 @@ const STEPS = [
           <Check className="w-10 h-10 text-green-600" />
         </div>
         <p className="text-gray-600">
-          You're ready to start using PEARL! Explore the sample data we've 
-          created, or jump right in and create your own studies.
+          You're ready to start using PEARL! Create your first study and start
+          tracking your clinical trial deliverables.
         </p>
         <div className="pt-4 space-y-2 text-sm text-gray-500">
           <p>Need help? Check out the <strong>Help Center</strong> anytime.</p>
-          <p>You can always reset to sample data from <strong>Settings</strong>.</p>
         </div>
       </div>
     ),

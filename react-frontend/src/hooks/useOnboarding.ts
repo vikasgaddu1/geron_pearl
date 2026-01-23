@@ -2,12 +2,14 @@
  * Onboarding hook
  *
  * Manages onboarding wizard state for new tenant admins.
+ * Shows QuickStartWizard for admins with no studies, or OnboardingWizard for those who have data.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getOnboardingStatus, completeOnboarding } from '@/api/endpoints/tenant-data';
 import { useAuthStore } from '@/stores/authStore';
+import { studiesApi } from '@/api';
 
 const LOCAL_STORAGE_KEY = 'pearl-onboarding-completed';
 
@@ -45,6 +47,14 @@ export function useOnboarding() {
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 
+  // Fetch studies to determine if user has any data
+  const { data: studies = [] } = useQuery({
+    queryKey: ['studies'],
+    queryFn: studiesApi.getAll,
+    enabled: shouldCheckOnboarding,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Complete onboarding mutation
   const completeMutation = useMutation({
     mutationFn: completeOnboarding,
@@ -53,6 +63,9 @@ export function useOnboarding() {
       setShowWizard(false);
     },
   });
+
+  // Determine if user has studies
+  const hasStudies = studies.length > 0;
 
   // Show wizard for admins who haven't completed onboarding
   // Also check localStorage as fallback (in case API call failed previously)
@@ -93,7 +106,7 @@ export function useOnboarding() {
     isLoading,
     error,
     onboardingCompleted: status?.onboarding_completed ?? true,
-    sampleDataSeeded: status?.sample_data_seeded ?? false,
+    hasStudies,
     handleComplete,
     handleSkip,
     dismissWizard,

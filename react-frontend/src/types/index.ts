@@ -62,6 +62,12 @@ export interface ReportingEffort {
   locked_by_id?: number
   locked_by_username?: string
   lock_reason?: string
+  // Signature fields (electronic signature for permanent sign-off)
+  is_signed: boolean
+  signed_at?: string
+  signed_by_id?: number
+  signed_by_username?: string
+  signature_reason?: string
 }
 
 export interface LockHistoryEntry {
@@ -71,6 +77,56 @@ export interface LockHistoryEntry {
   performed_by_id: number
   performed_by_username: string
   created_at: string
+}
+
+// ==================== Electronic Signature Types ====================
+
+export interface SignatureHistoryEntry {
+  id: number
+  signed_by_id?: number
+  signed_by_username: string
+  signature_hash: string
+  reason: string
+  items_count: number
+  created_at: string
+  ip_address?: string
+}
+
+export interface SignatureReadinessResponse {
+  can_sign: boolean
+  is_signed: boolean
+  has_totp_setup: boolean
+  is_responsible: boolean
+  all_items_in_production: boolean
+  total_items: number
+  items_in_production: number
+  is_locked_out: boolean
+  lockout_remaining_minutes: number
+  blockers: string[]
+  signed_by_username?: string
+  signed_at?: string
+}
+
+export interface SignatureVerificationResponse {
+  is_valid: boolean
+  signed_at?: string
+  signed_by_username?: string
+  items_match: boolean
+  items_at_signing: number
+  items_current: number
+}
+
+export interface SignatureSetupResponse {
+  provisioning_uri: string
+  backup_codes: string[]
+  message: string
+}
+
+export interface SignatureStatusResponse {
+  is_setup_completed: boolean
+  is_locked_out: boolean
+  lockout_remaining_minutes: number
+  failed_attempts: number
 }
 
 export interface User {

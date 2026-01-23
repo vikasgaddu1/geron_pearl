@@ -1,5 +1,12 @@
 import { apiClient } from '../client'
-import type { ReportingEffort, ReportingEffortFormData, LockHistoryEntry } from '@/types'
+import type {
+  ReportingEffort,
+  ReportingEffortFormData,
+  LockHistoryEntry,
+  SignatureHistoryEntry,
+  SignatureReadinessResponse,
+  SignatureVerificationResponse
+} from '@/types'
 
 const BASE_PATH = '/api/v1/reporting-efforts'
 
@@ -46,6 +53,44 @@ export const reportingEffortsApi = {
 
   getLockHistory: async (id: number): Promise<LockHistoryEntry[]> => {
     const response = await apiClient.get(`${BASE_PATH}/${id}/lock-history`)
+    return response.data
+  },
+
+  // ==================== Electronic Signature Endpoints ====================
+
+  /**
+   * Check if a reporting effort can be signed and what preconditions are met.
+   */
+  checkSignatureReadiness: async (id: number): Promise<SignatureReadinessResponse> => {
+    const response = await apiClient.get(`${BASE_PATH}/${id}/signature-readiness`)
+    return response.data
+  },
+
+  /**
+   * Electronically sign a reporting effort.
+   * This action is PERMANENT and cannot be reversed.
+   */
+  sign: async (id: number, totpToken: string, reason: string): Promise<ReportingEffort> => {
+    const response = await apiClient.post(`${BASE_PATH}/${id}/sign`, {
+      totp_token: totpToken,
+      reason: reason,
+    })
+    return response.data
+  },
+
+  /**
+   * Get the signature history for a reporting effort.
+   */
+  getSignatureHistory: async (id: number): Promise<SignatureHistoryEntry[]> => {
+    const response = await apiClient.get(`${BASE_PATH}/${id}/signature-history`)
+    return response.data
+  },
+
+  /**
+   * Verify the integrity of a signed reporting effort.
+   */
+  verifySignature: async (id: number): Promise<SignatureVerificationResponse> => {
+    const response = await apiClient.get(`${BASE_PATH}/${id}/verify-signature`)
     return response.data
   },
 }
