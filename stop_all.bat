@@ -46,7 +46,12 @@ echo ========================================
 echo.
 echo NOTE: If you still have issues after restart,
 echo       close this terminal and open a new one.
+echo.
+echo TIP: To reset the Quick Start wizard, clear localStorage in your browser:
+echo      1. Open DevTools (F12)
+echo      2. Go to Application ^> Local Storage
+echo      3. Delete 'pearl-onboarding-completed' key
 
-timeout /t 3 >nul
+timeout /t 5 >nul
 
 

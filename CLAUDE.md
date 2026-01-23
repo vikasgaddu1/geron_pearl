@@ -301,16 +301,82 @@ All routers registered in [api/v1/__init__.py](backend/app/api/v1/__init__.py):
 
 **Hot-reload DOES work for**: Changes inside existing endpoint functions (e.g., modifying query logic)
 
-## Claude Code Skills
+## Claude Code Customization
 
-Two custom skills are available for feature development:
+### Agents vs Skills
+
+| Type | Location | Invocation | Purpose |
+|------|----------|------------|---------|
+| Agents | `.claude/agents/name.md` | Auto-delegated or explicit | Autonomous tasks (reviewing, exploring) |
+| Skills | `.claude/skills/name/SKILL.md` | `/skill-name` | Code templates and patterns |
+
+### Custom Agents
+
+| Agent | Purpose |
+|-------|---------|
+| `plan-critic` | Adversarial review of implementation plans before coding - finds at least 3 critical issues |
+| `worktree-coordinator` | Coordinate parallel git worktree development - tracks table ownership, prevents migration conflicts, generates merge sequences |
+| `cdisc-integration` | CDISC Library API integration specialist - handles data model mapping, API parsing, import idempotency |
+
+### Custom Skills
 
 | Skill | Description | Use When |
 |-------|-------------|----------|
+| `/critical-planner` | Multi-pass critical planning with adversarial review | Planning any non-trivial feature before implementation |
 | `/pearl-backend-dev` | FastAPI backend development patterns | Creating endpoints, CRUD classes, models, schemas |
 | `/pearl-frontend-dev` | React frontend development patterns | Creating components, forms, tables, API integration |
+| `/pearl-entity-gen` | Generate full-stack PEARL entities (Model→Schema→CRUD→API) | Creating new database entities that need all layers |
+| `/pearl-migration` | Alembic migrations with PostgreSQL features (enums, RLS, pgvector) | Creating database migrations with complex features |
+| `/pearl-rag-setup` | pgvector RAG configuration with embedding service | Setting up semantic search for entities |
+| `/pearl-test-gen` | Curl-based test script generator | Creating functional tests for new API endpoints |
 
-These skills provide detailed code templates following project standards.
+### Agent File Format
+
+Agents must be Markdown files with YAML frontmatter. For auto-delegation, include `<example>` blocks with `<commentary>` tags in the description. Use `/agents` command to create properly formatted agents.
+
+### Keeping Skills in Sync
+
+After adding new patterns to CLAUDE.md or the codebase:
+1. Update relevant skill files in `.claude/skills/`
+2. Skills should mirror CLAUDE.md patterns with executable code templates
+3. Run periodic reviews: "Check if skills match current patterns in CLAUDE.md"
+
+## Planning Requirements
+
+**IMPORTANT**: For non-trivial features, ALWAYS use the `/critical-planner` skill or perform multi-pass critical review before implementation.
+
+### Multi-Pass Planning Process
+
+When planning any feature that touches multiple files or has architectural implications:
+
+1. **Pass 1 - Draft**: Create initial implementation plan (files, dependencies, API contracts)
+2. **Pass 2 - Attack**: Review as adversary - find security holes, missing PEARL patterns, race conditions
+3. **Pass 3 - Integrate**: Check edge cases, integration points, testing requirements
+4. **Pass 4 - Synthesize**: Final plan with "Gaps Addressed" section showing what was caught
+
+### PEARL-Specific Review Checklist
+
+Every plan MUST verify:
+- [ ] WebSocket broadcasts for all CRUD operations
+- [ ] Audit logging for major entities
+- [ ] Deletion protection for parent entities
+- [ ] Authorization checks (admin/LEAD/role-based)
+- [ ] Tenant isolation (tenant_id filtering)
+- [ ] Database migrations for new columns
+- [ ] CRUD layer usage (no direct DB access)
+- [ ] Frontend/backend schema alignment
+
+### Plan-Critic Agent
+
+The `plan-critic` agent in `.claude/agents/plan-critic.md` provides adversarial plan review. It will find at least 3 critical issues in any plan. Use it after drafting implementation plans.
+
+### When to Skip Multi-Pass Planning
+
+Only skip for:
+- Single-file bug fixes
+- Typo corrections
+- Adding a single field to existing patterns
+- Changes explicitly detailed by the user
 
 ## Testing Strategy
 
